@@ -1,4 +1,3 @@
-//`timescale 1ns / 1ps
 
  import Base::*;
  import InsDefs::*;
@@ -7,12 +6,12 @@
 
 package AbstractSim;
     
-     import Base::*;
-     import InsDefs::*;
-     import Asm::*;
-     import Emulation::*;
+    import Base::*;
+    import InsDefs::*;
+    import Asm::*;
+    import Emulation::*;
 
-     typedef Word Mword;
+    typedef Word Mword;
 
     typedef struct {
         logic active;
@@ -23,21 +22,11 @@ package AbstractSim;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
 
-     typedef struct {
-        Mword target;
-        logic redirect;
-        logic sig;
-        logic wrong;
-     } LateEvent;
 
-    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
-    
     static EmulationWithMems emul = new();
     static int commitCtr = 0;
-    static string testName;
 
     function static void TMP_setTest(input string str);
-        testName = str;
         emul.prepareTest({str, ".txt"}, 1024);
     endfunction
 
@@ -53,7 +42,6 @@ package AbstractSim;
         emul.prepareIntTest(1024);            
     endfunction
 
-
     function static void TMP_reset();
         commitCtr = 0;
         emul.resetCpu();
@@ -64,16 +52,11 @@ package AbstractSim;
         commitCtr++;
         emul.step();
         emul.writeAndDrain();
-            
+
         theIp = emul.emul.ip;
-            
+
         if (theIp != op.adr || emul.emul.str != disasm(op.bits)) $display("Mismatched commit: %d: %s;  %d: %s", theIp, emul.emul.str, op.adr, disasm(op.bits));
     endfunction
-
-    function static int TMP_getCommit();
-        return commitCtr;
-    endfunction
-
 
     function static void TMP_interrupt();
         emul.interrupt();
@@ -83,9 +66,27 @@ package AbstractSim;
         return emul.emul;
     endfunction
 
-    function static EmulationWithMems TMP_getEmulWithMems();
-        return emul;
+    typedef Word Ptype[4096];
+
+    function static Ptype TMP_getP();
+        return emul.progMem;
     endfunction
+
+    function static void TMP_setP(input Word p[4096]);
+        emul.progMem = p;
+    endfunction
+
+
+
+    typedef struct {
+        Mword target;
+        logic redirect;
+        logic sig;
+        logic wrong;
+    } LateEvent;
+
+    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
+
 
     function automatic LateEvent getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword sr2, input Mword sr3);
         LateEvent res = '{target: 'x, redirect: 0, sig: 0, wrong: 0};
@@ -131,7 +132,7 @@ package AbstractSim;
 
         return res;
     endfunction
-        
+   
 
 
     function automatic logic writesIntReg(input OpSlot op);
@@ -150,7 +151,7 @@ package AbstractSim;
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isBranchIns(abs);
     endfunction
-    
+
 
     function automatic logic isStoreMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -161,13 +162,13 @@ package AbstractSim;
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isLoadIns(abs);
     endfunction
-    
- 
+
+
     function automatic logic isMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isMemIns(abs);
     endfunction
-    
+
     function automatic logic isSysOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isSysIns(abs);
@@ -176,11 +177,12 @@ package AbstractSim;
 
 
 
-
-     class ProgramMemory #(parameter WIDTH = 4);
+    class ProgramMemory #(parameter WIDTH = 4);
         typedef Word Line[4];
         
-        Word content[1024];
+        Word content[4096];
+        
+        
         
         function void setBasicHandlers();
             this.content[IP_RESET/4] = processLines({"ja -512"}).words[0];
@@ -213,28 +215,27 @@ package AbstractSim;
             foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
             return res;
         endfunction
-        
-        
+
     endclass
     
-     class DataMemory #(parameter WIDTH = 4);
+    
+    class DataMemory #(parameter WIDTH = 4);
         typedef logic[7:0] Line[4];
         
         logic[7:0] content[4096];
         
         function void setContent(Word arr[]);
-            foreach (arr[i]) this.content[i] = arr[i];
+            foreach (arr[i]) content[i] = arr[i];
         endfunction
         
         function void clear();
-            this.content = '{default: '0};
+            content = '{default: '0};
         endfunction;
         
         function automatic Word read(input Word adr);
             Word res = 0;
             
-            for (int i = 0; i < 4; i++) 
-                res = (res << 8) + content[adr + i];
+            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
             
             return res;
         endfunction
@@ -309,8 +310,6 @@ package AbstractSim;
         endfunction
         
     endclass
-
-
 
 
 endpackage

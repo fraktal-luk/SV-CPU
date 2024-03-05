@@ -30,22 +30,26 @@ module ArchDesc0();
                                    "ja 0"
                                   };
 
-    Emulator emulSig;
     Section common;
+    squeue tests;
+    string emulTestName, simTestName;
 
+    initial tests = readFile("tests_all.txt");
+    initial common = processLines(readFile({"common_asm", ".txt"}));
+
+
+    Emulator emulSig;
     Word progMem[4096];
     logic[7:0] dataMem[] = new[4096]('{default: 0});
 
-    string emulTestName, simTestName;
 
 
-    initial common = processLines(readFile({"common_asm", ".txt"}));
+    initial runEmul();
 
-    initial runEmulTests();
 
-    task automatic runEmulTests();
+    task automatic runEmul();
         Emulator emul = new();
-        squeue tests = readFile("tests_all.txt");
+        //squeue tests = readFile("tests_all.txt");
         
         emul.reset();
         emulSig = emul;
@@ -58,29 +62,24 @@ module ArchDesc0();
             else if (lineParts.size() == 0);
             else begin            
                 emulTestName = lineParts[0];
-                runTest({lineParts[0], ".txt"}, emul);
-                //emulTestName = "";
+                runTestEmul({lineParts[0], ".txt"}, emul);
             end
             #1;
         end
 
         emulTestName = "err signal";
-        testErrorSignal(emul);
-        //emulTestName = "";
+        runErrorTestEmul(emul);
         #1;
         
         emulTestName = "event";
-        testEvent(emul);
-        //emulTestName = "";
+        runEventTestEmul(emul);
         #1;
         
         emulTestName = "event2";
-        testInterrupt(emul);
-        //emulTestName = "";
+        runIntTestEmul(emul);
         #1;
                 
     endtask
-
 
 
     task automatic setBasicHandlers(ref Word progMem[4096]);
@@ -91,7 +90,7 @@ module ArchDesc0();
 
 
     // Emul-only run
-    task automatic runTest(input string name, ref Emulator emul);
+    task automatic runTestEmul(input string name, ref Emulator emul);
         int iter;
         squeue fileLines = readFile(name);
         Section testSection = processLines(fileLines);
@@ -125,7 +124,7 @@ module ArchDesc0();
     endtask
 
 
-    task automatic testErrorSignal(ref Emulator emul);
+    task automatic runErrorTestEmul(ref Emulator emul);
         int iter;
 
         dataMem = '{default: 0};
@@ -157,7 +156,7 @@ module ArchDesc0();
     endtask
 
 
-    task automatic testEvent(ref Emulator emul);
+    task automatic runEventTestEmul(ref Emulator emul);
         int iter;
         squeue fileLines = readFile("events.txt");
         Section testSection = processLines(fileLines);
@@ -170,7 +169,7 @@ module ArchDesc0();
         writeProgram(progMem, COMMON_ADR, common.words);
         setBasicHandlers(progMem);
 
-        writeProgram(progMem, IP_CALL, '{0, 0, 0, 0});
+        //writeProgram(progMem, IP_CALL, '{0, 0, 0, 0});
         writeProgram(progMem, IP_CALL, processLines(CALL_HANDLER).words);
 
         emul.reset();
@@ -194,7 +193,7 @@ module ArchDesc0();
     endtask
 
 
-    task automatic testInterrupt(ref Emulator emul);
+    task automatic runIntTestEmul(ref Emulator emul);
         int iter;
 
         squeue fileLines = readFile("events2.txt");
@@ -256,7 +255,8 @@ module ArchDesc0();
         
         
         task automatic runSim();
-            squeue tests = readFile("tests_all.txt");
+            //squeue tests = readFile("tests_all.txt");
+            #CYCLE;
             
             foreach (tests[i]) begin
                 squeue lineParts = breakLine(tests[i]);
@@ -264,15 +264,15 @@ module ArchDesc0();
                 if (lineParts.size() > 1) $error("There should be 1 test per line");
                 else if (lineParts.size() == 0) continue;
                 
-                    TMP_setTest(lineParts[0]);
+                //    TMP_setTest(lineParts[0]);
                 runTestSim(lineParts[0]);
             end
                 
-                TMP_prepareErrorTest();
+               // TMP_prepareErrorTest();
             runErrorTestSim();
-                TMP_prepareEventTest();
+               // TMP_prepareEventTest();
             runEventTestSim();
-                TMP_prepareIntTest();
+                //TMP_prepareIntTest();
             runIntTestSim();
             
             $display("All tests done;");
@@ -295,10 +295,15 @@ module ArchDesc0();
 
         task automatic runTestSim(input string name);
             Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
+                TMP_setTest(name);
+                   // cmpMems(programMem.content, TMP_getP());
+
             #CYCLE announce(name);
-
             setPrograms(testProg);
-
+                    //        programMem.content[900] = 27;
+                   // cmpMems(programMem.content, TMP_getP());
+                TMP_setP(programMem.content);
+            
             #CYCLE pulseReset();
 
             wait (done | wrong);
@@ -306,12 +311,19 @@ module ArchDesc0();
             #CYCLE;
         endtask
 
+
+
         task automatic runErrorTestSim();
             Section testProg = processLines({"undef",
                                              "ja 0"});
-            #CYCLE announce("err");
+                TMP_prepareErrorTest();
 
+            #CYCLE announce("err");
             setPrograms(testProg);
+            
+                        //        cmpMems(programMem.content, TMP_getP());
+                TMP_setP(programMem.content);
+
             #CYCLE pulseReset();
 
             wait (wrong);
@@ -320,10 +332,15 @@ module ArchDesc0();
 
         task automatic runEventTestSim();
             Section testProg = fillImports(processLines(readFile({"events", ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
-            #CYCLE announce("event");
+                TMP_prepareEventTest();
 
+            #CYCLE announce("event");
             setPrograms(testProg);
             programMem.setContentAt(processLines(CALL_HANDLER).words, IP_CALL);
+            
+                           //     cmpMems(programMem.content, TMP_getP());
+                TMP_setP(programMem.content);
+
             #CYCLE pulseReset();
 
             wait (done | wrong);
@@ -331,23 +348,24 @@ module ArchDesc0();
             #CYCLE;
         endtask
 
-
         task automatic runIntTestSim();
             Section testProg = fillImports(processLines(readFile({"events2", ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
+                TMP_prepareIntTest();
+
             #CYCLE announce("int");
-            
             setPrograms(testProg);
             programMem.setContentAt(processLines(CALL_HANDLER).words, IP_CALL);
             programMem.setContentAt(processLines(INT_HANDLER).words, IP_INT);
+            
+                             //   cmpMems(programMem.content, TMP_getP());
+                TMP_setP(programMem.content);
+
             #CYCLE pulseReset();
             
             wait (fetchAdr == IP_CALL);
             #CYCLE;
             
-            int0 <= 1;
-            #CYCLE;
-            int0 <= 0;
-            #CYCLE;
+            pulseInt0();
 
             wait (done | wrong);
             if (wrong) $fatal("TEST FAILED: %s", "int");
@@ -361,11 +379,22 @@ module ArchDesc0();
             #CYCLE;
         endtask
 
+        task pulseInt0();
+            int0 <= 1;
+            #CYCLE;
+            int0 <= 0;
+            #CYCLE;
+        endtask
+
         initial begin
             programMem = new();
             dmem = new();
             dmem.clear();
         end
+        
+        
+        initial runSim();
+
         
         always_ff @(posedge clk) icacheOut <= programMem.read(fetchAdr);
         
@@ -374,9 +403,7 @@ module ArchDesc0();
             if (writeEn) dmem.write(writeAdr, writeValue);
             if (reset) dmem.clear();
         end
-        
-        initial runSim();
-        
+                
         AbstractCore core(
             .clk(clk),
             .insReq(), .insAdr(fetchAdr), .insIn(icacheOut),
