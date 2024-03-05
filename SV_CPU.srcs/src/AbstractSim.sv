@@ -26,23 +26,24 @@ package AbstractSim;
     static EmulationWithMems emul = new();
     static int commitCtr = 0;
 
-    function static void TMP_setTest(input string str);
-        emul.prepareTest({str, ".txt"}, 1024);
-    endfunction
+//    function static void TMP_setTest(input string str);
+//        emul.prepareTest({str, ".txt"}, 1024);
+//    endfunction
 
-    function static void TMP_prepareErrorTest();
-        emul.prepareErrorTest(1024);            
-    endfunction
+//    function static void TMP_prepareErrorTest();
+//        emul.prepareErrorTest(1024);            
+//    endfunction
 
-    function static void TMP_prepareEventTest();
-        emul.prepareEventTest(1024);            
-    endfunction
+//    function static void TMP_prepareEventTest();
+//        emul.prepareEventTest(1024);            
+//    endfunction
     
-    function static void TMP_prepareIntTest();
-        emul.prepareIntTest(1024);            
-    endfunction
+//    function static void TMP_prepareIntTest();
+//        emul.prepareIntTest(1024);            
+//    endfunction
 
     function static void TMP_reset();
+        emul.resetData();
         commitCtr = 0;
         emul.resetCpu();
     endfunction
@@ -184,16 +185,16 @@ package AbstractSim;
         
         
         
-        function void setBasicHandlers();
-            this.content[IP_RESET/4] = processLines({"ja -512"}).words[0];
-            this.content[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
+//        function void setBasicHandlers();
+//            this.content[IP_RESET/4] = processLines({"ja -512"}).words[0];
+//            this.content[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
             
-            this.content[IP_ERROR/4] = processLines({"sys error"}).words[0];
-            this.content[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
+//            this.content[IP_ERROR/4] = processLines({"sys error"}).words[0];
+//            this.content[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
     
-            this.content[IP_CALL/4] = processLines({"sys send"}).words[0];
-            this.content[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];
-        endfunction
+//            this.content[IP_CALL/4] = processLines({"sys send"}).words[0];
+//            this.content[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];
+//        endfunction
         
         function void clear();
             this.content = '{default: 'x};

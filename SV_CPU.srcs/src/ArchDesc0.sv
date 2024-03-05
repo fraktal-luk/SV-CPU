@@ -275,7 +275,7 @@ module ArchDesc0();
                 //TMP_prepareIntTest();
             runIntTestSim();
             
-            $display("All tests done;");
+            $display("All tests done.");
             $stop(1);
         endtask
         
@@ -290,12 +290,13 @@ module ArchDesc0();
             programMem.clear();
             programMem.setContentAt(common/*commonSim*/.words, COMMON_ADR);            
             programMem.setContent(testSec.words);
-            programMem.setBasicHandlers();
+            //programMem.setBasicHandlers();
+            setBasicHandlers(programMem.content);
         endtask
 
         task automatic runTestSim(input string name);
             Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
-                TMP_setTest(name);
+               // TMP_setTest(name);
                    // cmpMems(programMem.content, TMP_getP());
 
             #CYCLE announce(name);
@@ -316,7 +317,7 @@ module ArchDesc0();
         task automatic runErrorTestSim();
             Section testProg = processLines({"undef",
                                              "ja 0"});
-                TMP_prepareErrorTest();
+               // TMP_prepareErrorTest();
 
             #CYCLE announce("err");
             setPrograms(testProg);
@@ -332,7 +333,7 @@ module ArchDesc0();
 
         task automatic runEventTestSim();
             Section testProg = fillImports(processLines(readFile({"events", ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
-                TMP_prepareEventTest();
+               // TMP_prepareEventTest();
 
             #CYCLE announce("event");
             setPrograms(testProg);
@@ -350,15 +351,14 @@ module ArchDesc0();
 
         task automatic runIntTestSim();
             Section testProg = fillImports(processLines(readFile({"events2", ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
-                TMP_prepareIntTest();
+               // TMP_prepareIntTest();
 
             #CYCLE announce("int");
             setPrograms(testProg);
             programMem.setContentAt(processLines(CALL_HANDLER).words, IP_CALL);
             programMem.setContentAt(processLines(INT_HANDLER).words, IP_INT);
             
-                             //   cmpMems(programMem.content, TMP_getP());
-                TMP_setP(programMem.content);
+            TMP_setP(programMem.content);
 
             #CYCLE pulseReset();
             

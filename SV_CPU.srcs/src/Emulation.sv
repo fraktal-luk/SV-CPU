@@ -575,79 +575,20 @@ package Emulation;
         endfunction
 
 
-        function void setBasicHandlers();
-            this.progMem[IP_RESET/4] = processLines({"ja -512"}).words[0];
-            this.progMem[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
+//        function void setBasicHandlers();
+//            this.progMem[IP_RESET/4] = processLines({"ja -512"}).words[0];
+//            this.progMem[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
            
-            this.progMem[IP_ERROR/4] = processLines({"sys error"}).words[0];
-            this.progMem[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
+//            this.progMem[IP_ERROR/4] = processLines({"sys error"}).words[0];
+//            this.progMem[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
     
-            this.progMem[IP_CALL/4] = processLines({"sys send"}).words[0];
-            this.progMem[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];        
-        endfunction
-        
-        
-        function automatic void prepareTest(input string name, input int commonAdr);
-//            Section common = processLines(readFile("common_asm.txt"));
+//            this.progMem[IP_CALL/4] = processLines({"sys send"}).words[0];
+//            this.progMem[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];        
+//        endfunction
 
-//            Section testSection = fillImports(processLines(readFile(name)), 0, common, commonAdr);
-            
-//            progMem = '{default: 'x};
-//            writeProgram(progMem, commonAdr, common.words);
-//            writeProgram(progMem, 0, testSection.words);
-//            this.setBasicHandlers();
-            
-            this.emul.reset();
-        endfunction
- 
-         function automatic void prepareErrorTest(input int commonAdr);
-//            Section common = processLines(readFile("common_asm.txt"));
 
-//            squeue fileLines = {"undef", "ja 0"};
-            
-//            Section testSection = fillImports(processLines(fileLines), 0, common, commonAdr);
-
-//            progMem = '{default: 'x};
-//            writeProgram(progMem, commonAdr, common.words);
-//            writeProgram(progMem, 0, testSection.words);
-//            this.setBasicHandlers();
-            
-            this.emul.reset();
-        endfunction
-
-         function automatic void prepareEventTest(input int commonAdr);
-//            Section common = processLines(readFile("common_asm.txt"));
-
-//            squeue fileLines = readFile("events.txt");
-//            Section testSection = fillImports(processLines(readFile("events.txt")), 0, common, commonAdr);
-
-//            progMem = '{default: 'x};
-//            writeProgram(progMem, commonAdr, common.words);
-//            writeProgram(progMem, 0, testSection.words);
-//            this.setBasicHandlers();
-            
-//            writeProgram(progMem, IP_CALL, processLines({"add_i r20, r0, 55", "sys rete", "ja 0"}).words);        
-
-            this.emul.reset();
-        endfunction
-
- 
-        function automatic void prepareIntTest(input int commonAdr);
-//            Section common = processLines(readFile("common_asm.txt"));
-
-//            squeue fileLines = readFile("events2.txt");
-            
-//            Section testSection = fillImports(processLines(fileLines), 0, common, commonAdr);
-
-//            progMem = '{default: 'x};
-//            writeProgram(progMem, commonAdr, common.words);
-//            writeProgram(progMem, 0, testSection.words);
-//            this.setBasicHandlers();
-
-//            writeProgram(progMem, IP_CALL, processLines({"add_i r20, r0, 55", "sys rete", "ja 0"}).words);        
-//            writeProgram(progMem, IP_INT, processLines({"add_i r21, r0, 77", "sys reti", "ja 0"}).words);        
-              
-            this.emul.reset();
+        function automatic void resetData();
+            dataMem = '{default: 0}; 
         endfunction
  
  
