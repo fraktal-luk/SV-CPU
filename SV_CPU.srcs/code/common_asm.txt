@@ -1,0 +1,286 @@
+$label0
+	and_r r0, r1, r1 ;
+	and_r r0, r0, r0 ;
+	ldi_i r7, r8, 28
+	
+	ja  $label0
+@proc func1
+	jz_r r0, r0, r31
+@end
+
+@proc clearIntRegisters
+	and_r r1, r0, r0
+	and_r r2, r0, r0
+	and_r r3, r0, r0
+	and_r r4, r0, r0
+	and_r r5, r0, r0
+	and_r r6, r0, r0
+	and_r r7, r0, r0
+	and_r r8, r0, r0
+	and_r r9, r0, r0
+	and_r r10, r0, r0
+	and_r r11, r0, r0
+	and_r r12, r0, r0
+	and_r r13, r0, r0
+	and_r r14, r0, r0
+	and_r r15, r0, r0
+	and_r r16, r0, r0
+	and_r r17, r0, r0
+	and_r r18, r0, r0
+	and_r r19, r0, r0
+	and_r r20, r0, r0
+	and_r r21, r0, r0
+	and_r r22, r0, r0
+	and_r r23, r0, r0
+	and_r r24, r0, r0
+	and_r r25, r0, r0
+	and_r r26, r0, r0
+	and_r r27, r0, r0
+	and_r r28, r0, r0
+	and_r r29, r0, r0
+	and_r r30, r0, r0
+	and_r r31, r0, r0
+	jz_r r0, r0, r31
+@end
+
+
+@proc copyMem32 ; (from=r3, to=r4, size=r5) 
+$cm32check
+	jz_i r5, $cm32done ;
+	ldi_i r6, r3, 0
+	sti_i r6, r4, 0
+	add_i r3, r3, 4
+	add_i r4, r4, 4
+	add_i r5, r5, -1
+	ja $cm32check
+$cm32done
+	jz_r r0, r0, r31
+@end
+
+@proc cmpMem32 ; (from=r3, to=r4, size=r5) -> equal=r3
+$cmp32check
+	jz_i r5, $cmp32eq ;
+	ldi_i r6, r3, 0
+	ldi_i r7, r4, 0
+	sub_r r6, r6, r7
+	jnz_i r6, $cmp32ne
+	add_i r3, r3, 4
+	add_i r4, r4, 4
+	add_i r5, r5, -1
+	ja $cmp32check
+$cmp32ne
+	add_i r3, r0, 0
+	jz_r r0, r0, r31	
+$cmp32eq
+	add_i r3, r0, 1
+	jz_r r0, r0, r31
+@end
+
+@proc saveIntRegisters ; (dest=r3) 
+	sti_i r0, r3, 0
+	sti_i r1, r3, 4
+	sti_i r2, r3, 8
+	sti_i r3, r3, 12
+	sti_i r4, r3, 16
+	sti_i r5, r3, 20
+	sti_i r6, r3, 24
+	sti_i r7, r3, 28
+	sti_i r8, r3, 32
+	sti_i r9, r3, 36
+	sti_i r10, r3, 40
+	sti_i r11, r3, 44
+	sti_i r12, r3, 48
+	sti_i r13, r3, 52
+	sti_i r14, r3, 56
+	sti_i r15, r3, 60
+	sti_i r16, r3, 64
+	sti_i r17, r3, 68
+	sti_i r18, r3, 72
+	sti_i r19, r3, 76
+	sti_i r20, r3, 80
+	sti_i r21, r3, 84
+	sti_i r22, r3, 88
+	sti_i r23, r3, 92
+	sti_i r24, r3, 96
+	sti_i r25, r3, 100
+	sti_i r26, r3, 104
+	sti_i r27, r3, 108
+	sti_i r28, r3, 112
+	sti_i r29, r3, 116
+	sti_i r30, r3, 120
+	sti_i r31, r3, 124
+
+	jz_r r0, r0, r31	
+@end
+
+@proc saveFloatRegisters ; (dest=r3) 
+	stf_i f0, r3, 0
+	stf_i f1, r3, 4
+	stf_i f2, r3, 8
+	stf_i f3, r3, 12
+	stf_i f4, r3, 16
+	stf_i f5, r3, 20
+	stf_i f6, r3, 24
+	stf_i f7, r3, 28
+	stf_i f8, r3, 32
+	stf_i f9, r3, 36
+	stf_i f10, r3, 40
+	stf_i f11, r3, 44
+	stf_i f12, r3, 48
+	stf_i f13, r3, 52
+	stf_i f14, r3, 56
+	stf_i f15, r3, 60
+	stf_i f16, r3, 64
+	stf_i f17, r3, 68
+	stf_i f18, r3, 72
+	stf_i f19, r3, 76
+	stf_i f20, r3, 80
+	stf_i f21, r3, 84
+	stf_i f22, r3, 88
+	stf_i f23, r3, 92
+	stf_i f24, r3, 96
+	stf_i f25, r3, 100
+	stf_i f26, r3, 104
+	stf_i f27, r3, 108
+	stf_i f28, r3, 112
+	stf_i f29, r3, 116
+	stf_i f30, r3, 120
+	stf_i f31, r3, 124
+
+	jz_r r0, r0, r31	
+@end
+
+; TODO: what about return? src[31] must contain the return address 
+@proc loadIntRegisters ; (src=r3) 
+	and_r r31, r3, r3  ; move to 31 because it's written last
+
+	ldi_i r0, r31, 0
+	ldi_i r1, r31, 4
+	ldi_i r2, r31, 8
+	sti_i r3, r31, 12
+	sti_i r4, r31, 16
+	sti_i r5, r31, 20
+	sti_i r6, r31, 24
+	sti_i r7, r31, 28
+	sti_i r8, r31, 32
+	sti_i r9, r31, 36
+	sti_i r10, r31, 40
+	sti_i r11, r31, 44
+	sti_i r12, r31, 48
+	sti_i r13, r31, 52
+	sti_i r14, r31, 56
+	sti_i r15, r31, 60
+	sti_i r16, r31, 64
+	sti_i r17, r31, 68
+	sti_i r18, r31, 72
+	sti_i r19, r31, 76
+	sti_i r20, r31, 80
+	sti_i r21, r31, 84
+	sti_i r22, r31, 88
+	sti_i r23, r31, 92
+	sti_i r24, r31, 96
+	sti_i r25, r31, 100
+	sti_i r26, r31, 104
+	sti_i r27, r31, 108
+	sti_i r28, r31, 112
+	sti_i r29, r31, 116
+	sti_i r30, r31, 120
+	ldi_i r31, r31, 124
+
+	jz_r r0, r0, r31	
+@end
+
+@proc loadFloatRegisters ; (src=r3) 
+	ldf_i f0, r3, 0
+	ldf_i f1, r3, 4
+	ldf_i f2, r3, 8
+	ldf_i f3, r3, 12
+	ldf_i f4, r3, 16
+	ldf_i f5, r3, 20
+	ldf_i f6, r3, 24
+	ldf_i f7, r3, 28
+	ldf_i f8, r3, 32
+	ldf_i f9, r3, 36
+	ldf_i f10, r3, 40
+	ldf_i f11, r3, 44
+	ldf_i f12, r3, 48
+	ldf_i f13, r3, 52
+	ldf_i f14, r3, 56
+	ldf_i f15, r3, 60
+	ldf_i f16, r3, 64
+	ldf_i f17, r3, 68
+	ldf_i f18, r3, 72
+	ldf_i f19, r3, 76
+	ldf_i f20, r3, 80
+	ldf_i f21, r3, 84
+	ldf_i f22, r3, 88
+	ldf_i f23, r3, 92
+	ldf_i f24, r3, 96
+	ldf_i f25, r3, 100
+	ldf_i f26, r3, 104
+	ldf_i f27, r3, 108
+	ldf_i f28, r3, 112
+	ldf_i f29, r3, 116
+	ldf_i f30, r3, 120
+	ldf_i f31, r3, 124
+
+	jz_r r0, r0, r31	
+@end
+
+@proc saveSysRegisters ; (dest=r3)
+	lds   r4, r0, 0	
+	sti_i r4, r3, 0
+	lds   r4, r0, 1	
+	sti_i r4, r3, 4
+	lds   r4, r0, 2	
+	sti_i r4, r3, 8
+	lds   r4, r0, 3	
+	sti_i r4, r3, 12
+	lds   r4, r0, 4	
+	sti_i r4, r3, 16
+	lds   r4, r0, 5	
+	sti_i r4, r3, 20
+	lds   r4, r0, 6	
+	sti_i r4, r3, 24
+	lds   r4, r0, 7	
+	sti_i r4, r3, 28
+	lds   r4, r0, 8	
+	sti_i r4, r3, 32
+	lds   r4, r0, 9	
+	sti_i r4, r3, 36
+	lds   r4, r0, 10	
+	sti_i r4, r3, 40
+	lds   r4, r0, 11	
+	sti_i r4, r3, 44
+	lds   r4, r0, 12	
+	sti_i r4, r3, 48
+	lds   r4, r0, 13	
+	sti_i r4, r3, 52
+	lds   r4, r0, 14	
+	sti_i r4, r3, 56
+	lds   r4, r0, 15	
+	sti_i r4, r3, 60	
+	; up to sr[15] should be enough for now
+
+	jz_r r0, r0, r31
+@end
+
+@proc memSet32 ; (dest=r3, size=r4, val=r5)
+$ms32check
+	jz_i r4, $ms32done
+	sti_i r5, r3, 0	
+	add_i r4, r4, -1
+	ja $ms32check
+$ms32done
+	jz_r r0, r0, r31	
+@end
+
+@proc raiseError
+	; return address in r31
+	
+@end
+
+@proc sendSignal
+	sys send
+	jz_r r0, r0, r31	
+@end

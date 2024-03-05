@@ -1,0 +1,37 @@
+
+$start
+	add_i r1, r0, 20
+	add_i r2, r0, 32
+
+	ldi_i r10, r0, 16
+	ldi_i r10, r0, 20
+	ldi_i r10, r0, 24
+	ldi_i r10, r0, 28
+
+	ldi_i r10, r0, 32
+	ldi_i r10, r0, 36
+	ldi_i r10, r0, 40
+	ldi_i r10, r0, 44
+
+	ldi_i r10, r1, 16
+	ldi_i r10, r1, 20
+	ldi_i r10, r1, 24
+	ldi_i r10, r1, 28
+
+	ldi_i r10, r1, 32
+	ldi_i r10, r1, 36
+	ldi_i r10, r1, 40
+	ldi_i r10, r1, 44
+	
+	ldi_i r10, r2, 16
+	ldi_i r10, r2, 20
+	ldi_i r10, r2, 24
+	ldi_i r10, r2, 28
+
+	ldi_i r10, r2, 32
+	ldi_i r10, r2, 36
+	ldi_i r10, r2, 40
+	ldi_i r10, r2, 44
+
+$check
+	sys call

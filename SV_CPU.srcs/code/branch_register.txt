@@ -1,0 +1,49 @@
+$start
+	add_i r20, r0, 0
+	add_i r18, r0, 0
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+
+	jl r1, 8			; get next address and skip error instruction
+	sys error
+	add_i r10, r0, 8
+	jnz_r r31, r0, r1	; jump to error instruction on false condition, get next address (loop start)
+
+$loop
+	add_r r20, r20, r10	
+	add_i r10, r10, -1  ; dec counter
+	jnz_r r0, r10, r31  ; jump to loop start while counter nonzero
+	add_i r20, r20, -36 ; 8 + 7 + ... 1 = 9*4 = 36
+	
+	jnz_r r0, r20, r1	; jump to error instruction if loop was incorrect
+	add_i r10, r0, 1
+	add_r r16, r0, r10
+	jl r30, $proc		; r18 = 3
+	
+	add_r r16, r0, r18
+	jl r30, $proc		; r18 = 9
+	add_r r16, r0, r18
+	jl r30, $proc		; r18 = 27
+
+	add_r r16, r0, r18
+	jl r30, $proc		; r18 = 81
+	add_r r16, r0, r18
+	jl r30, $proc		; r18 = 243
+	
+	add_i r16, r18, -243
+	jnz_i r16, $error
+	add_r r0, r0, r0
+	jz_i  r16, $check
+	
+$error
+    sys error
+$check	
+	sys call
+	ja $error
+	ja $error
+	
+$proc	; r18 = 3*r16
+	add_r r18, r0, r16
+	add_r r18, r18, r16
+	add_r r18, r18, r16
+	jz_r r0, r0, r30 ; return to r30

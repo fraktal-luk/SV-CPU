@@ -1,0 +1,58 @@
+$start
+	add_i r1, r0, 55 
+	sti_i r1, r0, 16
+	
+	sys sync
+	
+	ldi_i r2, r0, 16
+	
+    ldf_i f1, r0, 16
+	stf_i f0, r0, 16
+	sti_i r1, r0, 20 ; value = 55
+	ldf_i f5, r0, 20 ; forward from SQ
+
+	stf_i f5, r0, 24 ; using value bypassed from load before RF write	
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop 
+
+	; force completion of store and make a check
+	sys sync
+	
+	ldi_i r10, r0, 24
+	add_i r11, r10, -55
+	jnz_i r11, $error
+	
+$check
+
+	sys call			;
+$error
+    sys error
+
+
+ 

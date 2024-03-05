@@ -1,0 +1,34 @@
+	add_i r1, r0, 1
+
+	shl_i r2, r1, 1
+	add_i r3, r2, -2
+	jnz_i r3, $error	
+
+	shl_i r2, r1, 2
+	add_i r3, r2, -4
+	jnz_i r3, $error
+	
+	shl_i r2, r1, 3
+	add_i r3, r2, -8
+	jnz_i r3, $error	
+
+
+	shl_i r2, r1, 4
+	add_i r3, r2, -16
+	jnz_i r3, $error
+
+	shl_i r2, r1, -1
+	add_i r3, r2, 0
+	jnz_i r3, $error
+
+	add_i r1, r0, 23
+	shl_i r2, r1, -1
+	add_i r3, r2, -11
+	jnz_i r3, $error
+
+	sys call
+$error
+    sys error
+
+
+ 

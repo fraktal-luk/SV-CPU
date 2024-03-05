@@ -1,0 +1,125 @@
+
+
+; Output: array [0:(N=63)] of boolean - true if k is prime
+
+
+
+; N = 64;
+; 
+; out = [true]*N;
+;
+; out[0] = false;
+; out[1] = false;
+;
+; (1..8).each { |i|
+; 	 k = i
+; 	 next if !out[k]
+;	 
+;	 while k + i < N 
+;		k += i
+;	    out[k] = false
+;    end
+; }
+
+
+; N = 64;
+; 
+; out = [true]*N;
+;
+; out[0] = false;
+; out[1] = false;
+;
+
+; r9 - output
+; r10 - constant 1
+; r11 - output end
+; r12 - current out ptr
+; r13 - temp
+
+$start
+	add_i r9, r0, 128  ; setup output adr
+	add_i r11, r9, 256
+	add_i r10, r0, 1
+
+	sti_i r0, r9, 0   
+	sti_i r0, r9, 4
+
+	add_i r12, r9, 8
+
+$init_loop
+	sub_r r13, r11, r12 
+	jz_i r13, $init_done
+	
+	sti_i r10, r12, 0 
+
+	add_i r12, r12, 4
+
+	ja $init_loop
+
+$init_done
+
+; (2..8).each { |i|
+; 	 k = i
+; 	 next if !out[k]
+;	 
+;	 while k + i < N 
+;		k += i
+;	    out[k] = false
+;    end
+; }
+	
+	
+; r14 - i
+; r15 - k
+	
+	; i = 2
+	add_i r14, r0, 2
+	
+$outer_loop	
+	; if i = 9 goto $done
+	add_i r13, r14, -9
+	jz_i  r13, $done
+	
+	; if out[i] == 0 goto $next
+	
+	shl_i r13, r14, 2  ; times 4 for indexing
+	add_r r13, r9, r13 
+	ldi_i r13, r13, 0
+	
+	jz_i  r13, $next
+
+	; k = i
+	add_r r15, r14, r0
+
+$inner_loop
+	
+	; k += i 
+	add_r r15, r15, r14
+	
+	; if k >= end goto $next 
+	shl_i r13, r15, 2
+	add_r r13, r9, r13
+	
+	sub_r r13, r11, r13
+	shl_i r13, r13, -31
+	
+	jnz_i r13, $next
+	
+	; out[k] = false
+	shl_i r13, r15, 2
+	add_r r13, r9, r13
+
+	sti_i r0, r13, 0
+	
+	; goto $inner_loop
+	ja $inner_loop
+$next
+	
+	; i += 1
+	add_i r14, r14, 1
+	
+	; goto $outer_loop
+	ja $outer_loop
+
+$done
+	ja 0

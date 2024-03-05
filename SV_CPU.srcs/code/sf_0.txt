@@ -1,0 +1,37 @@
+; This checks that loads get data from a store with matching address
+$start
+
+	add_i r1, r0, 1
+	add_i r2, r0, 2
+	add_i r3, r0, 3
+	add_i r4, r0, 4
+	
+	add_i r5, r0, 5
+	add_i r6, r0, 6
+	add_i r7, r0, 7
+	add_i r8, r0, 8
+
+
+	sti_i r1, r0, 32
+	sti_i r2, r0, 36
+	sti_i r3, r0, 40
+	sti_i r4, r0, 44
+
+	sti_i r5, r0, 48
+	sti_i r6, r0, 52
+	sti_i r7, r0, 56
+	sti_i r8, r0, 60
+	
+	ldi_i r10, r0, 52
+	add_i r11, r10, -6
+	jnz_i r11, $error
+	add_i r0, r0, 0
+	
+$check
+
+	sys call			;
+$error
+    sys error
+
+
+ 

@@ -1,0 +1,67 @@
+$start
+    ja 4
+	ja 4
+	ja 4
+	ja 4
+	
+    ja 4
+	ja 4
+	ja 4
+	ja 4
+	
+    ja 4
+	ja 4
+	ja 4
+	ja 4
+
+    ja 4
+	ja 4
+	ja 4
+	ja 4
+
+    ja 4
+	ja 4
+	ja 4
+	ja 4
+
+    ja 4
+	ja 4
+	ja 4
+	ja 4	
+
+	ja $L1
+	ja 4
+	ja $L2
+	ja -8	
+	
+	ja -4
+	ja -4
+	ja -4
+	ja -4	
+	
+	ja -4
+	ja -4
+	ja -4
+	ja -4
+	
+	ja -4
+	ja -4
+	ja -4
+	ja -4	
+	
+	ja -4
+	ja -4
+	ja -4
+$L1
+	ja -4
+    sys error
+    sys error
+    sys error
+	
+$L2
+	sys call			
+$error
+    sys error
+
+
+ 

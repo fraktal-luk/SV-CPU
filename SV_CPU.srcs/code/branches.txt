@@ -1,0 +1,90 @@
+$start
+    ja $L1				; 0			0->1
+$L1
+	ja $L2 				; 4			1->0
+	sys error
+	sys error
+	
+$L2	
+	ja $L3				; 16		0->2
+	sys error	
+$L3	
+	ja $L4			;				2->0
+	sys error
+	
+$L4
+	ja $L5			;	32			0->3
+	sys error
+	sys error
+$L5	
+	ja $L6			;				3->0
+	
+$L6	; ....
+	ja $L7			;	48			0->0
+	sys error
+	sys error
+	sys error
+
+$L7
+	add_i r0, r0, 0	;   	64
+	ja $L8				;			1->2
+$L8
+	ja $L9				;			2->1
+	sys error
+	
+	sys error			; 80
+$L9
+	ja $L10				;			1->3
+	sys error
+$L10	
+	ja $L11				;			3->1
+	
+	sys error			; 96
+$L11	
+	ja $L12					;		1->1
+	sys error
+	sys error
+	
+	sys error			; 112
+$L12	
+	add_i r0, r0, 0
+	ja $L13					;		2->3
+$L13
+	ja $L14					;		3->2
+	
+	sys error			; 128
+	sys error
+$L14	
+	ja $L15					;		2->2
+	sys error
+
+	sys error			; 144
+	sys error
+$L15	
+	add_i r0, r0, 0
+	ja $L16					;		3->3
+	
+	sys error			; 160
+	sys error
+	sys error
+$L16	
+	add_i r0, r0, 0	
+	
+	
+	
+	add_i r0, r0, 0		; 176
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+
+	;ja $L7
+	
+$check
+    ;add_i r5, r2, -60
+    ;jnz_i  r5, $error
+	sys call			; 192
+$error
+    sys error
+
+
+ 

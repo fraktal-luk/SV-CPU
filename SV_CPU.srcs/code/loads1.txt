@@ -1,0 +1,75 @@
+$start
+	add_i r1, r0, 1
+	add_i r2, r0, 2
+	add_i r3, r0, 3
+	add_i r4, r0, 4
+	
+	add_i r5, r0, 5
+	add_i r6, r0, 6
+	add_i r7, r0, 7
+	add_i r8, r0, 8
+
+	sti_i r1, r0, 32
+	sti_i r2, r0, 36
+	sti_i r3, r0, 40
+	sti_i r4, r0, 44
+
+	sti_i r5, r0, 48
+	sti_i r6, r0, 52
+	sti_i r7, r0, 56
+	sti_i r8, r0, 60
+
+	and_r r0, r0, r0
+	and_r r0, r0, r0
+	and_r r0, r0, r0
+	sys sync
+	
+	ldi_i r11, r0, 32
+	ldi_i r12, r0, 36
+	ldi_i r13, r0, 40
+	ldi_i r14, r0, 44
+
+	ldi_i r15, r0, 48
+	ldi_i r16, r0, 52
+	ldi_i r17, r0, 56
+	ldi_i r18, r0, 60
+
+	add_i r11, r11, -1
+	add_i r12, r12, -2
+	add_i r13, r13, -3
+	add_i r14, r14, -4
+
+	add_i r15, r15, -5
+	add_i r16, r16, -6
+	add_i r17, r17, -7
+	add_i r18, r18, -8
+
+	jnz_i r11, $error
+	jnz_i r12, $error
+	jnz_i r13, $error
+	jnz_i r14, $error
+
+	jnz_i r15, $error
+	jnz_i r16, $error
+	jnz_i r17, $error
+	jnz_i r18, $error
+	   
+	   ; force load to try get data from SQ when it's not yet ready
+       ;ldi_i r30, r0, 16 ; load 0 to r30
+       ;sti_i r30, r0, 0 ; use r30==0 as store data
+       ;ldi_i r31, r0, 0 ; load from 0 without waiting for store data
+       ;add_i r0, r0, 0
+	   
+	   ; value in r21 should be 33, and in r31 should be 0
+	   ;add_i r2, r21, -33
+	   ;jnz_i r2, $error
+	   ;jnz_i r31, $error 
+	   
+$check
+
+	sys call			;
+$error
+    sys error
+
+
+ 

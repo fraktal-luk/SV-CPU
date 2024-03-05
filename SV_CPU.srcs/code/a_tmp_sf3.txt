@@ -1,0 +1,29 @@
+$start
+    add_i r1, r0, 1
+    add_i r2, r0, 100
+    sti_i r1, r0, 32
+	sti_i r2, r0, 36
+	
+	and_r r6, r0, r0
+	and_r r7, r0, r0
+	and_r r8, r0, r0
+	sys sync
+
+	
+	ldi_i r5, r0, 36
+	sti_i r5, r0, 40	; store data waits
+	ldi_i r6, r0, 40	; matched store from r5, SQ miss
+    ;and_r r0,r0,r0 ;
+		ldi_i r7, r0, 40	; another load from the same location
+
+	add_i r10, r6, -100
+	add_i r11, r7, -100
+	add_i r0, r0, 0
+	sys sync
+
+$check
+	jnz_i r10, $error
+	jnz_i r11, $error
+	sys call
+$error
+    sys error

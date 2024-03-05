@@ -1,0 +1,31 @@
+$start	
+	; check forwarding from StoreQueue
+	add_i r1, r0, 1
+	add_i r2, r0, 2
+	add_i r3, r0, 3
+	sti_i r0, r0, 16
+	
+	ldi_i r20, r0, 16
+	sti_i r1,  r0, 16
+	ldi_i r21, r0, 16
+	sti_i r2,  r0, 16
+	
+	ldi_i r22, r0, 16
+	add_i r10, r20, 0 
+	add_i r11, r21, -1
+	add_i r12, r22, -2 
+	
+	jnz_i r10, $error
+	jnz_i r11, $error
+	jnz_i r12, $error
+	add_i r0, r0, 0
+	
+	
+$check
+
+	sys call			;
+$error
+    sys error
+
+
+ 

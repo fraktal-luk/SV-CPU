@@ -1,0 +1,40 @@
+$start
+	add_i r8, r0, 200
+	add_i r5, r0, 0
+	ja $L1
+	add_i r0, r0, 0
+
+$error
+    sys error
+$check	
+	sys call
+	ja $error
+	ja $error
+
+$L1
+	add_i r5, r0, 11
+	jz_i  r5, $error
+	jnz_i r0, $error
+	jnz_i r5, $L2
+
+$L3
+	jz_i  r1, 8
+	jz_i  r1, $error
+	add_i r1, r1, 1
+	jnz_i r1, $L4
+
+$L2
+	add_r r8, r0, r0
+	add_r r1, r0, r0
+	ja 	  $L3
+$L4
+	add_i r10, r0, 0
+$L5	
+	jnz_i r10, 12	   ; skip 2 instructions to break out of loop 
+	add_i r10, r10, -1 ; r10--
+	ja $L5
+
+	jnz_i r8, $error	
+	jnz_i r8, $error	
+	jnz_i r8, $error
+	jz_i  r8, $check

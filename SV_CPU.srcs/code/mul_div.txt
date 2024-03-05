@@ -1,0 +1,56 @@
+$start
+	add_i r1, r0, 17
+	add_i r2, r0, 32
+	add_i r3, r0, 64
+	add_i r4, r0, 16
+
+	or_r  r0, r0, r0
+	or_r  r0, r0, r0
+	or_r  r0, r0, r0
+	or_r  r0, r0, r0
+
+	div_u  r0, r3, r4
+	div_s  r0, r1, r4
+	rem_u  r0, r3, r4
+	rem_s  r0, r5, r4
+
+	add_i 	r10, r0, -1
+	add_i 	r11, r0,  1
+	add_i 	r3, r0, -3
+	add_i 	r4, r0, -4
+
+	mult	r20, r1, r1
+	mulh_s	r21, r10, r10
+	mulh_s	r22, r10, r11
+	mulh_u	r23, r10, r10
+
+	mult	r20, r3, r4
+	mulh_s	r20, r3, r4
+	add_i 	r3, r0,  3
+	add_i 	r4, r0, -4
+
+	mult	r20, r3, r4
+	mulh_s	r20, r3, r4
+	mult	r20, r1, r1
+	mult	r20, r1, r1
+	
+	mult	r10, r1, r1
+	mult	r10, r1, r1
+	mult	r10, r1, r1
+	mult	r10, r1, r1
+
+	mult	r10, r1, r1
+	mult	r10, r1, r1
+	mult	r10, r1, r1
+	mult	r10, r1, r1
+	
+
+
+	or_r  r6, r5, r0
+	add_i r7, r6, -96
+	jnz_i r7, $error
+	or_r  r0, r0, r0
+
+	sys call
+$error
+    sys error

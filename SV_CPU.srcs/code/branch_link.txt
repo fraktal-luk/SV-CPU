@@ -1,0 +1,57 @@
+$start
+	jl r1, $L1
+$R1
+	jl r2, $L2
+$R2
+	jl r3, $L3
+$R3
+	jl r4, $L4
+$R4	
+	jl r5, $L5
+$R5
+	jl r6, $L6
+$R6
+
+	sub_r r10, r2, r1
+	add_i r10, r10, -4
+	jnz_i r10, $error
+	
+	sub_r r10, r3, r2
+	
+; 48	
+	add_i r10, r10, -4
+	jnz_i r10, $error
+	
+	sub_r r10, r4, r3
+	add_i r10, r10, -4
+	jnz_i r10, $error	
+
+	sub_r r10, r5, r4
+	add_i r10, r10, -4
+	jnz_i r10, $error
+
+; 80	
+	sub_r r10, r6, r5
+	add_i r10, r10, -4
+	jnz_i r10, $error
+
+
+$check	
+	sys call			
+$error
+    sys error
+
+$L1	
+	ja $R1
+$L2
+	ja $R2
+$L3	
+	ja $R3
+$L4
+	ja $R4
+$L5	
+	ja $R5
+$L6
+	ja $R6
+
+	sys error

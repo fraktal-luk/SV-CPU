@@ -1,0 +1,80 @@
+$start
+	ja $main
+	add_r r0, r0, r0
+	add_r r0, r0, r0
+	add_r r0, r0, r0
+
+$check_mul
+	mult   r10, r1, r2
+	mulh_u r11, r1, r2
+	mulh_s r12, r1, r2
+	sub_r  r20, r10, r3
+	sub_r  r21, r11, r4
+	sub_r  r22, r12, r5
+	jnz_i  r20, $error
+	jnz_i  r21, $error
+	jnz_i  r22, $error
+	jz_r   r0, r0, r31	; return
+
+$main
+	; 0, 0
+	add_i r1, r0, 0  ; a
+	add_i r2, r0, 0  ; b
+	add_i r3, r0, 0  ; res low
+	add_i r4, r0, 0  ; res high u
+	add_i r5, r0, 0  ; res high s
+	jl 	  r31, $check_mul
+	
+	; 1, 1
+	add_i r1, r0, 1  ; a
+	add_i r2, r0, 1  ; b
+	add_i r3, r0, 1  ; res low
+	add_i r4, r0, 0  ; res high u
+	add_i r5, r0, 0  ; res high s
+	jl 	  r31, $check_mul
+
+	; -1, -1
+	add_i r1, r0, -1  ; a
+	add_i r2, r0, -1 ; b
+	add_i r3, r0, 1  ; res low
+	add_i r4, r0, -2  ; res high u
+	add_i r5, r0, 0  ; res high s
+	jl 	  r31, $check_mul
+
+	; 0, 125
+	add_i r1, r0, 0  ; a
+	add_i r2, r0, 125 ; b
+	add_i r3, r0, 0  ; res low
+	add_i r4, r0, 0  ; res high u
+	add_i r5, r0, 0  ; res high s
+	jl 	  r31, $check_mul
+
+	; 1, 71
+	add_i r1, r0, 1  ; a
+	add_i r2, r0, 71 ; b
+	add_i r3, r0, 71  ; res low
+	add_i r4, r0, 0  ; res high u
+	add_i r5, r0, 0  ; res high s
+	jl 	  r31, $check_mul
+
+	; 2^16, 2^16
+	add_i r1, r0, 1
+	shl_i r1, r1, 16 ;a
+	add_r r2, r0, r1 ; b
+	add_i r3, r0, 0  ; res low
+	add_i r4, r0, 1  ; res high u
+	add_i r5, r0, 1  ; res high s
+	jl 	  r31, $check_mul
+
+	; 2^31, 2
+	add_i r1, r0, 1
+	shl_i r1, r1, 31 ;a
+	add_i r2, r0, 2 ; b
+	add_i r3, r0, 0  ; res low
+	add_i r4, r0, 1  ; res high u
+	add_i r5, r0, -1  ; res high s
+	jl 	  r31, $check_mul
+
+	sys call
+$error
+    sys error

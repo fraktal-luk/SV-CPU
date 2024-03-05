@@ -1,0 +1,21 @@
+$start
+
+   add_i r1, r0, 36
+   add_i r2, r0, 57
+   sti_i r1, r0, 16
+   sys sync
+
+   ; force delayed store to execute a younger load before it
+   ;       from the same address
+   ldi_i r20, r0, 16 ; load 0 to r20
+   sti_i r2,  r20, 0 ; use r20 == 36 as store address
+   ldi_i r21, r0, 36 ; load from 0 without waiting for store address
+   add_i r0, r0, 0
+
+$check
+	add_i r22, r21, -57
+    jnz_i r22, $error
+	;jnz_i r11, $error
+	sys call
+$error
+    sys error

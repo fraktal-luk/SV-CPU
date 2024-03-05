@@ -1,0 +1,24 @@
+$start
+	add_i r1, r0, 59
+	sts   r1, r0, 2
+	sys sync
+	lds   r12, r0, 2
+
+	add_i r3, r12, -59
+	jnz_i r3, $error
+	add_i r4, r0, 48 ; address to "return" to
+	sts   r4, r0, 3  ; write to int return address
+	
+	sys  reti
+	sys error
+	sys error
+	sys error
+	
+$check
+
+	sys call	;
+$error
+    sys error
+
+
+ 

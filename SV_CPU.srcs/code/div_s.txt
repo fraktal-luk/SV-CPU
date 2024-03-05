@@ -1,0 +1,79 @@
+$start
+
+	add_i 	r1, r0, 77
+	div_s 	r2, r0, r0
+	div_s 	r3, r1, r0
+	and_r 	r0, r0, r1
+
+
+	add_i 	r1, r0, 55
+	add_i 	r2, r0, 17
+	add_i 	r3, r0, 3
+	add_i 	r4, r0, 4
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, -60
+	add_i 	r2, r0, 11
+	add_i 	r3, r0, -6
+	add_i 	r4, r0, 6
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, 998
+	add_i 	r2, r0, -333
+	add_i 	r3, r0, -3
+	add_i 	r4, r0, -1
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, -137
+	add_i 	r2, r0, -11
+	add_i 	r3, r0, 12
+	add_i 	r4, r0, -5
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, 0
+	add_i 	r2, r0, 3
+	add_i 	r3, r0, 0
+	add_i 	r4, r0, 0
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, 1
+	add_i 	r2, r0, 3
+	add_i 	r3, r0, 0
+	add_i 	r4, r0, 1
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, 0
+	add_i 	r2, r0, -1
+	add_i 	r3, r0, 0
+	add_i 	r4, r0, 0
+	jl 		r31, $check_div_s
+
+	add_i 	r1, r0, 1
+	add_i 	r2, r0, -1
+	add_i 	r3, r0, -1
+	add_i 	r4, r0, 0
+	jl 		r31, $check_div_s
+
+	add_i	r1, r0, 1
+	shl_i   r1, r1, 31
+	add_i	r2, r0, 1
+	add_r	r3, r0, r1
+	add_i	r4, r0, 0
+	jl		r31, $check_div_s
+
+	sys call
+$error
+    sys error
+
+$check_div_s
+	; r1 / r2 == r3
+	; r1 % r2 == r4
+	div_s r10, r1, r2
+	rem_s r11, r1, r2
+	sub_r r12, r10, r3
+	sub_r r13, r11, r4
+
+	jnz_i r12, $error
+	jnz_i r13, $error
+	jz_r   r0, r0, r31	; return
+	add_r  r0, r0, r0   ; nop

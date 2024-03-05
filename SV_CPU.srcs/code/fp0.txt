@@ -1,0 +1,51 @@
+$start
+	add_i r1, r0, 100
+	sti_i r1, r0, 20
+	ldf_i f1, r0, 20
+	ldf_i f0, r0, 20
+	
+	sys sync
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+	
+	mov_f f8, f1
+	mov_f f9, f0
+
+	add_i r0, r0, 0
+	sys sync
+
+	mov_f f20, f0
+	mov_f f21, f20
+	mov_f f22, f20
+	mov_f f23, f20
+	
+	mov_f f24, f20
+	mov_f f25, f20
+	mov_f f26, f20
+	mov_f f27, f20
+
+	;add_i r0, r0, 0
+	;add_i r0, r0, 0
+	;add_i r0, r0, 0	
+	;sys sync
+
+	
+	mov_f f10, f0
+	mov_f f11, f2
+	mov_f f12, f2
+	mov_f f13, f10
+	
+	mov_f f14, f11
+	mov_f f15, f10
+	mov_f f16, f11
+	mov_f f17, f10
+	
+$check
+
+	sys call			;
+$error
+    sys error
+
+
+ 
