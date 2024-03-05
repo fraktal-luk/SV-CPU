@@ -567,30 +567,16 @@ package Emulation;
         
         function void resetCpu();
             this.emul.reset();
-        endfunction  
-                
+        endfunction
+
+        function automatic void resetData();
+            dataMem = '{default: 0}; 
+        endfunction         
 
         function void writeData();
             
         endfunction
 
-
-//        function void setBasicHandlers();
-//            this.progMem[IP_RESET/4] = processLines({"ja -512"}).words[0];
-//            this.progMem[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
-           
-//            this.progMem[IP_ERROR/4] = processLines({"sys error"}).words[0];
-//            this.progMem[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
-    
-//            this.progMem[IP_CALL/4] = processLines({"sys send"}).words[0];
-//            this.progMem[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];        
-//        endfunction
-
-
-        function automatic void resetData();
-            dataMem = '{default: 0}; 
-        endfunction
- 
  
         function automatic void step();
             this.emul.executeStep(this.progMem);

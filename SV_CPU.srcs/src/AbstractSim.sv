@@ -26,21 +26,6 @@ package AbstractSim;
     static EmulationWithMems emul = new();
     static int commitCtr = 0;
 
-//    function static void TMP_setTest(input string str);
-//        emul.prepareTest({str, ".txt"}, 1024);
-//    endfunction
-
-//    function static void TMP_prepareErrorTest();
-//        emul.prepareErrorTest(1024);            
-//    endfunction
-
-//    function static void TMP_prepareEventTest();
-//        emul.prepareEventTest(1024);            
-//    endfunction
-    
-//    function static void TMP_prepareIntTest();
-//        emul.prepareIntTest(1024);            
-//    endfunction
 
     function static void TMP_reset();
         emul.resetData();
@@ -183,30 +168,8 @@ package AbstractSim;
         
         Word content[4096];
         
-        
-        
-//        function void setBasicHandlers();
-//            this.content[IP_RESET/4] = processLines({"ja -512"}).words[0];
-//            this.content[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
-            
-//            this.content[IP_ERROR/4] = processLines({"sys error"}).words[0];
-//            this.content[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
-    
-//            this.content[IP_CALL/4] = processLines({"sys send"}).words[0];
-//            this.content[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];
-//        endfunction
-        
         function void clear();
             this.content = '{default: 'x};
-        endfunction
-        
-        function void setContent(input Word arr[]);
-            foreach (arr[i]) this.content[i] = arr[i];
-        endfunction
-
-        function void setContentAt(input Word arr[], input Word adr);
-            assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
-            foreach (arr[i]) this.content[adr/4 + i] = arr[i];
         endfunction
         
         function Line read(input Word adr);
