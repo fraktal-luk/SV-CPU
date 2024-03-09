@@ -63,6 +63,11 @@ package AbstractSim;
     endfunction
 
 
+    function automatic runInEmulator(ref Emulator emul, input OpSlot op);
+        AbstractInstruction ins = decodeAbstract(op.bits);
+        ExecResult res = emul.processInstruction(op.adr, ins, emul.tmpDataMem);
+    endfunction
+
 
     typedef struct {
         Mword target;

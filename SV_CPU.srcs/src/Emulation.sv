@@ -419,6 +419,14 @@ package Emulation;
         SimpleMem tmpDataMem = new();
         MemoryWrite writeToDo;
 
+        function automatic void setLike(input Emulator other);
+            ip = other.ip;
+            str = other.str;
+            status = other.status;
+            coreState = other.coreState;
+            tmpDataMem.copyFrom(other.tmpDataMem);
+            writeToDo = other.writeToDo;
+        endfunction
 
         function automatic void reset();
             this.ip = 'x;
@@ -426,11 +434,13 @@ package Emulation;
             this.status = '{default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
 
-            this.coreState.target = IP_RESET;
+           // this.coreState.target = IP_RESET;
 
-            this.coreState.intRegs = '{default: 0};
-            this.coreState.floatRegs = '{default: 0};
-            this.coreState.sysRegs = SYS_REGS_INITIAL;
+//            this.coreState.intRegs = '{default: 0};
+//            this.coreState.floatRegs = '{default: 0};
+//            this.coreState.sysRegs = SYS_REGS_INITIAL;
+            
+                 this.coreState = initialState(IP_RESET);
             
             this.tmpDataMem.reset();
         endfunction
@@ -458,7 +468,7 @@ package Emulation;
             this.status.send = 0;
         endfunction
 
-        local function automatic ExecResult processInstruction(input Word adr, input AbstractInstruction ins, ref SimpleMem dataMem);
+        function automatic ExecResult processInstruction(input Word adr, input AbstractInstruction ins, ref SimpleMem dataMem);
             ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.fmt];
             Word3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
