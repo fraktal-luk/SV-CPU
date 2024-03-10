@@ -26,7 +26,7 @@ module AbstractCore
     
     logic dummy = '1;
 
-            logic cmpR, cmpC, cmpR_r, cmpC_r;
+        logic cmpR, cmpC, cmpR_r, cmpC_r;
 
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int OP_QUEUE_SIZE = 24;
@@ -65,8 +65,7 @@ module AbstractCore
         int intWriters[32];
         int floatWriters[32];
     endclass
-    
- 
+
     
     const Stage EMPTY_STAGE = '{'0, -1, 'x, '{default: 0}, '{default: 'x}};
 
@@ -125,8 +124,8 @@ module AbstractCore
     
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
     
-    CpuState renamedState, execState, retiredState;
-    SimpleMem renamedMem = new(), execMem = new(), retiredMem = new();
+    CpuState execState;
+    SimpleMem execMem = new();
     Emulator renamedEmul = new(), execEmul = new(), retiredEmul = new();
     
     
@@ -235,13 +234,6 @@ module AbstractCore
         
             insMapSize = insMap.size();
             $swrite(oooqStr, "%p", oooQueue);
-    
-                        cmpR <= (renamedState == renamedEmul.coreState);
-                    cmpR_r <= (renamedState.intRegs == renamedEmul.coreState.intRegs);
-
-                  cmpC <= (retiredState == retiredEmul.coreState);
-                  cmpC_r <= (retiredState.intRegs == retiredEmul.coreState.intRegs);
-    
     end
 
 
@@ -309,7 +301,6 @@ module AbstractCore
         if (resetPrev) TMP_reset();
         else if (intPrev) begin
             TMP_interrupt();
-               // retiredEmul.interrupt();
         end
 
         if (eventRedirect || intPrev || resetPrev) begin
@@ -321,13 +312,11 @@ module AbstractCore
         else $fatal("Should never get here");
 
         if (eventRedirect || intPrev || resetPrev) begin
-            renamedState = retiredState; // @@
-            renamedMem.copyFrom(retiredMem);
-            execState = retiredState;  // @@
-            execMem.copyFrom(retiredMem);
+            renamedEmul.setLike(retiredEmul);
+            execEmul.setLike(retiredEmul);
             
-                renamedEmul.setLike(retiredEmul);
-                execEmul.setLike(retiredEmul);
+            execState = retiredEmul.coreState;
+            execMem.copyFrom(retiredEmul.tmpDataMem);
             
             intWritersR = '{default: -1};
             floatWritersR = '{default: -1};
@@ -336,16 +325,14 @@ module AbstractCore
         else if (branchRedirect) begin
             BranchCheckpoint single = branchCP;
 
-            renamedState = single.state;
-            renamedMem.copyFrom(single.mem);
+            renamedEmul.coreState = single.state;
+            renamedEmul.tmpDataMem.copyFrom(single.mem);
+            execEmul.coreState = single.state;
+            execEmul.tmpDataMem.copyFrom(single.mem);
+            
             execState = single.state;
             execMem.copyFrom(single.mem);
             
-                renamedEmul.coreState = single.state;
-                renamedEmul.tmpDataMem.copyFrom(single.mem);
-                execEmul.coreState = single.state;
-                execEmul.tmpDataMem.copyFrom(single.mem);
-           
             intWritersR = single.intWriters;
             clearStableWriters(intWritersR, lastRetired.id);
             floatWritersR = single.floatWriters;
@@ -377,18 +364,66 @@ module AbstractCore
         sysOpPrev <= EMPTY_SLOT;
 
         if (resetPrev) begin
-            renamedState = initialState(IP_RESET);
-            renamedMem.reset();
-                renamedEmul.reset();
-
+            renamedEmul.reset();
+            execEmul.reset();
+            retiredEmul.reset();
+            
             execState = initialState(IP_RESET);
-            execMem.reset();    
-                execEmul.reset();
-
-            retiredState = initialState(IP_RESET);
-            retiredMem.reset();
-                retiredEmul.reset();
+            execMem.reset();
         end
+    endtask
+
+    task automatic renameOp(input OpSlot op);             
+        AbstractInstruction ins = decodeAbstract(op.bits);
+        Word result, target;
+
+        if (op.adr != renamedEmul.coreState.target) renamedDivergence++;
+        result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
+
+        runInEmulator(renamedEmul, op);
+        renamedEmul.drain();
+
+        mapOpAtRename(op);
+
+        target = renamedEmul.coreState.target;
+
+        if (isBranchOp(op)) begin
+            BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR);
+            branchCheckpointQueue.push_back(cp);
+        end
+
+        lastRenamed = op;
+        nRenamed++;
+
+        insMap.setDivergence(op.id, renamedDivergence);
+        insMap.setResult(op.id, result);
+        insMap.setTarget(op.id, target);
+
+        updateLatestOOO();
+    endtask
+
+
+    task automatic commitOp(input OpSlot op);
+        runInEmulator(retiredEmul, op);
+        retiredEmul.drain();
+    
+        mapOpAtCommit(op);
+        TMP_commit(op);
+        
+        // Actual execution of ops which must be done after Commit
+        if (isSysOp(op)) begin
+            setLateEvent(execState, op);
+            performSys(execState, op);
+        end
+    
+    
+        lastRetired = op;
+        nRetired++;
+        
+        if (isBranchOp(op)) begin // Br queue entry release
+            branchCheckpointQueue.pop_front();
+        end           
+        updateCommittedOOO();
     endtask
 
 
@@ -421,38 +456,11 @@ module AbstractCore
             Stage toRename = fetchQueue.pop_front();
             OpSlotA toRenameA = makeOpA(toRename);
             
-            mapStageAtRename(toRenameA);
+            //mapStageAtRename(toRenameA);
             
             foreach (toRenameA[i])
-                if (toRenameA[i].active) begin
-                    OpSlot currentOp = toRenameA[i];
-                    AbstractInstruction ins = decodeAbstract(currentOp.bits);
-                    Word result, target;
-                    
-
-                    if (currentOp.adr != renamedState.target) renamedDivergence++; //##
-                    result = computeResult(renamedState, currentOp.adr, ins, renamedMem); // Must be before modifying state // ##
-                    performAt(renamedState, renamedMem, currentOp);
-                        runInEmulator(renamedEmul, currentOp);
-                        renamedEmul.drain();
-                        
-
-                    target = renamedState.target; // ##
-
-                    if (isBranchOp(currentOp)) begin
-                        BranchCheckpoint cp = new(currentOp, renamedState, renamedMem, intWritersR, floatWritersR); // ##
-                        branchCheckpointQueue.push_back(cp);
-                    end
-                    
-                    lastRenamed = currentOp;
-                    nRenamed++;
-                    
-                    insMap.setDivergence(currentOp.id, renamedDivergence);
-                    insMap.setResult(currentOp.id, result);
-                    insMap.setTarget(currentOp.id, target);
-                    
-                        updateLatestOOO();
-                end
+                if (toRenameA[i].active)
+                    renameOp(toRenameA[i]);
 
             nextStageA <= toRenameA;
         end
@@ -504,39 +512,28 @@ module AbstractCore
         clearStableWriters(floatWritersR, op.id);        
     endtask
 
-    task automatic mapStageAtRename(input OpSlotA stA);
-        foreach (stA[i]) begin
-            if (stA[i].active) begin
-                mapOpAtRename(stA[i]);
-            end
-        end 
-    endtask
+//    task automatic mapStageAtRename(input OpSlotA stA);
+//        foreach (stA[i]) begin
+//            if (stA[i].active) begin
+//                mapOpAtRename(stA[i]);
+//            end
+//        end 
+//    endtask
 
     function automatic void clearStableWriters(ref int arr[32], input int stable);
         foreach (arr[i]) if (arr[i] <= stable) arr[i] = -1;
     endfunction
 
 
-
     task automatic execReset();    
         eventTarget <= IP_RESET;
-
-        performAsyncEvent(retiredState, IP_RESET);
         performAsyncEvent(retiredEmul.coreState, IP_RESET);
-          //  retiredEmul.reset();
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
         eventTarget <= IP_INT;
-
-        //performAsyncEvent(renamedState, IP_INT);
-        //performAsyncEvent(execState, IP_INT);
-        performAsyncEvent(retiredState, IP_INT);
-            //performAsyncEvent(renamedEmul.coreState, IP_INT);
-            //performAsyncEvent(execEmul.coreState, IP_INT);
-            //performAsyncEvent(retiredEmul.coreState, IP_INT);
-            retiredEmul.interrupt();
+        retiredEmul.interrupt();
     endtask
 
     task automatic performLink(ref CpuState state, input OpSlot op);
@@ -559,7 +556,7 @@ module AbstractCore
         
         BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
 
-            branchCP = found[0];
+        branchCP = found[0];
         branchOp <= op;
         branchTarget <= evt.target;
         branchRedirect <= evt.redirect;
@@ -677,7 +674,7 @@ module AbstractCore
         completeOp(op);
     endtask
 
-
+    // UNUSED
     task automatic performAt(ref CpuState state, ref SimpleMem mem, input OpSlot op);
         if (isBranchOp(op)) performBranch(state, op);
         else if (isMemOp(op)) performMemAll(state, op, mem);
@@ -713,37 +710,16 @@ module AbstractCore
     endtask
 
     task automatic advanceOOOQ();
+        // Don't commit anything more if event is being handled
         if (eventRedirect || interrupt || reset) return;
     
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
-            
-            InstructionInfo insInfo = insMap.get(opSt.id);//insMap[opSt.id];
+            InstructionInfo insInfo = insMap.get(opSt.id);
             OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
             assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
-
-            mapOpAtCommit(op);
-            TMP_commit(op);
-            
-            // Actual execution of ops which must be done after Commit
-            if (isSysOp(op)) begin
-                 setLateEvent(execState, op);
-                 performSys(execState, op);
-            end
-
-            performAt(retiredState, retiredMem, op);
-                runInEmulator(retiredEmul, op);
-                retiredEmul.drain();
-                
-
-            if (isBranchOp(op)) begin // Br queue entry release
-                branchCheckpointQueue.pop_front();
-            end
-        
-            lastRetired = op;
-            nRetired++;
-            
-                updateCommittedOOO();
+       
+            commitOp(op);
             
             if (isSysOp(op)) break;
         end
@@ -814,3 +790,4 @@ module AbstractCore
         endtask
 
 endmodule
+ 
