@@ -567,48 +567,48 @@ package Emulation;
 
 
 
-    class EmulationWithMems;
-        Emulator emul;
-        Word progMem[4096];
-        logic[7:0] dataMem[] = new[4096]('{default: 0});
+//    class EmulationWithMems;
+//        Emulator emul;
+//        Word progMem[4096];
+//        logic[7:0] dataMem[] = new[4096]('{default: 0});
  
-        function new();
-            this.emul = new();
-            this.reset();
-        endfunction
+//        function new();
+//            this.emul = new();
+//            this.reset();
+//        endfunction
 
-        function void reset();
-            this.emul.reset();
-            this.dataMem = '{default: 0};
-            this.progMem = '{default: 'x}; 
-        endfunction
+//        function void reset();
+//            this.emul.reset();
+//            this.dataMem = '{default: 0};
+//            this.progMem = '{default: 'x}; 
+//        endfunction
         
-        function void resetCpu();
-            this.emul.reset();
-        endfunction
+//        function void resetCpu();
+//            this.emul.reset();
+//        endfunction
 
-        function automatic void resetData();
-            dataMem = '{default: 0}; 
-        endfunction         
+//        function automatic void resetData();
+//            dataMem = '{default: 0}; 
+//        endfunction         
 
-        function void writeData();
+//        function void writeData();
             
-        endfunction
+//        endfunction
 
  
-        function automatic void step();
-            this.emul.executeStep(this.progMem);
-        endfunction
+//        function automatic void step();
+//            this.emul.executeStep(this.progMem);
+//        endfunction
         
-        function automatic void writeAndDrain();
-            if (this.emul.writeToDo.active) writeArrayW(this.dataMem, emul.writeToDo.adr, emul.writeToDo.value);            
-            this.emul.drain();
-        endfunction 
+//        function automatic void writeAndDrain();
+//            if (this.emul.writeToDo.active) writeArrayW(this.dataMem, emul.writeToDo.adr, emul.writeToDo.value);            
+//            this.emul.drain();
+//        endfunction 
         
-        function automatic void interrupt();
-            this.emul.interrupt();
-        endfunction
+//        function automatic void interrupt();
+//            this.emul.interrupt();
+//        endfunction
         
-    endclass
+//    endclass
 
 endpackage

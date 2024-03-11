@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '0;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -236,7 +236,7 @@ module AbstractCore
             $swrite(oooqStr, "%p", oooQueue);
             
             
-                   cmp0 <= (TMP_getEmul().coreState == retiredEmul.coreState);
+                 //  cmp0 <= (TMP_getEmul().coreState == retiredEmul.coreState);
 
     end
 
@@ -302,7 +302,8 @@ module AbstractCore
     endtask
 
     task automatic performRedirect();
-        if (resetPrev) TMP_reset();
+        if (resetPrev) //TMP_reset()
+        ;
         else if (intPrev) begin
            // TMP_interrupt();
         end
@@ -408,20 +409,22 @@ module AbstractCore
 
 
     task automatic commitOp(input OpSlot op);
-        Word trg = TMP_getEmul().coreState.target;
+        Word trg = //TMP_getEmul().coreState.target;
+                    retiredEmul.coreState.target;
         Word bits = fetchInstruction(TMP_getP(), trg);
 
-        assert (trg === op.adr) else $error("Commit: mm adr %h / %h", trg, op.adr);
-        assert (bits === op.bits) else $error("Commit: mm enc %h / %h", bits, op.bits);
+        //assert (retiredEmul.coreState.target === TMP_getEmul().coreState.target) else $fatal("Commit: mm trg %h / %h", retiredEmul.coreState.target, TMP_getEmul().coreState.target);
 
-        assert (retiredEmul.coreState.target === TMP_getEmul().coreState.target) else $error("Commit: mm trg %h / %h", retiredEmul.coreState.target, TMP_getEmul().coreState.target);
+        assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
+        assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
+
             
 
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
     
         mapOpAtCommit(op);
-        TMP_commit(op);
+        //TMP_commit(op);
             
 
         
@@ -539,7 +542,7 @@ module AbstractCore
         eventTarget <= IP_INT;
         retiredEmul.interrupt();
         
-        TMP_interrupt();
+        //TMP_interrupt();
     endtask
 
     task automatic performLink(ref CpuState state, input OpSlot op);
