@@ -30,6 +30,12 @@ package Emulation;
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 
+    function automatic Word fetchInstruction(input Word progMem[], input Word adr);
+        assert (adr % 4 == 0) else $error("Fetching unaligned adr");
+        assert (adr/4 < progMem.size()) else $error("Fetch adr OOB");
+        return progMem[adr/4];
+    endfunction
+
 
     typedef struct {
         Word intRegs[32], floatRegs[32], sysRegs[32];
@@ -430,29 +436,26 @@ package Emulation;
 
         function automatic void reset();
             this.ip = 'x;
-            
+            this.str = "";
+
             this.status = '{default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
 
-           // this.coreState.target = IP_RESET;
-
-//            this.coreState.intRegs = '{default: 0};
-//            this.coreState.floatRegs = '{default: 0};
-//            this.coreState.sysRegs = SYS_REGS_INITIAL;
-            
-                 this.coreState = initialState(IP_RESET);
-            
+            this.coreState = initialState(IP_RESET);
             this.tmpDataMem.reset();
         endfunction
         
         
         function automatic void executeStep(input Word progMem[]);
-            AbstractInstruction absIns;
             ExecResult execRes;
-            this.ip = this.coreState.target;
-            absIns = decodeAbstract(progMem[this.ip/4]);
-            this.str = disasm(absIns.encoding);
-            execRes = processInstruction(this.ip, absIns, this.tmpDataMem);            
+            Word adr = this.coreState.target;
+            Word bits = fetchInstruction(progMem, adr);
+            AbstractInstruction absIns = decodeAbstract(bits);
+
+            //this.ip = adr;
+            //this.str = disasm(absIns.encoding);
+            
+            execRes = processInstruction(adr, absIns, this.tmpDataMem);            
         endfunction 
         
         
@@ -472,6 +475,11 @@ package Emulation;
             ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.fmt];
             Word3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
+
+                this.ip = adr;
+                this.str = disasm(ins.encoding);
+                
+    
 
             this.coreState.target = adr + 4;
             
