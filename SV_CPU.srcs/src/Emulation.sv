@@ -452,9 +452,6 @@ package Emulation;
             Word bits = fetchInstruction(progMem, adr);
             AbstractInstruction absIns = decodeAbstract(bits);
 
-            //this.ip = adr;
-            //this.str = disasm(absIns.encoding);
-            
             execRes = processInstruction(adr, absIns, this.tmpDataMem);            
         endfunction 
         
@@ -476,10 +473,8 @@ package Emulation;
             FormatSpec fmtSpec = parsingMap[ins.fmt];
             Word3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
-                this.ip = adr;
-                this.str = disasm(ins.encoding);
-                
-    
+            this.ip = adr;
+            this.str = disasm(ins.encoding);
 
             this.coreState.target = adr + 4;
             
@@ -565,50 +560,5 @@ package Emulation;
         
     endclass
 
-
-
-//    class EmulationWithMems;
-//        Emulator emul;
-//        Word progMem[4096];
-//        logic[7:0] dataMem[] = new[4096]('{default: 0});
- 
-//        function new();
-//            this.emul = new();
-//            this.reset();
-//        endfunction
-
-//        function void reset();
-//            this.emul.reset();
-//            this.dataMem = '{default: 0};
-//            this.progMem = '{default: 'x}; 
-//        endfunction
-        
-//        function void resetCpu();
-//            this.emul.reset();
-//        endfunction
-
-//        function automatic void resetData();
-//            dataMem = '{default: 0}; 
-//        endfunction         
-
-//        function void writeData();
-            
-//        endfunction
-
- 
-//        function automatic void step();
-//            this.emul.executeStep(this.progMem);
-//        endfunction
-        
-//        function automatic void writeAndDrain();
-//            if (this.emul.writeToDo.active) writeArrayW(this.dataMem, emul.writeToDo.adr, emul.writeToDo.value);            
-//            this.emul.drain();
-//        endfunction 
-        
-//        function automatic void interrupt();
-//            this.emul.interrupt();
-//        endfunction
-        
-//    endclass
 
 endpackage

@@ -1,8 +1,8 @@
 
- import Base::*;
- import InsDefs::*;
- import Asm::*;
- import Emulation::*;
+import Base::*;
+import InsDefs::*;
+import Asm::*;
+import Emulation::*;
 
 package AbstractSim;
     
@@ -23,51 +23,15 @@ package AbstractSim;
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
 
 
-    //static EmulationWithMems emul = new();
-    //static int commitCtr = 0;
-
-
-//    function static void TMP_reset();
-//        emul.resetData();
-//        commitCtr = 0;
-//        emul.resetCpu();
-//    endfunction
-
-//    function static void TMP_commit(input OpSlot op);
-//        automatic Word theIp;
-//        automatic Word trg = emul.emul.coreState.target;
-//        automatic Word bits = fetchInstruction(emul.progMem, trg);
-//        commitCtr++;
-//        emul.step();
-//        emul.writeAndDrain();
-
-//        theIp = emul.emul.ip;
-
-//        if (theIp != op.adr || emul.emul.str != disasm(op.bits)) $display("Mismatched commit: %d: %s;  %d: %s", theIp, emul.emul.str, op.adr, disasm(op.bits));
-        
-//        assert (trg === op.adr) else $error("Commit: mistached adr %h / %h", trg, op.adr);
-//        assert (bits === op.bits) else $error("Commit: mistached enc %h / %h", bits, op.bits);
-//    endfunction
-
-//    function static void TMP_interrupt();
-//        emul.interrupt();
-//    endfunction
-
-//    function static Emulator TMP_getEmul();
-//        return emul.emul;
-//    endfunction
-
     typedef Word Ptype[4096];
 
     Ptype simProgMem;
 
     function static Ptype TMP_getP();
-        //return emul.progMem;
         return simProgMem;
     endfunction
 
     function static void TMP_setP(input Word p[4096]);
-        //emul.progMem = p;
         simProgMem = p;
     endfunction
 
@@ -176,7 +140,6 @@ package AbstractSim;
 
 
 
-
     class ProgramMemory #(parameter WIDTH = 4);
         typedef Word Line[4];
         
@@ -228,7 +191,6 @@ package AbstractSim;
         endfunction    
         
     endclass
-
 
 
 
