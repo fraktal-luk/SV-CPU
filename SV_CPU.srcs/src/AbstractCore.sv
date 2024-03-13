@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -52,13 +52,25 @@ module AbstractCore
         const PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
         const PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
 
-        PhysRegInfo intInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};
-        //InsId floatOwners[N_REGS_INT] = '{default: -1};
+        PhysRegInfo intInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
+        Word intRegs[N_REGS_INT] = '{0: 0, default: 'x};
+        logic intReady[N_REGS_INT] = '{0: 1, default: '0};
+        
         
         int intMapR[32] = '{default: 0};
         int intMapC[32] = '{default: 0};
         
         
+        function automatic InsId findOwnerInt(input int k);
+            return intInfo[k].owner;
+        endfunction;
+        
+        function automatic int findDestInt(input InsId id);
+            int inds[$] = intInfo.find_first_index with (item.owner == id);
+            return inds.size() > 0 ? inds[0] : -1;
+            //return intInfo[k].owner;
+        endfunction;
+     
         function automatic void reserveInt(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
             int vDest = ins.dest;
@@ -76,14 +88,7 @@ module AbstractCore
 //        endfunction
 
 
-        function automatic int getIntFree();
-        
-        endfunction
-        
-//        function automatic int getFloatFree();
-        
-//        endfunction
-        
+
         
         function automatic void commitInt(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
@@ -94,8 +99,11 @@ module AbstractCore
             
             if (!writesIntReg(op) || vDest == 0) return;
             
+            intInfo[pDest] = '{STABLE, -1};
             intMapC[vDest] = pDest;
-            if (pDestPrev != 0) intInfo[pDestPrev] = REG_INFO_FREE;
+            if (pDestPrev == 0) return; 
+            intInfo[pDestPrev] = REG_INFO_FREE;
+            intReady[pDestPrev] = 0;
         endfunction
         
         
@@ -131,6 +139,26 @@ module AbstractCore
         function automatic void restore(input int mapR[32]);
             intMapR = mapR;
         endfunction
+        
+        
+        function automatic void writeValueInt(input OpSlot op, input Word value);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            if (!writesIntReg(op) || ins.dest == 0) return;
+            
+            intRegs[ins.dest] = value;
+        endfunction
+        
+        
+        
+        function automatic int getNumFreeInt();
+            int freeInds[$] = intInfo.find_index with (item.state == FREE);
+            int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = intInfo.find_index with (item.state == STABLE);
+            
+            assert (freeInds.size() + specInds.size() + stabInds.size()) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
+            
+            return freeInds.size();
+        endfunction 
         
     endclass
 
@@ -173,16 +201,9 @@ module AbstractCore
 
     const Stage EMPTY_STAGE = '{'0, -1, 'x, '{default: 0}, '{default: 'x}};
 
+    
+    InsDependencies lastDepsRe, lastDepsEx;
 
-    typedef enum { SRC_CONST, SRC_INT, SRC_FLOAT
-    } SourceType;
-    
-    typedef struct {
-        int sources[3];
-        SourceType types[3];
-    } InsDependencies;
-    
-        InsDependencies lastDeps;
 
     typedef struct {
         int id;
@@ -208,7 +229,7 @@ module AbstractCore
     RegisterTracker registerTracker = new();
     
     int fetchCtr = 0;
-    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = N_REGS_INT, nFreeRegsFloat = N_REGS_FLOAT;
+    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nFreeRegsFloat = 0;
     int insMapSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
     logic fetchAllow, renameAllow;
@@ -338,6 +359,9 @@ module AbstractCore
             $swrite(oooqStr, "%p", oooQueue);
                  //  cmp0 <= (TMP_getEmul().coreState == retiredEmul.coreState);
 
+        nFreeRegsInt <= registerTracker.getNumFreeInt();
+        nFreeRegsFloat <= 64; // TMP
+
     end
 
 
@@ -385,8 +409,18 @@ module AbstractCore
 
 
     task automatic completeOp(input OpSlot op);
+        if (writesIntReg(op)) begin
+            int pDest = registerTracker.findDestInt(op.id);
+            registerTracker.intReady[pDest] = 1;
+        end
+        if (writesFloatReg(op)) begin
+            //int pDest = register.tracker.findDestFloat(op.id);
+            //registerTracker.floatReady[pDest] = 1;
+        end
+
         updateOOOQ(op);
-        lastCompleted = op;
+            lastCompleted = op;
+            lastDepsEx <= insMap.get(op.id).deps;
         nCompleted++;
     endtask
 
@@ -483,6 +517,7 @@ module AbstractCore
     task automatic renameOp(input OpSlot op);             
         AbstractInstruction ins = decodeAbstract(op.bits);
         Word result, target;
+        InsDependencies deps;
 
         if (op.adr != renamedEmul.coreState.target) renamedDivergence++;
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
@@ -491,6 +526,7 @@ module AbstractCore
         renamedEmul.drain();
 
         mapOpAtRename(op);
+            deps = getPhysicalArgs(op, registerTracker.intMapR, '{default: 0}); // TODO: FP map too
             registerTracker.reserveInt(op);
 
         target = renamedEmul.coreState.target;
@@ -507,6 +543,9 @@ module AbstractCore
         insMap.setDivergence(op.id, renamedDivergence);
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
+        insMap.setDeps(op.id, deps);
+
+            lastDepsRe <= deps;
 
         updateLatestOOO();
     endtask
@@ -607,10 +646,33 @@ module AbstractCore
         return '{sources, types};
     endfunction
 
+
+    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
+        int sources[3] = '{-1, -1, -1};
+        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
+        
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        string typeSpec = parsingMap[abs.fmt].typeSpec;
+        
+        foreach (sources[i]) begin
+            if (typeSpec[i + 2] == "i") begin
+                sources[i] = mapInt[abs.sources[i]];
+                types[i] = SRC_INT;
+            end
+            else if (typeSpec[i + 2] == "f") begin
+                sources[i] = mapFloat[abs.sources[i]];
+                types[i] = SRC_FLOAT;
+            end
+        end
+
+        return '{sources, types};
+    endfunction
+
+
     task automatic mapOpAtRename(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         
-        lastDeps <= getArgProducers(op);
+        //lastDeps <= getArgProducers(op);
         
         if (writesIntReg(op)) intWritersR[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersR[abs.dest] = op.id;
@@ -715,19 +777,6 @@ module AbstractCore
         state.target = op.adr + 4;
     endtask
 
-    task automatic performMemAll(ref CpuState state, input OpSlot op, ref SimpleMem mem);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
-
-        Word adr = calculateEffectiveAddress(abs, args);
-        Word result = getLoadValue(abs, adr, mem, state);
-        
-        if (isStoreMemOp(op)) mem.storeW(adr, args[2]);
-        if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
-        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
-        
-        state.target = op.adr + 4;
-    endtask
 
     task automatic performSysStore(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -782,6 +831,21 @@ module AbstractCore
     endtask
 
 //    // UNUSED
+//
+//    task automatic performMemAll(ref CpuState state, input OpSlot op, ref SimpleMem mem);
+//        AbstractInstruction abs = decodeAbstract(op.bits);
+//        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+
+//        Word adr = calculateEffectiveAddress(abs, args);
+//        Word result = getLoadValue(abs, adr, mem, state);
+        
+//        if (isStoreMemOp(op)) mem.storeW(adr, args[2]);
+//        if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
+//        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
+        
+//        state.target = op.adr + 4;
+//    endtask
+//
 //    task automatic performAt(ref CpuState state, ref SimpleMem mem, input OpSlot op);
 //        if (isBranchOp(op)) performBranch(state, op);
 //        else if (isMemOp(op)) performMemAll(state, op, mem);

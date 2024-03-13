@@ -196,6 +196,14 @@ package AbstractSim;
 
     typedef int InsId;
 
+    typedef enum { SRC_CONST, SRC_INT, SRC_FLOAT
+    } SourceType;
+    
+    typedef struct {
+        int sources[3];
+        SourceType types[3];
+    } InsDependencies;
+
     typedef struct {
         int id;
         Word adr;
@@ -203,6 +211,7 @@ package AbstractSim;
         Word target;
         Word result;
         int divergence;
+        InsDependencies deps;
     } InstructionInfo;
 
     function automatic InstructionInfo makeInsInfo(input OpSlot op);
@@ -248,7 +257,10 @@ package AbstractSim;
         function automatic void setDivergence(input int id, input int divergence);
             content[id].divergence = divergence;
         endfunction
-        
+
+        function automatic void setDeps(input int id, input InsDependencies deps);
+            content[id].deps = deps;
+        endfunction
     endclass
 
 
