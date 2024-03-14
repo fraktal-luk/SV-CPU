@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -69,15 +69,18 @@ module AbstractCore
         Word intRegs[N_REGS_INT] = '{0: 0, default: 'x};
         logic intReady[N_REGS_INT] = '{0: 1, default: '0};
         
+        PhysRegInfo floatInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
+        Word floatRegs[N_REGS_INT] = '{0: 0, default: 'x};
+        logic floatReady[N_REGS_INT] = '{0: 1, default: '0};
+        
         
         int intMapR[32] = '{default: 0};
         int intMapC[32] = '{default: 0};
         
-        
-        function automatic InsId findOwnerInt(input int k);
-            return intInfo[k].owner;
-        endfunction;
-        
+        int floatMapR[32] = '{default: 0};
+        int floatMapC[32] = '{default: 0};
+ 
+       
         function automatic int findDestInt(input InsId id);
             int inds[$] = intInfo.find_first_index with (item.owner == id);
             return inds.size() > 0 ? inds[0] : -1;
@@ -91,20 +94,35 @@ module AbstractCore
         function automatic void reserveInt(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
             int vDest = ins.dest;
-            int pDest = findFree();
+            int pDest = findFreeInt();
             
             if (!writesIntReg(op) || vDest == 0) return;
             
             intInfo[pDest] = '{SPECULATIVE, op.id};
             intMapR[vDest] = pDest;
-            
         endfunction
 
-//        function automatic int reserveFloat(input InsId id);
-        
-//        endfunction
 
+        function automatic int findDestFloat(input InsId id);
+            int inds[$] = floatInfo.find_first_index with (item.owner == id);
+            return inds.size() > 0 ? inds[0] : -1;
+        endfunction;
 
+        function automatic void setReadyFloat(input InsId id);
+            int pDest = findDestFloat(id);
+            floatReady[pDest] = 1;
+        endfunction;
+
+        function automatic void reserveFloat(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            int vDest = ins.dest;
+            int pDest = findFreeFloat();
+            
+            if (!writesFloatReg(op)) return;
+            
+            floatInfo[pDest] = '{SPECULATIVE, op.id};
+            floatMapR[vDest] = pDest;
+        endfunction
 
         
         function automatic void commitInt(input OpSlot op);
@@ -124,37 +142,77 @@ module AbstractCore
         endfunction
         
         
-        function automatic int findFree();
+        function automatic int findFreeInt();
             int res[$] = intInfo.find_first_index with (item.state == FREE);
             return res[0];
         endfunction
         
+
+        
+        function automatic void commitFloat(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            int vDest = ins.dest;
+            int ind[$] = floatInfo.find_first_index with (item.owner == op.id);
+            int pDest = ind[0];
+            int pDestPrev = floatMapC[vDest];
+            
+            if (!writesFloatReg(op)) return;
+            
+            floatInfo[pDest] = '{STABLE, -1};
+            floatMapC[vDest] = pDest;
+            if (pDestPrev == 0) return; 
+            floatInfo[pDestPrev] = REG_INFO_FREE;
+            floatReady[pDestPrev] = 0;
+        endfunction
+        
+        
+        function automatic int findFreeFloat();
+            int res[$] = floatInfo.find_first_index with (item.state == FREE);
+            return res[0];
+        endfunction
+   
+        
+        
         function automatic void flush(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
 
-            //int vDest = ins.dest;
-            int inds[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
-            
-            foreach (inds[i]) begin
-                int pDest = inds[i];
+            int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+            int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+
+            foreach (indsInt[i]) begin
+                int pDest = indsInt[i];
                 intInfo[pDest] = REG_INFO_FREE;
             end
+
+            foreach (indsFloat[i]) begin
+                int pDest = indsFloat[i];
+                intInfo[pDest] = REG_INFO_FREE;
+            end          
+            
             // Restoring map is separate
         endfunction
         
         function automatic void flushAll();
             //int vDest = ins.dest;
-            int inds[$] = intInfo.find_first_index with (item.state == SPECULATIVE);
-            
-            foreach (inds[i]) begin
-                int pDest = inds[i];
+            int indsInt[$] = intInfo.find_first_index with (item.state == SPECULATIVE);
+            int indsFloat[$] = floatInfo.find_first_index with (item.state == SPECULATIVE);
+
+            foreach (indsInt[i]) begin
+                int pDest = indsInt[i];
                 intInfo[pDest] = REG_INFO_FREE;
             end
+             
+            foreach (indsFloat[i]) begin
+                int pDest = indsFloat[i];
+                intInfo[pDest] = REG_INFO_FREE;
+            end
+            
             // Restoring map is separate
         endfunction
  
-        function automatic void restore(input int mapR[32]);
-            intMapR = mapR;
+        function automatic void restore(input int intM[32], input int floatM[32]);
+            intMapR = intM;
+            floatMapR = floatM;
         endfunction
         
         
@@ -165,6 +223,12 @@ module AbstractCore
             intRegs[ins.dest] = value;
         endfunction
         
+        function automatic void writeValueFloat(input OpSlot op, input Word value);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            if (!writesFloatReg(op)) return;
+            
+            floatRegs[ins.dest] = value;
+        endfunction     
         
         
         function automatic int getNumFreeInt();
@@ -172,7 +236,7 @@ module AbstractCore
             int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);
             int stabInds[$] = intInfo.find_index with (item.state == STABLE);
             
-            assert (freeInds.size() + specInds.size() + stabInds.size()) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
+            //assert (freeInds.size() + specInds.size() + stabInds.size() == N_REGS_INT) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
             
             return freeInds.size();
         endfunction 
@@ -185,6 +249,17 @@ module AbstractCore
         function automatic int getNumStabInt();
             int stabInds[$] = intInfo.find_index with (item.state == STABLE);            
             return stabInds.size();
+        endfunction
+        
+        
+        function automatic int getNumFreeFloat();
+            int freeInds[$] = floatInfo.find_index with (item.state == FREE);
+            int specInds[$] = floatInfo.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = floatInfo.find_index with (item.state == STABLE);
+            
+            //assert (freeInds.size() + specInds.size() + stabInds.size() == N_REG_FLOAT) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
+            
+            return freeInds.size();
         endfunction 
     endclass
 
@@ -205,7 +280,7 @@ module AbstractCore
 
     class BranchCheckpoint;
     
-        function new(input OpSlot op, input CpuState state, input SimpleMem mem, input int intWr[32], input int floatWr[32], input int intMapR[32]);
+        function new(input OpSlot op, input CpuState state, input SimpleMem mem, input int intWr[32], input int floatWr[32], input int intMapR[32], input int floatMapR[32]);
             this.op = op;
             this.state = state;
             this.mem = new();
@@ -213,6 +288,7 @@ module AbstractCore
             this.intWriters = intWr;
             this.floatWriters = floatWr;
             this.intMapR = intMapR;
+            this.floatMapR = floatMapR;
         endfunction
 
         OpSlot op;
@@ -380,7 +456,7 @@ module AbstractCore
         nFreeRegsInt <= registerTracker.getNumFreeInt();
             nSpecRegsInt <= registerTracker.getNumSpecInt();
             nStabRegsInt <= registerTracker.getNumStabInt();
-        nFreeRegsFloat <= 64; // TMP
+        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
      
             setOpsReady();
         
@@ -447,7 +523,7 @@ module AbstractCore
         end
         if (writesFloatReg(op)) begin
             //int pDest = register.tracker.findDestFloat(op.id);
-            //registerTracker.floatReady[pDest] = 1;
+            registerTracker.setReadyFloat(op.id);
         end
 
         updateOOOQ(op);
@@ -472,7 +548,7 @@ module AbstractCore
     task automatic restoreMappings(input BranchCheckpoint cp);
         intWritersR = cp.intWriters;
         floatWritersR = cp.floatWriters;
-        registerTracker.restore(cp.intMapR);
+        registerTracker.restore(cp.intMapR, cp.floatMapR);
     endtask
 
 
@@ -500,7 +576,7 @@ module AbstractCore
                 intWritersR = intWritersC;
                 floatWritersR = floatWritersC;
             end
-            registerTracker.restore(registerTracker.intMapC);
+            registerTracker.restore(registerTracker.intMapC, registerTracker.floatMapC);
             
             renamedDivergence = 0;
         end
@@ -557,7 +633,8 @@ module AbstractCore
     
     task automatic saveCP(input OpSlot op);
         int intMapR[32] = registerTracker.intMapR;
-        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR);
+        int floatMapR[32] = registerTracker.floatMapR;
+        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR, floatMapR);
         branchCheckpointQueue.push_back(cp);
     endtask
     
@@ -571,7 +648,7 @@ module AbstractCore
         
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
 
-        deps = getPhysicalArgs(op, registerTracker.intMapR, '{default: 0}); // TODO: FP map too
+        deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
 
 
         runInEmulator(renamedEmul, op);
@@ -675,7 +752,7 @@ module AbstractCore
             opsReady <= '{default: 'z};
             foreach (opQueue[i]) begin
                 InsDependencies deps = insMap.get(opQueue[i].id).deps;
-                logic3 ra = checkArgsReady(deps, registerTracker.intReady, '{default: 0});
+                logic3 ra = checkArgsReady(deps, registerTracker.intReady, registerTracker.floatReady);
                 opsReady[i] <= ra.and();
             end
         endtask
@@ -710,7 +787,7 @@ module AbstractCore
         intWritersR[0] = -1;
         
         registerTracker.reserveInt(op);
-        // TODO: float       
+        registerTracker.reserveFloat(op);
     endtask
 
     task automatic mapOpAtCommit(input OpSlot op);
@@ -720,7 +797,7 @@ module AbstractCore
         intWritersC[0] = -1;
         
         registerTracker.commitInt(op);
-        // TODO: float  
+        registerTracker.commitFloat(op);
     endtask
 
     task automatic execReset();    
