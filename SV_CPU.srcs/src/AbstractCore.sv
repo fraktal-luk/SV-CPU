@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '0;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -38,6 +38,19 @@ module AbstractCore
     localparam int OOO_QUEUE_SIZE = 120;
 
     
+    typedef logic logic3[3];
+    
+    function automatic logic3 checkArgsReady(input InsDependencies deps, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+        logic3 res;
+        foreach (deps.types[i])
+            case (deps.types[i])
+                SRC_CONST: res[i] = 1;
+                SRC_INT:   res[i] = readyInt[deps.sources[i]];
+                SRC_FLOAT: res[i] = readyFloat[deps.sources[i]];
+            endcase
+            
+        return res;
+    endfunction
     
     
     class RegisterTracker;
@@ -68,9 +81,13 @@ module AbstractCore
         function automatic int findDestInt(input InsId id);
             int inds[$] = intInfo.find_first_index with (item.owner == id);
             return inds.size() > 0 ? inds[0] : -1;
-            //return intInfo[k].owner;
         endfunction;
-     
+
+        function automatic void setReadyInt(input InsId id);
+            int pDest = findDestInt(id);
+            intReady[pDest] = 1;
+        endfunction;
+
         function automatic void reserveInt(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
             int vDest = ins.dest;
@@ -160,6 +177,15 @@ module AbstractCore
             return freeInds.size();
         endfunction 
         
+        function automatic int getNumSpecInt();
+            int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);            
+            return specInds.size();
+        endfunction 
+
+        function automatic int getNumStabInt();
+            int stabInds[$] = intInfo.find_index with (item.state == STABLE);            
+            return stabInds.size();
+        endfunction 
     endclass
 
 
@@ -228,8 +254,12 @@ module AbstractCore
     
     RegisterTracker registerTracker = new();
     
-    int fetchCtr = 0;
-    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nFreeRegsFloat = 0;
+    InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
+    InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
+
+    
+    int cycleCtr = 0, fetchCtr = 0;
+    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0;
     int insMapSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
     logic fetchAllow, renameAllow;
@@ -244,6 +274,7 @@ module AbstractCore
 
     OpSlotA nextStageA = '{default: EMPTY_SLOT};
     OpSlot opQueue[$:OP_QUEUE_SIZE];
+        logic opsReady[OP_QUEUE_SIZE];
     OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT, sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT, lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt0_C = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP, issuedSt1_C = DEFAULT_ISSUE_GROUP;
 
@@ -254,20 +285,17 @@ module AbstractCore
     CpuState execState;
     SimpleMem execMem = new();
     Emulator renamedEmul = new(), execEmul = new(), retiredEmul = new();
-    
-    
-    InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
-    InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
-
 
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
 
+    always @(posedge clk) cycleCtr++; 
 
     always @(posedge clk) begin
         resetPrev <= reset;
         intPrev <= interrupt;
+        
         sig <= 0;
         wrong <= 0;
 
@@ -348,6 +376,13 @@ module AbstractCore
         oooqSize <= oooQueue.size();
         bcqSize <= branchCheckpointQueue.size();
         frontCompleted <= countFrontCompleted();
+
+        nFreeRegsInt <= registerTracker.getNumFreeInt();
+            nSpecRegsInt <= registerTracker.getNumSpecInt();
+            nStabRegsInt <= registerTracker.getNumStabInt();
+        nFreeRegsFloat <= 64; // TMP
+     
+            setOpsReady();
         
         begin
             automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
@@ -359,17 +394,13 @@ module AbstractCore
             $swrite(oooqStr, "%p", oooQueue);
                  //  cmp0 <= (TMP_getEmul().coreState == retiredEmul.coreState);
 
-        nFreeRegsInt <= registerTracker.getNumFreeInt();
-        nFreeRegsFloat <= 64; // TMP
-
     end
 
 
     assign insAdr = ipStage.baseAdr;
 
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = //oqSize < OP_QUEUE_SIZE - 2*FETCH_WIDTH;
-                         opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat);
+    assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat);
 
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
@@ -410,8 +441,9 @@ module AbstractCore
 
     task automatic completeOp(input OpSlot op);
         if (writesIntReg(op)) begin
-            int pDest = registerTracker.findDestInt(op.id);
-            registerTracker.intReady[pDest] = 1;
+            //int pDest = registerTracker.findDestInt(op.id);
+            //registerTracker.intReady[pDest] = 1;
+            registerTracker.setReadyInt(op.id);
         end
         if (writesFloatReg(op)) begin
             //int pDest = register.tracker.findDestFloat(op.id);
@@ -436,6 +468,14 @@ module AbstractCore
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) branchCheckpointQueue.pop_back();    
     endtask
 
+    
+    task automatic restoreMappings(input BranchCheckpoint cp);
+        intWritersR = cp.intWriters;
+        floatWritersR = cp.floatWriters;
+        registerTracker.restore(cp.intMapR);
+    endtask
+
+
     task automatic performRedirect();
         if (eventRedirect || intPrev || resetPrev) begin
             ipStage <= '{'1, -1, eventTarget, '{default: '0}, '{default: 'x}};
@@ -452,10 +492,15 @@ module AbstractCore
             execState = retiredEmul.coreState;
             execMem.copyFrom(retiredEmul.tmpDataMem);
             
-            intWritersR = '{default: -1};
-            floatWritersR = '{default: -1};
-            
-                registerTracker.restore(registerTracker.intMapC);
+            if (resetPrev) begin
+                intWritersR = '{default: -1};
+                floatWritersR = '{default: -1};
+            end
+            else begin 
+                intWritersR = intWritersC;
+                floatWritersR = floatWritersC;
+            end
+            registerTracker.restore(registerTracker.intMapC);
             
             renamedDivergence = 0;
         end
@@ -470,12 +515,7 @@ module AbstractCore
             execState = single.state;
             execMem.copyFrom(single.mem);
             
-            intWritersR = single.intWriters;
-            clearStableWriters(intWritersR, lastRetired.id);
-            floatWritersR = single.floatWriters;
-            clearStableWriters(floatWritersR, lastRetired.id);
-
-                registerTracker.restore(single.intMapR);
+            restoreMappings(single);
 
             renamedDivergence = insMap.get(branchOp.id).divergence;
         end
@@ -514,28 +554,34 @@ module AbstractCore
         end
     endtask
 
+    
+    task automatic saveCP(input OpSlot op);
+        int intMapR[32] = registerTracker.intMapR;
+        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR);
+        branchCheckpointQueue.push_back(cp);
+    endtask
+    
+
     task automatic renameOp(input OpSlot op);             
         AbstractInstruction ins = decodeAbstract(op.bits);
         Word result, target;
         InsDependencies deps;
 
         if (op.adr != renamedEmul.coreState.target) renamedDivergence++;
+        
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
+
+        deps = getPhysicalArgs(op, registerTracker.intMapR, '{default: 0}); // TODO: FP map too
+
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
 
         mapOpAtRename(op);
-            deps = getPhysicalArgs(op, registerTracker.intMapR, '{default: 0}); // TODO: FP map too
-            registerTracker.reserveInt(op);
 
         target = renamedEmul.coreState.target;
 
-        if (isBranchOp(op)) begin
-            int intMapR[32] = registerTracker.intMapR;
-            BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR);
-            branchCheckpointQueue.push_back(cp);
-        end
+        if (isBranchOp(op)) saveCP(op);
 
         lastRenamed = op;
         nRenamed++;
@@ -563,7 +609,6 @@ module AbstractCore
         retiredEmul.drain();
     
         mapOpAtCommit(op);
-            registerTracker.commitInt(op);
         
         // Actual execution of ops which must be done after Commit
         if (isSysOp(op)) begin
@@ -625,26 +670,15 @@ module AbstractCore
     endtask
 
 
-    function automatic InsDependencies getArgProducers(input OpSlot op);
-        int sources[3] = '{-1, -1, -1};
-        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
-        
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        string typeSpec = parsingMap[abs.fmt].typeSpec;
-        
-        foreach (sources[i]) begin
-            if (typeSpec[i + 2] == "i") begin
-                sources[i] = intWritersR[abs.sources[i]];
-                types[i] = SRC_INT;
+
+        task automatic setOpsReady();
+            opsReady <= '{default: 'z};
+            foreach (opQueue[i]) begin
+                InsDependencies deps = insMap.get(opQueue[i].id).deps;
+                logic3 ra = checkArgsReady(deps, registerTracker.intReady, '{default: 0});
+                opsReady[i] <= ra.and();
             end
-            else if (typeSpec[i + 2] == "f") begin
-                sources[i] = floatWritersR[abs.sources[i]];
-                types[i] = SRC_FLOAT;
-            end
-        end
-        
-        return '{sources, types};
-    endfunction
+        endtask
 
 
     function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
@@ -671,28 +705,23 @@ module AbstractCore
 
     task automatic mapOpAtRename(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
-        
-        //lastDeps <= getArgProducers(op);
-        
         if (writesIntReg(op)) intWritersR[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersR[abs.dest] = op.id;
-        intWritersR[0] = -1;            
+        intWritersR[0] = -1;
+        
+        registerTracker.reserveInt(op);
+        // TODO: float       
     endtask
 
     task automatic mapOpAtCommit(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         if (writesIntReg(op)) intWritersC[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersC[abs.dest] = op.id;
-        intWritersC[0] = -1;    
+        intWritersC[0] = -1;
         
-        clearStableWriters(intWritersR, op.id);
-        clearStableWriters(floatWritersR, op.id);        
+        registerTracker.commitInt(op);
+        // TODO: float  
     endtask
-
-    function automatic void clearStableWriters(ref int arr[32], input int stable);
-        foreach (arr[i]) if (arr[i] <= stable) arr[i] = -1;
-    endfunction
-
 
     task automatic execReset();    
         eventTarget <= IP_RESET;
@@ -829,30 +858,6 @@ module AbstractCore
         performRegularOp(execState, op);
         completeOp(op);
     endtask
-
-//    // UNUSED
-//
-//    task automatic performMemAll(ref CpuState state, input OpSlot op, ref SimpleMem mem);
-//        AbstractInstruction abs = decodeAbstract(op.bits);
-//        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
-
-//        Word adr = calculateEffectiveAddress(abs, args);
-//        Word result = getLoadValue(abs, adr, mem, state);
-        
-//        if (isStoreMemOp(op)) mem.storeW(adr, args[2]);
-//        if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
-//        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
-        
-//        state.target = op.adr + 4;
-//    endtask
-//
-//    task automatic performAt(ref CpuState state, ref SimpleMem mem, input OpSlot op);
-//        if (isBranchOp(op)) performBranch(state, op);
-//        else if (isMemOp(op)) performMemAll(state, op, mem);
-//        else if (isSysOp(op)) performSys(state, op);
-//        else performRegularOp(state, op);
-//    endtask
-
 
     function automatic OpSlot makeOp(input Stage st, input int i);
         if (!st.active || !st.mask[i]) return EMPTY_SLOT;
