@@ -264,4 +264,241 @@ package AbstractSim;
     endclass
 
 
+
+    class BranchCheckpoint;
+    
+        function new(input OpSlot op, input CpuState state, input SimpleMem mem, input int intWr[32], input int floatWr[32], input int intMapR[32], input int floatMapR[32]);
+            this.op = op;
+            this.state = state;
+            this.mem = new();
+            this.mem.copyFrom(mem);
+            this.intWriters = intWr;
+            this.floatWriters = floatWr;
+            this.intMapR = intMapR;
+            this.floatMapR = floatMapR;
+        endfunction
+
+        OpSlot op;
+        CpuState state;
+        SimpleMem mem;
+        int intWriters[32];
+        int floatWriters[32];
+        int intMapR[32];
+        int floatMapR[32];
+    endclass
+
+
+    class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
+        typedef enum {FREE, SPECULATIVE, STABLE
+        } PhysRegState;
+        
+        typedef struct {
+            PhysRegState state;
+            InsId owner;
+        } PhysRegInfo;
+
+        const PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
+        const PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
+
+        PhysRegInfo intInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
+        Word intRegs[N_REGS_INT] = '{0: 0, default: 'x};
+        logic intReady[N_REGS_INT] = '{0: 1, default: '0};
+        
+        PhysRegInfo floatInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
+        Word floatRegs[N_REGS_INT] = '{0: 0, default: 'x};
+        logic floatReady[N_REGS_INT] = '{0: 1, default: '0};
+        
+        
+        int intMapR[32] = '{default: 0};
+        int intMapC[32] = '{default: 0};
+        
+        int floatMapR[32] = '{default: 0};
+        int floatMapC[32] = '{default: 0};
+ 
+       
+        function automatic int findDestInt(input InsId id);
+            int inds[$] = intInfo.find_first_index with (item.owner == id);
+            return inds.size() > 0 ? inds[0] : -1;
+        endfunction;
+
+        function automatic void setReadyInt(input InsId id);
+            int pDest = findDestInt(id);
+            intReady[pDest] = 1;
+        endfunction;
+
+        function automatic void reserveInt(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            int vDest = ins.dest;
+            int pDest = findFreeInt();
+            
+            if (!writesIntReg(op) || vDest == 0) return;
+            
+            intInfo[pDest] = '{SPECULATIVE, op.id};
+            intMapR[vDest] = pDest;
+        endfunction
+
+
+        function automatic int findDestFloat(input InsId id);
+            int inds[$] = floatInfo.find_first_index with (item.owner == id);
+            return inds.size() > 0 ? inds[0] : -1;
+        endfunction;
+
+        function automatic void setReadyFloat(input InsId id);
+            int pDest = findDestFloat(id);
+            floatReady[pDest] = 1;
+        endfunction;
+
+        function automatic void reserveFloat(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            int vDest = ins.dest;
+            int pDest = findFreeFloat();
+            
+            if (!writesFloatReg(op)) return;
+            
+            floatInfo[pDest] = '{SPECULATIVE, op.id};
+            floatMapR[vDest] = pDest;
+        endfunction
+
+        
+        function automatic void commitInt(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            int vDest = ins.dest;
+            int ind[$] = intInfo.find_first_index with (item.owner == op.id);
+            int pDest = ind[0];
+            int pDestPrev = intMapC[vDest];
+            
+            if (!writesIntReg(op) || vDest == 0) return;
+            
+            intInfo[pDest] = '{STABLE, -1};
+            intMapC[vDest] = pDest;
+            if (pDestPrev == 0) return; 
+            intInfo[pDestPrev] = REG_INFO_FREE;
+            intReady[pDestPrev] = 0;
+        endfunction
+        
+        
+        function automatic int findFreeInt();
+            int res[$] = intInfo.find_first_index with (item.state == FREE);
+            return res[0];
+        endfunction
+        
+
+        
+        function automatic void commitFloat(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            int vDest = ins.dest;
+            int ind[$] = floatInfo.find_first_index with (item.owner == op.id);
+            int pDest = ind[0];
+            int pDestPrev = floatMapC[vDest];
+            
+            if (!writesFloatReg(op)) return;
+            
+            floatInfo[pDest] = '{STABLE, -1};
+            floatMapC[vDest] = pDest;
+            if (pDestPrev == 0) return; 
+            floatInfo[pDestPrev] = REG_INFO_FREE;
+            floatReady[pDestPrev] = 0;
+        endfunction
+        
+        
+        function automatic int findFreeFloat();
+            int res[$] = floatInfo.find_first_index with (item.state == FREE);
+            return res[0];
+        endfunction
+   
+        
+        
+        function automatic void flush(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+
+            int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+            int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+
+            foreach (indsInt[i]) begin
+                int pDest = indsInt[i];
+                intInfo[pDest] = REG_INFO_FREE;
+            end
+
+            foreach (indsFloat[i]) begin
+                int pDest = indsFloat[i];
+                intInfo[pDest] = REG_INFO_FREE;
+            end          
+            
+            // Restoring map is separate
+        endfunction
+        
+        function automatic void flushAll();
+            //int vDest = ins.dest;
+            int indsInt[$] = intInfo.find_first_index with (item.state == SPECULATIVE);
+            int indsFloat[$] = floatInfo.find_first_index with (item.state == SPECULATIVE);
+
+            foreach (indsInt[i]) begin
+                int pDest = indsInt[i];
+                intInfo[pDest] = REG_INFO_FREE;
+            end
+             
+            foreach (indsFloat[i]) begin
+                int pDest = indsFloat[i];
+                intInfo[pDest] = REG_INFO_FREE;
+            end
+            
+            // Restoring map is separate
+        endfunction
+ 
+        function automatic void restore(input int intM[32], input int floatM[32]);
+            intMapR = intM;
+            floatMapR = floatM;
+        endfunction
+        
+        
+        function automatic void writeValueInt(input OpSlot op, input Word value);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            if (!writesIntReg(op) || ins.dest == 0) return;
+            
+            intRegs[ins.dest] = value;
+        endfunction
+        
+        function automatic void writeValueFloat(input OpSlot op, input Word value);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+            if (!writesFloatReg(op)) return;
+            
+            floatRegs[ins.dest] = value;
+        endfunction     
+        
+        
+        function automatic int getNumFreeInt();
+            int freeInds[$] = intInfo.find_index with (item.state == FREE);
+            int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = intInfo.find_index with (item.state == STABLE);
+            
+            //assert (freeInds.size() + specInds.size() + stabInds.size() == N_REGS_INT) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
+            
+            return freeInds.size();
+        endfunction 
+        
+        function automatic int getNumSpecInt();
+            int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);            
+            return specInds.size();
+        endfunction 
+
+        function automatic int getNumStabInt();
+            int stabInds[$] = intInfo.find_index with (item.state == STABLE);            
+            return stabInds.size();
+        endfunction
+        
+        
+        function automatic int getNumFreeFloat();
+            int freeInds[$] = floatInfo.find_index with (item.state == FREE);
+            int specInds[$] = floatInfo.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = floatInfo.find_index with (item.state == STABLE);
+            
+            //assert (freeInds.size() + specInds.size() + stabInds.size() == N_REG_FLOAT) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
+            
+            return freeInds.size();
+        endfunction 
+    endclass
+
+
+
+
 endpackage
