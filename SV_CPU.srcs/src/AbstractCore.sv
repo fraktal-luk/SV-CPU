@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -36,6 +36,30 @@ module AbstractCore
 
     localparam int OP_QUEUE_SIZE = 24;
     localparam int OOO_QUEUE_SIZE = 120;
+
+    localparam int ROB_SIZE = 128;
+    
+    localparam int LQ_SIZE = 80;
+    localparam int SQ_SIZE = 80;
+    
+    typedef struct {
+        OpSlot op;
+    } RobEntry;
+    
+
+    typedef struct {
+        OpSlot op;
+    } LoadQueueEntry;
+    
+    
+    typedef struct {
+        OpSlot op;
+    } StoreQueueEntry;
+    
+    
+    RobEntry rob[$:ROB_SIZE];
+    LoadQueueEntry loadQueue[$:LQ_SIZE];
+    StoreQueueEntry storeQueue[$:SQ_SIZE];
 
     
     typedef logic logic3[3];
@@ -95,7 +119,7 @@ module AbstractCore
 
     
     int cycleCtr = 0, fetchCtr = 0;
-    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0;
+    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, robSize = 0, lqSize = 0, sqSize = 0;
     int insMapSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
     logic fetchAllow, renameAllow;
@@ -162,6 +186,9 @@ module AbstractCore
 
             writeToOpQ(nextStageA);
             writeToOOOQ(nextStageA);
+            foreach (nextStageA[i]) begin
+                if (nextStageA[i].active) addToQueues(nextStageA[i]);
+            end
 
             memOp <= EMPTY_SLOT;
             memOpPrev <= memOp;
@@ -211,6 +238,10 @@ module AbstractCore
         oqSize <= opQueue.size();
         oooqSize <= oooQueue.size();
         bcqSize <= branchCheckpointQueue.size();
+        robSize <= rob.size();
+        lqSize <= loadQueue.size();
+        sqSize <= storeQueue.size();
+        
         frontCompleted <= countFrontCompleted();
 
         nFreeRegsInt <= registerTracker.getNumFreeInt();
@@ -236,7 +267,8 @@ module AbstractCore
     assign insAdr = ipStage.baseAdr;
 
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat);
+    assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat)
+                    && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize);
 
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
@@ -257,7 +289,19 @@ module AbstractCore
     function logic regsAccept(input int nI, input int nF);
         return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
     endfunction
+
+    function logic robAccepts(input int k);
+        return k <= ROB_SIZE - 2*FETCH_WIDTH;
+    endfunction
+
+    function logic lqAccepts(input int k);
+        return k <= LQ_SIZE - 2*FETCH_WIDTH;
+    endfunction
     
+    function logic sqAccepts(input int k);
+        return k <= SQ_SIZE - 2*FETCH_WIDTH;
+    endfunction
+
 
     function automatic Stage setActive(input Stage s, input logic on, input int ctr);
         Stage res = s;
@@ -289,12 +333,18 @@ module AbstractCore
         opQueue.delete();
         oooQueue.delete();
         branchCheckpointQueue.delete();
+        rob.delete();
+        loadQueue.delete();
+        storeQueue.delete();
     endtask
     
     task automatic flushPartial(input OpSlot op);
-        while (opQueue.size() > 0 && opQueue[$].id > op.id) opQueue.pop_back();
-        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) oooQueue.pop_back();    
-        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) branchCheckpointQueue.pop_back();    
+        while (opQueue.size() > 0 && opQueue[$].id > op.id) void'(opQueue.pop_back());
+        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
+        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
+        while (rob.size() > 0 && rob[$].op.id > op.id) void'(rob.pop_back());
+        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
+        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
     endtask
 
     
@@ -391,6 +441,26 @@ module AbstractCore
         branchCheckpointQueue.push_back(cp);
     endtask
     
+    
+    task automatic addToQueues(input OpSlot op);
+        AbstractInstruction ins = decodeAbstract(op.bits);
+        addToRob(op);
+        if (isLoadIns(ins)) addToLoadQueue(op);
+        if (isStoreIns(ins)) addToStoreQueue(op);
+    endtask
+    
+    task automatic addToRob(input OpSlot op);
+        rob.push_back('{op});
+    endtask
+
+    task automatic addToLoadQueue(input OpSlot op);
+        loadQueue.push_back('{op});
+    endtask
+    
+    task automatic addToStoreQueue(input OpSlot op);
+        storeQueue.push_back('{op});
+    endtask
+
 
     task automatic renameOp(input OpSlot op);             
         AbstractInstruction ins = decodeAbstract(op.bits);
@@ -411,7 +481,12 @@ module AbstractCore
 
         target = renamedEmul.coreState.target;
 
+
         if (isBranchOp(op)) saveCP(op);
+
+//        addToRob(op);
+//        if (isLoadIns(ins)) addToLoadQueue(op);
+//        if (isStoreIns(ins)) addToStoreQueue(op);
 
         lastRenamed = op;
         nRenamed++;
@@ -449,13 +524,46 @@ module AbstractCore
         lastRetired = op;
         nRetired++;
         
-        if (isBranchOp(op)) begin // Br queue entry release
-            branchCheckpointQueue.pop_front();
-        end           
-        updateCommittedOOO();
+        releaseQueues(op);
+        
+//            rob.pop_front();
+            
+//            if (isBranchOp(op)) begin // Br queue entry release
+//                branchCheckpointQueue.pop_front();
+//            end
+            
+//            if (isLoadOp(op)) begin
+//                loadQueue.pop_front();
+//            end
+            
+//            if (isStoreOp(op)) begin // Br queue entry release
+//                loadQueue.pop_front();
+//            end
+
+            updateCommittedOOO();
     endtask
 
-
+    task automatic releaseQueues(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+    
+            RobEntry re = rob.pop_front();
+            assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
+            
+            if (isBranchOp(op)) begin // Br queue entry release
+                BranchCheckpoint bce = branchCheckpointQueue.pop_front();
+                assert (bce.op === op) else $error("Not matching op: %p / %p", bce.op, op);
+            end
+            
+            if (isLoadIns(ins)) begin
+                LoadQueueEntry lqe = loadQueue.pop_front();
+                assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
+            end
+            
+            if (isStoreIns(ins)) begin // Br queue entry release
+                StoreQueueEntry sqe = storeQueue.pop_front();
+                assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
+            end
+    endtask
 
 
     task automatic fetchAndEnqueue();

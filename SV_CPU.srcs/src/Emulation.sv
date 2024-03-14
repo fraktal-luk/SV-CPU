@@ -149,14 +149,14 @@ package Emulation;
     endfunction
 
     function automatic logic isLoadIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+        return isLoadMemIns(ins) || isLoadSysIns(ins);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
     endfunction
 
     function automatic logic isLoadSysIns(input AbstractInstruction ins);
         return (ins.def.o inside {O_sysLoad});
     endfunction
 
-    function automatic logic isLoadMemInz(input AbstractInstruction ins);
+    function automatic logic isLoadMemIns(input AbstractInstruction ins);
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW});
     endfunction
 
@@ -168,6 +168,9 @@ package Emulation;
         return ins.def.o inside {O_sysStore};
     endfunction
     
+    function automatic logic isStoreIns(input AbstractInstruction ins);
+        return isStoreMemIns(ins) || isStoreSysIns(ins);
+    endfunction
 
 
     function automatic bit hasIntDest(input AbstractInstruction ins);
