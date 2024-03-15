@@ -204,12 +204,23 @@ package AbstractSim;
         SourceType types[3];
     } InsDependencies;
 
+
+    typedef struct {
+        int rename;
+        int bq;
+        int lq;
+        int sq;
+    } IndexSet;
+
+
     typedef struct {
         int id;
         Word adr;
         Word bits;
         Word target;
         Word result;
+        //int renameIndex;
+        IndexSet inds;
         int divergence;
         InsDependencies deps;
     } InstructionInfo;
@@ -219,6 +230,8 @@ package AbstractSim;
         res.id = op.id;
         res.adr = op.adr;
         res.bits = op.bits;
+        
+        //res.renameIndex = -1;
         res.divergence = -1;
         return res;
     endfunction
@@ -261,13 +274,28 @@ package AbstractSim;
         function automatic void setDeps(input int id, input InsDependencies deps);
             content[id].deps = deps;
         endfunction
+        
+//        function automatic void setRenameIndex(input int id, input int renameInd);
+//            content[id].renameIndex = renameInd;
+//        endfunction
+        
+        function automatic void setInds(input int id, input IndexSet indexSet);
+            content[id].inds = indexSet;
+        endfunction
     endclass
+
+
+
 
 
 
     class BranchCheckpoint;
     
-        function new(input OpSlot op, input CpuState state, input SimpleMem mem, input int intWr[32], input int floatWr[32], input int intMapR[32], input int floatMapR[32]);
+        function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
+                        input int intWr[32], input int floatWr[32],
+                        input int intMapR[32], input int floatMapR[32],
+                        //input int renameInd, 
+                        input IndexSet indexSet);
             this.op = op;
             this.state = state;
             this.mem = new();
@@ -276,6 +304,8 @@ package AbstractSim;
             this.floatWriters = floatWr;
             this.intMapR = intMapR;
             this.floatMapR = floatMapR;
+            //this.renameIndex = renameInd;
+            this.inds = indexSet;
         endfunction
 
         OpSlot op;
@@ -285,6 +315,8 @@ package AbstractSim;
         int floatWriters[32];
         int intMapR[32];
         int floatMapR[32];
+        //int renameIndex;
+        IndexSet inds;
     endclass
 
 

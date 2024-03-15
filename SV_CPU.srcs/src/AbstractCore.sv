@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '1;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -55,11 +55,6 @@ module AbstractCore
     typedef struct {
         OpSlot op;
     } StoreQueueEntry;
-    
-    
-    RobEntry rob[$:ROB_SIZE];
-    LoadQueueEntry loadQueue[$:LQ_SIZE];
-    StoreQueueEntry storeQueue[$:SQ_SIZE];
 
     
     typedef logic logic3[3];
@@ -106,11 +101,19 @@ module AbstractCore
 
     typedef Word FetchGroup[FETCH_WIDTH];
 
+    function automatic void updateInds(ref IndexSet inds, input OpSlot op);
+        AbstractInstruction ins = decodeAbstract(op.bits);        
+        inds.rename = (inds.rename + 1) % ROB_SIZE;
+        if (isBranchIns(ins)) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
+        if (isLoadIns(ins)) inds.lq = (inds.lq + 1) % LQ_SIZE;
+        if (isStoreIns(ins)) inds.sq = (inds.sq + 1) % SQ_SIZE;
+    endfunction
 
     InstructionMap insMap = new();
   
         InsDependencies lastDepsRe, lastDepsEx;
         InstructionInfo latestOOO[20], committedOOO[20];
+        InstructionInfo lastInsInfo;
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     
@@ -139,7 +142,16 @@ module AbstractCore
     IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt0_C = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP, issuedSt1_C = DEFAULT_ISSUE_GROUP;
 
     OpStatus oooQueue[$:OOO_QUEUE_SIZE];
-    
+
+    RobEntry rob[$:ROB_SIZE];
+    LoadQueueEntry loadQueue[$:LQ_SIZE];
+    StoreQueueEntry storeQueue[$:SQ_SIZE];
+
+    int bqIndex = 0, lqIndex = 0, sqIndex = 0;
+
+    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+
+
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
     
     CpuState execState;
@@ -347,7 +359,7 @@ module AbstractCore
         while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
     endtask
 
-    
+
     task automatic restoreMappings(input BranchCheckpoint cp);
         intWritersR = cp.intWriters;
         floatWritersR = cp.floatWriters;
@@ -380,6 +392,7 @@ module AbstractCore
                 floatWritersR = floatWritersC;
             end
             registerTracker.restore(registerTracker.intMapC, registerTracker.floatMapC);
+            renameInds = commitInds;
             
             renamedDivergence = 0;
         end
@@ -395,6 +408,7 @@ module AbstractCore
             execMem.copyFrom(single.mem);
             
             restoreMappings(single);
+            renameInds = single.inds;
 
             renamedDivergence = insMap.get(branchOp.id).divergence;
         end
@@ -408,11 +422,11 @@ module AbstractCore
         
         if (eventRedirect || intPrev || resetPrev) begin
             flushAll();
-                registerTracker.flushAll();    
+            registerTracker.flushAll();    
         end
         else if (branchRedirect) begin
             flushPartial(branchOp);  
-                registerTracker.flush(branchOp);    
+            registerTracker.flush(branchOp);    
         end
 
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
@@ -437,7 +451,7 @@ module AbstractCore
     task automatic saveCP(input OpSlot op);
         int intMapR[32] = registerTracker.intMapR;
         int floatMapR[32] = registerTracker.floatMapR;
-        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR, floatMapR);
+        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR, floatMapR, renameInds);
         branchCheckpointQueue.push_back(cp);
     endtask
     
@@ -445,6 +459,7 @@ module AbstractCore
     task automatic addToQueues(input OpSlot op);
         AbstractInstruction ins = decodeAbstract(op.bits);
         addToRob(op);
+        
         if (isLoadIns(ins)) addToLoadQueue(op);
         if (isStoreIns(ins)) addToStoreQueue(op);
     endtask
@@ -476,29 +491,25 @@ module AbstractCore
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
-
-        mapOpAtRename(op);
-
         target = renamedEmul.coreState.target;
 
+        updateInds(renameInds, op);
 
+        mapOpAtRename(op);
         if (isBranchOp(op)) saveCP(op);
 
-//        addToRob(op);
-//        if (isLoadIns(ins)) addToLoadQueue(op);
-//        if (isStoreIns(ins)) addToStoreQueue(op);
-
-        lastRenamed = op;
-        nRenamed++;
+            lastRenamed = op;
+            nRenamed++;
 
         insMap.setDivergence(op.id, renamedDivergence);
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
         insMap.setDeps(op.id, deps);
+        insMap.setInds(op.id, renameInds);
 
             lastDepsRe <= deps;
 
-        updateLatestOOO();
+            updateLatestOOO();
     endtask
 
 
@@ -512,7 +523,9 @@ module AbstractCore
 
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
-    
+
+        updateInds(commitInds, op);
+
         mapOpAtCommit(op);
         
         // Actual execution of ops which must be done after Commit
@@ -521,24 +534,10 @@ module AbstractCore
             performSys(execState, op);
         end
 
-        lastRetired = op;
-        nRetired++;
+            lastRetired = op;
+            nRetired++;
         
         releaseQueues(op);
-        
-//            rob.pop_front();
-            
-//            if (isBranchOp(op)) begin // Br queue entry release
-//                branchCheckpointQueue.pop_front();
-//            end
-            
-//            if (isLoadOp(op)) begin
-//                loadQueue.pop_front();
-//            end
-            
-//            if (isStoreOp(op)) begin // Br queue entry release
-//                loadQueue.pop_front();
-//            end
 
             updateCommittedOOO();
     endtask
@@ -825,14 +824,16 @@ module AbstractCore
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
-        if (eventRedirect || interrupt || reset) return;
-    
+        if (eventRedirect || intPrev || resetPrev ||  interrupt || reset) return;
+
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
             InstructionInfo insInfo = insMap.get(opSt.id);
             OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
             assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
-       
+                      
+                      lastInsInfo <= insInfo;
+
             commitOp(op);
             
             if (isSysOp(op)) break;
