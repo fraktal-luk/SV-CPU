@@ -24,17 +24,52 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = '1;
 
+        logic cmpR, cmpC, cmpR_r, cmpC_r;
 
     localparam int FETCH_QUEUE_SIZE = 8;
-    localparam int OP_QUEUE_SIZE = 24;
-    localparam int OOO_QUEUE_SIZE = 120;
     localparam int BC_QUEUE_SIZE = 64;
 
+    localparam int N_REGS_INT = 128;
+    localparam int N_REGS_FLOAT = 128;
 
-    InstructionMap insMap = new();
+    localparam int OP_QUEUE_SIZE = 24;
+    localparam int OOO_QUEUE_SIZE = 120;
 
+    localparam int ROB_SIZE = 128;
+    
+    localparam int LQ_SIZE = 80;
+    localparam int SQ_SIZE = 80;
+    
+    typedef struct {
+        OpSlot op;
+    } RobEntry;
+    
+
+    typedef struct {
+        OpSlot op;
+    } LoadQueueEntry;
+    
+    
+    typedef struct {
+        OpSlot op;
+    } StoreQueueEntry;
+
+    
+    typedef logic logic3[3];
+    
+    function automatic logic3 checkArgsReady(input InsDependencies deps, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+        logic3 res;
+        foreach (deps.types[i])
+            case (deps.types[i])
+                SRC_CONST: res[i] = 1;
+                SRC_INT:   res[i] = readyInt[deps.sources[i]];
+                SRC_FLOAT: res[i] = readyFloat[deps.sources[i]];
+            endcase
+            
+        return res;
+    endfunction
 
     typedef OpSlot OpSlotA[FETCH_WIDTH];
 
@@ -46,48 +81,13 @@ module AbstractCore
         Word words[FETCH_WIDTH];
     } Stage;
 
-
-    class BranchCheckpoint;
-    
-        function new(input OpSlot op, input CpuState state, input SimpleMem mem, input int intWr[32], input int floatWr[32]);
-            this.op = op;
-            this.state = state;
-            this.mem = new();
-            this.mem.copyFrom(mem);
-            this.intWriters = intWr;
-            this.floatWriters = floatWr;
-        endfunction
-
-        OpSlot op;
-        CpuState state;
-        SimpleMem mem;
-        int intWriters[32];
-        int floatWriters[32];
-    endclass
-    
- 
-    
     const Stage EMPTY_STAGE = '{'0, -1, 'x, '{default: 0}, '{default: 'x}};
-
-
-    typedef enum { SRC_CONST, SRC_INT, SRC_FLOAT
-    } SourceType;
-    
-    typedef struct {
-        int sources[3];
-        SourceType types[3];
-    } InsDependencies;
-    
-        InsDependencies lastDeps;
 
     typedef struct {
         int id;
         logic done;
     }
     OpStatus;
-
-        InstructionInfo latestOOO[20], committedOOO[20];
-
 
     typedef struct {
         int num;
@@ -100,12 +100,32 @@ module AbstractCore
     const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
 
     typedef Word FetchGroup[FETCH_WIDTH];
+
+    function automatic void updateInds(ref IndexSet inds, input OpSlot op);
+        AbstractInstruction ins = decodeAbstract(op.bits);        
+        inds.rename = (inds.rename + 1) % ROB_SIZE;
+        if (isBranchIns(ins)) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
+        if (isLoadIns(ins)) inds.lq = (inds.lq + 1) % LQ_SIZE;
+        if (isStoreIns(ins)) inds.sq = (inds.sq + 1) % SQ_SIZE;
+    endfunction
+
+    InstructionMap insMap = new();
+  
+        InsDependencies lastDepsRe, lastDepsEx;
+        InstructionInfo latestOOO[20], committedOOO[20];
+        InstructionInfo lastInsInfo;
+
+    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     
-    int fetchCtr = 0;
-    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0;
+    InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
+    InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
+
+    
+    int cycleCtr = 0, fetchCtr = 0;
+    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, robSize = 0, lqSize = 0, sqSize = 0;
     int insMapSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
-    logic fetchAllow;
+    logic fetchAllow, renameAllow;
     logic resetPrev = 0, intPrev = 0;
     logic branchRedirect = 0, eventRedirect = 0;
     Word branchTarget = 'x, eventTarget = 'x;
@@ -117,28 +137,37 @@ module AbstractCore
 
     OpSlotA nextStageA = '{default: EMPTY_SLOT};
     OpSlot opQueue[$:OP_QUEUE_SIZE];
+        logic opsReady[OP_QUEUE_SIZE];
     OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT, sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT, lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt0_C = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP, issuedSt1_C = DEFAULT_ISSUE_GROUP;
 
     OpStatus oooQueue[$:OOO_QUEUE_SIZE];
-    
+
+    RobEntry rob[$:ROB_SIZE];
+    LoadQueueEntry loadQueue[$:LQ_SIZE];
+    StoreQueueEntry storeQueue[$:SQ_SIZE];
+
+    int bqIndex = 0, lqIndex = 0, sqIndex = 0;
+
+    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+
+
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
     
-    CpuState renamedState, execState, retiredState;
-    SimpleMem renamedMem = new(), execMem = new(), retiredMem = new();
-    
-    InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
-    InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
-
+    CpuState execState;
+    SimpleMem execMem = new();
+    Emulator renamedEmul = new(), execEmul = new(), retiredEmul = new();
 
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
 
+    always @(posedge clk) cycleCtr++; 
 
     always @(posedge clk) begin
         resetPrev <= reset;
         intPrev <= interrupt;
+        
         sig <= 0;
         wrong <= 0;
 
@@ -169,6 +198,9 @@ module AbstractCore
 
             writeToOpQ(nextStageA);
             writeToOOOQ(nextStageA);
+            foreach (nextStageA[i]) begin
+                if (nextStageA[i].active) addToQueues(nextStageA[i]);
+            end
 
             memOp <= EMPTY_SLOT;
             memOpPrev <= memOp;
@@ -176,12 +208,8 @@ module AbstractCore
             sysOp <= EMPTY_SLOT;
             if (!sysOpPrev.active) sysOpPrev <= sysOp;
 
-            if (reset) begin
-                execReset();
-            end
-            else if (interrupt) begin
-                execInterrupt();
-            end
+            if (reset) execReset();
+            else if (interrupt) execInterrupt();
             else begin
                 automatic IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;// = issuedSt0;
             
@@ -222,7 +250,18 @@ module AbstractCore
         oqSize <= opQueue.size();
         oooqSize <= oooQueue.size();
         bcqSize <= branchCheckpointQueue.size();
+        robSize <= rob.size();
+        lqSize <= loadQueue.size();
+        sqSize <= storeQueue.size();
+        
         frontCompleted <= countFrontCompleted();
+
+        nFreeRegsInt <= registerTracker.getNumFreeInt();
+            nSpecRegsInt <= registerTracker.getNumSpecInt();
+            nStabRegsInt <= registerTracker.getNumStabInt();
+        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
+     
+            setOpsReady();
         
         begin
             automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
@@ -231,35 +270,50 @@ module AbstractCore
         end
         
             insMapSize = insMap.size();
-            $swrite(oooqStr, "%p", oooQueue);        
+            $swrite(oooqStr, "%p", oooQueue);
+                 //  cmp0 <= (TMP_getEmul().coreState == retiredEmul.coreState);
+
     end
 
 
-    assign lastRenamedStr = disasm(lastRenamed.bits);
-    assign lastCompletedStr = disasm(lastCompleted.bits);
-    assign lastRetiredStr = disasm(lastRetired.bits);
-
-     
-        string bqStr;
-        always @(posedge clk) begin
-            automatic int ids[$];
-            foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
-            $swrite(bqStr, "%p", ids);
-        end
-
-    assign fetchAllow = fetchQueueAccepts(fqSize);
     assign insAdr = ipStage.baseAdr;
 
+    assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
+    assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat)
+                    && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize);
 
     function logic fetchQueueAccepts(input int k);
-        return k <= FETCH_QUEUE_SIZE - 3 ? '1 : '0;
+        return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
     endfunction
     
-    // TODO
     function logic bcQueueAccepts(input int k);
-        //return k <= FETCH_QUEUE_SIZE - 3 ? '1 : '0;
-        $fatal(2, "not implemented");
+        return k <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
+
+    function logic oooQueueAccepts(input int k);
+        return k <= OOO_QUEUE_SIZE - 2*FETCH_WIDTH;
+    endfunction
+    
+    function logic opQueueAccepts(input int k);
+        return k <= OP_QUEUE_SIZE - 2*FETCH_WIDTH;
+    endfunction
+    
+    function logic regsAccept(input int nI, input int nF);
+        return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
+    endfunction
+
+    function logic robAccepts(input int k);
+        return k <= ROB_SIZE - 2*FETCH_WIDTH;
+    endfunction
+
+    function logic lqAccepts(input int k);
+        return k <= LQ_SIZE - 2*FETCH_WIDTH;
+    endfunction
+    
+    function logic sqAccepts(input int k);
+        return k <= SQ_SIZE - 2*FETCH_WIDTH;
+    endfunction
+
 
     function automatic Stage setActive(input Stage s, input logic on, input int ctr);
         Stage res = s;
@@ -278,8 +332,12 @@ module AbstractCore
 
 
     task automatic completeOp(input OpSlot op);
+        if (writesIntReg(op)) registerTracker.setReadyInt(op.id);
+        if (writesFloatReg(op)) registerTracker.setReadyFloat(op.id);
+
         updateOOOQ(op);
-        lastCompleted = op;
+            lastCompleted = op;
+            lastDepsEx <= insMap.get(op.id).deps;
         nCompleted++;
     endtask
 
@@ -287,48 +345,70 @@ module AbstractCore
         opQueue.delete();
         oooQueue.delete();
         branchCheckpointQueue.delete();
+        rob.delete();
+        loadQueue.delete();
+        storeQueue.delete();
     endtask
     
     task automatic flushPartial(input OpSlot op);
-        while (opQueue.size() > 0 && opQueue[$].id > op.id) opQueue.pop_back();
-        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) oooQueue.pop_back();    
-        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) branchCheckpointQueue.pop_back();    
+        while (opQueue.size() > 0 && opQueue[$].id > op.id) void'(opQueue.pop_back());
+        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
+        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
+        while (rob.size() > 0 && rob[$].op.id > op.id) void'(rob.pop_back());
+        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
+        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
     endtask
 
-    task automatic performRedirect();
-        if (resetPrev) TMP_reset();
-        else if (intPrev) TMP_interrupt();
 
+    task automatic restoreMappings(input BranchCheckpoint cp);
+        intWritersR = cp.intWriters;
+        floatWritersR = cp.floatWriters;
+        registerTracker.restore(cp.intMapR, cp.floatMapR);
+    endtask
+
+
+    task automatic performRedirect();
         if (eventRedirect || intPrev || resetPrev) begin
             ipStage <= '{'1, -1, eventTarget, '{default: '0}, '{default: 'x}};
         end
         else if (branchRedirect) begin
             ipStage <= '{'1, -1, branchTarget, '{default: '0}, '{default: 'x}};
         end
-        else $fatal("Should never get here");
+        else $fatal(2, "Should never get here");
 
         if (eventRedirect || intPrev || resetPrev) begin
-            renamedState = retiredState;
-            renamedMem.copyFrom(retiredMem);
-            execState = retiredState;
-            execMem.copyFrom(retiredMem);
+            renamedEmul.setLike(retiredEmul);
+            execEmul.setLike(retiredEmul);
             
-            intWritersR = '{default: -1};
-            floatWritersR = '{default: -1};
+            execState = retiredEmul.coreState;
+            execMem.copyFrom(retiredEmul.tmpDataMem);
+            
+            if (resetPrev) begin
+                intWritersR = '{default: -1};
+                floatWritersR = '{default: -1};
+            end
+            else begin 
+                intWritersR = intWritersC;
+                floatWritersR = floatWritersC;
+            end
+            registerTracker.restore(registerTracker.intMapC, registerTracker.floatMapC);
+            renameInds = commitInds;
+            
             renamedDivergence = 0;
         end
         else if (branchRedirect) begin
             BranchCheckpoint single = branchCP;
 
-            renamedState = single.state;
-            renamedMem.copyFrom(single.mem);
+            renamedEmul.coreState = single.state;
+            renamedEmul.tmpDataMem.copyFrom(single.mem);
+            execEmul.coreState = single.state;
+            execEmul.tmpDataMem.copyFrom(single.mem);
+            
             execState = single.state;
             execMem.copyFrom(single.mem);
             
-            intWritersR = single.intWriters;
-            clearStableWriters(intWritersR, lastRetired.id);
-            floatWritersR = single.floatWriters;
-            clearStableWriters(floatWritersR, lastRetired.id);
+            restoreMappings(single);
+            renameInds = single.inds;
 
             renamedDivergence = insMap.get(branchOp.id).divergence;
         end
@@ -342,9 +422,11 @@ module AbstractCore
         
         if (eventRedirect || intPrev || resetPrev) begin
             flushAll();
+            registerTracker.flushAll();    
         end
         else if (branchRedirect) begin
-            flushPartial(branchOp);      
+            flushPartial(branchOp);  
+            registerTracker.flush(branchOp);    
         end
 
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
@@ -356,15 +438,130 @@ module AbstractCore
         sysOpPrev <= EMPTY_SLOT;
 
         if (resetPrev) begin
-            renamedState = initialState(IP_RESET);
-            renamedMem.reset();
-
+            renamedEmul.reset();
+            execEmul.reset();
+            retiredEmul.reset();
+            
             execState = initialState(IP_RESET);
             execMem.reset();
-
-            retiredState = initialState(IP_RESET);
-            retiredMem.reset();
         end
+    endtask
+
+    
+    task automatic saveCP(input OpSlot op);
+        int intMapR[32] = registerTracker.intMapR;
+        int floatMapR[32] = registerTracker.floatMapR;
+        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR, floatMapR, renameInds);
+        branchCheckpointQueue.push_back(cp);
+    endtask
+    
+    
+    task automatic addToQueues(input OpSlot op);
+        AbstractInstruction ins = decodeAbstract(op.bits);
+        addToRob(op);
+        
+        if (isLoadIns(ins)) addToLoadQueue(op);
+        if (isStoreIns(ins)) addToStoreQueue(op);
+    endtask
+    
+    task automatic addToRob(input OpSlot op);
+        rob.push_back('{op});
+    endtask
+
+    task automatic addToLoadQueue(input OpSlot op);
+        loadQueue.push_back('{op});
+    endtask
+    
+    task automatic addToStoreQueue(input OpSlot op);
+        storeQueue.push_back('{op});
+    endtask
+
+
+    task automatic renameOp(input OpSlot op);             
+        AbstractInstruction ins = decodeAbstract(op.bits);
+        Word result, target;
+        InsDependencies deps;
+
+        if (op.adr != renamedEmul.coreState.target) renamedDivergence++;
+        
+        result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
+
+        deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
+
+
+        runInEmulator(renamedEmul, op);
+        renamedEmul.drain();
+        target = renamedEmul.coreState.target;
+
+        updateInds(renameInds, op);
+
+        mapOpAtRename(op);
+        if (isBranchOp(op)) saveCP(op);
+
+            lastRenamed = op;
+            nRenamed++;
+
+        insMap.setDivergence(op.id, renamedDivergence);
+        insMap.setResult(op.id, result);
+        insMap.setTarget(op.id, target);
+        insMap.setDeps(op.id, deps);
+        insMap.setInds(op.id, renameInds);
+
+            lastDepsRe <= deps;
+
+            updateLatestOOO();
+    endtask
+
+
+    task automatic commitOp(input OpSlot op);
+        AbstractInstruction ins = decodeAbstract(op.bits);
+        Word trg = retiredEmul.coreState.target;
+        Word bits = fetchInstruction(TMP_getP(), trg);
+
+        assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
+        assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
+
+        runInEmulator(retiredEmul, op);
+        retiredEmul.drain();
+
+        updateInds(commitInds, op);
+
+        mapOpAtCommit(op);
+        
+        // Actual execution of ops which must be done after Commit
+        if (isSysOp(op)) begin
+            setLateEvent(execState, op);
+            performSys(execState, op);
+        end
+
+            lastRetired = op;
+            nRetired++;
+        
+        releaseQueues(op);
+
+            updateCommittedOOO();
+    endtask
+
+    task automatic releaseQueues(input OpSlot op);
+            AbstractInstruction ins = decodeAbstract(op.bits);
+    
+            RobEntry re = rob.pop_front();
+            assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
+            
+            if (isBranchOp(op)) begin // Br queue entry release
+                BranchCheckpoint bce = branchCheckpointQueue.pop_front();
+                assert (bce.op === op) else $error("Not matching op: %p / %p", bce.op, op);
+            end
+            
+            if (isLoadIns(ins)) begin
+                LoadQueueEntry lqe = loadQueue.pop_front();
+                assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
+            end
+            
+            if (isStoreIns(ins)) begin // Br queue entry release
+                StoreQueueEntry sqe = storeQueue.pop_front();
+                assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
+            end
     endtask
 
 
@@ -393,37 +590,13 @@ module AbstractCore
 
         if (fetchStage1.active) fetchQueue.push_back(fetchStage1);
 
-        if (fqSize > 0 && oqSize < OP_QUEUE_SIZE - 2*FETCH_WIDTH) begin
+        if (fqSize > 0 && renameAllow) begin
             Stage toRename = fetchQueue.pop_front();
             OpSlotA toRenameA = makeOpA(toRename);
             
-            mapStageAtRename(toRenameA);
-            
             foreach (toRenameA[i])
-                if (toRenameA[i].active) begin
-                    OpSlot currentOp = toRenameA[i];
-                    AbstractInstruction ins = decodeAbstract(currentOp.bits);
-                    Word result, target;
-
-                    if (currentOp.adr != renamedState.target) renamedDivergence++;
-                    result = computeResult(renamedState, currentOp.adr, ins, renamedMem); // Must be before modifying state
-                    performAt(renamedState, renamedMem, currentOp);
-                    target = renamedState.target;
-
-                    if (isBranchOp(currentOp)) begin
-                        BranchCheckpoint cp = new(currentOp, renamedState, renamedMem, intWritersR, floatWritersR);
-                        branchCheckpointQueue.push_back(cp);
-                    end
-                    
-                    lastRenamed = currentOp;
-                    nRenamed++;
-                    
-                    insMap.setDivergence(currentOp.id, renamedDivergence);
-                    insMap.setResult(currentOp.id, result);
-                    insMap.setTarget(currentOp.id, target);
-                    
-                        updateLatestOOO();
-                end
+                if (toRenameA[i].active)
+                    renameOp(toRenameA[i]);
 
             nextStageA <= toRenameA;
         end
@@ -434,7 +607,18 @@ module AbstractCore
     endtask
 
 
-    function automatic InsDependencies getArgProducers(input OpSlot op);
+
+        task automatic setOpsReady();
+            opsReady <= '{default: 'z};
+            foreach (opQueue[i]) begin
+                InsDependencies deps = insMap.get(opQueue[i].id).deps;
+                logic3 ra = checkArgsReady(deps, registerTracker.intReady, registerTracker.floatReady);
+                opsReady[i] <= ra.and();
+            end
+        endtask
+
+
+    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
         int sources[3] = '{-1, -1, -1};
         SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
         
@@ -443,67 +627,48 @@ module AbstractCore
         
         foreach (sources[i]) begin
             if (typeSpec[i + 2] == "i") begin
-                sources[i] = intWritersR[abs.sources[i]];
+                sources[i] = mapInt[abs.sources[i]];
                 types[i] = SRC_INT;
             end
             else if (typeSpec[i + 2] == "f") begin
-                sources[i] = floatWritersR[abs.sources[i]];
+                sources[i] = mapFloat[abs.sources[i]];
                 types[i] = SRC_FLOAT;
             end
         end
-        
+
         return '{sources, types};
     endfunction
 
+
     task automatic mapOpAtRename(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
-        
-        lastDeps <= getArgProducers(op);
-        
         if (writesIntReg(op)) intWritersR[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersR[abs.dest] = op.id;
-        intWritersR[0] = -1;            
+        intWritersR[0] = -1;
+        
+        registerTracker.reserveInt(op);
+        registerTracker.reserveFloat(op);
     endtask
 
     task automatic mapOpAtCommit(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         if (writesIntReg(op)) intWritersC[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersC[abs.dest] = op.id;
-        intWritersC[0] = -1;    
+        intWritersC[0] = -1;
         
-        clearStableWriters(intWritersR, op.id);
-        clearStableWriters(floatWritersR, op.id);        
+        registerTracker.commitInt(op);
+        registerTracker.commitFloat(op);
     endtask
-
-    task automatic mapStageAtRename(input OpSlotA stA);
-        foreach (stA[i]) begin
-            if (stA[i].active) begin
-                mapOpAtRename(stA[i]);
-            end
-        end 
-    endtask
-
-    function automatic void clearStableWriters(ref int arr[32], input int stable);
-        foreach (arr[i]) if (arr[i] <= stable) arr[i] = -1;
-    endfunction
-
-
 
     task automatic execReset();    
         eventTarget <= IP_RESET;
-
-        performAsyncEvent(renamedState, IP_RESET);
-        performAsyncEvent(execState, IP_RESET);
-        performAsyncEvent(retiredState, IP_RESET);  
+        performAsyncEvent(retiredEmul.coreState, IP_RESET);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
         eventTarget <= IP_INT;
-
-        performAsyncEvent(renamedState, IP_INT);
-        performAsyncEvent(execState, IP_INT);
-        performAsyncEvent(retiredState, IP_INT);
+        retiredEmul.interrupt();        
     endtask
 
     task automatic performLink(ref CpuState state, input OpSlot op);
@@ -526,7 +691,7 @@ module AbstractCore
         
         BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
 
-            branchCP = found[0];
+        branchCP = found[0];
         branchOp <= op;
         branchTarget <= evt.target;
         branchRedirect <= evt.redirect;
@@ -578,19 +743,6 @@ module AbstractCore
         state.target = op.adr + 4;
     endtask
 
-    task automatic performMemAll(ref CpuState state, input OpSlot op, ref SimpleMem mem);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
-
-        Word adr = calculateEffectiveAddress(abs, args);
-        Word result = getLoadValue(abs, adr, mem, state);
-        
-        if (isStoreMemOp(op)) mem.storeW(adr, args[2]);
-        if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
-        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
-        
-        state.target = op.adr + 4;
-    endtask
 
     task automatic performSysStore(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -644,15 +796,6 @@ module AbstractCore
         completeOp(op);
     endtask
 
-
-    task automatic performAt(ref CpuState state, ref SimpleMem mem, input OpSlot op);
-        if (isBranchOp(op)) performBranch(state, op);
-        else if (isMemOp(op)) performMemAll(state, op, mem);
-        else if (isSysOp(op)) performSys(state, op);
-        else performRegularOp(state, op);
-    endtask
-
-
     function automatic OpSlot makeOp(input Stage st, input int i);
         if (!st.active || !st.mask[i]) return EMPTY_SLOT;
         return '{1, st.ctr + i, st.baseAdr + 4*i, st.words[i]};
@@ -680,34 +823,18 @@ module AbstractCore
     endtask
 
     task automatic advanceOOOQ();
-        if (eventRedirect || interrupt || reset) return;
-    
+        // Don't commit anything more if event is being handled
+        if (eventRedirect || intPrev || resetPrev ||  interrupt || reset) return;
+
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
-            
-            InstructionInfo insInfo = insMap.get(opSt.id);//insMap[opSt.id];
+            InstructionInfo insInfo = insMap.get(opSt.id);
             OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
             assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
+                      
+                      lastInsInfo <= insInfo;
 
-            mapOpAtCommit(op);
-            TMP_commit(op);
-            
-            // Actual execution of ops which must be done after Commit
-            if (isSysOp(op)) begin
-                 setLateEvent(execState, op);
-                 performSys(execState, op);
-            end
-
-            performAt(retiredState, retiredMem, op);
-        
-            if (isBranchOp(op)) begin // Br queue entry release
-                branchCheckpointQueue.pop_front();
-            end
-        
-            lastRetired = op;
-            nRetired++;
-            
-                updateCommittedOOO();
+            commitOp(op);
             
             if (isSysOp(op)) break;
         end
@@ -777,4 +904,18 @@ module AbstractCore
             committedOOO = {committedOOO[1:19], last};
         endtask
 
+
+    assign lastRenamedStr = disasm(lastRenamed.bits);
+    assign lastCompletedStr = disasm(lastCompleted.bits);
+    assign lastRetiredStr = disasm(lastRetired.bits);
+
+     
+        string bqStr;
+        always @(posedge clk) begin
+            automatic int ids[$];
+            foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
+            $swrite(bqStr, "%p", ids);
+        end
+
 endmodule
+ 

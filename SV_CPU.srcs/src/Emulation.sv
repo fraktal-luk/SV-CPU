@@ -6,8 +6,19 @@ package Emulation;
     import InsDefs::*;
     import Asm::*;
 
+        function automatic logic cmpMems(input Word a[4096], input Word b[4096]);
+            foreach (a[i]) begin
+                if (a[i] === b[i]) continue;
+                
+                $error("Difference at [%d]: %h / %h", i, a[i], b[i]);
+                return 0;
+            end
+            
+            $display("   mem match!");
+            return 1;
+        endfunction
 
-    function automatic writeArrayW(ref logic[7:0] mem[], input Word adr, input Word val);
+    function automatic void writeArrayW(ref logic[7:0] mem[], input Word adr, input Word val);
         mem[adr+0] = val[31:24];
         mem[adr+1] = val[23:16];
         mem[adr+2] = val[15:8];
@@ -17,6 +28,12 @@ package Emulation;
     function automatic void writeProgram(ref Word mem[4096], input Word adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
+    endfunction
+
+    function automatic Word fetchInstruction(input Word progMem[], input Word adr);
+        assert (adr % 4 == 0) else $error("Fetching unaligned adr");
+        assert (adr/4 < progMem.size()) else $error("Fetch adr OOB");
+        return progMem[adr/4];
     endfunction
 
 
@@ -82,6 +99,7 @@ package Emulation;
         function automatic Word loadB(input Word adr);
             Word res = 0;
             res[7:0] = this.bytes[adr];
+            return res;
         endfunction
         
         function automatic Word loadW(input Word adr);
@@ -131,14 +149,14 @@ package Emulation;
     endfunction
 
     function automatic logic isLoadIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+        return isLoadMemIns(ins) || isLoadSysIns(ins);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
     endfunction
 
     function automatic logic isLoadSysIns(input AbstractInstruction ins);
         return (ins.def.o inside {O_sysLoad});
     endfunction
 
-    function automatic logic isLoadMemInz(input AbstractInstruction ins);
+    function automatic logic isLoadMemIns(input AbstractInstruction ins);
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW});
     endfunction
 
@@ -150,6 +168,9 @@ package Emulation;
         return ins.def.o inside {O_sysStore};
     endfunction
     
+    function automatic logic isStoreIns(input AbstractInstruction ins);
+        return isStoreMemIns(ins) || isStoreSysIns(ins);
+    endfunction
 
 
     function automatic bit hasIntDest(input AbstractInstruction ins);
@@ -394,6 +415,8 @@ package Emulation;
             Word adr = calculateEffectiveAddress(ins, args);
             res = getLoadValue(ins, adr, dataMem, state);
         end
+        
+        return res;
     endfunction
 
 
@@ -405,35 +428,41 @@ package Emulation;
         SimpleMem tmpDataMem = new();
         MemoryWrite writeToDo;
 
+        function automatic void setLike(input Emulator other);
+            ip = other.ip;
+            str = other.str;
+            status = other.status;
+            coreState = other.coreState;
+            tmpDataMem.copyFrom(other.tmpDataMem);
+            writeToDo = other.writeToDo;
+        endfunction
 
         function automatic void reset();
             this.ip = 'x;
-            
+            this.str = "";
+
             this.status = '{default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
 
-            this.coreState.target = IP_RESET;
-
-            this.coreState.intRegs = '{default: 0};
-            this.coreState.floatRegs = '{default: 0};
-            this.coreState.sysRegs = SYS_REGS_INITIAL;
-            
+            this.coreState = initialState(IP_RESET);
             this.tmpDataMem.reset();
         endfunction
         
         
         function automatic void executeStep(input Word progMem[]);
-            AbstractInstruction absIns;
             ExecResult execRes;
-            this.ip = this.coreState.target;
-            absIns = decodeAbstract(progMem[this.ip/4]);
-            this.str = disasm(absIns.encoding);
-            execRes = processInstruction(this.ip, absIns, this.tmpDataMem);            
+            Word adr = this.coreState.target;
+            Word bits = fetchInstruction(progMem, adr);
+            AbstractInstruction absIns = decodeAbstract(bits);
+
+            execRes = processInstruction(adr, absIns, this.tmpDataMem);            
         endfunction 
         
         
         function automatic CoreStatus checkStatus();
-        
+            CoreStatus res;
+            
+            return res; // DUMMY
         endfunction 
         
         // Clear mem write and signals to send
@@ -442,10 +471,13 @@ package Emulation;
             this.status.send = 0;
         endfunction
 
-        local function automatic ExecResult processInstruction(input Word adr, input AbstractInstruction ins, ref SimpleMem dataMem);
+        function automatic ExecResult processInstruction(input Word adr, input AbstractInstruction ins, ref SimpleMem dataMem);
             ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.fmt];
             Word3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
+
+            this.ip = adr;
+            this.str = disasm(ins.encoding);
 
             this.coreState.target = adr + 4;
             
@@ -531,125 +563,5 @@ package Emulation;
         
     endclass
 
-
-
-    class EmulationWithMems;
-        Emulator emul;
-        Word progMem[4096];
-        logic[7:0] dataMem[] = new[4096]('{default: 0});
- 
-        function new();
-            this.emul = new();
-            this.reset();
-        endfunction
-
-        function void reset();
-            this.emul.reset();
-            this.dataMem = '{default: 0};
-            this.progMem = '{default: 'x}; 
-        endfunction
-        
-        function void resetCpu();
-            this.emul.reset();
-        endfunction  
-                
-        function void writeProgram(input Word prog[], input int adr);
-            foreach (prog[i]) this.progMem[adr/4 + i] = prog[i];
-        endfunction
-        
-        
-        function void writeData();
-            
-        endfunction
-
-
-        function void setBasicHandlers();
-            this.progMem[IP_RESET/4] = processLines({"ja -512"}).words[0];
-            this.progMem[IP_RESET/4 + 1] = processLines({"ja 0"}).words[0];
-           
-            this.progMem[IP_ERROR/4] = processLines({"sys error"}).words[0];
-            this.progMem[IP_ERROR/4 + 1] = processLines({"ja 0"}).words[0];
-    
-            this.progMem[IP_CALL/4] = processLines({"sys send"}).words[0];
-            this.progMem[IP_CALL/4 + 1] = processLines({"ja 0"}).words[0];        
-        endfunction
-        
-        function automatic void prepareTest(input string name, input int commonAdr);
-            squeue fileLines = readFile(name);
-            Section common = processLines(readFile("common_asm.txt"));
-            Section testSection = processLines(fileLines);
-            testSection = fillImports(testSection, 0, common, commonAdr);
-            
-            this.writeProgram(testSection.words, 0);
-            this.writeProgram(common.words, commonAdr);
-            
-            this.setBasicHandlers();
-            
-            this.emul.reset();
-        endfunction
- 
-         function automatic void prepareErrorTest(input int commonAdr);
-            squeue fileLines = {"undef", "ja 0"};
-            Section common = processLines(readFile("common_asm.txt"));
-            Section testSection = processLines(fileLines);
-            testSection = fillImports(testSection, 0, common, commonAdr);
-            
-            this.writeProgram(testSection.words, 0);
-            this.writeProgram(common.words, commonAdr);
-            
-            this.setBasicHandlers();
-            
-            this.emul.reset();
-        endfunction
-
-         function automatic void prepareEventTest(input int commonAdr);
-            squeue fileLines = readFile("events.txt");
-            Section common = processLines(readFile("common_asm.txt"));
-            Section testSection = processLines(fileLines);
-            testSection = fillImports(testSection, 0, common, commonAdr);
-            
-            this.writeProgram(testSection.words, 0);
-            this.writeProgram(common.words, commonAdr);
-            
-            this.setBasicHandlers();
-            
-            this.writeProgram(processLines({"add_i r20, r0, 55", "sys rete", "ja 0"}).words, IP_CALL);        
-
-            this.emul.reset();
-        endfunction
-
- 
-        function automatic void prepareIntTest(input int commonAdr);
-            squeue fileLines = readFile("events2.txt");
-            Section common = processLines(readFile("common_asm.txt"));
-            Section testSection = processLines(fileLines);
-            testSection = fillImports(testSection, 0, common, commonAdr);
-            
-            this.writeProgram(testSection.words, 0);
-            this.writeProgram(common.words, commonAdr);
-            
-            this.setBasicHandlers();
-
-            this.writeProgram(processLines({"add_i r20, r0, 55", "sys rete", "ja 0"}).words, IP_CALL);        
-            this.writeProgram(processLines({"add_i r21, r0, 77", "sys reti", "ja 0"}).words, IP_INT);        
-              
-            this.emul.reset();
-        endfunction
- 
- 
-        function automatic void step();
-            this.emul.executeStep(this.progMem);
-        endfunction
-        
-        function automatic void writeAndDrain();
-            if (this.emul.writeToDo.active) writeArrayW(this.dataMem, emul.writeToDo.adr, emul.writeToDo.value);            
-            this.emul.drain();
-        endfunction 
-        
-        function automatic void interrupt();
-            this.emul.interrupt();
-        endfunction
-        
-    endclass
 
 endpackage
