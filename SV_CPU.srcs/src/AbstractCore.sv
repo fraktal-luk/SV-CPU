@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -41,6 +41,10 @@ module AbstractCore
     
     localparam int LQ_SIZE = 80;
     localparam int SQ_SIZE = 80;
+    
+    
+    const logic SYS_LOAD_AS_MEM = 0;
+    
     
     typedef struct {
         OpSlot op;
@@ -137,7 +141,16 @@ module AbstractCore
 
     OpSlotA nextStageA = '{default: EMPTY_SLOT};
     OpSlot opQueue[$:OP_QUEUE_SIZE];
-        logic opsReady[OP_QUEUE_SIZE];
+        typedef logic ReadyVec[OP_QUEUE_SIZE];
+        ReadyVec opsReady, opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
+
+    OpSlot T_iqRegular[$:OP_QUEUE_SIZE];
+    OpSlot T_iqBranch[$:OP_QUEUE_SIZE];
+    OpSlot T_iqMem[$:OP_QUEUE_SIZE];
+    OpSlot T_iqSys[$:OP_QUEUE_SIZE];
+
+
+
     OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT, sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT, lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt0_C = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP, issuedSt1_C = DEFAULT_ISSUE_GROUP;
 
@@ -262,6 +275,10 @@ module AbstractCore
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
      
             setOpsReady();
+            opsReadyRegular <= getReadyVec(T_iqRegular);
+            opsReadyBranch <= getReadyVec(T_iqBranch);
+            opsReadyMem <= getReadyVec(T_iqMem);
+            opsReadySys <= getReadyVec(T_iqSys);
         
         begin
             automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
@@ -332,8 +349,16 @@ module AbstractCore
 
 
     task automatic completeOp(input OpSlot op);
-        if (writesIntReg(op)) registerTracker.setReadyInt(op.id);
-        if (writesFloatReg(op)) registerTracker.setReadyFloat(op.id);
+        if (writesIntReg(op)) begin
+            registerTracker.setReadyInt(op.id);
+            registerTracker.writeValueInt(op, insMap.get(op.id).result);
+        end
+        if (writesFloatReg(op)) begin
+            registerTracker.setReadyFloat(op.id);
+            registerTracker.writeValueFloat(op, insMap.get(op.id).result);
+        end
+
+          //  if (op.id == 218) $display("218: %p \n %p", decodeAbstract(op.bits), insMap.get(218));
 
         updateOOOQ(op);
             lastCompleted = op;
@@ -343,6 +368,10 @@ module AbstractCore
 
     task automatic flushAll();
         opQueue.delete();
+            T_iqRegular.delete();
+            T_iqBranch.delete();
+            T_iqMem.delete();
+            T_iqSys.delete();
         oooQueue.delete();
         branchCheckpointQueue.delete();
         rob.delete();
@@ -352,6 +381,11 @@ module AbstractCore
     
     task automatic flushPartial(input OpSlot op);
         while (opQueue.size() > 0 && opQueue[$].id > op.id) void'(opQueue.pop_back());
+            while (T_iqRegular.size() > 0 && T_iqRegular[$].id > op.id) void'(T_iqRegular.pop_back());
+            while (T_iqBranch.size() > 0 && T_iqBranch[$].id > op.id) void'(T_iqBranch.pop_back());
+            while (T_iqMem.size() > 0 && T_iqMem[$].id > op.id) void'(T_iqMem.pop_back());
+            while (T_iqSys.size() > 0 && T_iqSys[$].id > op.id) void'(T_iqSys.pop_back());
+        
         while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
         while (rob.size() > 0 && rob[$].op.id > op.id) void'(rob.pop_back());
@@ -488,6 +522,8 @@ module AbstractCore
 
         deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
 
+           // if (op.id == 218) $display("!!! %p, %p, %d", renamedEmul.coreState.intRegs, deps, result);
+
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
@@ -617,6 +653,16 @@ module AbstractCore
             end
         endtask
 
+        function automatic ReadyVec getReadyVec(input OpSlot iq[$:OP_QUEUE_SIZE]);
+            ReadyVec res = '{default: 'z};
+            foreach (iq[i]) begin
+                InsDependencies deps = insMap.get(iq[i].id).deps;
+                logic3 ra = checkArgsReady(deps, registerTracker.intReady, registerTracker.floatReady);
+                res[i] = ra.and();
+            end
+            return res;
+        endfunction
+
 
     function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
         int sources[3] = '{-1, -1, -1};
@@ -634,10 +680,32 @@ module AbstractCore
                 sources[i] = mapFloat[abs.sources[i]];
                 types[i] = SRC_FLOAT;
             end
+            else if (typeSpec[i + 2] == "c") begin
+                sources[i] = abs.sources[i];
+                types[i] = SRC_CONST;
+            end
         end
 
         return '{sources, types};
     endfunction
+
+        function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+            Word res[3];
+            foreach (res[i]) begin
+                if (deps.types[i] == SRC_INT) begin
+                    res[i] = tracker.intRegs[deps.sources[i]];
+                end
+                else if (deps.types[i] == SRC_FLOAT) begin
+                    res[i] = tracker.floatRegs[deps.sources[i]];
+                end
+                else if (deps.types[i] == SRC_CONST) begin
+                    res[i] = deps.sources[i];
+                end
+            end
+    
+            return res;
+        endfunction
+
 
 
     task automatic mapOpAtRename(input OpSlot op);
@@ -736,9 +804,11 @@ module AbstractCore
 
     task automatic performMemLater(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
+        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+        Word data = isLoadSysIns(abs) ? state.sysRegs[args[1]] : readIn[0];
 
-        if (writesIntReg(op)) writeIntReg(state, abs.dest, readIn[0]);
-        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, readIn[0]);
+        if (writesIntReg(op)) writeIntReg(state, abs.dest, data);
+        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, data);
         
         state.target = op.adr + 4;
     endtask
@@ -810,7 +880,15 @@ module AbstractCore
     endfunction
 
     task automatic writeToOpQ(input OpSlotA sa);
-        foreach (sa[i]) if (sa[i].active) opQueue.push_back(sa[i]);        
+        foreach (sa[i]) if (sa[i].active) opQueue.push_back(sa[i]);
+        
+        // Mirror into separate queues 
+        foreach (sa[i]) if (sa[i].active) begin
+            if (isMemOp(sa[i])) T_iqMem.push_back(sa[i]);
+            else if (isSysOp(sa[i]) || (SYS_LOAD_AS_MEM && isLoadSysIns(decodeAbstract(sa[i].bits)))) T_iqSys.push_back(sa[i]);
+            else if (isBranchOp(sa[i])) T_iqBranch.push_back(sa[i]);
+            else T_iqRegular.push_back(sa[i]);
+        end
     endtask
 
     task automatic writeToOOOQ(input OpSlotA sa);
@@ -855,17 +933,21 @@ module AbstractCore
                 
                 if (isBranchOp(op)) begin
                     res.branch = op;
+                    assert (op === T_iqBranch.pop_front()) else $error("wrong");
                     break;
                 end
-                else if (isMemOp(op)) begin
+                else if (isMemOp(op) || (SYS_LOAD_AS_MEM && isLoadSysIns(decodeAbstract(op.bits)))) begin
                     res.mem = op;
+                    assert (op === T_iqMem.pop_front()) else $error("wrong");
                     break;
                 end
                 else if (isSysOp(op)) begin
                     res.sys = op;
+                    assert (op === T_iqSys.pop_front()) else $error("wrong");
                     break;
                 end
                 
+                assert (op === T_iqRegular.pop_front()) else $error("wrong");
                 res.regular[i] = op;
             end
         end

@@ -406,6 +406,7 @@ package AbstractSim;
             if (pDestPrev == 0) return; 
             intInfo[pDestPrev] = REG_INFO_FREE;
             intReady[pDestPrev] = 0;
+            intRegs[pDestPrev] = 'x;
         endfunction
         
         
@@ -427,9 +428,10 @@ package AbstractSim;
             
             floatInfo[pDest] = '{STABLE, -1};
             floatMapC[vDest] = pDest;
-            if (pDestPrev == 0) return; 
+            if (pDestPrev == 0) return;
             floatInfo[pDestPrev] = REG_INFO_FREE;
             floatReady[pDestPrev] = 0;
+            floatRegs[pDestPrev] = 'x;
         endfunction
         
         
@@ -449,11 +451,15 @@ package AbstractSim;
             foreach (indsInt[i]) begin
                 int pDest = indsInt[i];
                 intInfo[pDest] = REG_INFO_FREE;
+                intReady[pDest] = 0;
+                intRegs[pDest] = 'x;
             end
 
             foreach (indsFloat[i]) begin
                 int pDest = indsFloat[i];
-                intInfo[pDest] = REG_INFO_FREE;
+                floatInfo[pDest] = REG_INFO_FREE;
+                floatReady[pDest] = 0;
+                floatRegs[pDest] = 'x;
             end          
             
             // Restoring map is separate
@@ -461,17 +467,21 @@ package AbstractSim;
         
         function automatic void flushAll();
             //int vDest = ins.dest;
-            int indsInt[$] = intInfo.find_first_index with (item.state == SPECULATIVE);
-            int indsFloat[$] = floatInfo.find_first_index with (item.state == SPECULATIVE);
+            int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE);
+            int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE);
 
             foreach (indsInt[i]) begin
                 int pDest = indsInt[i];
                 intInfo[pDest] = REG_INFO_FREE;
+                intReady[pDest] = 0;
+                intRegs[pDest] = 'x;
             end
              
             foreach (indsFloat[i]) begin
                 int pDest = indsFloat[i];
-                intInfo[pDest] = REG_INFO_FREE;
+                floatInfo[pDest] = REG_INFO_FREE;
+                floatReady[pDest] = 0;
+                floatRegs[pDest] = 'x;
             end
             
             // Restoring map is separate
@@ -485,16 +495,18 @@ package AbstractSim;
         
         function automatic void writeValueInt(input OpSlot op, input Word value);
             AbstractInstruction ins = decodeAbstract(op.bits);
+            int pDest = findDestInt(op.id);
             if (!writesIntReg(op) || ins.dest == 0) return;
             
-            intRegs[ins.dest] = value;
+            intRegs[pDest] = value;
         endfunction
         
         function automatic void writeValueFloat(input OpSlot op, input Word value);
             AbstractInstruction ins = decodeAbstract(op.bits);
+            int pDest = findDestInt(op.id);
             if (!writesFloatReg(op)) return;
             
-            floatRegs[ins.dest] = value;
+            floatRegs[pDest] = value;
         endfunction     
         
         
