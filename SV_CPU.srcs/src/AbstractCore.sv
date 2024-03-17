@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = '0;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -131,9 +131,9 @@ module AbstractCore
 
     logic fetchAllow, renameAllow;
     logic resetPrev = 0, intPrev = 0;
-    logic branchRedirect = 0, eventRedirect = 0;
-    Word branchTarget = 'x, eventTarget = 'x;
-    OpSlot branchOp = EMPTY_SLOT, eventOp = EMPTY_SLOT;
+    //logic branchRedirect = 0, eventRedirect = 0;
+    //Word branchTarget = 'x, eventTarget = 'x;
+    //OpSlot branchOp = EMPTY_SLOT, eventOp = EMPTY_SLOT;
     BranchCheckpoint branchCP;
     
     Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
@@ -200,8 +200,8 @@ module AbstractCore
     
     const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 'x};
 
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO,
-        branchEventInfo_T, lateEventInfo_T;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO;
+      //  branchEventInfo_T, lateEventInfo_T;
 
     typedef struct {
         logic req;
@@ -213,6 +213,15 @@ module AbstractCore
     
     MemWriteInfo writeInfo = EMPTY_WRITE_INFO;  
     
+        assign writeReq = writeInfo.req;
+        assign writeAdr = writeInfo.adr;
+        assign writeOut = writeInfo.value;
+
+//        assign cmp0 = (writeReq === writeInfo.req);
+//        assign cmp1 = (writeAdr === writeInfo.adr);
+//        assign cmpw0 = (writeOut === writeInfo.value);
+    
+
     always @(posedge clk) begin
         resetPrev <= reset;
         intPrev <= interrupt;
@@ -223,19 +232,19 @@ module AbstractCore
         readReq[0] = 0;
         readAdr[0] = 'x;
         
-        writeReq = 0;
-        writeAdr = 'x;
-        writeOut = 'x;
+//        writeReq = 0;
+//        writeAdr = 'x;
+//        writeOut = 'x;
             writeInfo = EMPTY_WRITE_INFO;
             
-        branchOp <= EMPTY_SLOT;
-        branchRedirect <= 0;
-        branchTarget <= 'x;
+    //    branchOp <= EMPTY_SLOT;
+    //    branchRedirect <= 0;
+     //   branchTarget <= 'x;
             branchEventInfo <= EMPTY_EVENT_INFO;
 
-        eventOp <= EMPTY_SLOT;
-        eventRedirect <= 0;
-        eventTarget <= 'x;
+     //   eventOp <= EMPTY_SLOT;
+      //  eventRedirect <= 0;
+      //  eventTarget <= 'x;
             lateEventInfo <= EMPTY_EVENT_INFO;
 
         advanceOOOQ();
@@ -315,10 +324,10 @@ module AbstractCore
     assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat)
                     && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize);
 
-        assign branchEventInfo_T = '{branchOp, branchRedirect, branchTarget};
-        assign cmp0 = (branchEventInfo === branchEventInfo_T);
-        assign lateEventInfo_T = '{eventOp, eventRedirect, eventTarget};
-        assign cmp1 = (lateEventInfo === lateEventInfo_T);
+//        assign branchEventInfo_T = '{branchOp, branchRedirect, branchTarget};
+  //      assign cmp0 = (branchEventInfo === branchEventInfo_T);
+  //      assign lateEventInfo_T = '{eventOp, eventRedirect, eventTarget};
+  //      assign cmp1 = (lateEventInfo === lateEventInfo_T);
 
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
@@ -582,9 +591,11 @@ module AbstractCore
         AbstractInstruction ins = decodeAbstract(op.bits);
         Word result, target;
         InsDependencies deps;
+        Word argVals[3];
 
         if (op.adr != renamedEmul.coreState.target) renamedDivergence++;
         
+        argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
 
         deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
@@ -609,6 +620,7 @@ module AbstractCore
         insMap.setTarget(op.id, target);
         insMap.setDeps(op.id, deps);
         insMap.setInds(op.id, renameInds);
+        insMap.setArgValues(op.id, argVals);
 
             lastDepsRe <= deps;
 
@@ -751,6 +763,10 @@ module AbstractCore
                 sources[i] = abs.sources[i];
                 types[i] = SRC_CONST;
             end
+            else if (typeSpec[i + 2] == "0") begin
+                sources[i] = abs.sources[i];
+                types[i] = SRC_ZERO;
+            end
         end
 
         return '{sources, types};
@@ -768,9 +784,17 @@ module AbstractCore
                 else if (deps.types[i] == SRC_CONST) begin
                     res[i] = deps.sources[i];
                 end
+                else if (deps.types[i] == SRC_ZERO) begin
+                    res[i] = 0;
+                end
             end
     
             return res;
+        endfunction
+
+        function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
+            InsDependencies deps = insMap.get(op.id).deps;
+            return getArgValues(tracker, deps);            
         endfunction
 
 
@@ -796,14 +820,14 @@ module AbstractCore
     endtask
 
     task automatic execReset();    
-        eventTarget <= IP_RESET;
+     //   eventTarget <= IP_RESET;
             lateEventInfo <= '{EMPTY_SLOT, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        eventTarget <= IP_INT;
+      //  eventTarget <= IP_INT;
             lateEventInfo <= '{EMPTY_SLOT, 1, IP_INT};
         retiredEmul.interrupt();        
     endtask
@@ -829,9 +853,9 @@ module AbstractCore
         BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
 
         branchCP = found[0];
-        branchOp <= op;
-        branchTarget <= evt.target;
-        branchRedirect <= evt.redirect;
+//        branchOp <= op;
+  //      branchTarget <= evt.target;
+  //      branchRedirect <= evt.redirect;
             branchEventInfo <= '{op, evt.redirect, evt.target};
     endtask
 
@@ -845,7 +869,13 @@ module AbstractCore
     task automatic performRegularOp(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+        Word3 argsP = getPhysicalArgValues(registerTracker, op);
+        Word3 argsM = insMap.get(op.id).argValues;
+        
         Word result = (abs.def.o == O_sysLoad) ? state.sysRegs[args[1]] : calculateResult(abs, args, op.adr);
+
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsP, parsingMap[abs.fmt].typeSpec);
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
 
         if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
         if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
@@ -857,7 +887,13 @@ module AbstractCore
     task automatic performMemFirst(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+        Word3 argsP = getPhysicalArgValues(registerTracker, op);
+        Word3 argsM = insMap.get(op.id).argValues;
+
         Word adr = calculateEffectiveAddress(abs, args);
+
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsP, parsingMap[abs.fmt].typeSpec);
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
 
         // TODO: make struct, unpack at assigment to ports
         readReq[0] <= '1;
@@ -865,10 +901,9 @@ module AbstractCore
         memOp <= op;
         
         if (isStoreMemOp(op)) begin
-            // TODO: make struct, unpack at assigment to ports 
-            writeReq = 1;
-            writeAdr = adr;
-            writeOut = args[2];
+//            writeReq = 1;
+//            writeAdr = adr;
+//            writeOut = args[2];
                 writeInfo <= '{1, adr, args[2]};
         end
     endtask
@@ -876,7 +911,13 @@ module AbstractCore
     task automatic performMemLater(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+        Word3 argsP = getPhysicalArgValues(registerTracker, op);
+        Word3 argsM = insMap.get(op.id).argValues;
+        
         Word data = isLoadSysIns(abs) ? state.sysRegs[args[1]] : readIn[0];
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsP, parsingMap[abs.fmt].typeSpec);
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
+
 
         if (writesIntReg(op)) writeIntReg(state, abs.dest, data);
         if (writesFloatReg(op)) writeFloatReg(state, abs.dest, data);
@@ -888,6 +929,11 @@ module AbstractCore
     task automatic performSysStore(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+        Word3 argsP = getPhysicalArgValues(registerTracker, op);
+        Word3 argsM = insMap.get(op.id).argValues;
+
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsP, parsingMap[abs.fmt].typeSpec);
+            assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
 
         writeSysReg(state, args[1], args[2]);
         state.target = op.adr + 4;
@@ -1031,9 +1077,9 @@ module AbstractCore
         AbstractInstruction abs = decodeAbstract(op.bits);
         LateEvent evt = getLateEvent(op, abs, state.sysRegs[2], state.sysRegs[3]);
 
-        eventOp <= op;
-        eventTarget <= evt.target;
-        eventRedirect <= evt.redirect;
+  //      eventOp <= op;
+  //      eventTarget <= evt.target;
+  //      eventRedirect <= evt.redirect;
             lateEventInfo <= '{op, evt.redirect, evt.target};
         sig <= evt.sig;
         wrong <= evt.wrong;

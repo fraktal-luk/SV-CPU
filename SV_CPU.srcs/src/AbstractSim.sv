@@ -196,7 +196,7 @@ package AbstractSim;
 
     typedef int InsId;
 
-    typedef enum { SRC_CONST, SRC_INT, SRC_FLOAT
+    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
     } SourceType;
     
     typedef struct {
@@ -223,6 +223,8 @@ package AbstractSim;
         IndexSet inds;
         int divergence;
         InsDependencies deps;
+        
+        Word argValues[3];
     } InstructionInfo;
 
     function automatic InstructionInfo makeInsInfo(input OpSlot op);
@@ -281,6 +283,10 @@ package AbstractSim;
         
         function automatic void setInds(input int id, input IndexSet indexSet);
             content[id].inds = indexSet;
+        endfunction
+        
+        function automatic void setArgValues(input int id, input Word vals[3]);
+            content[id].argValues = vals;
         endfunction
     endclass
 
@@ -503,7 +509,7 @@ package AbstractSim;
         
         function automatic void writeValueFloat(input OpSlot op, input Word value);
             AbstractInstruction ins = decodeAbstract(op.bits);
-            int pDest = findDestInt(op.id);
+            int pDest = findDestFloat(op.id);
             if (!writesFloatReg(op)) return;
             
             floatRegs[pDest] = value;
