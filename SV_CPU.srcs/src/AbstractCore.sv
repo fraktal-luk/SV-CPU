@@ -299,7 +299,9 @@ module AbstractCore
             nStabRegsInt <= registerTracker.getNumStabInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
      
-            setOpsReady();
+            //setOpsReady();
+            opsReady <= getReadyVec(opQueue);
+            
             opsReadyRegular <= getReadyVec(T_iqRegular);
             opsReadyBranch <= getReadyVec(T_iqBranch);
             opsReadyMem <= getReadyVec(T_iqMem);
@@ -723,14 +725,14 @@ module AbstractCore
 
 
 
-        task automatic setOpsReady();
-            opsReady <= '{default: 'z};
-            foreach (opQueue[i]) begin
-                InsDependencies deps = insMap.get(opQueue[i].id).deps;
-                logic3 ra = checkArgsReady(deps, registerTracker.intReady, registerTracker.floatReady);
-                opsReady[i] <= ra.and();
-            end
-        endtask
+//        task automatic setOpsReady();
+//            opsReady <= '{default: 'z};
+//            foreach (opQueue[i]) begin
+//                InsDependencies deps = insMap.get(opQueue[i].id).deps;
+//                logic3 ra = checkArgsReady(deps, registerTracker.intReady, registerTracker.floatReady);
+//                opsReady[i] <= ra.and();
+//            end
+//        endtask
 
         function automatic ReadyVec getReadyVec(input OpSlot iq[$:OP_QUEUE_SIZE]);
             ReadyVec res = '{default: 'z};
@@ -743,59 +745,68 @@ module AbstractCore
         endfunction
 
 
-    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
-        int sources[3] = '{-1, -1, -1};
-        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
+//    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
+//        int sources[3] = '{-1, -1, -1};
+//        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
         
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        string typeSpec = parsingMap[abs.fmt].typeSpec;
+//        AbstractInstruction abs = decodeAbstract(op.bits);
+//        string typeSpec = parsingMap[abs.fmt].typeSpec;
         
-        foreach (sources[i]) begin
-            if (typeSpec[i + 2] == "i") begin
-                sources[i] = mapInt[abs.sources[i]];
-                types[i] = SRC_INT;
-            end
-            else if (typeSpec[i + 2] == "f") begin
-                sources[i] = mapFloat[abs.sources[i]];
-                types[i] = SRC_FLOAT;
-            end
-            else if (typeSpec[i + 2] == "c") begin
-                sources[i] = abs.sources[i];
-                types[i] = SRC_CONST;
-            end
-            else if (typeSpec[i + 2] == "0") begin
-                sources[i] = abs.sources[i];
-                types[i] = SRC_ZERO;
-            end
-        end
+//        foreach (sources[i]) begin
+//            if (typeSpec[i + 2] == "i") begin
+//                sources[i] = mapInt[abs.sources[i]];
+//                types[i] = SRC_INT;
+//            end
+//            else if (typeSpec[i + 2] == "f") begin
+//                sources[i] = mapFloat[abs.sources[i]];
+//                types[i] = SRC_FLOAT;
+//            end
+//            else if (typeSpec[i + 2] == "c") begin
+//                sources[i] = abs.sources[i];
+//                types[i] = SRC_CONST;
+//            end
+//            else if (typeSpec[i + 2] == "0") begin
+//                sources[i] = //abs.sources[i];
+//                            0;
+//                types[i] = SRC_ZERO;
+//            end
+//        end
 
-        return '{sources, types};
-    endfunction
+//        return '{sources, types};
+//    endfunction
 
-        function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-            Word res[3];
-            foreach (res[i]) begin
-                if (deps.types[i] == SRC_INT) begin
-                    res[i] = tracker.intRegs[deps.sources[i]];
-                end
-                else if (deps.types[i] == SRC_FLOAT) begin
-                    res[i] = tracker.floatRegs[deps.sources[i]];
-                end
-                else if (deps.types[i] == SRC_CONST) begin
-                    res[i] = deps.sources[i];
-                end
-                else if (deps.types[i] == SRC_ZERO) begin
-                    res[i] = 0;
-                end
-            end
+//        function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+//            Word res[3];
+//            foreach (res[i]) begin
+//                case (deps.types[i])
+//                    SRC_ZERO: res[i] = 0;
+//                    SRC_CONST: res[i] = deps.sources[i];
+//                    SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
+//                    SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
+//                endcase
+            
+////                if (deps.types[i] == SRC_INT) begin
+////                    res[i] = tracker.intRegs[deps.sources[i]];
+////                end
+////                else if (deps.types[i] == SRC_FLOAT) begin
+////                    res[i] = tracker.floatRegs[deps.sources[i]];
+////                end
+////                else if (deps.types[i] == SRC_CONST) begin
+////                    res[i] = deps.sources[i];
+////                end
+////                else if (deps.types[i] == SRC_ZERO) begin
+////                    res[i] = 0;
+////                end
+//            end
     
-            return res;
-        endfunction
+//            return res;
+//        endfunction
 
         function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
             InsDependencies deps = insMap.get(op.id).deps;
             return getArgValues(tracker, deps);            
         endfunction
+
 
 
 
