@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '1;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -150,9 +150,23 @@ module AbstractCore
     OpSlot T_iqSys[$:OP_QUEUE_SIZE];
 
 
+        typedef struct {
+            OpSlot late;
+            OpSlot exec;
+        } Events;
 
-    OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT, sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT, lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt0_C = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP, issuedSt1_C = DEFAULT_ISSUE_GROUP;
+        function automatic OpSlot tick(input OpSlot op, input Events evts);
+            return op;
+        endfunction
+
+    Events evts;
+  
+
+    OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT, sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT,
+        lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
+    IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
+
+
 
     OpStatus oooQueue[$:OOO_QUEUE_SIZE];
 
@@ -177,6 +191,28 @@ module AbstractCore
 
     always @(posedge clk) cycleCtr++; 
 
+
+    typedef struct {
+        OpSlot op;
+        logic redirect;
+        Word target;
+    } EventInfo;
+    
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 'x};
+
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO,
+        branchEventInfo_T, lateEventInfo_T;
+
+    typedef struct {
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+    
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO;  
+    
     always @(posedge clk) begin
         resetPrev <= reset;
         intPrev <= interrupt;
@@ -186,24 +222,33 @@ module AbstractCore
 
         readReq[0] = 0;
         readAdr[0] = 'x;
+        
         writeReq = 0;
         writeAdr = 'x;
         writeOut = 'x;
-
+            writeInfo = EMPTY_WRITE_INFO;
+            
         branchOp <= EMPTY_SLOT;
         branchRedirect <= 0;
         branchTarget <= 'x;
+            branchEventInfo <= EMPTY_EVENT_INFO;
 
         eventOp <= EMPTY_SLOT;
         eventRedirect <= 0;
         eventTarget <= 'x;
+            lateEventInfo <= EMPTY_EVENT_INFO;
 
         advanceOOOQ();
   
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
         issuedSt1 <= issuedSt0;
 
-        if (resetPrev | intPrev | branchRedirect | eventRedirect) begin
+        //if (resetPrev | intPrev | eventRedirect) begin
+        if (resetPrev | intPrev | lateEventInfo.redirect) begin
+            performRedirect();
+        end
+        //else if (branchRedirect) begin
+        else if (branchEventInfo.redirect) begin
             performRedirect();
         end
         else begin
@@ -216,45 +261,16 @@ module AbstractCore
             end
 
             memOp <= EMPTY_SLOT;
-            memOpPrev <= memOp;
+            memOpPrev <= tick(memOp, evts);
 
             sysOp <= EMPTY_SLOT;
-            if (!sysOpPrev.active) sysOpPrev <= sysOp;
+            if (!sysOpPrev.active) sysOpPrev <= tick(sysOp, evts);
+            else sysOpPrev <= tick(sysOpPrev, evts);
 
             if (reset) execReset();
             else if (interrupt) execInterrupt();
             else begin
-                automatic IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;// = issuedSt0;
-            
-                if (memOpPrev.active) begin // Finish executing mem operation from prev cycle
-                    execMemLater(memOpPrev);
-                end
-                else if (sysOpPrev.active) begin // Finish executing sys operation from prev cycle
-                    execSysLater(sysOpPrev);
-                    sysOpPrev <= EMPTY_SLOT;
-                end
-                else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active
-                        ) begin
-                end
-                else if (sysOp.active || issuedSt0.sys.active || issuedSt1.sys.active
-                        ) begin
-                end
-                else begin
-                    igIssue = issueFromOpQ(opQueue, oqSize);
-                    igExec = igIssue;
-                end
-                    
-                igExec = issuedSt1;
-                issuedSt0 <= igIssue;
-
-                foreach (igExec.regular[i]) begin
-                    if (igExec.regular[i].active) execRegular(igExec.regular[i]);
-                end
-            
-                if (igExec.branch.active)execBranch(igExec.branch);
-                else if (igExec.mem.active) execMemFirst(igExec.mem);
-                else if (igExec.sys.active) execSysFirst(igExec.sys);
-            
+                runExec();
             end
 
         end
@@ -299,6 +315,11 @@ module AbstractCore
     assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat)
                     && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize);
 
+        assign branchEventInfo_T = '{branchOp, branchRedirect, branchTarget};
+        assign cmp0 = (branchEventInfo === branchEventInfo_T);
+        assign lateEventInfo_T = '{eventOp, eventRedirect, eventTarget};
+        assign cmp1 = (lateEventInfo === lateEventInfo_T);
+
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
     endfunction
@@ -330,6 +351,41 @@ module AbstractCore
     function logic sqAccepts(input int k);
         return k <= SQ_SIZE - 2*FETCH_WIDTH;
     endfunction
+
+    
+    task automatic runExec();
+        IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;// = issuedSt0;
+    
+        if (memOpPrev.active) begin // Finish executing mem operation from prev cycle
+            execMemLater(memOpPrev);
+        end
+        else if (sysOpPrev.active) begin // Finish executing sys operation from prev cycle
+            execSysLater(sysOpPrev);
+            sysOpPrev <= EMPTY_SLOT;
+        end
+        else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active
+                ) begin
+        end
+        else if (sysOp.active || issuedSt0.sys.active || issuedSt1.sys.active
+                ) begin
+        end
+        else begin
+            igIssue = issueFromOpQ(opQueue, oqSize);
+            igExec = igIssue;
+        end
+            
+        igExec = issuedSt1;
+        issuedSt0 <= igIssue;
+
+        foreach (igExec.regular[i]) begin
+            if (igExec.regular[i].active) execRegular(igExec.regular[i]);
+        end
+    
+        if (igExec.branch.active)execBranch(igExec.branch);
+        else if (igExec.mem.active) execMemFirst(igExec.mem);
+        else if (igExec.sys.active) execSysFirst(igExec.sys);
+    endtask
+    
 
 
     function automatic Stage setActive(input Stage s, input logic on, input int ctr);
@@ -402,15 +458,20 @@ module AbstractCore
 
 
     task automatic performRedirect();
-        if (eventRedirect || intPrev || resetPrev) begin
-            ipStage <= '{'1, -1, eventTarget, '{default: '0}, '{default: 'x}};
+        //if (eventRedirect || intPrev || resetPrev) begin
+        if (lateEventInfo.redirect || intPrev || resetPrev) begin
+            //ipStage <= '{'1, -1, eventTarget, '{default: '0}, '{default: 'x}};
+            ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
         end
-        else if (branchRedirect) begin
-            ipStage <= '{'1, -1, branchTarget, '{default: '0}, '{default: 'x}};
+        //else if (branchRedirect) begin
+        else if (branchEventInfo.redirect) begin
+            //ipStage <= '{'1, -1, branchTarget, '{default: '0}, '{default: 'x}};
+            ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
         end
         else $fatal(2, "Should never get here");
 
-        if (eventRedirect || intPrev || resetPrev) begin
+        //if (eventRedirect || intPrev || resetPrev) begin
+        if (lateEventInfo.redirect || intPrev || resetPrev) begin
             renamedEmul.setLike(retiredEmul);
             execEmul.setLike(retiredEmul);
             
@@ -430,7 +491,8 @@ module AbstractCore
             
             renamedDivergence = 0;
         end
-        else if (branchRedirect) begin
+        //else if (branchRedirect) begin
+        else if (branchEventInfo.redirect) begin
             BranchCheckpoint single = branchCP;
 
             renamedEmul.coreState = single.state;
@@ -444,7 +506,8 @@ module AbstractCore
             restoreMappings(single);
             renameInds = single.inds;
 
-            renamedDivergence = insMap.get(branchOp.id).divergence;
+            //renamedDivergence = insMap.get(branchOp.id).divergence;
+            renamedDivergence = insMap.get(branchEventInfo.op.id).divergence;
         end
 
         // Clear stages younger than activated redirection
@@ -454,13 +517,17 @@ module AbstractCore
         
         nextStageA <= '{default: EMPTY_SLOT};
         
-        if (eventRedirect || intPrev || resetPrev) begin
+        //if (eventRedirect || intPrev || resetPrev) begin
+        if (lateEventInfo.redirect || intPrev || resetPrev) begin
             flushAll();
             registerTracker.flushAll();    
         end
-        else if (branchRedirect) begin
-            flushPartial(branchOp);  
-            registerTracker.flush(branchOp);    
+        //else if (branchRedirect) begin
+        else if (branchEventInfo.redirect) begin
+            //flushPartial(branchOp);  
+            flushPartial(branchEventInfo.op);  
+            //registerTracker.flush(branchOp);    
+            registerTracker.flush(branchEventInfo.op);    
         end
 
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
@@ -730,12 +797,14 @@ module AbstractCore
 
     task automatic execReset();    
         eventTarget <= IP_RESET;
+            lateEventInfo <= '{EMPTY_SLOT, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
         eventTarget <= IP_INT;
+            lateEventInfo <= '{EMPTY_SLOT, 1, IP_INT};
         retiredEmul.interrupt();        
     endtask
 
@@ -763,6 +832,7 @@ module AbstractCore
         branchOp <= op;
         branchTarget <= evt.target;
         branchRedirect <= evt.redirect;
+            branchEventInfo <= '{op, evt.redirect, evt.target};
     endtask
 
     task automatic performBranch(ref CpuState state, input OpSlot op);
@@ -799,6 +869,7 @@ module AbstractCore
             writeReq = 1;
             writeAdr = adr;
             writeOut = args[2];
+                writeInfo <= '{1, adr, args[2]};
         end
     endtask
 
@@ -902,7 +973,8 @@ module AbstractCore
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
-        if (eventRedirect || intPrev || resetPrev ||  interrupt || reset) return;
+        //if (eventRedirect || intPrev || resetPrev ||  interrupt || reset) return;
+        if (lateEventInfo.redirect || intPrev || resetPrev ||  interrupt || reset) return;
 
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
@@ -962,6 +1034,7 @@ module AbstractCore
         eventOp <= op;
         eventTarget <= evt.target;
         eventRedirect <= evt.redirect;
+            lateEventInfo <= '{op, evt.redirect, evt.target};
         sig <= evt.sig;
         wrong <= evt.wrong;
     endtask
