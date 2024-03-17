@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -43,8 +43,8 @@ module AbstractCore
     localparam int SQ_SIZE = 80;
     
     
-    const logic SYS_LOAD_AS_MEM = 1;
-    
+    //const logic SYS_LOAD_AS_MEM = 1;
+    const logic SYS_STORE_AS_MEM = 1;
     
     typedef struct {
         OpSlot op;
@@ -155,7 +155,7 @@ module AbstractCore
 
     Events evts;
 
-    OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT, sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT,
+    OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT,// sysOp = EMPTY_SLOT, sysOpPrev = EMPTY_SLOT,
         lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
 
@@ -239,9 +239,10 @@ module AbstractCore
             memOp <= EMPTY_SLOT;
             memOpPrev <= tick(memOp, evts);
 
-            sysOp <= EMPTY_SLOT;
-            if (!sysOpPrev.active) sysOpPrev <= tick(sysOp, evts);
-            else sysOpPrev <= tick(sysOpPrev, evts);
+          //  sysOp <= EMPTY_SLOT;
+            
+                //if (!sysOpPrev.active) sysOpPrev <= tick(sysOp, evts);
+                //else sysOpPrev <= tick(sysOpPrev, evts);
 
             if (reset) execReset();
             else if (interrupt) execInterrupt();
@@ -333,16 +334,17 @@ module AbstractCore
         if (memOpPrev.active) begin // Finish executing mem operation from prev cycle
             execMemLater(memOpPrev);
         end
-        else if (sysOpPrev.active) begin // Finish executing sys operation from prev cycle
-            execSysLater(sysOpPrev);
-            sysOpPrev <= EMPTY_SLOT;
-        end
+//        else if (sysOpPrev.active) begin // Finish executing sys operation from prev cycle
+//            execSysLater(sysOpPrev);
+//            sysOpPrev <= EMPTY_SLOT;
+//        end
         else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active
                 ) begin
         end
-        else if (sysOp.active || issuedSt0.sys.active || issuedSt1.sys.active
-                ) begin
-        end
+//        else if (//sysOp.active || 
+//                 issuedSt0.sys.active || issuedSt1.sys.active
+//                ) begin
+//        end
         else begin
             igIssue = issueFromOpQ(opQueue, oqSize);
             igExec = igIssue;
@@ -493,8 +495,8 @@ module AbstractCore
     
         memOp <= EMPTY_SLOT;
         memOpPrev <= EMPTY_SLOT;
-        sysOp <= EMPTY_SLOT;
-        sysOpPrev <= EMPTY_SLOT;
+       // sysOp <= EMPTY_SLOT;
+       // sysOpPrev <= EMPTY_SLOT;
 
         if (resetPrev) begin
             renamedEmul.reset();
@@ -834,12 +836,13 @@ module AbstractCore
 
 
     task automatic execSysFirst(input OpSlot op);
-        sysOp <= op;
+      //  sysOp <= op;
+            completeOp(op);
     endtask
 
-    task automatic execSysLater(input OpSlot op);
-        completeOp(op);
-    endtask
+//    task automatic execSysLater(input OpSlot op);
+//        completeOp(op);
+//    endtask
 
 
     task automatic execRegular(input OpSlot op);
@@ -865,7 +868,7 @@ module AbstractCore
         
         // Mirror into separate queues 
         foreach (sa[i]) if (sa[i].active) begin
-            if (isMemOp(sa[i]) || (SYS_LOAD_AS_MEM && isLoadSysIns(decodeAbstract(sa[i].bits)))) T_iqMem.push_back(sa[i]);
+            if (isMemOp(sa[i]) || isLoadSysIns(decodeAbstract(sa[i].bits)) || (SYS_STORE_AS_MEM && isStoreSysIns(decodeAbstract(sa[i].bits)))) T_iqMem.push_back(sa[i]);
             else if (isSysOp(sa[i])) T_iqSys.push_back(sa[i]);
             else if (isBranchOp(sa[i])) T_iqBranch.push_back(sa[i]);
             else T_iqRegular.push_back(sa[i]);
@@ -916,7 +919,7 @@ module AbstractCore
                     assert (op === T_iqBranch.pop_front()) else $error("wrong");
                     break;
                 end
-                else if (isMemOp(op) || (SYS_LOAD_AS_MEM && isLoadSysIns(decodeAbstract(op.bits)))) begin
+                else if (isMemOp(op) || isLoadSysIns(decodeAbstract(op.bits)) || (SYS_STORE_AS_MEM && isStoreSysIns(decodeAbstract(op.bits)))) begin
                     res.mem = op;
                     assert (op === T_iqMem.pop_front()) else $error("wrong");
                     break;
