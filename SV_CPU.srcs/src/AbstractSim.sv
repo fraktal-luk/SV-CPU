@@ -41,7 +41,6 @@ package AbstractSim;
         ExecResult res = emul.processInstruction(op.adr, ins, emul.tmpDataMem);
     endfunction
 
-
     typedef struct {
         Mword target;
         logic redirect;
@@ -50,7 +49,6 @@ package AbstractSim;
     } LateEvent;
 
     const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
-
 
     function automatic LateEvent getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword sr2, input Mword sr3);
         LateEvent res = '{target: 'x, redirect: 0, sig: 0, wrong: 0};
@@ -127,6 +125,10 @@ package AbstractSim;
         return isLoadIns(abs);
     endfunction
 
+    function automatic logic isStoreOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreIns(abs);
+    endfunction
 
     function automatic logic isMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -277,10 +279,6 @@ package AbstractSim;
             content[id].deps = deps;
         endfunction
         
-//        function automatic void setRenameIndex(input int id, input int renameInd);
-//            content[id].renameIndex = renameInd;
-//        endfunction
-        
         function automatic void setInds(input int id, input IndexSet indexSet);
             content[id].inds = indexSet;
         endfunction
@@ -289,8 +287,6 @@ package AbstractSim;
             content[id].argValues = vals;
         endfunction
     endclass
-
-
 
 
 
@@ -519,10 +515,7 @@ package AbstractSim;
         function automatic int getNumFreeInt();
             int freeInds[$] = intInfo.find_index with (item.state == FREE);
             int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = intInfo.find_index with (item.state == STABLE);
-            
-            //assert (freeInds.size() + specInds.size() + stabInds.size() == N_REGS_INT) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
-            
+            int stabInds[$] = intInfo.find_index with (item.state == STABLE);            
             return freeInds.size();
         endfunction 
         
@@ -540,10 +533,7 @@ package AbstractSim;
         function automatic int getNumFreeFloat();
             int freeInds[$] = floatInfo.find_index with (item.state == FREE);
             int specInds[$] = floatInfo.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = floatInfo.find_index with (item.state == STABLE);
-            
-            //assert (freeInds.size() + specInds.size() + stabInds.size() == N_REG_FLOAT) else $error("Not summing up: %d, %d, %d", freeInds.size(), specInds.size(), stabInds.size());
-            
+            int stabInds[$] = floatInfo.find_index with (item.state == STABLE);            
             return freeInds.size();
         endfunction 
     endclass
@@ -589,24 +579,25 @@ package AbstractSim;
                     SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
                     SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
                 endcase
-            
-//                if (deps.types[i] == SRC_INT) begin
-//                    res[i] = tracker.intRegs[deps.sources[i]];
-//                end
-//                else if (deps.types[i] == SRC_FLOAT) begin
-//                    res[i] = tracker.floatRegs[deps.sources[i]];
-//                end
-//                else if (deps.types[i] == SRC_CONST) begin
-//                    res[i] = deps.sources[i];
-//                end
-//                else if (deps.types[i] == SRC_ZERO) begin
-//                    res[i] = 0;
-//                end
             end
     
             return res;
         endfunction
 
-
+    typedef struct {
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+    
+    typedef struct {
+        OpSlot op;
+        logic redirect;
+        Word target;
+    } EventInfo;
+    
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 'x};
 
 endpackage
