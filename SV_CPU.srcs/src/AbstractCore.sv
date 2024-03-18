@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '1;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -237,6 +237,8 @@ module AbstractCore
 
         advanceOOOQ();
 
+            storeHead_C <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
+
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
         issuedSt1 <= issuedSt0;
 
@@ -310,10 +312,12 @@ module AbstractCore
     assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat)
                     && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize);
 
-    assign writeReq = writeInfo.req;
-    assign writeAdr = writeInfo.adr;
-    assign writeOut = writeInfo.value;
-    
+//    assign writeReq = writeInfo.req;
+//    assign writeAdr = writeInfo.adr;
+//    assign writeOut = writeInfo.value;
+        assign writeReq = writeInfo_C.req;
+        assign writeAdr = writeInfo_C.adr;
+        assign writeOut = writeInfo_C.value;
 
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
@@ -941,10 +945,12 @@ module AbstractCore
         assert (ind.size() > 0) oooQueue[ind[0]].done = '1; else $error("No such id in OOOQ: %d", op.id); 
     endtask
 
-       assign storeHead_C = (committedStoreQueue.size != 0) ? committedStoreQueue.pop_front() : '{EMPTY_SLOT, 'x, 'x};
-       assign writeInfo_C = '{storeHead_C.op.active, storeHead_C.adr, storeHead_C.val};
+   //    assign storeHead_C = (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
+       assign writeInfo_C = '{storeHead_C.op.active && isStoreMemOp(storeHead_C.op), storeHead_C.adr, storeHead_C.val};
 
     task automatic advanceOOOQ();
+            if (csqSize != 0) void'(committedStoreQueue.pop_front());
+    
             storeHead_Q <= storeHead_C;//(committedStoreQueue.size != 0) ? committedStoreQueue.pop_front() : '{EMPTY_SLOT, 'x, 'x};
             storeHead_Q2 <= storeHead_Q;
             storeHead_Q3 <= storeHead_Q2;
