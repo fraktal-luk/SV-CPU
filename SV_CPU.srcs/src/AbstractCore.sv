@@ -45,6 +45,8 @@ module AbstractCore
     
     const logic SYS_STORE_AS_MEM = 1;
     
+    const logic USE_DELAYED_EVENTS = 0;
+    
     typedef struct {
         OpSlot op;
     } RobEntry;
@@ -93,6 +95,8 @@ module AbstractCore
 
 
     InstructionMap insMap = new();
+
+    logic sigValue, wrongValue;
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     
@@ -163,15 +167,19 @@ module AbstractCore
     InstructionInfo latestOOO[20], committedOOO[20];
     InstructionInfo lastInsInfo;
 
+    AbstractInstruction eventIns;
+
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
 
 
-
-    assign lateEventInfo = lateEventInfo_Norm;
-
+    assign lateEventInfo = USE_DELAYED_EVENTS ? lateEventInfo_Alt : lateEventInfo_Norm;
+    
+        assign eventIns = decodeAbstract(lateEventInfo.op.bits);
+        assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
+        assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
     
     task automatic putWrite();
         storeHead_C <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
@@ -264,7 +272,13 @@ module AbstractCore
         begin
             automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
             oooqCompletedNum <= oooqDone.size();
-            assert (oooqDone.size() <= 4) else $error("How 5?");
+//            assert (oooqDone.size() <= 4) else $error("How 5?");
+            
+//                if (oooqDone.size() > 4)
+//                    foreach (oooqDone[i]) begin
+//                        automatic InstructionInfo info = insMap.get(oooqDone[i].id);
+//                        $display(" %d, %d, %h, %s  ", info.id, info.adr, info.bits, disasm(info.bits));
+//                    end 
         end
         
             insMapSize = insMap.size();
@@ -895,7 +909,8 @@ module AbstractCore
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
-        if (lateEventInfo.redirect || intPrev || resetPrev ||  interrupt || reset // || lateEventInfoWaiting.redirect // TODO: turn this on when waiting implemented
+        if (lateEventInfo.redirect || intPrev || resetPrev ||  interrupt || reset 
+                             || (USE_DELAYED_EVENTS && lateEventInfoWaiting.redirect) // TODO: turn this on when waiting implemented
                     ) return;
 
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
