@@ -56,6 +56,8 @@ module AbstractCore
     
     typedef struct {
         OpSlot op;
+        Word adr;
+        Word val;
     } StoreQueueEntry;
 
     typedef logic logic3[3];
@@ -122,11 +124,11 @@ module AbstractCore
     InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
 
     int cycleCtr = 0, fetchCtr = 0;
-    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, robSize = 0, lqSize = 0, sqSize = 0;
+    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, robSize = 0, lqSize = 0, sqSize = 0, csqSize = 0;
     int insMapSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
     logic fetchAllow, renameAllow;
-    logic resetPrev = 0, intPrev = 0;
+    logic resetPrev = 0, intPrev = 0, lateEventWaiting = 0;
 
     BranchCheckpoint branchCP;
     
@@ -164,6 +166,8 @@ module AbstractCore
     RobEntry rob[$:ROB_SIZE];
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
+    StoreQueueEntry committedStoreQueue[$];
+        StoreQueueEntry storeHead, storeHead_C, storeHead_Q, storeHead_Q2, storeHead_Q3, lastCommittedSqe;
 
     int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
@@ -175,7 +179,7 @@ module AbstractCore
     SimpleMem execMem = new();
     Emulator renamedEmul = new(), execEmul = new(), retiredEmul = new();
 
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
 
@@ -187,7 +191,10 @@ module AbstractCore
     
     const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 'x};
 
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo,// = EMPTY_EVENT_INFO,
+                lateEventInfo_Norm = EMPTY_EVENT_INFO, lateEventInfo_Alt = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+
+    assign lateEventInfo = lateEventInfo_Norm;
 
     typedef struct {
         logic req;
@@ -197,7 +204,7 @@ module AbstractCore
     
     const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
     
-    MemWriteInfo writeInfo = EMPTY_WRITE_INFO;  
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, writeInfo_C;  
     
     
     always @(posedge clk) cycleCtr++; 
@@ -213,11 +220,23 @@ module AbstractCore
         readAdr[0] = 'x;
 
         writeInfo = EMPTY_WRITE_INFO;
+           // writeInfo_C = EMPTY_WRITE_INFO;
+            storeHead <= '{EMPTY_SLOT, 'x, 'x};
         branchEventInfo <= EMPTY_EVENT_INFO;
-        lateEventInfo <= EMPTY_EVENT_INFO;
+        //lateEventInfo <= EMPTY_EVENT_INFO;
+        lateEventInfo_Norm <= EMPTY_EVENT_INFO;
+        lateEventInfo_Alt <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            if (csqSize == 0) begin
+                lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+                lateEventInfo_Alt <= lateEventInfoWaiting;
+            end
+            else begin
+                
+            end
 
         advanceOOOQ();
-  
+
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
         issuedSt1 <= issuedSt0;
 
@@ -259,6 +278,7 @@ module AbstractCore
         robSize <= rob.size();
         lqSize <= loadQueue.size();
         sqSize <= storeQueue.size();
+        csqSize <= committedStoreQueue.size();
         
         frontCompleted <= countFrontCompleted();
 
@@ -505,6 +525,9 @@ module AbstractCore
             
             execState = initialState(IP_RESET);
             execMem.reset();
+            
+                //lateEventInfo <= EMPTY_EVENT_INFO;
+                //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
     endtask
 
@@ -534,7 +557,13 @@ module AbstractCore
     endtask
     
     task automatic addToStoreQueue(input OpSlot op);
-        storeQueue.push_back('{op});
+        storeQueue.push_back('{op, 'x, 'x});
+    endtask
+
+    task automatic updateSQ(input InsId id, input Word adr, input Word val);
+        int ind[$] = storeQueue.find_first_index with (item.op.id == id);
+        storeQueue[ind[0]].adr = adr;
+        storeQueue[ind[0]].val = val;
     endtask
 
 
@@ -589,6 +618,13 @@ module AbstractCore
 
         mapOpAtCommit(op);
         
+        if (isStoreIns(ins)) begin
+            StoreQueueEntry sqe = storeQueue[0];
+            // TODO: write queue
+            storeHead <= sqe;
+            committedStoreQueue.push_back(sqe);
+        end
+
         // Actual execution of ops which must be done after Commit
         if (isSysOp(op)) begin
             setLateEvent(execState, op);
@@ -619,6 +655,7 @@ module AbstractCore
             
             if (isStoreIns(ins)) begin // Br queue entry release
                 StoreQueueEntry sqe = storeQueue.pop_front();
+                    lastCommittedSqe <= sqe;
                 assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
             end
     endtask
@@ -700,13 +737,17 @@ module AbstractCore
     endtask
 
     task automatic execReset();    
-        lateEventInfo <= '{EMPTY_SLOT, 1, IP_RESET};
+        //lateEventInfo <= '{EMPTY_SLOT, 1, IP_RESET};
+        lateEventInfo_Norm <= '{EMPTY_SLOT, 1, IP_RESET};
+            lateEventInfoWaiting <= '{EMPTY_SLOT, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        lateEventInfo <= '{EMPTY_SLOT, 1, IP_INT};
+        //lateEventInfo <= '{EMPTY_SLOT, 1, IP_INT};
+        lateEventInfo_Norm <= '{EMPTY_SLOT, 1, IP_INT};
+            lateEventInfoWaiting <= '{EMPTY_SLOT, 1, IP_INT};
         retiredEmul.interrupt();        
     endtask
 
@@ -773,7 +814,10 @@ module AbstractCore
         readAdr[0] <= adr;
         memOp <= op;
         
-        if (isStoreMemOp(op)) writeInfo <= '{1, adr, args[2]};
+        if (isStoreMemOp(op)) begin
+            updateSQ(op.id, adr, args[2]);
+            writeInfo <= '{1, adr, args[2]};
+        end
     endtask
 
     task automatic performMemLater(ref CpuState state, input OpSlot op);
@@ -781,8 +825,21 @@ module AbstractCore
         Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
         Word3 argsP = getPhysicalArgValues(registerTracker, op);
         Word3 argsM = insMap.get(op.id).argValues;
+
+        Word adr = calculateEffectiveAddress(abs, args);
+        Word data;
         
-        Word data = isLoadSysIns(abs) ? state.sysRegs[args[1]] : readIn[0];
+        // TODO: develop adr overlap check?
+        StoreQueueEntry oooMatchingStores[$] = storeQueue.find with (item.adr == adr && isStoreMemOp(item.op) && item.op.id < op.id);
+        StoreQueueEntry committedMatchingStores[$] = committedStoreQueue.find with (item.adr == adr && isStoreMemOp(item.op) && item.op.id < op.id);
+        StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
+        // Get last (youngest) of the matching stores
+        Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : readIn[0];
+        if (matchingStores.size() != 0) begin
+            $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
+        end
+        data = isLoadSysIns(abs) ? state.sysRegs[args[1]] : memData;
+        
             assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsP, parsingMap[abs.fmt].typeSpec);
             assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
 
@@ -884,18 +941,30 @@ module AbstractCore
         assert (ind.size() > 0) oooQueue[ind[0]].done = '1; else $error("No such id in OOOQ: %d", op.id); 
     endtask
 
+       assign storeHead_C = (committedStoreQueue.size != 0) ? committedStoreQueue.pop_front() : '{EMPTY_SLOT, 'x, 'x};
+       assign writeInfo_C = '{storeHead_C.op.active, storeHead_C.adr, storeHead_C.val};
+
     task automatic advanceOOOQ();
+            storeHead_Q <= storeHead_C;//(committedStoreQueue.size != 0) ? committedStoreQueue.pop_front() : '{EMPTY_SLOT, 'x, 'x};
+            storeHead_Q2 <= storeHead_Q;
+            storeHead_Q3 <= storeHead_Q2;
+        
         // Don't commit anything more if event is being handled
-        if (lateEventInfo.redirect || intPrev || resetPrev ||  interrupt || reset) return;
+        if (lateEventInfo.redirect || intPrev || resetPrev ||  interrupt || reset || lateEventWaiting // || lateEventInfoWaiting.redirect // TODO: turn this on when waiting implemented
+                    ) return;
 
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
             InstructionInfo insInfo = insMap.get(opSt.id);
             OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
             assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
-                      
+
             lastInsInfo <= insInfo;
             commitOp(op);
+            
+//            if (isStoreMemOp(op)) begin
+
+//            end
             
             if (isSysOp(op)) break;
         end
@@ -942,7 +1011,11 @@ module AbstractCore
         AbstractInstruction abs = decodeAbstract(op.bits);
         LateEvent evt = getLateEvent(op, abs, state.sysRegs[2], state.sysRegs[3]);
 
-        lateEventInfo <= '{op, evt.redirect, evt.target};
+        //lateEventInfo <= '{op, evt.redirect, evt.target};
+        lateEventInfo_Norm <= '{op, evt.redirect, evt.target};
+            lateEventInfoWaiting <= '{op, evt.redirect, evt.target};
+            //lateEventWaiting <= 1;
+
         sig <= evt.sig;
         wrong <= evt.wrong;
     endtask
@@ -968,6 +1041,7 @@ module AbstractCore
     assign lastRenamedStr = disasm(lastRenamed.bits);
     assign lastCompletedStr = disasm(lastCompleted.bits);
     assign lastRetiredStr = disasm(lastRetired.bits);
+    assign lastCommittedSqeStr = disasm(lastCommittedSqe.op.bits);
      
         string bqStr;
         always @(posedge clk) begin
