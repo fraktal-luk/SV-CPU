@@ -117,7 +117,13 @@ package AbstractSim;
 
     function automatic logic isStoreMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
-        return abs.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
+        //return abs.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
+        return isStoreMemIns(abs);
+    endfunction
+
+    function automatic logic isLoadMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isLoadMemIns(abs);
     endfunction
 
     function automatic logic isLoadOp(input OpSlot op);
@@ -320,6 +326,9 @@ package AbstractSim;
         //int renameIndex;
         IndexSet inds;
     endclass
+
+
+    typedef logic logic3[3];
 
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
@@ -535,8 +544,24 @@ package AbstractSim;
             int specInds[$] = floatInfo.find_index with (item.state == SPECULATIVE);
             int stabInds[$] = floatInfo.find_index with (item.state == STABLE);            
             return freeInds.size();
-        endfunction 
+        endfunction
+        
+        
+        function automatic logic3 checkArgsReady(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+            logic3 res;
+            foreach (deps.types[i])
+                case (deps.types[i])
+                    SRC_ZERO:  res[i] = 1;
+                    SRC_CONST: res[i] = 1;
+                    SRC_INT:   res[i] = intReady[deps.sources[i]];
+                    SRC_FLOAT: res[i] = floatReady[deps.sources[i]];
+                endcase      
+            return res;
+        endfunction
     endclass
+
+
+
 
 
 

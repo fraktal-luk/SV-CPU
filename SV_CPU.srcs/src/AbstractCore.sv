@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'x;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -61,7 +61,6 @@ module AbstractCore
         Word val;
     } StoreQueueEntry;
 
-    typedef logic logic3[3];
 
     typedef OpSlot OpSlotA[FETCH_WIDTH];
 
@@ -89,6 +88,72 @@ module AbstractCore
         OpSlot sys;
     } IssueGroup;
     
+    
+        typedef struct {
+            InsId owner;
+            Word adr;
+            Word val;
+        } Transaction;
+    
+        class MemTracker;
+            Transaction transactions[$];
+            Transaction stores[$];
+            Transaction loads[$];
+            
+//            function automatic void reset();
+
+//            endfunction
+            
+            function automatic void addStore(input OpSlot op, input Word adr, input Word val);
+                transactions.push_back('{op.id, adr, val});
+                stores.push_back('{op.id, adr, val});
+            endfunction
+
+            function automatic void addLoad(input OpSlot op, input Word adr, input Word val);
+                    InsId wrId;
+            
+                transactions.push_back('{op.id, adr, val});
+                loads.push_back('{op.id, adr, val});
+                
+                if (0) begin
+                    wrId = checkWriter(op);
+                    if (wrId != -1) $display("Potential forward %d -> %d \n      %d: %s;  %d %s", wrId, op.id,
+                            insMap.get(wrId).adr, disasm(insMap.get(wrId).bits),
+                            insMap.get(op.id).adr, disasm(insMap.get(op.id).bits));
+                end
+            endfunction
+
+            function automatic void remove(input OpSlot op);
+                assert (transactions[0].owner == op.id) begin
+                    transactions.pop_front();
+                    if (stores.size() != 0 && stores[0].owner == op.id) stores.pop_front();
+                    if (loads.size() != 0 && loads[0].owner == op.id) loads.pop_front();
+                end
+                else $error("Incorrect transaction commit");
+            endfunction
+            
+            function automatic void flushAll();
+                transactions.delete();
+                stores.delete();
+                loads.delete();
+            endfunction
+
+            function automatic void flush(input OpSlot op);
+                while (transactions.size() != 0 && transactions[$].owner > op.id) transactions.pop_back();
+                while (stores.size() != 0 && stores[$].owner > op.id) stores.pop_back();
+                while (loads.size() != 0 && loads[$].owner > op.id) loads.pop_back();
+            endfunction   
+            
+            // Find which op is the source of data
+            function automatic InsId checkWriter(input OpSlot op);
+                Transaction read[$] = transactions.find_first with (item.owner == op.id); 
+                Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
+                return (writers.size() == 0) ? -1 : writers[$].owner;
+            endfunction
+            
+        endclass
+    
+    
     const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
 
     typedef Word FetchGroup[FETCH_WIDTH];
@@ -99,13 +164,14 @@ module AbstractCore
     logic sigValue, wrongValue;
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
+    MemTracker memTracker = new();
     
     InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
     InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
 
     int cycleCtr = 0, fetchCtr = 0;
     int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, robSize = 0, lqSize = 0, sqSize = 0, csqSize = 0;
-    int insMapSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
+    int insMapSize = 0, trSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
     logic fetchAllow, renameAllow;
     logic resetPrev = 0, intPrev = 0, lateEventWaiting = 0;
@@ -173,7 +239,8 @@ module AbstractCore
     string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
-
+        string iqRegularStr;
+        string iqRegularStrA[OP_QUEUE_SIZE];
 
     assign lateEventInfo = USE_DELAYED_EVENTS ? lateEventInfo_Alt : lateEventInfo_Norm;
     
@@ -282,7 +349,14 @@ module AbstractCore
         end
         
             insMapSize = insMap.size();
+            trSize = memTracker.transactions.size();
+        begin
             $swrite(oooqStr, "%p", oooQueue);
+            $swrite(iqRegularStr, "%p", T_iqRegular);
+            iqRegularStrA = '{default: ""};
+            foreach (T_iqRegular[i])
+                iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
+        end
     end
 
     assign insAdr = ipStage.baseAdr;
@@ -477,11 +551,13 @@ module AbstractCore
         
         if (lateEventInfo.redirect || intPrev || resetPrev) begin
             flushAll();
-            registerTracker.flushAll();    
+            registerTracker.flushAll();
+            memTracker.flushAll();
         end
         else if (branchEventInfo.redirect) begin
             flushPartial(branchEventInfo.op);  
-            registerTracker.flush(branchEventInfo.op);    
+            registerTracker.flush(branchEventInfo.op);
+            memTracker.flush(branchEventInfo.op);
         end
 
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
@@ -557,6 +633,17 @@ module AbstractCore
 
         mapOpAtRename(op);
         if (isBranchOp(op)) saveCP(op);
+
+        if (isStoreMemOp(op)) begin
+            Word effAdr = calculateEffectiveAddress(ins, argVals);
+            Word value = argVals[2];
+            memTracker.addStore(op, effAdr, value);
+        end
+        if (isLoadMemOp(op)) begin
+            Word effAdr = calculateEffectiveAddress(ins, argVals);
+            memTracker.addLoad(op, effAdr, 'x);
+        end
+
 
         insMap.setDivergence(op.id, renamedDivergence);
         insMap.setResult(op.id, result);
@@ -671,7 +758,7 @@ module AbstractCore
         ReadyVec res = '{default: 'z};
         foreach (iq[i]) begin
             InsDependencies deps = insMap.get(iq[i].id).deps;
-            logic3 ra = checkArgsReady(deps, registerTracker.intReady, registerTracker.floatReady);
+            logic3 ra = registerTracker.checkArgsReady(deps);//, registerTracker.intReady, registerTracker.floatReady);
             res[i] = ra.and();
         end
         return res;
@@ -691,6 +778,7 @@ module AbstractCore
         
         registerTracker.reserveInt(op);
         registerTracker.reserveFloat(op);
+
     endtask
 
     task automatic mapOpAtCommit(input OpSlot op);
@@ -701,6 +789,8 @@ module AbstractCore
         
         registerTracker.commitInt(op);
         registerTracker.commitFloat(op);
+        
+        if (isMemOp(op)) memTracker.remove(op);
     endtask
 
     task automatic execReset();    
@@ -975,17 +1065,7 @@ module AbstractCore
         wrong <= evt.wrong;
     endtask
 
-    function automatic logic3 checkArgsReady(input InsDependencies deps, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
-        logic3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 1;
-                SRC_CONST: res[i] = 1;
-                SRC_INT:   res[i] = readyInt[deps.sources[i]];
-                SRC_FLOAT: res[i] = readyFloat[deps.sources[i]];
-            endcase      
-        return res;
-    endfunction
+
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
         AbstractInstruction ins = decodeAbstract(op.bits);        
