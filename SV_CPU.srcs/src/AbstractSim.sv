@@ -454,7 +454,7 @@ package AbstractSim;
         
         
         function automatic void flush(input OpSlot op);
-            AbstractInstruction ins = decodeAbstract(op.bits);
+            //AbstractInstruction ins = decodeAbstract(op.bits);
 
             int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
@@ -505,7 +505,7 @@ package AbstractSim;
         
         
         function automatic void writeValueInt(input OpSlot op, input Word value);
-            AbstractInstruction ins = decodeAbstract(op.bits);
+            //AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestInt(op.id);
             if (!writesIntReg(op) || ins.dest == 0) return;
             
@@ -513,7 +513,7 @@ package AbstractSim;
         endfunction
         
         function automatic void writeValueFloat(input OpSlot op, input Word value);
-            AbstractInstruction ins = decodeAbstract(op.bits);
+            //AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestFloat(op.id);
             if (!writesFloatReg(op)) return;
             
@@ -624,5 +624,72 @@ package AbstractSim;
     } EventInfo;
     
     const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 'x};
+
+    
+        typedef struct {
+            InsId owner;
+            Word adr;
+            Word val;
+        } Transaction;
+
+
+        class MemTracker;
+            Transaction transactions[$];
+            Transaction stores[$];
+            Transaction loads[$];
+            
+//            function automatic void reset();
+
+//            endfunction
+            
+            function automatic void addStore(input OpSlot op, input Word adr, input Word val);
+                transactions.push_back('{op.id, adr, val});
+                stores.push_back('{op.id, adr, val});
+            endfunction
+
+            function automatic void addLoad(input OpSlot op, input Word adr, input Word val);
+                    InsId wrId;
+            
+                transactions.push_back('{op.id, adr, val});
+                loads.push_back('{op.id, adr, val});
+                
+//                if (0) begin
+//                    wrId = checkWriter(op);
+//                    if (wrId != -1) $display("Potential forward %d -> %d \n      %d: %s;  %d %s", wrId, op.id,
+//                            insMap.get(wrId).adr, disasm(insMap.get(wrId).bits),
+//                            insMap.get(op.id).adr, disasm(insMap.get(op.id).bits));
+//                end
+            endfunction
+
+            function automatic void remove(input OpSlot op);
+                assert (transactions[0].owner == op.id) begin
+                    transactions.pop_front();
+                    if (stores.size() != 0 && stores[0].owner == op.id) stores.pop_front();
+                    if (loads.size() != 0 && loads[0].owner == op.id) loads.pop_front();
+                end
+                else $error("Incorrect transaction commit");
+            endfunction
+            
+            function automatic void flushAll();
+                transactions.delete();
+                stores.delete();
+                loads.delete();
+            endfunction
+
+            function automatic void flush(input OpSlot op);
+                while (transactions.size() != 0 && transactions[$].owner > op.id) transactions.pop_back();
+                while (stores.size() != 0 && stores[$].owner > op.id) stores.pop_back();
+                while (loads.size() != 0 && loads[$].owner > op.id) loads.pop_back();
+            endfunction   
+            
+            // Find which op is the source of data
+            function automatic InsId checkWriter(input OpSlot op);
+                Transaction read[$] = transactions.find_first with (item.owner == op.id); 
+                Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
+                return (writers.size() == 0) ? -1 : writers[$].owner;
+            endfunction
+            
+        endclass
+    
 
 endpackage

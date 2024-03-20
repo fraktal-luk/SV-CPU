@@ -206,7 +206,7 @@ module ArchDesc0();
             runIntTestSim();
             
             $display("All tests done;");
-            $stop(1);
+            $stop(2);
         endtask
         
         
