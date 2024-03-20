@@ -97,6 +97,21 @@ module AbstractCore
     InstructionMap insMap = new();
 
     logic sigValue, wrongValue;
+    
+    typedef struct {
+        int oq;
+        int oooq;
+        int bq;
+        int rob;
+        int lq;
+        int sq;
+        int csq;
+    } BufferLevels;
+    
+    BufferLevels oooLevels, oooAccepts; 
+    
+
+    
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
@@ -105,10 +120,17 @@ module AbstractCore
     InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
 
     int cycleCtr = 0, fetchCtr = 0;
-    int fqSize = 0, oqSize = 0, oooqSize = 0, bcqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, robSize = 0, lqSize = 0, sqSize = 0, csqSize = 0;
+    int fqSize = 0,
+                 nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0,
+                 oqSize = 0, 
+       //         oooqSize = 0, 
+                bcqSize = 0,
+//             robSize = 0, lqSize = 0, sqSize = 0, 
+             csqSize = 0
+             ;
     int insMapSize = 0, trSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
-    logic fetchAllow, renameAllow;
+    logic fetchAllow, renameAllow, renameAllow_N, buffersAccepting;
     logic resetPrev = 0, intPrev = 0, lateEventWaiting = 0;
 
     BranchCheckpoint branchCP;
@@ -187,7 +209,41 @@ module AbstractCore
         storeHead_C <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
     endtask
     
-    always @(posedge clk) cycleCtr++; 
+
+        function automatic BufferLevels getBufferLevels();
+            BufferLevels res;
+            res.oq = opQueue.size();
+            res.oooq = oooQueue.size();
+            res.bq = branchCheckpointQueue.size();
+            res.rob = rob.size();
+            res.lq = loadQueue.size();
+            res.sq = storeQueue.size();
+            res.csq = committedStoreQueue.size();
+            return res;
+        endfunction
+
+        function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
+            BufferLevels res;
+            res.oq = levels.oq <= OP_QUEUE_SIZE - 2*FETCH_WIDTH;
+            res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 2*FETCH_WIDTH;
+            res.bq = levels.bq <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+            res.rob = levels.rob <= ROB_SIZE - 2*FETCH_WIDTH;
+            res.lq = levels.lq <= LQ_SIZE - 2*FETCH_WIDTH;
+            res.sq = levels.sq <= SQ_SIZE - 2*FETCH_WIDTH;
+            res.csq = 1;//committedStoreQueue.size();
+            return res;
+        endfunction
+
+        function automatic logic buffersAccept(input BufferLevels acc);
+            return acc.oq && acc.oooq && acc.bq && acc.rob && acc.lq && acc.sq && acc.csq;
+        endfunction
+      
+//    function logic regsAccept(input int nI, input int nF);
+//        return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
+//    endfunction
+
+
+    always @(posedge clk) cycleCtr++;
 
     always @(posedge clk) begin
         resetPrev <= reset;
@@ -249,13 +305,15 @@ module AbstractCore
         end
         
         fqSize <= fetchQueue.size();
-        oqSize <= opQueue.size();
-        oooqSize <= oooQueue.size();
-        bcqSize <= branchCheckpointQueue.size();
-        robSize <= rob.size();
-        lqSize <= loadQueue.size();
-        sqSize <= storeQueue.size();
-        csqSize <= committedStoreQueue.size();
+            oqSize <= opQueue.size();
+//            oooqSize <= oooQueue.size();
+            bcqSize <= branchCheckpointQueue.size();
+//            robSize <= rob.size();
+//            lqSize <= loadQueue.size();
+//            sqSize <= storeQueue.size();
+            csqSize <= committedStoreQueue.size();
+        
+        oooLevels <= getBufferLevels();
         
         frontCompleted <= countFrontCompleted();
 
@@ -274,13 +332,6 @@ module AbstractCore
         begin
             automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
             oooqCompletedNum <= oooqDone.size();
-//            assert (oooqDone.size() <= 4) else $error("How 5?");
-            
-//                if (oooqDone.size() > 4)
-//                    foreach (oooqDone[i]) begin
-//                        automatic InstructionInfo info = insMap.get(oooqDone[i].id);
-//                        $display(" %d, %d, %h, %s  ", info.id, info.adr, info.bits, disasm(info.bits));
-//                    end 
         end
         
             insMapSize = insMap.size();
@@ -294,11 +345,18 @@ module AbstractCore
         end
     end
 
+    assign oooAccepts = getBufferAccepts(oooLevels);
+    assign buffersAccepting = buffersAccept(oooAccepts);
+
     assign insAdr = ipStage.baseAdr;
 
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) && regsAccept(nFreeRegsInt, nFreeRegsFloat)
-                    && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize);
+//    assign renameAllow_N =    opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) 
+//                            && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize)
+//                    && regsAccept(nFreeRegsInt, nFreeRegsFloat);
+
+    assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
+        assign cmp0 = renameAllow_N == renameAllow;
 
     assign writeInfo_C = '{storeHead_C.op.active && isStoreMemOp(storeHead_C.op), storeHead_C.adr, storeHead_C.val};
 

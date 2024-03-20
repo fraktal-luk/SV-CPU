@@ -505,7 +505,7 @@ package AbstractSim;
         
         
         function automatic void writeValueInt(input OpSlot op, input Word value);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
+            AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestInt(op.id);
             if (!writesIntReg(op) || ins.dest == 0) return;
             
