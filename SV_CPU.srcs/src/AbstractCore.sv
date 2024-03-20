@@ -121,12 +121,13 @@ module AbstractCore
 
     int cycleCtr = 0, fetchCtr = 0;
     int fqSize = 0,
-                 nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0,
-                 oqSize = 0, 
+                 nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0
+                 //,
+               //  oqSize = 0 //, 
        //         oooqSize = 0, 
-                bcqSize = 0,
+             //   bcqSize = 0,
 //             robSize = 0, lqSize = 0, sqSize = 0, 
-             csqSize = 0
+           //  csqSize = 0
              ;
     int insMapSize = 0, trSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
@@ -261,7 +262,7 @@ module AbstractCore
         lateEventInfo_Norm <= EMPTY_EVENT_INFO;
         lateEventInfo_Alt <= EMPTY_EVENT_INFO;
 
-        if (csqSize == 0) begin
+        if (oooLevels.csq == 0) begin
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             lateEventInfo_Alt <= lateEventInfoWaiting;
         end
@@ -305,13 +306,13 @@ module AbstractCore
         end
         
         fqSize <= fetchQueue.size();
-            oqSize <= opQueue.size();
+   //         oqSize <= opQueue.size();
 //            oooqSize <= oooQueue.size();
-            bcqSize <= branchCheckpointQueue.size();
+//            bcqSize <= branchCheckpointQueue.size();
 //            robSize <= rob.size();
 //            lqSize <= loadQueue.size();
 //            sqSize <= storeQueue.size();
-            csqSize <= committedStoreQueue.size();
+          //  csqSize <= committedStoreQueue.size();
         
         oooLevels <= getBufferLevels();
         
@@ -350,13 +351,16 @@ module AbstractCore
 
     assign insAdr = ipStage.baseAdr;
 
-    assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
+    assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(oooLevels.bq);//bcqSize);
 //    assign renameAllow_N =    opQueueAccepts(oqSize) && oooQueueAccepts(oooqSize) 
 //                            && robAccepts(robSize) && lqAccepts(lqSize) && sqAccepts(sqSize)
 //                    && regsAccept(nFreeRegsInt, nFreeRegsFloat);
 
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
-        assign cmp0 = renameAllow_N == renameAllow;
+//        assign cmp0 = (oqSize == oooLevels.oq) //&& (bcqSize == oooLevels.bq)
+              //                      // && (csqSize == oooLevels.csq) 
+                //                     ; //renameAllow_N == renameAllow;
+        assign cmp1 = cmp0;
 
     assign writeInfo_C = '{storeHead_C.op.active && isStoreMemOp(storeHead_C.op), storeHead_C.adr, storeHead_C.val};
 
@@ -407,7 +411,7 @@ module AbstractCore
                 ) begin
         end
         else begin
-            igIssue = issueFromOpQ(opQueue, oqSize);
+            igIssue = issueFromOpQ(opQueue, oooLevels.oq); // oqSize);
             igExec = igIssue;
         end
             
@@ -985,7 +989,7 @@ module AbstractCore
     endtask
 
     task automatic drainWriteQueue();
-        if (csqSize != 0) void'(committedStoreQueue.pop_front());
+        if (oooLevels.csq != 0) void'(committedStoreQueue.pop_front());
 
         storeHead_Q <= storeHead_C;
     endtask
