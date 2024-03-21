@@ -121,6 +121,13 @@ package AbstractSim;
         return isStoreMemIns(abs);
     endfunction
 
+    function automatic logic isStoreSysOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        //return abs.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
+        return isStoreSysIns(abs);
+    endfunction
+
+
     function automatic logic isLoadMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isLoadMemIns(abs);

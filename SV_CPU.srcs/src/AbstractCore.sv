@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = '1;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -201,6 +201,13 @@ module AbstractCore
     endtask
     
 
+    task automatic activateEvent();
+        if (oooLevels.csq == 0) begin
+            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            lateEventInfo_Alt <= lateEventInfoWaiting;
+        end
+    endtask
+
 
     always @(posedge clk) cycleCtr++;
 
@@ -219,10 +226,11 @@ module AbstractCore
         lateEventInfo_Norm <= EMPTY_EVENT_INFO;
         lateEventInfo_Alt <= EMPTY_EVENT_INFO;
 
-        if (oooLevels.csq == 0) begin
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-            lateEventInfo_Alt <= lateEventInfoWaiting;
-        end
+//        if (oooLevels.csq == 0) begin
+//            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+//            lateEventInfo_Alt <= lateEventInfoWaiting;
+//        end
+        activateEvent();
 
         drainWriteQueue();
         advanceOOOQ();        
@@ -299,6 +307,9 @@ module AbstractCore
     //assign cmp1 = cmp0;
 
     assign writeInfo_C = '{storeHead_C.op.active && isStoreMemOp(storeHead_C.op), storeHead_C.adr, storeHead_C.val};
+                           
+//                          if (storeHead_C.op.active && isStoreMemOp(storeHead_C.op))
+//                                    writeSysReg(state, storeHead_C.adr, storeHead_C.adr.val);
 
     assign writeReq = writeInfo_C.req;
     assign writeAdr = writeInfo_C.adr;
@@ -621,6 +632,10 @@ module AbstractCore
     task automatic drainWriteQueue();
         if (oooLevels.csq != 0) void'(committedStoreQueue.pop_front());
         storeHead_Q <= storeHead_C;
+        
+       if (storeHead_C.op.active && isStoreSysOp(storeHead_C.op))
+           writeSysReg(execState, storeHead_C.adr, storeHead_C.val)
+          ;
     endtask
 
     task automatic advanceOOOQ();
@@ -767,7 +782,7 @@ module AbstractCore
         AbstractInstruction abs = decAbs(op.bits);
         Word3 args = getAndVerifyArgs(state, op);
 
-        writeSysReg(state, args[1], args[2]);
+        //writeSysReg(state, args[1], args[2]);
         state.target = op.adr + 4;
     endtask
 
@@ -922,7 +937,8 @@ module AbstractCore
         readAdr[0] <= adr;
         memOp <= op;
         
-        if (isStoreMemOp(op)) begin
+        //if (isStoreMemOp(op)) begin
+        if (isStoreOp(op)) begin
             updateSQ(op.id, adr, args[2]);
         end
     endtask
