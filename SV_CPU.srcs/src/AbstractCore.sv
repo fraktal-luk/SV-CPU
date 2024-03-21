@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = '0;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -43,7 +43,7 @@ module AbstractCore
     localparam int SQ_SIZE = 80;
     
     
-    const logic SYS_STORE_AS_MEM = 1;
+    //const logic SYS_STORE_AS_MEM = 1;
     
     const logic USE_DELAYED_EVENTS = 0;
     
@@ -205,6 +205,10 @@ module AbstractCore
         if (oooLevels.csq == 0) begin
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             lateEventInfo_Alt <= lateEventInfoWaiting;
+            
+            if (USE_DELAYED_EVENTS && lateEventInfoWaiting.op.active) begin
+                modifySysRegs(execState, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
+            end
         end
     endtask
 
@@ -215,8 +219,8 @@ module AbstractCore
         resetPrev <= reset;
         intPrev <= interrupt;
         
-        sig <= 0;
-        wrong <= 0;
+        //sig <= 0;
+        //wrong <= 0;
 
         readReq[0] = 0;
         readAdr[0] = 'x;
@@ -314,6 +318,9 @@ module AbstractCore
     assign writeReq = writeInfo_C.req;
     assign writeAdr = writeInfo_C.adr;
     assign writeOut = writeInfo_C.value;
+
+    assign sig = sigValue;
+    assign wrong = wrongValue;
 
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
@@ -770,8 +777,8 @@ module AbstractCore
         lateEventInfo_Norm <= '{op, evt.redirect, evt.target};
             lateEventInfoWaiting <= '{op, evt.redirect, evt.target};
 
-        sig <= evt.sig;
-        wrong <= evt.wrong;
+        //sig <= evt.sig;
+        //wrong <= evt.wrong;
     endtask
 
 
@@ -790,12 +797,13 @@ module AbstractCore
         AbstractInstruction abs = decAbs(op.bits);
 
         case (abs.def.o)
-            O_sysStore: performSysStore(state, op);
+            //O_sysStore: performSysStore(state, op);
             O_halt: $error("halt not implemented");
             default: ;                            
         endcase
-
-        modifySysRegs(state, op.adr, abs);
+        
+        if (!USE_DELAYED_EVENTS)
+            modifySysRegs(state, op.adr, abs);
     endtask
 
 

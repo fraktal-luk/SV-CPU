@@ -396,7 +396,7 @@ package Emulation;
             O_send: begin
                 state.target = adr + 4;
             end
-            default: return;
+            default: state.target = adr + 4;
         endcase
     endfunction
 
