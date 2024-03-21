@@ -626,11 +626,13 @@ package AbstractSim;
     
     typedef struct {
         OpSlot op;
+        logic interrupt;
+        logic reset;
         logic redirect;
         Word target;
     } EventInfo;
     
-    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 'x};
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, 'x};
 
     
         typedef struct {

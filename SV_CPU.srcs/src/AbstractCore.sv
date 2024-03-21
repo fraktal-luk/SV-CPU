@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -207,7 +207,12 @@ module AbstractCore
             lateEventInfo_Alt <= lateEventInfoWaiting;
             
             if (USE_DELAYED_EVENTS && lateEventInfoWaiting.op.active) begin
-                modifySysRegs(execState, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
+                if (lateEventInfoWaiting.op.active)
+                    modifySysRegs(execState, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
+                else if (lateEventInfoWaiting.reset)
+                    performAsyncEvent(execState, IP_RESET);
+                else if (lateEventInfoWaiting.interrupt)
+                    performAsyncEvent(execState, IP_INT);
             end
         end
     endtask
@@ -216,8 +221,8 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
     always @(posedge clk) begin
-        resetPrev <= reset;
-        intPrev <= interrupt;
+        //resetPrev <= reset;
+        //intPrev <= interrupt;
         
         //sig <= 0;
         //wrong <= 0;
@@ -432,7 +437,8 @@ module AbstractCore
         execState = retiredEmul.coreState;
         execMem.copyFrom(retiredEmul.tmpDataMem);
         
-        if (resetPrev) begin
+        //if (resetPrev) begin
+        if (lateEventInfo.reset) begin
             intWritersR = '{default: -1};
             floatWritersR = '{default: -1};
         end
@@ -729,7 +735,8 @@ module AbstractCore
             registerTracker.flushAll();
             memTracker.flushAll();
             
-            if (resetPrev) resetEmuls();
+            //if (resetPrev) resetEmuls();
+            if (lateEventInfo.reset) resetEmuls();
         end
         else if (branchEventInfo.redirect) begin
             rollbackToCheckpoint();
@@ -743,18 +750,19 @@ module AbstractCore
         flushExec_();
 
     endtask
-    
+
 
     task automatic execReset();    
-        lateEventInfo_Norm <= '{EMPTY_SLOT, 1, IP_RESET};
-            lateEventInfoWaiting <= '{EMPTY_SLOT, 1, IP_RESET};
+        lateEventInfo_Norm <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
+            lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
+
         performAsyncEvent(retiredEmul.coreState, IP_RESET);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        lateEventInfo_Norm <= '{EMPTY_SLOT, 1, IP_INT};
-            lateEventInfoWaiting <= '{EMPTY_SLOT, 1, IP_INT};
+        lateEventInfo_Norm <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
+            lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
         retiredEmul.interrupt();        
     endtask
 
@@ -774,8 +782,8 @@ module AbstractCore
         AbstractInstruction abs = decAbs(op.bits);
         LateEvent evt = getLateEvent(op, abs, state.sysRegs[2], state.sysRegs[3]);
 
-        lateEventInfo_Norm <= '{op, evt.redirect, evt.target};
-            lateEventInfoWaiting <= '{op, evt.redirect, evt.target};
+        lateEventInfo_Norm <= '{op, 0, 0, evt.redirect, evt.target};
+            lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
 
         //sig <= evt.sig;
         //wrong <= evt.wrong;
@@ -909,7 +917,7 @@ module AbstractCore
         BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
 
         branchCP = found[0];
-        branchEventInfo <= '{op, evt.redirect, evt.target};
+        branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
 
     task automatic performLink(ref CpuState state, input OpSlot op);
