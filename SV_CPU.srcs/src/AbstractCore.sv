@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = 'x;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -45,7 +45,7 @@ module AbstractCore
     
     //const logic SYS_STORE_AS_MEM = 1;
     
-    const logic USE_DELAYED_EVENTS = 0;
+    const logic USE_DELAYED_EVENTS = 1;
     
     typedef struct {
         OpSlot op;
@@ -122,7 +122,7 @@ module AbstractCore
     int insMapSize = 0, trSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
     logic fetchAllow, renameAllow, renameAllow_N, buffersAccepting;
-    logic resetPrev = 0, intPrev = 0, lateEventWaiting = 0;
+    //logic resetPrev = 0, intPrev = 0, lateEventWaiting = 0;
 
     BranchCheckpoint branchCP;
     
@@ -160,7 +160,7 @@ module AbstractCore
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
     StoreQueueEntry committedStoreQueue[$];
-    StoreQueueEntry storeHead_C, storeHead_Q, lastCommittedSqe;
+    StoreQueueEntry storeHead, storeHead_Q, lastCommittedSqe;
 
     int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
@@ -173,9 +173,10 @@ module AbstractCore
     Emulator renamedEmul = new(), execEmul = new(), retiredEmul = new();
 
 
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo, lateEventInfo_Norm = EMPTY_EVENT_INFO, lateEventInfo_Alt = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo,// lateEventInfo_Norm = EMPTY_EVENT_INFO, 
+                lateEventInfo_Alt = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
 
-    MemWriteInfo writeInfo_C;
+    MemWriteInfo writeInfo;
 
     InsDependencies lastDepsRe, lastDepsEx;
     InstructionInfo latestOOO[20], committedOOO[20];
@@ -190,14 +191,16 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
-    assign lateEventInfo = USE_DELAYED_EVENTS ? lateEventInfo_Alt : lateEventInfo_Norm;
+    assign lateEventInfo = //USE_DELAYED_EVENTS ? 
+                            lateEventInfo_Alt //: lateEventInfo_Norm
+                            ;
     
         assign eventIns = decAbs(lateEventInfo.op.bits);
         assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
         assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
     
     task automatic putWrite();
-        storeHead_C <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
+        storeHead <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
     endtask
     
 
@@ -206,7 +209,8 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             lateEventInfo_Alt <= lateEventInfoWaiting;
             
-            if (USE_DELAYED_EVENTS && lateEventInfoWaiting.op.active) begin
+            if (//USE_DELAYED_EVENTS && 
+                lateEventInfoWaiting.op.active) begin
                 if (lateEventInfoWaiting.op.active)
                     modifySysRegs(execState, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
                 else if (lateEventInfoWaiting.reset)
@@ -232,7 +236,7 @@ module AbstractCore
 
         branchEventInfo <= EMPTY_EVENT_INFO;
 
-        lateEventInfo_Norm <= EMPTY_EVENT_INFO;
+//        lateEventInfo_Norm <= EMPTY_EVENT_INFO;
         lateEventInfo_Alt <= EMPTY_EVENT_INFO;
 
 //        if (oooLevels.csq == 0) begin
@@ -248,7 +252,8 @@ module AbstractCore
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
         issuedSt1 <= issuedSt0;
 
-        if (resetPrev | intPrev | lateEventInfo.redirect) begin
+        if (//resetPrev | intPrev | 
+            lateEventInfo.redirect) begin
             performRedirect();
         end
         else if (branchEventInfo.redirect) begin
@@ -315,14 +320,14 @@ module AbstractCore
 
     //assign cmp1 = cmp0;
 
-    assign writeInfo_C = '{storeHead_C.op.active && isStoreMemOp(storeHead_C.op), storeHead_C.adr, storeHead_C.val};
+    assign writeInfo = '{storeHead.op.active && isStoreMemOp(storeHead.op), storeHead.adr, storeHead.val};
                            
 //                          if (storeHead_C.op.active && isStoreMemOp(storeHead_C.op))
 //                                    writeSysReg(state, storeHead_C.adr, storeHead_C.adr.val);
 
-    assign writeReq = writeInfo_C.req;
-    assign writeAdr = writeInfo_C.adr;
-    assign writeOut = writeInfo_C.value;
+    assign writeReq = writeInfo.req;
+    assign writeAdr = writeInfo.adr;
+    assign writeOut = writeInfo.value;
 
     assign sig = sigValue;
     assign wrong = wrongValue;
@@ -644,17 +649,18 @@ module AbstractCore
 
     task automatic drainWriteQueue();
         if (oooLevels.csq != 0) void'(committedStoreQueue.pop_front());
-        storeHead_Q <= storeHead_C;
+        storeHead_Q <= storeHead;
         
-       if (storeHead_C.op.active && isStoreSysOp(storeHead_C.op))
-           writeSysReg(execState, storeHead_C.adr, storeHead_C.val)
-          ;
+       if (storeHead.op.active && isStoreSysOp(storeHead.op))
+           writeSysReg(execState, storeHead.adr, storeHead.val);
     endtask
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
-        if (lateEventInfo.redirect || intPrev || resetPrev ||  interrupt || reset 
-                             || (USE_DELAYED_EVENTS && lateEventInfoWaiting.redirect) // TODO: turn this on when waiting implemented
+        if (lateEventInfo.redirect //|| intPrev || resetPrev
+             || interrupt || reset 
+                             || (//USE_DELAYED_EVENTS && 
+                                    lateEventInfoWaiting.redirect) // TODO: turn this on when waiting implemented
                     ) return;
 
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
@@ -717,7 +723,8 @@ module AbstractCore
 
     // $$General
     task automatic performRedirect();
-        if (lateEventInfo.redirect || intPrev || resetPrev)
+        if (lateEventInfo.redirect //|| intPrev || resetPrev
+            )
             ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
         else if (branchEventInfo.redirect)
             ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
@@ -727,7 +734,8 @@ module AbstractCore
         
         nextStageA <= '{default: EMPTY_SLOT};
 
-        if (lateEventInfo.redirect || intPrev || resetPrev) begin
+        if (lateEventInfo.redirect //|| intPrev || resetPrev
+            ) begin
             rollbackToStable();
             renamedDivergence = 0;
             
@@ -753,7 +761,7 @@ module AbstractCore
 
 
     task automatic execReset();    
-        lateEventInfo_Norm <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
+//        lateEventInfo_Norm <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
             lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
 
         performAsyncEvent(retiredEmul.coreState, IP_RESET);
@@ -761,7 +769,7 @@ module AbstractCore
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        lateEventInfo_Norm <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
+    //    lateEventInfo_Norm <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
             lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
         retiredEmul.interrupt();        
     endtask
@@ -782,7 +790,7 @@ module AbstractCore
         AbstractInstruction abs = decAbs(op.bits);
         LateEvent evt = getLateEvent(op, abs, state.sysRegs[2], state.sysRegs[3]);
 
-        lateEventInfo_Norm <= '{op, 0, 0, evt.redirect, evt.target};
+//        lateEventInfo_Norm <= '{op, 0, 0, evt.redirect, evt.target};
             lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
 
         //sig <= evt.sig;
@@ -793,13 +801,14 @@ module AbstractCore
 
 
     // $$TEMP
-    task automatic performSysStore(ref CpuState state, input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
-        Word3 args = getAndVerifyArgs(state, op);
+    
+//    task automatic performSysStore(ref CpuState state, input OpSlot op);
+//        AbstractInstruction abs = decAbs(op.bits);
+//        Word3 args = getAndVerifyArgs(state, op);
 
-        //writeSysReg(state, args[1], args[2]);
-        state.target = op.adr + 4;
-    endtask
+//        //writeSysReg(state, args[1], args[2]);
+//        state.target = op.adr + 4;
+//    endtask
 
     task automatic performSys(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
@@ -810,13 +819,12 @@ module AbstractCore
             default: ;                            
         endcase
         
-        if (!USE_DELAYED_EVENTS)
-            modifySysRegs(state, op.adr, abs);
+//        if (!USE_DELAYED_EVENTS)
+//            modifySysRegs(state, op.adr, abs);
     endtask
 
 
 
-    
     // $$Exec
     task automatic runExec();
         IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;// = issuedSt0;
@@ -934,7 +942,6 @@ module AbstractCore
     task automatic performRegularOp(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
         Word3 args = getAndVerifyArgs(state, op);
-        
         Word result = (abs.def.o == O_sysLoad) ? state.sysRegs[args[1]] : calculateResult(abs, args, op.adr);
 
         if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
