@@ -252,6 +252,44 @@ module AbstractCore
             else runExec();
         end
         
+        updateBookkeeping();
+        
+//        fqSize <= fetchQueue.size();
+//        bcqSize <= branchCheckpointQueue.size();
+//        oooLevels <= getBufferLevels();
+        
+//        frontCompleted <= countFrontCompleted();
+
+//        nFreeRegsInt <= registerTracker.getNumFreeInt();
+//            nSpecRegsInt <= registerTracker.getNumSpecInt();
+//            nStabRegsInt <= registerTracker.getNumStabInt();
+//        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
+     
+//        opsReady <= getReadyVec(opQueue);
+        
+//        opsReadyRegular <= getReadyVec(T_iqRegular);
+//        opsReadyBranch <= getReadyVec(T_iqBranch);
+//        opsReadyMem <= getReadyVec(T_iqMem);
+//        opsReadySys <= getReadyVec(T_iqSys);
+        
+        
+//        insMapSize = insMap.size();
+//        trSize = memTracker.transactions.size();
+
+        
+//        begin
+//            automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
+//            oooqCompletedNum <= oooqDone.size();
+//            $swrite(oooqStr, "%p", oooQueue);
+//            $swrite(iqRegularStr, "%p", T_iqRegular);
+//            iqRegularStrA = '{default: ""};
+//            foreach (T_iqRegular[i])
+//                iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
+//        end
+    end
+
+    
+    task automatic updateBookkeeping();
         fqSize <= fetchQueue.size();
         bcqSize <= branchCheckpointQueue.size();
         oooLevels <= getBufferLevels();
@@ -284,7 +322,8 @@ module AbstractCore
             foreach (T_iqRegular[i])
                 iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
         end
-    end
+    endtask
+
 
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign buffersAccepting = buffersAccept(oooAccepts);
@@ -461,11 +500,11 @@ module AbstractCore
     endtask
     
     task automatic addToQueues(input OpSlot op);
-        AbstractInstruction ins = decAbs(op.bits);
+        //AbstractInstruction ins = decAbs(op.bits);
         addToRob(op);
         
-        if (isLoadIns(ins)) addToLoadQueue(op);
-        if (isStoreIns(ins)) addToStoreQueue(op);
+        if (isLoadOp(op)) addToLoadQueue(op);
+        if (isStoreOp(op)) addToStoreQueue(op);
     endtask
     
     task automatic addToRob(input OpSlot op);
@@ -526,7 +565,7 @@ module AbstractCore
     endtask
 
     task automatic commitOp(input OpSlot op);
-        AbstractInstruction ins = decAbs(op.bits);
+        //AbstractInstruction ins = decAbs(op.bits);
         Word trg = retiredEmul.coreState.target;
         Word bits = fetchInstruction(TMP_getP(), trg);
 
@@ -540,7 +579,7 @@ module AbstractCore
 
         mapOpAtCommit(op);
         
-        if (isStoreIns(ins)) begin
+        if (isStoreOp(op)) begin
             //StoreQueueEntry sqe = storeQueue[0];
             committedStoreQueue.push_back(storeQueue[0]);
         end
@@ -557,7 +596,7 @@ module AbstractCore
     endtask
 
     task automatic releaseQueues(input OpSlot op);
-        AbstractInstruction ins = decAbs(op.bits);
+        //AbstractInstruction ins = decAbs(op.bits);
 
         RobEntry re = rob.pop_front();
         assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
@@ -567,12 +606,12 @@ module AbstractCore
             assert (bce.op === op) else $error("Not matching op: %p / %p", bce.op, op);
         end
         
-        if (isLoadIns(ins)) begin
+        if (isLoadOp(op)) begin
             LoadQueueEntry lqe = loadQueue.pop_front();
             assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
         end
         
-        if (isStoreIns(ins)) begin // Br queue entry release
+        if (isStoreOp(op)) begin // Br queue entry release
             StoreQueueEntry sqe = storeQueue.pop_front();
                 lastCommittedSqe <= sqe;
             assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
@@ -602,11 +641,11 @@ module AbstractCore
     endtask
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
-        AbstractInstruction ins = decAbs(op.bits);        
+        //AbstractInstruction ins = decAbs(op.bits);        
         inds.rename = (inds.rename + 1) % ROB_SIZE;
-        if (isBranchIns(ins)) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
-        if (isLoadIns(ins)) inds.lq = (inds.lq + 1) % LQ_SIZE;
-        if (isStoreIns(ins)) inds.sq = (inds.sq + 1) % SQ_SIZE;
+        if (isBranchOp(op)) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
+        if (isLoadOp(op)) inds.lq = (inds.lq + 1) % LQ_SIZE;
+        if (isStoreOp(op)) inds.sq = (inds.sq + 1) % SQ_SIZE;
     endfunction
 
     task automatic writeToOOOQ(input OpSlotA sa);
@@ -628,7 +667,7 @@ module AbstractCore
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
-        if (lateEventInfo.redirect || interrupt || reset || (lateEventInfoWaiting.redirect)) return;
+        if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
@@ -872,7 +911,8 @@ module AbstractCore
     task automatic performRegularOp(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
         Word3 args = getAndVerifyArgs(state, op);
-        Word result = (abs.def.o == O_sysLoad) ? state.sysRegs[args[1]] : calculateResult(abs, args, op.adr);
+        Word result = //(abs.def.o == O_sysLoad) ? state.sysRegs[args[1]] : 
+                        calculateResult(abs, args, op.adr); // !!!!
 
         if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
         if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
