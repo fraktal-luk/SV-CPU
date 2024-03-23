@@ -169,7 +169,7 @@ module AbstractCore
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
 
-    MemWriteInfo writeInfo;
+    MemWriteInfo writeInfo, readInfo = EMPTY_WRITE_INFO;
 
     InsDependencies lastDepsRe, lastDepsEx;
     InstructionInfo latestOOO[20], committedOOO[20];
@@ -216,6 +216,7 @@ module AbstractCore
     always @(posedge clk) begin
         readReq[0] = 0;
         readAdr[0] = 'x;
+        readInfo <= EMPTY_WRITE_INFO;
 
         branchEventInfo <= EMPTY_EVENT_INFO;
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -253,39 +254,6 @@ module AbstractCore
         end
         
         updateBookkeeping();
-        
-//        fqSize <= fetchQueue.size();
-//        bcqSize <= branchCheckpointQueue.size();
-//        oooLevels <= getBufferLevels();
-        
-//        frontCompleted <= countFrontCompleted();
-
-//        nFreeRegsInt <= registerTracker.getNumFreeInt();
-//            nSpecRegsInt <= registerTracker.getNumSpecInt();
-//            nStabRegsInt <= registerTracker.getNumStabInt();
-//        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
-     
-//        opsReady <= getReadyVec(opQueue);
-        
-//        opsReadyRegular <= getReadyVec(T_iqRegular);
-//        opsReadyBranch <= getReadyVec(T_iqBranch);
-//        opsReadyMem <= getReadyVec(T_iqMem);
-//        opsReadySys <= getReadyVec(T_iqSys);
-        
-        
-//        insMapSize = insMap.size();
-//        trSize = memTracker.transactions.size();
-
-        
-//        begin
-//            automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
-//            oooqCompletedNum <= oooqDone.size();
-//            $swrite(oooqStr, "%p", oooQueue);
-//            $swrite(iqRegularStr, "%p", T_iqRegular);
-//            iqRegularStrA = '{default: ""};
-//            foreach (T_iqRegular[i])
-//                iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
-//        end
     end
 
     
@@ -332,6 +300,12 @@ module AbstractCore
 
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
+
+
+//        readReq[0] <= '1;
+//        readAdr[0] <= adr;
+    // assign readReq[0] = readInfo.req; 
+    // assign readAdr[0] = readInfo.adr; 
 
     assign writeInfo = '{storeHead.op.active && isStoreMemOp(storeHead.op), storeHead.adr, storeHead.val};
 
@@ -452,6 +426,8 @@ module AbstractCore
         execEmul.setLike(retiredEmul);
         
         execState = retiredEmul.coreState;
+               execState.intRegs = '{default: 'z};
+               execState.floatRegs = '{default: 'z};
         execMem.copyFrom(retiredEmul.tmpDataMem);
         
         if (lateEventInfo.reset) begin
@@ -476,6 +452,8 @@ module AbstractCore
         execEmul.tmpDataMem.copyFrom(single.mem);
         
         execState = single.state;
+               execState.intRegs = '{default: 'z};
+               execState.floatRegs = '{default: 'z};
         execMem.copyFrom(single.mem);
         
         restoreMappings(single);
@@ -488,7 +466,7 @@ module AbstractCore
         execEmul.reset();
         retiredEmul.reset();
         
-        execState = initialState(IP_RESET);
+        //execState = initialState(IP_RESET);
         execMem.reset();
     endtask
     
@@ -500,9 +478,7 @@ module AbstractCore
     endtask
     
     task automatic addToQueues(input OpSlot op);
-        //AbstractInstruction ins = decAbs(op.bits);
-        addToRob(op);
-        
+        addToRob(op);        
         if (isLoadOp(op)) addToLoadQueue(op);
         if (isStoreOp(op)) addToStoreQueue(op);
     endtask
@@ -565,12 +541,17 @@ module AbstractCore
     endtask
 
     task automatic commitOp(input OpSlot op);
-        //AbstractInstruction ins = decAbs(op.bits);
+        InstructionInfo info = insMap.get(op.id);
+    
         Word trg = retiredEmul.coreState.target;
         Word bits = fetchInstruction(TMP_getP(), trg);
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
+        
+        if (writesIntReg(op) || writesFloatReg(op))
+            assert (info.actualResult === info.result) else $error(" not matching result");
+        
 
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
@@ -580,7 +561,6 @@ module AbstractCore
         mapOpAtCommit(op);
         
         if (isStoreOp(op)) begin
-            //StoreQueueEntry sqe = storeQueue[0];
             committedStoreQueue.push_back(storeQueue[0]);
         end
 
@@ -596,8 +576,6 @@ module AbstractCore
     endtask
 
     task automatic releaseQueues(input OpSlot op);
-        //AbstractInstruction ins = decAbs(op.bits);
-
         RobEntry re = rob.pop_front();
         assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
         
@@ -822,14 +800,14 @@ module AbstractCore
     endtask
 
     task automatic completeOp(input OpSlot op);
-        if (writesIntReg(op)) begin
-            registerTracker.setReadyInt(op.id);
-            registerTracker.writeValueInt(op, insMap.get(op.id).result);
-        end
-        if (writesFloatReg(op)) begin
-            registerTracker.setReadyFloat(op.id);
-            registerTracker.writeValueFloat(op, insMap.get(op.id).result);
-        end
+//        if (writesIntReg(op)) begin
+//            registerTracker.setReadyInt(op.id);
+//            registerTracker.writeValueInt(op, insMap.get(op.id).result);
+//        end
+//        if (writesFloatReg(op)) begin
+//            registerTracker.setReadyFloat(op.id);
+//            registerTracker.writeValueFloat(op, insMap.get(op.id).result);
+//        end
 
         updateOOOQ(op);
             lastCompleted = op;
@@ -867,13 +845,13 @@ module AbstractCore
     endfunction
 
     function automatic Word3 getAndVerifyArgs(input CpuState state, input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
-        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+        //AbstractInstruction abs = decAbs(op.bits);
+        //Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
         Word3 argsP = getPhysicalArgValues(registerTracker, op);
         Word3 argsM = insMap.get(op.id).argValues;
         
-        assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsP, parsingMap[abs.fmt].typeSpec);
-        assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
+        assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);//, parsingMap[abs.fmt].typeSpec);
+        //assert (argsP == args) else $error("not equal args %p / %p : %s", args, argsM, parsingMap[abs.fmt].typeSpec);
     
         return argsP;
     endfunction;
@@ -881,7 +859,9 @@ module AbstractCore
 
     task automatic setBranch(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
-        ExecEvent evt = resolveBranch(state, abs, op.adr);
+        Word3 args = getAndVerifyArgs(state, op);
+        
+        ExecEvent evt = resolveBranch(abs, op.adr, args);
         
         state.target = evt.redirect ? evt.target : op.adr + 4;
     endtask
@@ -889,7 +869,10 @@ module AbstractCore
     // TODO: accept Event as arg?
     task automatic setExecEvent(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
-        ExecEvent evt = resolveBranch(state, abs, op.adr);
+        Word3 args = getAndVerifyArgs(state, op);
+
+        //ExecEvent evt = resolveBranch(state, abs, op.adr);
+        ExecEvent evt = resolveBranch(abs, op.adr, args);
 
         BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
         branchCP = found[0];
@@ -900,7 +883,9 @@ module AbstractCore
     task automatic performLink(ref CpuState state, input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
         Word result = op.adr + 4;
-        writeIntReg(state, abs.dest, result);
+        
+        writeResult(op, abs, result);
+        //writeIntReg(state, abs.dest, result);
     endtask
 
     task automatic performBranch(ref CpuState state, input OpSlot op);
@@ -913,9 +898,10 @@ module AbstractCore
         Word3 args = getAndVerifyArgs(state, op);
         Word result = //(abs.def.o == O_sysLoad) ? state.sysRegs[args[1]] : 
                         calculateResult(abs, args, op.adr); // !!!!
-
-        if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
-        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
+        
+        writeResult(op, abs, result);
+        //if (writesIntReg(op)) writeIntReg(state, abs.dest, result);
+        //if (writesFloatReg(op)) writeFloatReg(state, abs.dest, result);
         state.target = op.adr + 4;
     endtask    
 
@@ -925,11 +911,12 @@ module AbstractCore
 
         Word adr = calculateEffectiveAddress(abs, args);
 
-        // TODO: make struct, unpack at assigment to ports
         readReq[0] <= '1;
         readAdr[0] <= adr;
+        readInfo <= '{1, adr, 'x};
         memOp <= op;
         
+        // TODO: compare adr with that in memTracker
         if (isStoreOp(op)) begin
             updateSQ(op.id, adr, args[2]);
         end
@@ -948,13 +935,15 @@ module AbstractCore
         // Get last (youngest) of the matching stores
         Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : readIn[0];
         Word data = isLoadSysIns(abs) ? state.sysRegs[args[1]] : memData;
-        
+                
         if (matchingStores.size() != 0) begin
             $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
 
-        if (writesIntReg(op)) writeIntReg(state, abs.dest, data);
-        if (writesFloatReg(op)) writeFloatReg(state, abs.dest, data);
+        writeResult(op, abs, data);
+
+       // if (writesIntReg(op)) writeIntReg(state, abs.dest, data);
+       // if (writesFloatReg(op)) writeFloatReg(state, abs.dest, data);
         state.target = op.adr + 4;
     endtask
 
@@ -1018,6 +1007,25 @@ module AbstractCore
         return res;
     endfunction
 
+
+    task automatic writeResult(input OpSlot op, input AbstractInstruction abs, input Word value);
+        Word result = insMap.get(op.id).result;
+        
+      //  assert (value == result) else $error("Not matching value: %h, %h", value, result);
+        insMap.setActualResult(op.id, value);
+ 
+        if (writesIntReg(op)) begin
+            registerTracker.setReadyInt(op.id);
+            registerTracker.writeValueInt(op, value);
+        end
+        if (writesFloatReg(op)) begin
+            registerTracker.setReadyFloat(op.id);
+            registerTracker.writeValueFloat(op, value);
+        end
+    
+        //if (writesIntReg(op)) writeIntReg(execState, abs.dest, value);
+        //if (writesFloatReg(op)) writeFloatReg(execState, abs.dest, value);
+    endtask
 
 
     // $$Helper
