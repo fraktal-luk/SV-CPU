@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'z;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -163,9 +163,17 @@ module AbstractCore
 
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
     
+    typedef struct {
+        InsId id;
+        Word target;
+    } BranchTargetEntry;
+    BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
+
+
     CpuState execState;
-    SimpleMem execMem = new();
-    Emulator renamedEmul = new(), execEmul = new(), retiredEmul = new();
+    //SimpleMem execMem = new();
+    Emulator renamedEmul = new(), //execEmul = new(), 
+                                  retiredEmul = new();
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
 
@@ -395,6 +403,7 @@ module AbstractCore
             T_iqSys.delete();
         oooQueue.delete();
         branchCheckpointQueue.delete();
+        branchTargetQueue.delete();
         rob.delete();
         loadQueue.delete();
         storeQueue.delete();
@@ -409,6 +418,7 @@ module AbstractCore
     
         while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
+        while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > op.id) void'(branchTargetQueue.pop_back());
         while (rob.size() > 0 && rob[$].op.id > op.id) void'(rob.pop_back());
         while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
         while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
@@ -423,12 +433,12 @@ module AbstractCore
     task automatic rollbackToStable();
         renamedEmul.setLike(retiredEmul);
         
-        execEmul.setLike(retiredEmul);
+        //execEmul.setLike(retiredEmul);
         
         execState = retiredEmul.coreState;
                execState.intRegs = '{default: 'z};
                execState.floatRegs = '{default: 'z};
-        execMem.copyFrom(retiredEmul.tmpDataMem);
+        //execMem.copyFrom(retiredEmul.tmpDataMem);
         
         if (lateEventInfo.reset) begin
             intWritersR = '{default: -1};
@@ -448,13 +458,13 @@ module AbstractCore
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         
-        execEmul.coreState = single.state;
-        execEmul.tmpDataMem.copyFrom(single.mem);
+        //execEmul.coreState = single.state;
+        //execEmul.tmpDataMem.copyFrom(single.mem);
         
         execState = single.state;
                execState.intRegs = '{default: 'z};
                execState.floatRegs = '{default: 'z};
-        execMem.copyFrom(single.mem);
+        //execMem.copyFrom(single.mem);
         
         restoreMappings(single);
         renameInds = single.inds;
@@ -463,11 +473,11 @@ module AbstractCore
 
     task automatic resetEmuls();
         renamedEmul.reset();
-        execEmul.reset();
+        //execEmul.reset();
         retiredEmul.reset();
         
         //execState = initialState(IP_RESET);
-        execMem.reset();
+        //execMem.reset();
     endtask
     
     task automatic saveCP(input OpSlot op);
@@ -475,6 +485,7 @@ module AbstractCore
         int floatMapR[32] = registerTracker.floatMapR;
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, intWritersR, floatWritersR, intMapR, floatMapR, renameInds);
         branchCheckpointQueue.push_back(cp);
+        branchTargetQueue.push_back('{op.id, 'z});
     endtask
     
     task automatic addToQueues(input OpSlot op);
@@ -544,6 +555,7 @@ module AbstractCore
         InstructionInfo info = insMap.get(op.id);
     
         Word trg = retiredEmul.coreState.target;
+        Word nextTrg;
         Word bits = fetchInstruction(TMP_getP(), trg);
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
@@ -555,10 +567,15 @@ module AbstractCore
 
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
+        nextTrg = retiredEmul.coreState.target;
 
         updateInds(commitInds, op);
 
         mapOpAtCommit(op);
+        
+        if (isBranchOp(op)) begin
+            assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
+        end
         
         if (isStoreOp(op)) begin
             committedStoreQueue.push_back(storeQueue[0]);
@@ -581,7 +598,9 @@ module AbstractCore
         
         if (isBranchOp(op)) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
+            BranchTargetEntry bte = branchTargetQueue.pop_front();
             assert (bce.op === op) else $error("Not matching op: %p / %p", bce.op, op);
+            assert (bte.id === op.id) else $error("Not matching op id: %p / %d", bte, op.id);
         end
         
         if (isLoadOp(op)) begin
@@ -640,7 +659,8 @@ module AbstractCore
         storeHead_Q <= storeHead;
         
        if (storeHead.op.active && isStoreSysOp(storeHead.op))
-           writeSysReg(execState, storeHead.adr, storeHead.val);
+           //writeSysReg(execState, storeHead.adr, storeHead.val);
+           setSysReg(storeHead.adr, storeHead.val);
     endtask
 
     task automatic advanceOOOQ();
@@ -763,8 +783,10 @@ module AbstractCore
     
     task automatic setLateEvent(ref CpuState state, input OpSlot op);    
         AbstractInstruction abs = decAbs(op.bits);
-        LateEvent evt = getLateEvent(op, abs, state.sysRegs[2], state.sysRegs[3]);
-
+        Word sr2 = getSysReg(2);
+        Word sr3 = getSysReg(3);
+        LateEvent evt = getLateEvent(op, abs, //state.sysRegs[2], state.sysRegs[3]);
+                                              sr2, sr3);
         lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
         
         if (abs.def.o == O_halt) $error("halt not implemented");
@@ -822,7 +844,12 @@ module AbstractCore
         memOp <= EMPTY_SLOT;
         memOpPrev <= EMPTY_SLOT;
     endtask
-    
+
+    task automatic setBranchTarget(input OpSlot op, input Word trg);
+        int ind[$] = branchTargetQueue.find_first_index with (item.id == op.id);
+        branchTargetQueue[ind[0]].target = trg;
+    endtask
+
     task automatic updateSQ(input InsId id, input Word adr, input Word val);
         int ind[$] = storeQueue.find_first_index with (item.op.id == id);
         storeQueue[ind[0]].adr = adr;
@@ -863,6 +890,8 @@ module AbstractCore
         
         ExecEvent evt = resolveBranch(abs, op.adr, args);
         
+        setBranchTarget(op, evt.redirect ? evt.target : op.adr + 4);
+
         state.target = evt.redirect ? evt.target : op.adr + 4;
     endtask
 
@@ -876,7 +905,7 @@ module AbstractCore
 
         BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
         branchCP = found[0];
-        
+                
         branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
 
@@ -934,8 +963,8 @@ module AbstractCore
         StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
         // Get last (youngest) of the matching stores
         Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : readIn[0];
-        Word data = isLoadSysIns(abs) ? state.sysRegs[args[1]] : memData;
-                
+        Word data = isLoadSysIns(abs) ? //state.sysRegs[args[1]] : memData;
+                                        getSysReg(args[1]) : memData;
         if (matchingStores.size() != 0) begin
             $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
@@ -1028,6 +1057,16 @@ module AbstractCore
     endtask
 
 
+
+    function automatic Word getSysReg(input Word adr);
+        return execState.sysRegs[adr];
+    endfunction
+
+    function automatic void setSysReg(input Word adr, input Word val);
+        execState.sysRegs[adr] = val;
+    endfunction
+
+
     // $$Helper
     function automatic OpSlot makeOp(input Stage st, input int i);
         if (!st.active || !st.mask[i]) return EMPTY_SLOT;
@@ -1066,7 +1105,7 @@ module AbstractCore
     assign lastCompletedStr = disasm(lastCompleted.bits);
     assign lastRetiredStr = disasm(lastRetired.bits);
     assign lastCommittedSqeStr = disasm(lastCommittedSqe.op.bits);
-     
+    
         string bqStr;
         always @(posedge clk) begin
             automatic int ids[$];
