@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '1;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -184,6 +184,7 @@ module AbstractCore
     InstructionInfo lastInsInfo;
 
     AbstractInstruction eventIns;
+    Word retiredTarget = 0;
 
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
@@ -207,15 +208,27 @@ module AbstractCore
     
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         lateEventInfo <= lateEventInfoWaiting;
+        // TODO: set target at this moment, not at operation Commit? it would provide correct reading of recentry written sys regs even without sync op 
+        // At present, lateEventInfo get target from lateEventInfoWaiting, which is determrmined at Commit, so it may differ from target being set info execState
+        // because writes to sys regs can be completed inbetween
         
-        if (lateEventInfoWaiting.op.active) begin
-            if (lateEventInfoWaiting.op.active)
+        //if (lateEventInfoWaiting.op.active) begin
+            if (lateEventInfoWaiting.op.active) begin
                 modifySysRegs(execState, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
-            else if (lateEventInfoWaiting.reset)
-                performAsyncEvent(execState, IP_RESET);
-            else if (lateEventInfoWaiting.interrupt)
-                performAsyncEvent(execState, IP_INT);
-        end
+                //retiredTarget <= 'z;
+                setLateEvent_Alt(lateEventInfoWaiting.op);
+            end
+            else if (lateEventInfoWaiting.reset) begin
+                performAsyncEvent(execState, IP_RESET, execState.target);
+                retiredTarget <= IP_RESET;
+                lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
+            end
+            else if (lateEventInfoWaiting.interrupt) begin
+                performAsyncEvent(execState, IP_INT, execState.target);
+                retiredTarget <= IP_INT;
+                lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
+            end
+        //end
     endtask
 
 
@@ -575,15 +588,19 @@ module AbstractCore
         
         if (isBranchOp(op)) begin
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
+            retiredTarget <= branchTargetQueue[0].target;
         end
+        else if (isSysOp(op))
+            retiredTarget <= 'x;
+        else
+            retiredTarget <= retiredTarget + 4;
         
         if (isStoreOp(op)) begin
             committedStoreQueue.push_back(storeQueue[0]);
         end
 
-        // Actual execution of ops which must be done after Commit
         if (isSysOp(op)) begin
-            setLateEvent(execState, op);
+            setLateEvent(execState, op); // This 
         end
         releaseQueues(op);
 
@@ -760,7 +777,7 @@ module AbstractCore
 
     task automatic execReset();    
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
-        performAsyncEvent(retiredEmul.coreState, IP_RESET);
+        performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
 
     task automatic execInterrupt();
@@ -788,11 +805,21 @@ module AbstractCore
         LateEvent evt = getLateEvent(op, abs, //state.sysRegs[2], state.sysRegs[3]);
                                               sr2, sr3);
         lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
+         //   retiredTarget <= evt.target;
         
         if (abs.def.o == O_halt) $error("halt not implemented");
     endtask
 
-
+    task automatic setLateEvent_Alt(input OpSlot op);    
+        AbstractInstruction abs = decAbs(op.bits);
+        Word sr2 = getSysReg(2);
+        Word sr3 = getSysReg(3);
+        LateEvent evt = getLateEvent(op, abs, sr2, sr3);
+        lateEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
+            retiredTarget <= evt.target;
+        
+        if (abs.def.o == O_halt) $error("halt not implemented");
+    endtask
 
     // $$Exec
     task automatic runExec();

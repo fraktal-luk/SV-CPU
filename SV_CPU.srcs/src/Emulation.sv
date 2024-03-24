@@ -338,10 +338,10 @@ package Emulation;
         writeIntReg(state, ins.dest, adr + 4);
     endfunction
 
-    function automatic void performAsyncEvent(ref CpuState state, input Word trg);
+    function automatic void performAsyncEvent(ref CpuState state, input Word trg, input Word prevTarget);
         state.sysRegs[5] = state.sysRegs[1];
         state.sysRegs[1] |= 2; // TODO: handle state register correctly
-        state.sysRegs[3] = state.target;
+        state.sysRegs[3] = prevTarget;//state.target;
 
         state.target = trg;
     endfunction
@@ -558,7 +558,7 @@ package Emulation;
         endfunction
 
         function automatic void interrupt();
-            performAsyncEvent(this.coreState, IP_INT);
+            performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
         
     endclass
