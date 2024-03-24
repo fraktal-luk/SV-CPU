@@ -24,7 +24,10 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+        const logic TMP_RESTORE_LATE = 0;
+        const logic TMP_RESTORE_BRANCH = 0;
+    
+    logic dummy = 'x;
 
         logic cmpR, cmpC, cmpR_r, cmpC_r;
 
@@ -184,7 +187,7 @@ module AbstractCore
     InstructionInfo lastInsInfo;
 
     AbstractInstruction eventIns;
-    Word retiredTarget = 0;
+    Word retiredTarget = 0, TMP_offTarget;
 
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
@@ -219,12 +222,14 @@ module AbstractCore
                 setLateEvent_Alt(lateEventInfoWaiting.op);
             end
             else if (lateEventInfoWaiting.reset) begin
-                performAsyncEvent(execState, IP_RESET, execState.target);
+                performAsyncEvent(execState, IP_RESET, //execState.target);
+                                                       retiredTarget);
                 retiredTarget <= IP_RESET;
                 lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
             end
             else if (lateEventInfoWaiting.interrupt) begin
-                performAsyncEvent(execState, IP_INT, execState.target);
+                performAsyncEvent(execState, IP_INT, //execState.target);
+                                                     retiredTarget); 
                 retiredTarget <= IP_INT;
                 lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
             end
@@ -238,6 +243,8 @@ module AbstractCore
         readReq[0] = 0;
         readAdr[0] = 'x;
         readInfo <= EMPTY_WRITE_INFO;
+
+            TMP_offTarget <= 'x;
 
         branchEventInfo <= EMPTY_EVENT_INFO;
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -275,6 +282,8 @@ module AbstractCore
         end
         
         updateBookkeeping();
+        
+            cmp0 <= (execState.sysRegs === retiredEmul.coreState.sysRegs);
     end
 
     
@@ -443,12 +452,20 @@ module AbstractCore
         registerTracker.restore(cp.intMapR, cp.floatMapR);
     endtask
 
+
+          
+
+
     task automatic rollbackToStable();
         renamedEmul.setLike(retiredEmul);
         
         //execEmul.setLike(retiredEmul);
+            TMP_offTarget <= execState.target;
+          //  cmp0 <= (execState.sysRegs === retiredEmul.coreState.sysRegs);
+       
+        if (TMP_RESTORE_LATE) execState = retiredEmul.coreState;
         
-        execState = retiredEmul.coreState;
+        
                execState.intRegs = '{default: 'z};
                execState.floatRegs = '{default: 'z};
         //execMem.copyFrom(retiredEmul.tmpDataMem);
@@ -473,8 +490,10 @@ module AbstractCore
         
         //execEmul.coreState = single.state;
         //execEmul.tmpDataMem.copyFrom(single.mem);
-        
-        execState = single.state;
+                 //   TMP_offTarget <= execState.target;
+            cmp1 <= (execState.sysRegs === retiredEmul.coreState.sysRegs);
+
+        if (TMP_RESTORE_BRANCH) execState = single.state;
                execState.intRegs = '{default: 'z};
                execState.floatRegs = '{default: 'z};
         //execMem.copyFrom(single.mem);
@@ -759,7 +778,10 @@ module AbstractCore
             registerTracker.flushAll();
             memTracker.flushAll();
             
-            if (lateEventInfo.reset) resetEmuls();
+            if (lateEventInfo.reset) begin
+                execState.sysRegs = SYS_REGS_INITIAL;
+                resetEmuls();
+            end
         end
         else if (branchEventInfo.redirect) begin
             rollbackToCheckpoint();
