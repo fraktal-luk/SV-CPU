@@ -661,25 +661,16 @@ package AbstractSim;
                 stores.push_back('{op.id, adr, val});
             endfunction
 
-            function automatic void addLoad(input OpSlot op, input Word adr, input Word val);
-                    InsId wrId;
-            
+            function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
                 transactions.push_back('{op.id, adr, val});
                 loads.push_back('{op.id, adr, val});
-                
-//                if (0) begin
-//                    wrId = checkWriter(op);
-//                    if (wrId != -1) $display("Potential forward %d -> %d \n      %d: %s;  %d %s", wrId, op.id,
-//                            insMap.get(wrId).adr, disasm(insMap.get(wrId).bits),
-//                            insMap.get(op.id).adr, disasm(insMap.get(op.id).bits));
-//                end
             endfunction
 
             function automatic void remove(input OpSlot op);
                 assert (transactions[0].owner == op.id) begin
-                    transactions.pop_front();
-                    if (stores.size() != 0 && stores[0].owner == op.id) stores.pop_front();
-                    if (loads.size() != 0 && loads[0].owner == op.id) loads.pop_front();
+                    void'(transactions.pop_front());
+                    if (stores.size() != 0 && stores[0].owner == op.id) void'(stores.pop_front());
+                    if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
                 end
                 else $error("Incorrect transaction commit");
             endfunction
@@ -691,9 +682,9 @@ package AbstractSim;
             endfunction
 
             function automatic void flush(input OpSlot op);
-                while (transactions.size() != 0 && transactions[$].owner > op.id) transactions.pop_back();
-                while (stores.size() != 0 && stores[$].owner > op.id) stores.pop_back();
-                while (loads.size() != 0 && loads[$].owner > op.id) loads.pop_back();
+                while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
+                while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
+                while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
             endfunction   
             
             // Find which op is the source of data
@@ -711,13 +702,15 @@ package AbstractSim;
         case (abs.def.o)
             O_undef: begin
                 sysRegs[4] = sysRegs[1];
-                sysRegs[1] |= 1; // TODO: handle state register correctly
                 sysRegs[2] = adr + 4;
+                
+                sysRegs[1] |= 1; // TODO: handle state register correctly
             end
             O_call: begin                    
                 sysRegs[4] = sysRegs[1];
-                sysRegs[1] |= 1; // TODO: handle state register correctly
                 sysRegs[2] = adr + 4;
+                
+                sysRegs[1] |= 1; // TODO: handle state register correctly
             end
             O_retE: sysRegs[1] = sysRegs[4];
             O_retI: sysRegs[1] = sysRegs[5];
@@ -726,9 +719,9 @@ package AbstractSim;
 
     function automatic void saveStateAsync(ref Word sysRegs[32], input Word prevTarget);
         sysRegs[5] = sysRegs[1];
-        sysRegs[1] |= 2; // TODO: handle state register correctly
         sysRegs[3] = prevTarget;
+        
+        sysRegs[1] |= 2; // TODO: handle state register correctly
     endfunction
-
 
 endpackage

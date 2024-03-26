@@ -24,12 +24,8 @@ module AbstractCore
     output logic wrong
 );
     
-    //    const logic TMP_RESTORE_LATE = 0;
-     //   const logic TMP_RESTORE_BRANCH = 0;
-    
     logic dummy = '0;
 
-        logic cmpR, cmpC, cmpR_r, cmpC_r;
 
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
@@ -165,7 +161,7 @@ module AbstractCore
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
-    
+
     typedef struct {
         InsId id;
         Word target;
@@ -173,7 +169,6 @@ module AbstractCore
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
 
 
-    CpuState execState;
     Word sysRegs_N[32];
     Emulator renamedEmul = new(), retiredEmul = new();
 
@@ -186,7 +181,7 @@ module AbstractCore
     InstructionInfo lastInsInfo;
 
     AbstractInstruction eventIns;
-    Word retiredTarget = 0, TMP_offTarget;
+    Word retiredTarget = 0;
 
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
@@ -194,46 +189,38 @@ module AbstractCore
     Word cmpw0, cmpw1, cmpw2, cmpw3;
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
-    
+
     assign eventIns = decAbs(lateEventInfo.op.bits);
     assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
     assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
     
+    assign readReq[0] = readInfo.req;
+    assign readAdr[0] = readInfo.adr;
+
+
     task automatic putWrite();
         storeHead <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
     endtask
-    
-    
-       assign readReq[0] = readInfo.req;
-       assign readAdr[0] = readInfo.adr;
-    
-        always @(posedge clk) cmp0 = (execState.sysRegs === sysRegs_N);
-        //always @(posedge clk) cmp1 = (readAdr[0] === readInfo.adr);
-    
+
+
 
     task automatic activateEvent();
         if (oooLevels.csq != 0) return;
-    
+
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        lateEventInfo <= lateEventInfoWaiting;
 
         if (lateEventInfoWaiting.op.active) begin
-            modifyStateSync(sysRegs_N, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
-            modifySysRegs(execState, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));
-                execState.target = 'x;                
-            setLateEvent_Alt(lateEventInfoWaiting.op);
+            modifyStateSync(sysRegs_N, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));               
+            retiredTarget <= getLateTarget(lateEventInfoWaiting.op);
+            lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, getLateRedirect(lateEventInfoWaiting.op), getLateTarget(lateEventInfoWaiting.op)};
         end
         else if (lateEventInfoWaiting.reset) begin
             saveStateAsync(sysRegs_N, retiredTarget);
-            performAsyncEvent(execState, IP_RESET, retiredTarget);
-                                    execState.target = 'x;
             retiredTarget <= IP_RESET;
             lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs_N, retiredTarget);
-            performAsyncEvent(execState, IP_INT, retiredTarget);                        
-                                      execState.target = 'x;
             retiredTarget <= IP_INT;
             lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
         end
@@ -243,11 +230,7 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
     always @(posedge clk) begin
-       // readReq[0] = 0;
-        //readAdr[0] = 'x;
         readInfo <= EMPTY_WRITE_INFO;
-
-            TMP_offTarget <= 'x;
 
         branchEventInfo <= EMPTY_EVENT_INFO;
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -448,17 +431,8 @@ module AbstractCore
     endtask
 
 
-
     task automatic rollbackToStable();
         renamedEmul.setLike(retiredEmul);
-        
-            TMP_offTarget <= execState.target;
-       
-      //  if (TMP_RESTORE_LATE) execState = retiredEmul.coreState;
-        
-               execState.intRegs = '{default: 'z};
-               execState.floatRegs = '{default: 'z};
-               execState.target = 'x;
         
         if (lateEventInfo.reset) begin
             intWritersR = '{default: -1};
@@ -478,20 +452,15 @@ module AbstractCore
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         
-      //  if (TMP_RESTORE_BRANCH) execState = single.state;
-               execState.intRegs = '{default: 'z};
-               execState.floatRegs = '{default: 'z};
-               execState.target = 'x;
-        
         restoreMappings(single);
         renameInds = single.inds;
     endtask
     
 
-    task automatic resetEmuls();
-        renamedEmul.reset();
-        retiredEmul.reset();
-    endtask
+//    task automatic resetEmuls();
+//        renamedEmul.reset();
+//        retiredEmul.reset();
+//    endtask
     
     task automatic saveCP(input OpSlot op);
         int intMapR[32] = registerTracker.intMapR;
@@ -737,6 +706,28 @@ module AbstractCore
 
 
     // $$General
+    function automatic LateEvent getLateEvt(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        Word sr2 = getSysReg(2);
+        Word sr3 = getSysReg(3);
+        return getLateEvent(op, abs, sr2, sr3);
+    endfunction
+
+    function automatic logic getLateRedirect(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        Word sr2 = getSysReg(2);
+        Word sr3 = getSysReg(3);
+        return getLateEvent(op, abs, sr2, sr3).redirect;
+    endfunction
+
+    function automatic Word getLateTarget(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        Word sr2 = getSysReg(2);
+        Word sr3 = getSysReg(3);
+        return getLateEvent(op, abs, sr2, sr3).target;
+    endfunction
+
+
     task automatic performRedirect();
         if (lateEventInfo.redirect)
             ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
@@ -758,8 +749,9 @@ module AbstractCore
             
             if (lateEventInfo.reset) begin
                 sysRegs_N = SYS_REGS_INITIAL;
-                execState.sysRegs = SYS_REGS_INITIAL;
-                resetEmuls();
+                renamedEmul.reset();
+                retiredEmul.reset();
+                //resetEmuls();
             end
         end
         else if (branchEventInfo.redirect) begin
@@ -801,21 +793,8 @@ module AbstractCore
     
     task automatic setLateEvent(input OpSlot op);    
         AbstractInstruction abs = decAbs(op.bits);
-        Word sr2 = getSysReg(2);
-        Word sr3 = getSysReg(3);
-        LateEvent evt = getLateEvent(op, abs, sr2, sr3);
+        LateEvent evt = getLateEvt(op);
         lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
-        
-        if (abs.def.o == O_halt) $error("halt not implemented");
-    endtask
-
-    task automatic setLateEvent_Alt(input OpSlot op);    
-        AbstractInstruction abs = decAbs(op.bits);
-        Word sr2 = getSysReg(2);
-        Word sr3 = getSysReg(3);
-        LateEvent evt = getLateEvent(op, abs, sr2, sr3);
-        lateEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
-            retiredTarget <= evt.target;
         
         if (abs.def.o == O_halt) $error("halt not implemented");
     endtask
@@ -824,17 +803,14 @@ module AbstractCore
     task automatic runExec();
         IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;
     
-        if (memOpPrev.active) begin // Finish executing mem operation from prev cycle
-            execMemLater(memOpPrev);
-        end
-        else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active
-                ) begin
+        if (memOpPrev.active) execMemLater(memOpPrev);
+        else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active) begin
         end
         else begin
             igIssue = issueFromOpQ(opQueue, oooLevels.oq);
             igExec = igIssue;
         end
-            
+
         igExec = issuedSt1;
         issuedSt0 <= igIssue;
 
@@ -842,7 +818,7 @@ module AbstractCore
             if (igExec.regular[i].active) execRegular(igExec.regular[i]);
         end
     
-        if (igExec.branch.active)execBranch(igExec.branch);
+        if (igExec.branch.active)   execBranch(igExec.branch);
         else if (igExec.mem.active) execMemFirst(igExec.mem);
         else if (igExec.sys.active) execSysFirst(igExec.sys);
     endtask
@@ -891,47 +867,12 @@ module AbstractCore
     function automatic Word3 getAndVerifyArgs(input OpSlot op);
         Word3 argsP = getPhysicalArgValues(registerTracker, op);
         Word3 argsM = insMap.get(op.id).argValues;
-        
         assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);//, parsingMap[abs.fmt].typeSpec);
-    
         return argsP;
     endfunction;
 
 
-    task automatic setBranch(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
-        Word3 args = getAndVerifyArgs(op);
-        
-        ExecEvent evt = resolveBranch(abs, op.adr, args);
-        
-        setBranchTarget(op, evt.redirect ? evt.target : op.adr + 4);
-    endtask
 
-    // TODO: accept Event as arg?
-    task automatic setExecEvent(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
-        Word3 args = getAndVerifyArgs(op);
-
-        ExecEvent evt = resolveBranch(abs, op.adr, args);
-
-        BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
-        branchCP = found[0];
-                
-        branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
-    endtask
-
-    task automatic performLinkOp(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
-        Word result = op.adr + 4;
-        
-        writeResult(op, abs, result);
-    endtask
-
-    task automatic performBranch(input OpSlot op);
-        setBranch(op);
-        performLinkOp(op);
-    endtask
-    
     task automatic performRegularOp(input OpSlot op);
         AbstractInstruction abs = decAbs(op.bits);
         Word3 args = getAndVerifyArgs(op);
@@ -946,15 +887,13 @@ module AbstractCore
 
         Word adr = calculateEffectiveAddress(abs, args);
 
-        //readReq[0] <= '1;
-        //readAdr[0] <= adr;
-        readInfo <= '{1, adr, 'x};
-        memOp <= op;
-        
         // TODO: compare adr with that in memTracker
         if (isStoreOp(op)) begin
             updateSQ(op.id, adr, args[2]);
         end
+
+        readInfo <= '{1, adr, 'x};
+        memOp <= op;
     endtask
 
     task automatic performMemLater(input OpSlot op);
@@ -977,11 +916,34 @@ module AbstractCore
         writeResult(op, abs, data);
     endtask
 
+
+    // TODO: accept Event as arg?
+    task automatic setExecEvent(input OpSlot op);
+        AbstractInstruction abs = decAbs(op.bits);
+        Word3 args = getAndVerifyArgs(op);
+
+        ExecEvent evt = resolveBranch(abs, op.adr, args);
+
+        BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
+        branchCP = found[0];
+        setBranchTarget(op, evt.redirect ? evt.target : op.adr + 4);
+
+        branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
+    endtask
+
+    task automatic performLinkOp(input OpSlot op);
+        AbstractInstruction abs = decAbs(op.bits);
+        Word result = op.adr + 4;
+        
+        writeResult(op, abs, result);
+    endtask
+    
     task automatic execBranch(input OpSlot op);
         setExecEvent(op);
-        performBranch(op);
+        performLinkOp(op);
         completeOp(op);
     endtask
+
 
     task automatic execMemFirst(input OpSlot op);
         performMemFirst(op);
@@ -1053,16 +1015,12 @@ module AbstractCore
     endtask
 
 
-
     function automatic Word getSysReg(input Word adr);
-        //assert (sysRegs_N[adr] === execState.sysRegs[adr]) else $error("ys regs differ");
-        return //execState.sysRegs[adr];
-               sysRegs_N[adr];
+        return sysRegs_N[adr];
     endfunction
 
     function automatic void setSysReg(input Word adr, input Word val);
         sysRegs_N[adr] = val;
-        execState.sysRegs[adr] = val;
     endfunction
 
 
