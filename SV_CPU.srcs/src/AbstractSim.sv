@@ -706,4 +706,29 @@ package AbstractSim;
         endclass
     
 
+
+    function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
+        case (abs.def.o)
+            O_undef: begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[2] = adr + 4;
+            end
+            O_call: begin                    
+                sysRegs[4] = sysRegs[1];
+                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[2] = adr + 4;
+            end
+            O_retE: sysRegs[1] = sysRegs[4];
+            O_retI: sysRegs[1] = sysRegs[5];
+        endcase
+    endfunction
+
+    function automatic void saveStateAsync(ref Word sysRegs[32], input Word prevTarget);
+        sysRegs[5] = sysRegs[1];
+        sysRegs[1] |= 2; // TODO: handle state register correctly
+        sysRegs[3] = prevTarget;
+    endfunction
+
+
 endpackage
