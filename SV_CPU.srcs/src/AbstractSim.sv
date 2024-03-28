@@ -117,13 +117,11 @@ package AbstractSim;
 
     function automatic logic isStoreMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
-        //return abs.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
         return isStoreMemIns(abs);
     endfunction
 
     function automatic logic isStoreSysOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
-        //return abs.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
         return isStoreSysIns(abs);
     endfunction
 
@@ -233,6 +231,7 @@ package AbstractSim;
         Word adr;
         Word bits;
         Word target;
+        AbstractInstruction dec;
         Word result;
             Word actualResult;
         //int renameIndex;
@@ -259,6 +258,8 @@ package AbstractSim;
         InstructionInfo content[int];
         
         function automatic InstructionInfo get(input int id);
+                //if (!content.exists(id)) $fatal(2, "Entry %p of %d", id, content.size());
+        
             return content[id];
         endfunction
         
@@ -272,11 +273,15 @@ package AbstractSim;
             content[op.id] = makeInsInfo(op);
         endfunction
 
+        // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 
         function automatic void setEncoding(input OpSlot op);
+            AbstractInstruction ins;
             assert (op.active) else $error("encoding set for inactive op");
             content[op.id].bits = op.bits;
+            ins = decodeAbstract(op.bits);
+            content[op.id].dec = ins;
         endfunction
-    
+
         function automatic void setTarget(input int id, input Word trg);
             content[id].target = trg;
         endfunction

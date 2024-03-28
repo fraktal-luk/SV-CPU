@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = '1;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -154,7 +154,7 @@ module AbstractCore
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
     StoreQueueEntry committedStoreQueue[$];
-    StoreQueueEntry storeHead, storeHead_Q, lastCommittedSqe;
+    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, storeHead_Q = '{EMPTY_SLOT, 'x, 'x}, lastCommittedSqe = '{EMPTY_SLOT, 'x, 'x};
 
     int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
@@ -190,7 +190,7 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
-    assign eventIns = decAbs(lateEventInfo.op.bits);
+    assign eventIns = decAbs(lateEventInfo.op);
     assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
     assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
     
@@ -210,7 +210,7 @@ module AbstractCore
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
         if (lateEventInfoWaiting.op.active) begin
-            modifyStateSync(sysRegs_N, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op.bits));               
+            modifyStateSync(sysRegs_N, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
             retiredTarget <= getLateTarget(lateEventInfoWaiting.op);
             lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, getLateRedirect(lateEventInfoWaiting.op), getLateTarget(lateEventInfoWaiting.op)};
         end
@@ -315,7 +315,7 @@ module AbstractCore
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
 
-    assign writeInfo = '{storeHead.op.active && isStoreMemOp(storeHead.op), storeHead.adr, storeHead.val};
+    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
 
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;
@@ -472,8 +472,8 @@ module AbstractCore
     
     task automatic addToQueues(input OpSlot op);
         addToRob(op);        
-        if (isLoadOp(op)) addToLoadQueue(op);
-        if (isStoreOp(op)) addToStoreQueue(op);
+        if (isLoadIns(decAbs(op))) addToLoadQueue(op);
+        if (isStoreIns(decAbs(op))) addToStoreQueue(op);
     endtask
     
     task automatic addToRob(input OpSlot op);
@@ -489,7 +489,7 @@ module AbstractCore
     endtask
     
     task automatic renameOp(input OpSlot op);             
-        AbstractInstruction ins = decAbs(op.bits);
+        AbstractInstruction ins = decAbs(op);
         Word result, target;
         InsDependencies deps;
         Word argVals[3];
@@ -508,14 +508,14 @@ module AbstractCore
         updateInds(renameInds, op);
 
         mapOpAtRename(op);
-        if (isBranchOp(op)) saveCP(op);
+        if (isBranchIns(decAbs(op))) saveCP(op);
 
-        if (isStoreMemOp(op)) begin
+        if (isStoreMemIns(decAbs(op))) begin
             Word effAdr = calculateEffectiveAddress(ins, argVals);
             Word value = argVals[2];
             memTracker.addStore(op, effAdr, value);
         end
-        if (isLoadMemOp(op)) begin
+        if (isLoadMemIns(decAbs(op))) begin
             Word effAdr = calculateEffectiveAddress(ins, argVals);
             memTracker.addLoad(op, effAdr, 'x);
         end
@@ -554,20 +554,20 @@ module AbstractCore
 
         mapOpAtCommit(op);
         
-        if (isBranchOp(op)) begin
+        if (isBranchIns(decAbs(op))) begin
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
             retiredTarget <= branchTargetQueue[0].target;
         end
-        else if (isSysOp(op))
+        else if (isSysIns(decAbs(op)))
             retiredTarget <= 'x;
         else
             retiredTarget <= retiredTarget + 4;
         
-        if (isStoreOp(op)) begin
+        if (isStoreIns(decAbs(op))) begin
             committedStoreQueue.push_back(storeQueue[0]);
         end
 
-        if (isSysOp(op)) begin
+        if (isSysIns(decAbs(op))) begin
             setLateEvent(op);
         end
         releaseQueues(op);
@@ -581,19 +581,19 @@ module AbstractCore
         RobEntry re = rob.pop_front();
         assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
         
-        if (isBranchOp(op)) begin // Br queue entry release
+        if (isBranchIns(decAbs(op))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             BranchTargetEntry bte = branchTargetQueue.pop_front();
             assert (bce.op === op) else $error("Not matching op: %p / %p", bce.op, op);
             assert (bte.id === op.id) else $error("Not matching op id: %p / %d", bte, op.id);
         end
         
-        if (isLoadOp(op)) begin
+        if (isLoadIns(decAbs(op))) begin
             LoadQueueEntry lqe = loadQueue.pop_front();
             assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
         end
         
-        if (isStoreOp(op)) begin // Br queue entry release
+        if (isStoreIns(decAbs(op))) begin // Br queue entry release
             StoreQueueEntry sqe = storeQueue.pop_front();
                 lastCommittedSqe <= sqe;
             assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
@@ -601,7 +601,7 @@ module AbstractCore
     endtask
 
     task automatic mapOpAtRename(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         if (writesIntReg(op)) intWritersR[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersR[abs.dest] = op.id;
         intWritersR[0] = -1;
@@ -611,7 +611,7 @@ module AbstractCore
     endtask
 
     task automatic mapOpAtCommit(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         if (writesIntReg(op)) intWritersC[abs.dest] = op.id;
         if (writesFloatReg(op)) floatWritersC[abs.dest] = op.id;
         intWritersC[0] = -1;
@@ -624,9 +624,9 @@ module AbstractCore
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
         inds.rename = (inds.rename + 1) % ROB_SIZE;
-        if (isBranchOp(op)) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
-        if (isLoadOp(op)) inds.lq = (inds.lq + 1) % LQ_SIZE;
-        if (isStoreOp(op)) inds.sq = (inds.sq + 1) % SQ_SIZE;
+        if (isBranchIns(decAbs(op))) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
+        if (isLoadIns(decAbs(op))) inds.lq = (inds.lq + 1) % LQ_SIZE;
+        if (isStoreIns(decAbs(op))) inds.sq = (inds.sq + 1) % SQ_SIZE;
     endfunction
 
     task automatic writeToOOOQ(input OpSlotA sa);
@@ -656,10 +656,10 @@ module AbstractCore
             OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
             assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
 
-            lastInsInfo <= insInfo;
+            lastInsInfo = insInfo;
             commitOp(op);
 
-            if (isSysOp(op)) break;
+            if (isSysIns(decAbs(op))) break;
         end
     endtask
 
@@ -707,21 +707,21 @@ module AbstractCore
 
     // $$General
     function automatic LateEvent getLateEvt(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word sr2 = getSysReg(2);
         Word sr3 = getSysReg(3);
         return getLateEvent(op, abs, sr2, sr3);
     endfunction
 
     function automatic logic getLateRedirect(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word sr2 = getSysReg(2);
         Word sr3 = getSysReg(3);
         return getLateEvent(op, abs, sr2, sr3).redirect;
     endfunction
 
     function automatic Word getLateTarget(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word sr2 = getSysReg(2);
         Word sr3 = getSysReg(3);
         return getLateEvent(op, abs, sr2, sr3).target;
@@ -784,15 +784,15 @@ module AbstractCore
         
         // Mirror into separate queues 
         foreach (sa[i]) if (sa[i].active) begin
-            if (isLoadOp(sa[i]) || isStoreOp(sa[i])) T_iqMem.push_back(sa[i]);
-            else if (isSysOp(sa[i])) T_iqSys.push_back(sa[i]);
-            else if (isBranchOp(sa[i])) T_iqBranch.push_back(sa[i]);
+            if (isLoadIns(decAbs(sa[i])) || isStoreIns(decAbs(sa[i]))) T_iqMem.push_back(sa[i]);
+            else if (isSysIns(decAbs(sa[i]))) T_iqSys.push_back(sa[i]);
+            else if (isBranchIns(decAbs(sa[i]))) T_iqBranch.push_back(sa[i]);
             else T_iqRegular.push_back(sa[i]);
         end
     endtask
     
     task automatic setLateEvent(input OpSlot op);    
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         LateEvent evt = getLateEvt(op);
         lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
         
@@ -874,7 +874,7 @@ module AbstractCore
 
 
     task automatic performRegularOp(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
         Word result = calculateResult(abs, args, op.adr); // !!!!
         
@@ -882,13 +882,13 @@ module AbstractCore
     endtask    
 
     task automatic performMemFirst(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
 
         Word adr = calculateEffectiveAddress(abs, args);
 
         // TODO: compare adr with that in memTracker
-        if (isStoreOp(op)) begin
+        if (isStoreIns(decAbs(op))) begin
             updateSQ(op.id, adr, args[2]);
         end
 
@@ -897,14 +897,14 @@ module AbstractCore
     endtask
 
     task automatic performMemLater(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
 
         Word adr = calculateEffectiveAddress(abs, args);
         
         // TODO: develop adr overlap check?
-        StoreQueueEntry oooMatchingStores[$] = storeQueue.find with (item.adr == adr && isStoreMemOp(item.op) && item.op.id < op.id);
-        StoreQueueEntry committedMatchingStores[$] = committedStoreQueue.find with (item.adr == adr && isStoreMemOp(item.op) && item.op.id < op.id);
+        StoreQueueEntry oooMatchingStores[$] = storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+        StoreQueueEntry committedMatchingStores[$] = committedStoreQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
         StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
         // Get last (youngest) of the matching stores
         Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : readIn[0];
@@ -919,7 +919,7 @@ module AbstractCore
 
     // TODO: accept Event as arg?
     task automatic setExecEvent(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
 
         ExecEvent evt = resolveBranch(abs, op.adr, args);
@@ -932,7 +932,7 @@ module AbstractCore
     endtask
 
     task automatic performLinkOp(input OpSlot op);
-        AbstractInstruction abs = decAbs(op.bits);
+        AbstractInstruction abs = decAbs(op);
         Word result = op.adr + 4;
         
         writeResult(op, abs, result);
@@ -975,17 +975,17 @@ module AbstractCore
                 remainingSize--;
                 res.num++;
                 
-                if (isBranchOp(op)) begin
+                if (isBranchIns(decAbs(op))) begin
                     res.branch = op;
                     assert (op === T_iqBranch.pop_front()) else $error("wrong");
                     break;
                 end
-                else if (isLoadOp(op) || isStoreOp(op)) begin
+                else if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
                     res.mem = op;
                     assert (op === T_iqMem.pop_front()) else $error("wrong");
                     break;
                 end
-                else if (isSysOp(op)) begin
+                else if (isSysIns(decAbs(op))) begin
                     res.sys = op;
                     assert (op === T_iqSys.pop_front()) else $error("wrong");
                     break;
@@ -1038,9 +1038,24 @@ module AbstractCore
         return res;
     endfunction
 
-    function automatic AbstractInstruction decAbs(input Word bits);
-        return decodeAbstract(bits);
+    function automatic AbstractInstruction decAbs(input OpSlot op);
+        //AbstractInstruction insM;
+        //AbstractInstruction insD;
+        if (!op.active || op.id == -1) return DEFAULT_ABS_INS; 
+        
+        return insMap.get(op.id).dec;
+//            insD = decodeAbstract(op.bits);
+//            assert (insM === insD) else begin
+//                $error("unkmatching   %p", op);
+//                $error("Diff: %p / %p", insM, insD);
+            
+//            end
+ //       return insM;//decodeAbstract(op.bits);
     endfunction
+
+//    function automatic AbstractInstruction decodeOp(input OpSlot op);
+//        return decodeAbstract(op.bits);
+//    endfunction
 
     // How many in front are ready to commit
     function automatic int countFrontCompleted();
