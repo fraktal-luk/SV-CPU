@@ -612,19 +612,21 @@ package AbstractSim;
         return '{sources, types};
     endfunction
 
-        function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-            Word res[3];
-            foreach (res[i]) begin
-                case (deps.types[i])
-                    SRC_ZERO: res[i] = 0;
-                    SRC_CONST: res[i] = deps.sources[i];
-                    SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
-                    SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
-                endcase
-            end
-    
-            return res;
-        endfunction
+
+    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+        Word res[3];
+        foreach (res[i]) begin
+            case (deps.types[i])
+                SRC_ZERO: res[i] = 0;
+                SRC_CONST: res[i] = deps.sources[i];
+                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
+                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
+            endcase
+        end
+
+        return res;
+    endfunction
+
 
     typedef struct {
         logic req;

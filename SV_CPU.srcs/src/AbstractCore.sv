@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'x;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -102,36 +102,6 @@ module AbstractCore
         int sq;
         int csq;
     } BufferLevels;
-    
-    BufferLevels oooLevels, oooAccepts; 
-    
-
-    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
-    MemTracker memTracker = new();
-    
-    InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
-    InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
-
-    int cycleCtr = 0, fetchCtr = 0;
-    int fqSize = 0, nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0 , bcqSize = 0;
-    int insMapSize = 0, trSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
-
-    logic fetchAllow, renameAllow, renameAllow_N, buffersAccepting;
-
-    BranchCheckpoint branchCP;
-    
-    Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
-    Stage fetchQueue[$:FETCH_QUEUE_SIZE];
-
-    OpSlotA nextStageA = '{default: EMPTY_SLOT};
-    OpSlot opQueue[$:OP_QUEUE_SIZE];
-        typedef logic ReadyVec[OP_QUEUE_SIZE];
-        ReadyVec opsReady, opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
-
-    OpSlot T_iqRegular[$:OP_QUEUE_SIZE];
-    OpSlot T_iqBranch[$:OP_QUEUE_SIZE];
-    OpSlot T_iqMem[$:OP_QUEUE_SIZE];
-    OpSlot T_iqSys[$:OP_QUEUE_SIZE];
 
 
         typedef struct {
@@ -143,10 +113,73 @@ module AbstractCore
             return op;
         endfunction
 
+        function automatic OpSlot eff(input OpSlot op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+                return EMPTY_SLOT;
+            return op;
+        endfunction
+
+        function automatic IssueGroup effIG(input IssueGroup ig);
+            IssueGroup res;
+            
+            foreach (ig.regular[i])
+                res.regular[i] = eff(ig.regular[i]);
+
+            res.branch = eff(ig.branch);
+            res.mem = eff(ig.mem);
+            res.sys = eff(ig.sys);
+            
+            res.num = ig.num;
+            
+            return res;
+        endfunction
+
+
     Events evts;
 
+
+    BufferLevels oooLevels, oooAccepts; 
+
+    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
+    MemTracker memTracker = new();
+    
+    InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
+    InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
+
+    int cycleCtr = 0;
+
+
+    int nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
+    int insMapSize = 0, trSize = 0, renamedDivergence = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
+
+    logic fetchAllow, renameAllow, buffersAccepting;
+
+    BranchCheckpoint branchCP;
+    
+    Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+    Stage fetchQueue[$:FETCH_QUEUE_SIZE];
+    int fetchCtr = 0;
+    int fqSize = 0;
+
+    OpSlotA nextStageA ,//= '{default: EMPTY_SLOT},
+                 stageRename0 = '{default: EMPTY_SLOT}, stageRename1 = '{default: EMPTY_SLOT};
+    
+    
+    OpSlot opQueue[$:OP_QUEUE_SIZE];
+        typedef logic ReadyVec[OP_QUEUE_SIZE];
+        ReadyVec opsReady, opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
+
+    OpSlot T_iqRegular[$:OP_QUEUE_SIZE];
+    OpSlot T_iqBranch[$:OP_QUEUE_SIZE];
+    OpSlot T_iqMem[$:OP_QUEUE_SIZE];
+    OpSlot T_iqSys[$:OP_QUEUE_SIZE];
+
+
+
     OpSlot memOp = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
+        OpSlot memOp_E, memOpPrev_E;
     IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
+        IssueGroup issuedSt0_E, issuedSt1_E;
 
     OpStatus oooQueue[$:OOO_QUEUE_SIZE];
 
@@ -244,32 +277,36 @@ module AbstractCore
         issuedSt0 <= DEFAULT_ISSUE_GROUP;
         issuedSt1 <= issuedSt0;
 
-        if (lateEventInfo.redirect) begin
-            performRedirect();
-        end
-        else if (branchEventInfo.redirect) begin
-            performRedirect();
-        end
-        else begin
-            fetchAndEnqueue();
 
-            writeToOpQ(nextStageA);
-            writeToOOOQ(nextStageA);
-            foreach (nextStageA[i]) begin
-                if (nextStageA[i].active) addToQueues(nextStageA[i]);
-            end
+        if (lateEventInfo.redirect) performRedirect();
+        else if (branchEventInfo.redirect) performRedirect();
+        else runInOrderPart();
 
+
+        if (!lateEventInfo.redirect && !branchEventInfo.redirect) begin
             memOp <= EMPTY_SLOT;
             memOpPrev <= tick(memOp, evts);
 
             if (reset) execReset();
             else if (interrupt) execInterrupt();
-            else runExec();
+            
+            runExec();
         end
         
         updateBookkeeping();        
     end
 
+    // Frontend, rename and everything before getting to OOO queues
+    task automatic runInOrderPart();
+        fetchAndEnqueue();
+
+        writeToOpQ(nextStageA);
+        writeToOOOQ(nextStageA);
+        foreach (nextStageA[i]) begin
+            if (nextStageA[i].active) addToQueues(nextStageA[i]);
+        end 
+    endtask
+    
     
     task automatic updateBookkeeping();
         fqSize <= fetchQueue.size();
@@ -334,6 +371,15 @@ module AbstractCore
     endfunction
 
     
+       assign memOp_E = eff(memOp);
+       assign memOpPrev_E = eff(memOpPrev);
+    
+       assign issuedSt0_E = effIG(issuedSt0);
+       assign issuedSt1_E = effIG(issuedSt1);
+
+        assign cmp0 = (issuedSt0 === issuedSt0_E);
+        assign cmp1 = (issuedSt1 === issuedSt1_E);
+
 
     // $$Front
     function automatic Stage setActive(input Stage s, input logic on, input int ctr);
@@ -373,12 +419,12 @@ module AbstractCore
 
     function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
         BufferLevels res;
-        res.oq = levels.oq <= OP_QUEUE_SIZE - 2*FETCH_WIDTH;
-        res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 2*FETCH_WIDTH;
+        res.oq = levels.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
         //res.bq = levels.bq <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
-        res.rob = levels.rob <= ROB_SIZE - 2*FETCH_WIDTH;
-        res.lq = levels.lq <= LQ_SIZE - 2*FETCH_WIDTH;
-        res.sq = levels.sq <= SQ_SIZE - 2*FETCH_WIDTH;
+        res.rob = levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
+        res.lq = levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
+        res.sq = levels.sq <= SQ_SIZE - 3*FETCH_WIDTH;
         res.csq = 1;//committedStoreQueue.size();
         return res;
     endfunction
@@ -456,11 +502,6 @@ module AbstractCore
         renameInds = single.inds;
     endtask
     
-
-//    task automatic resetEmuls();
-//        renamedEmul.reset();
-//        retiredEmul.reset();
-//    endtask
     
     task automatic saveCP(input OpSlot op);
         int intMapR[32] = registerTracker.intMapR;
@@ -572,6 +613,7 @@ module AbstractCore
         end
         releaseQueues(op);
 
+             //   insMap.content.delete(lastRetired.id);
             lastRetired = op;
             nRetired++;
             updateCommittedOOO();
@@ -687,22 +729,55 @@ module AbstractCore
 
         if (fetchStage1.active) fetchQueue.push_back(fetchStage1);
         
+        
+        begin
+            OpSlotA toRename0 = '{default: EMPTY_SLOT}, toRename1 = '{default: EMPTY_SLOT};
+    
+//            // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
+//            if (fqSize > 0 && renameAllow) begin
+//                Stage fqOut = fetchQueue.pop_front();
+//                toRename0 = makeOpA(fqOut);
+//            end
+//            else begin
+//                toRename0 = '{default: EMPTY_SLOT};
+//            end
+        
+            toRename0 = readFromFQ();
+        
+        
+            stageRename0 <= toRename0;
+            
+            toRename1 = stageRename0;
+
+            
+            stageRename1 <= //toRename0;
+                            toRename1;
+        
+            renameGroup(//toRename0);
+                        toRename1);
+        end
+    endtask
+
+    function automatic OpSlotA readFromFQ();
+        OpSlotA res = '{default: EMPTY_SLOT};
+
         // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
         if (fqSize > 0 && renameAllow) begin
-            Stage toRename = fetchQueue.pop_front();
-            OpSlotA toRenameA = makeOpA(toRename);
-            
-            foreach (toRenameA[i])
-                if (toRenameA[i].active)
-                    renameOp(toRenameA[i]);
-
-            nextStageA <= toRenameA;
-        end
-        else begin
-            nextStageA <= '{default: EMPTY_SLOT};
+            Stage fqOut = fetchQueue.pop_front();
+            res = makeOpA(fqOut);
         end
         
+        return res;
+    endfunction
+
+    task automatic renameGroup(input OpSlotA ops);
+        foreach (ops[i])
+            if (ops[i].active)
+                renameOp(ops[i]);
     endtask
+
+
+        assign nextStageA = stageRename1;
 
 
     // $$General
@@ -737,12 +812,21 @@ module AbstractCore
 
         flushFrontend();
         
-        nextStageA <= '{default: EMPTY_SLOT};
+        //nextStageA <= '{default: EMPTY_SLOT};
+        stageRename0 <= '{default: EMPTY_SLOT};
+        stageRename1 <= '{default: EMPTY_SLOT};
 
         if (lateEventInfo.redirect) begin
-            rollbackToStable();
+            rollbackToStable(); // Rename stage
             renamedDivergence = 0;
-            
+        end
+        else if (branchEventInfo.redirect) begin
+            rollbackToCheckpoint(); // Rename stage
+            renamedDivergence = insMap.get(branchEventInfo.op.id).divergence;
+        end
+
+
+        if (lateEventInfo.redirect) begin
             flushOooBuffersAll();
             registerTracker.flushAll();
             memTracker.flushAll();
@@ -751,13 +835,9 @@ module AbstractCore
                 sysRegs_N = SYS_REGS_INITIAL;
                 renamedEmul.reset();
                 retiredEmul.reset();
-                //resetEmuls();
             end
         end
         else if (branchEventInfo.redirect) begin
-            rollbackToCheckpoint();
-            renamedDivergence = insMap.get(branchEventInfo.op.id).divergence;
-            
             flushOooBuffersPartial(branchEventInfo.op);  
             registerTracker.flush(branchEventInfo.op);
             memTracker.flush(branchEventInfo.op);
@@ -807,7 +887,7 @@ module AbstractCore
         else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active) begin
         end
         else begin
-            igIssue = issueFromOpQ(opQueue, oooLevels.oq);
+            igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
             igExec = igIssue;
         end
 
@@ -963,37 +1043,39 @@ module AbstractCore
         completeOp(op);
     endtask
 
-    function automatic IssueGroup issueFromOpQ(ref OpSlot queue[$:OP_QUEUE_SIZE], input int size);
+    function automatic IssueGroup issueFromOpQ(ref OpSlot queue[$:OP_QUEUE_SIZE], input int size, input ReadyVec rv);
         OpSlot q[$:OP_QUEUE_SIZE] = queue;
         int remainingSize = size;
+        int maxNum = size > 4 ? 4 : size;
     
         IssueGroup res = DEFAULT_ISSUE_GROUP;
-        for (int i = 0; i < 4; i++) begin
-            if (remainingSize > 0) begin
-                OpSlot op = queue.pop_front();
-                assert (op.active) else $fatal(2, "Op from queue is empty!");
-                remainingSize--;
-                res.num++;
-                
-                if (isBranchIns(decAbs(op))) begin
-                    res.branch = op;
-                    assert (op === T_iqBranch.pop_front()) else $error("wrong");
-                    break;
-                end
-                else if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
-                    res.mem = op;
-                    assert (op === T_iqMem.pop_front()) else $error("wrong");
-                    break;
-                end
-                else if (isSysIns(decAbs(op))) begin
-                    res.sys = op;
-                    assert (op === T_iqSys.pop_front()) else $error("wrong");
-                    break;
-                end
-                
-                assert (op === T_iqRegular.pop_front()) else $error("wrong");
-                res.regular[i] = op;
+        for (int i = 0; i < maxNum; i++) begin
+            OpSlot op;
+            
+            if (!rv[i]) break;
+            
+            op = queue.pop_front();
+            assert (op.active) else $fatal(2, "Op from queue is empty!");
+            res.num++;
+            
+            if (isBranchIns(decAbs(op))) begin
+                res.branch = op;
+                assert (op === T_iqBranch.pop_front()) else $error("wrong");
+                break;
             end
+            else if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
+                res.mem = op;
+                assert (op === T_iqMem.pop_front()) else $error("wrong");
+                break;
+            end
+            else if (isSysIns(decAbs(op))) begin
+                res.sys = op;
+                assert (op === T_iqSys.pop_front()) else $error("wrong");
+                break;
+            end
+            
+            assert (op === T_iqRegular.pop_front()) else $error("wrong");
+            res.regular[i] = op;
         end
         
         return res;
@@ -1039,23 +1121,10 @@ module AbstractCore
     endfunction
 
     function automatic AbstractInstruction decAbs(input OpSlot op);
-        //AbstractInstruction insM;
-        //AbstractInstruction insD;
-        if (!op.active || op.id == -1) return DEFAULT_ABS_INS; 
-        
+        if (!op.active || op.id == -1) return DEFAULT_ABS_INS;     
         return insMap.get(op.id).dec;
-//            insD = decodeAbstract(op.bits);
-//            assert (insM === insD) else begin
-//                $error("unkmatching   %p", op);
-//                $error("Diff: %p / %p", insM, insD);
-            
-//            end
- //       return insM;//decodeAbstract(op.bits);
     endfunction
-
-//    function automatic AbstractInstruction decodeOp(input OpSlot op);
-//        return decodeAbstract(op.bits);
-//    endfunction
+    
 
     // How many in front are ready to commit
     function automatic int countFrontCompleted();
