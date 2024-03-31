@@ -236,7 +236,7 @@ package AbstractSim;
             Word actualResult;
         //int renameIndex;
         IndexSet inds;
-        int divergence;
+        //int divergence;
         InsDependencies deps;
         
         Word argValues[3];
@@ -249,7 +249,7 @@ package AbstractSim;
         res.bits = op.bits;
         
         //res.renameIndex = -1;
-        res.divergence = -1;
+        //res.divergence = -1;
         return res;
     endfunction
 
@@ -294,9 +294,9 @@ package AbstractSim;
             content[id].actualResult = res;
         endfunction
         
-        function automatic void setDivergence(input int id, input int divergence);
-            content[id].divergence = divergence;
-        endfunction
+//        function automatic void setDivergence(input int id, input int divergence);
+//            content[id].divergence = divergence;
+//        endfunction
 
         function automatic void setDeps(input int id, input InsDependencies deps);
             content[id].deps = deps;
