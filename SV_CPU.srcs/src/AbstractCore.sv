@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'x;
+    logic dummy = 'z;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -161,7 +161,7 @@ module AbstractCore
     int fetchCtr = 0;
     int fqSize = 0;
 
-    OpSlotA nextStageA ,//= '{default: EMPTY_SLOT},
+    OpSlotA //nextStageA ,//= '{default: EMPTY_SLOT},
                  stageRename0 = '{default: EMPTY_SLOT}, stageRename1 = '{default: EMPTY_SLOT};
     
     
@@ -278,10 +278,12 @@ module AbstractCore
         issuedSt1 <= issuedSt0;
 
 
-        if (lateEventInfo.redirect) performRedirect();
-        else if (branchEventInfo.redirect) performRedirect();
-        else runInOrderPart();
-
+        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+            performRedirect();
+        end
+        else begin
+            runInOrderPart();
+        end
 
         if (!lateEventInfo.redirect && !branchEventInfo.redirect) begin
             memOp <= EMPTY_SLOT;
@@ -300,10 +302,14 @@ module AbstractCore
     task automatic runInOrderPart();
         fetchAndEnqueue();
 
-        writeToOpQ(nextStageA);
-        writeToOOOQ(nextStageA);
-        foreach (nextStageA[i]) begin
-            if (nextStageA[i].active) addToQueues(nextStageA[i]);
+        renameGroup(stageRename0);
+        stageRename1 <= stageRename0;
+
+
+        writeToOpQ(stageRename1);
+        writeToOOOQ(stageRename1);
+        foreach (stageRename1[i]) begin
+            if (stageRename1[i].active) addToQueues(stageRename1[i]);
         end 
     endtask
     
@@ -731,31 +737,16 @@ module AbstractCore
         
         
         begin
-            OpSlotA toRename0 = '{default: EMPTY_SLOT}, toRename1 = '{default: EMPTY_SLOT};
-    
-//            // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
-//            if (fqSize > 0 && renameAllow) begin
-//                Stage fqOut = fetchQueue.pop_front();
-//                toRename0 = makeOpA(fqOut);
-//            end
-//            else begin
-//                toRename0 = '{default: EMPTY_SLOT};
-//            end
-        
+            OpSlotA toRename0 = '{default: EMPTY_SLOT};
             toRename0 = readFromFQ();
-        
-        
             stageRename0 <= toRename0;
-            
-            toRename1 = stageRename0;
-
-            
-            stageRename1 <= //toRename0;
-                            toRename1;
-        
-            renameGroup(//toRename0);
-                        toRename1);
         end
+        
+//        begin            
+//            stageRename1 <= stageRename0;
+//            renameGroup(stageRename0);
+//        end
+        
     endtask
 
     function automatic OpSlotA readFromFQ();
@@ -777,7 +768,7 @@ module AbstractCore
     endtask
 
 
-        assign nextStageA = stageRename1;
+//        assign nextStageA = stageRename1;
 
 
     // $$General
@@ -803,7 +794,7 @@ module AbstractCore
     endfunction
 
 
-    task automatic performRedirect();
+    task automatic redirectFront();
         if (lateEventInfo.redirect)
             ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
         else if (branchEventInfo.redirect)
@@ -812,8 +803,24 @@ module AbstractCore
 
         flushFrontend();
         
-        //nextStageA <= '{default: EMPTY_SLOT};
         stageRename0 <= '{default: EMPTY_SLOT};
+    endtask
+
+
+    task automatic performRedirect();
+//        if (lateEventInfo.redirect)
+//            ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
+//        else if (branchEventInfo.redirect)
+//            ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
+//        else $fatal(2, "Should never get here");
+
+//        flushFrontend();
+        
+//        stageRename0 <= '{default: EMPTY_SLOT};
+        
+        redirectFront();
+        
+        
         stageRename1 <= '{default: EMPTY_SLOT};
 
         if (lateEventInfo.redirect) begin
