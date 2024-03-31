@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '0;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -135,6 +135,7 @@ module AbstractCore
         endfunction
 
 
+    int cycleCtr = 0;
     Events evts;
 
 
@@ -146,7 +147,6 @@ module AbstractCore
     InsId intWritersR[32] = '{default: -1}, floatWritersR[32] = '{default: -1};
     InsId intWritersC[32] = '{default: -1}, floatWritersC[32] = '{default: -1};
 
-    int cycleCtr = 0;
 
 
     int nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
@@ -156,14 +156,86 @@ module AbstractCore
 
     BranchCheckpoint branchCP;
     
-    Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
-    Stage fetchQueue[$:FETCH_QUEUE_SIZE];
-    int fetchCtr = 0;
+    
+    
+    
     int fqSize = 0;
 
-    OpSlotA //nextStageA ,//= '{default: EMPTY_SLOT},
-                 stageRename0 = '{default: EMPTY_SLOT}, stageRename1 = '{default: EMPTY_SLOT};
     
+        Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+        Stage fetchQueue[$:FETCH_QUEUE_SIZE];
+        int fetchCtr = 0;
+        OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+
+        task automatic redirectFront();
+            if (lateEventInfo.redirect)
+                ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
+            else if (branchEventInfo.redirect)
+                ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
+            else $fatal(2, "Should never get here");
+    
+            flushFrontend();
+            
+            stageRename0 <= '{default: EMPTY_SLOT};
+        endtask
+
+        task automatic fetchAndEnqueue();
+            OpSlotA ipSlotA, fetchStage0ua;
+            Stage ipStageU, fetchStage0u;
+            if (fetchAllow) begin
+                ipStage <= '{'1, -1, (ipStage.baseAdr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH, '{default: '0}, '{default: 'x}};
+                fetchCtr <= fetchCtr + FETCH_WIDTH;
+            end
+      
+            ipStageU = setActive(ipStage, ipStage.active & fetchAllow, fetchCtr);
+            ipSlotA = makeOpA(ipStageU);
+    
+            foreach (ipSlotA[i]) if (ipSlotA[i].active) insMap.add(ipSlotA[i]);
+            
+            fetchStage0 <= ipStageU;
+            
+            fetchStage0u = setWords(fetchStage0, insIn);
+            fetchStage0ua = makeOpA(fetchStage0u);
+            
+            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) insMap.setEncoding(fetchStage0ua[i]);
+            fetchStage1 <= fetchStage0u;
+    
+            if (fetchStage1.active) fetchQueue.push_back(fetchStage1);
+            
+            begin
+                OpSlotA toRename0 = '{default: EMPTY_SLOT};
+                toRename0 = readFromFQ();
+                stageRename0 <= toRename0;
+            end
+            
+        endtask
+        
+        function automatic OpSlotA readFromFQ();
+            OpSlotA res = '{default: EMPTY_SLOT};
+    
+            // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
+            if (fqSize > 0 && renameAllow) begin
+                Stage fqOut = fetchQueue.pop_front();
+                res = makeOpA(fqOut);
+            end
+            
+            return res;
+        endfunction
+        
+        
+        // Frontend process
+        always @(posedge clk) begin
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+                redirectFront();
+            end
+            else begin
+                fetchAndEnqueue();
+            end
+        end  
+    
+
+
+    OpSlotA stageRename1 = '{default: EMPTY_SLOT};
     
     OpSlot opQueue[$:OP_QUEUE_SIZE];
         typedef logic ReadyVec[OP_QUEUE_SIZE];
@@ -262,7 +334,17 @@ module AbstractCore
 
     always @(posedge clk) cycleCtr++;
 
+
+
     always @(posedge clk) begin
+//        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+//            redirectFront();
+//        end
+//        else begin
+//            fetchAndEnqueue();
+//        end
+    
+    
         readInfo <= EMPTY_WRITE_INFO;
 
         branchEventInfo <= EMPTY_EVENT_INFO;
@@ -278,11 +360,14 @@ module AbstractCore
         issuedSt1 <= issuedSt0;
 
 
+
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-            performRedirect();
+            //redirectFront();
+            redirectRest();
         end
         else begin
-            runInOrderPart();
+            //fetchAndEnqueue();
+            runInOrderPartRe();
         end
 
         if (!lateEventInfo.redirect && !branchEventInfo.redirect) begin
@@ -299,8 +384,8 @@ module AbstractCore
     end
 
     // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPart();
-        fetchAndEnqueue();
+    task automatic runInOrderPartRe();
+        //fetchAndEnqueue();
 
         renameGroup(stageRename0);
         stageRename1 <= stageRename0;
@@ -712,54 +797,9 @@ module AbstractCore
     endtask
 
 
-    task automatic fetchAndEnqueue();
-        OpSlotA ipSlotA, fetchStage0ua;
-        Stage ipStageU, fetchStage0u;
-        if (fetchAllow) begin
-            ipStage <= '{'1, -1, (ipStage.baseAdr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH, '{default: '0}, '{default: 'x}};
-            fetchCtr <= fetchCtr + FETCH_WIDTH;
-        end
-  
-        ipStageU = setActive(ipStage, ipStage.active & fetchAllow, fetchCtr);
-        ipSlotA = makeOpA(ipStageU);
 
-        foreach (ipSlotA[i]) if (ipSlotA[i].active) insMap.add(ipSlotA[i]);
-        
-        fetchStage0 <= ipStageU;
-        
-        fetchStage0u = setWords(fetchStage0, insIn);
-        fetchStage0ua = makeOpA(fetchStage0u);
-        
-        foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) insMap.setEncoding(fetchStage0ua[i]);
-        fetchStage1 <= fetchStage0u;
 
-        if (fetchStage1.active) fetchQueue.push_back(fetchStage1);
-        
-        
-        begin
-            OpSlotA toRename0 = '{default: EMPTY_SLOT};
-            toRename0 = readFromFQ();
-            stageRename0 <= toRename0;
-        end
-        
-//        begin            
-//            stageRename1 <= stageRename0;
-//            renameGroup(stageRename0);
-//        end
-        
-    endtask
 
-    function automatic OpSlotA readFromFQ();
-        OpSlotA res = '{default: EMPTY_SLOT};
-
-        // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
-        if (fqSize > 0 && renameAllow) begin
-            Stage fqOut = fetchQueue.pop_front();
-            res = makeOpA(fqOut);
-        end
-        
-        return res;
-    endfunction
 
     task automatic renameGroup(input OpSlotA ops);
         foreach (ops[i])
@@ -767,8 +807,6 @@ module AbstractCore
                 renameOp(ops[i]);
     endtask
 
-
-//        assign nextStageA = stageRename1;
 
 
     // $$General
@@ -794,33 +832,8 @@ module AbstractCore
     endfunction
 
 
-    task automatic redirectFront();
-        if (lateEventInfo.redirect)
-            ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
-        else if (branchEventInfo.redirect)
-            ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
-        else $fatal(2, "Should never get here");
 
-        flushFrontend();
-        
-        stageRename0 <= '{default: EMPTY_SLOT};
-    endtask
-
-
-    task automatic performRedirect();
-//        if (lateEventInfo.redirect)
-//            ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
-//        else if (branchEventInfo.redirect)
-//            ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
-//        else $fatal(2, "Should never get here");
-
-//        flushFrontend();
-        
-//        stageRename0 <= '{default: EMPTY_SLOT};
-        
-        redirectFront();
-        
-        
+    task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT};
 
         if (lateEventInfo.redirect) begin
