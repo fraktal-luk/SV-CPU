@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = 'z;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -163,7 +163,7 @@ module AbstractCore
     int insMapSize = 0, trSize = 0, //renamedDivergence = 0, 
                                     nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
 
-    logic fetchAllow, renameAllow, buffersAccepting;
+    logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
     BranchCheckpoint branchCP;
     
@@ -273,7 +273,9 @@ module AbstractCore
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
     StoreQueueEntry committedStoreQueue[$];
-    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, storeHead_Q = '{EMPTY_SLOT, 'x, 'x}, lastCommittedSqe = '{EMPTY_SLOT, 'x, 'x};
+        StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, storeHead_N = '{EMPTY_SLOT, 'x, 'x},
+                storeHead_P = '{EMPTY_SLOT, 'x, 'x}, storeHead_Q = '{EMPTY_SLOT, 'x, 'x}, lastCommittedSqe = '{EMPTY_SLOT, 'x, 'x};
 
     int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
@@ -318,13 +320,22 @@ module AbstractCore
 
 
     task automatic putWrite();
-        storeHead <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
+        storeHead_N <= (committedStoreQueue.size != 0) ? committedStoreQueue[0] : '{EMPTY_SLOT, 'x, 'x};
+            
+            if (csq_N.size() < 4) begin
+                csq_N.push_back('{EMPTY_SLOT, 'x, 'x});
+                csqEmpty <= 1;
+            end
+            else csqEmpty <= 0;
+            
+            storeHead <= csq_N[3];
     endtask
 
 
 
     task automatic activateEvent();
-        if (oooLevels.csq != 0) return;
+        //if (oooLevels.csq != 0) return;
+        if (!csqEmpty) return;    
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
@@ -373,7 +384,8 @@ module AbstractCore
             runInOrderPartRe();
         end
 
-        if (!lateEventInfo.redirect && !branchEventInfo.redirect) begin
+        //if (!lateEventInfo.redirect && !branchEventInfo.redirect) 
+        begin
             memOp <= EMPTY_SLOT;
             memOpPrev <= //tick(memOp, evts);
                          memOp_E;
@@ -483,8 +495,8 @@ module AbstractCore
 
 
 
-        assign cmp0 = (issuedSt0 === issuedSt0_E);
-        assign cmp1 = (issuedSt1 === issuedSt1_E);
+        assign cmp0 = (storeHead_N === storeHead);
+        //assign cmp1 = (issuedSt1 === issuedSt1_E);
 
 
     // $$Front
@@ -691,7 +703,7 @@ module AbstractCore
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
         
         if (writesIntReg(op) || writesFloatReg(op))
-            assert (info.actualResult === info.result) else $error(" not matching result");
+            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
         
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
@@ -712,6 +724,7 @@ module AbstractCore
         
         if (isStoreIns(decAbs(op))) begin
             committedStoreQueue.push_back(storeQueue[0]);
+                csq_N.push_back(storeQueue[0]);
         end
 
         if (isSysIns(decAbs(op))) begin
@@ -787,11 +800,15 @@ module AbstractCore
     endtask
 
     task automatic drainWriteQueue();
-        if (oooLevels.csq != 0) void'(committedStoreQueue.pop_front());
+        if (oooLevels.csq != 0)
+           storeHead_P <= committedStoreQueue.pop_front();
         storeHead_Q <= storeHead;
         
        if (storeHead.op.active && isStoreSysOp(storeHead.op))
            setSysReg(storeHead.adr, storeHead.val);
+           
+           
+            csq_N.pop_front();
     endtask
 
     task automatic advanceOOOQ();
@@ -919,9 +936,9 @@ module AbstractCore
         IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;
     
         if (memOpPrev_E.active) execMemLater(memOpPrev_E);
-        else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active) begin
-        end
-        else begin
+        else if (memOp.active || issuedSt0.mem.active || issuedSt1.mem.active) begin end
+        //else 
+        begin
             igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
             igExec = effIG(igIssue);
         end
@@ -1052,8 +1069,19 @@ module AbstractCore
         // Get last (youngest) of the matching stores
         Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : readIn[0];
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+        
+        
+//            if (isLoadMemIns(abs)) begin
+//                $display("Load: id = %d, adr = %d", op.id, adr);
+//                $display("%p", storeQueue);
+//                $display("%p", committedStoreQueue);
+//                $display("%p", csq_N);
+//                $display("%p, %p, %p", storeHead, storeHead_P, storeHead_Q);
+//            end
+        
+        
         if (matchingStores.size() != 0) begin
-            $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
+          //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
 
         writeResult(op, abs, data);
@@ -1062,7 +1090,8 @@ module AbstractCore
     function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
         // TODO: develop adr overlap check?
         StoreQueueEntry oooMatchingStores[$] = storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-        StoreQueueEntry committedMatchingStores[$] = committedStoreQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+        StoreQueueEntry committedMatchingStores[$] = //committedStoreQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+                                                        csq_N.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
         StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
         return matchingStores;
     endfunction
@@ -1220,12 +1249,17 @@ module AbstractCore
     assign lastCompletedStr = disasm(lastCompleted.bits);
     assign lastRetiredStr = disasm(lastRetired.bits);
     assign lastCommittedSqeStr = disasm(lastCommittedSqe.op.bits);
+        
     
         string bqStr;
+        string csStr;
+        string csStr_N;
         always @(posedge clk) begin
             automatic int ids[$];
             foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
             $swrite(bqStr, "%p", ids);
+            $swrite(csStr, "%p",  committedStoreQueue);
+            $swrite(csStr_N, "%p",  csq_N);
         end
 
 endmodule
