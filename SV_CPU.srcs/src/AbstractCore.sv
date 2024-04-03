@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'x;
+    logic dummy = 'z;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -686,8 +686,8 @@ module AbstractCore
         branchTargetQueue.push_back('{op.id, 'z});
     endtask
     
-
-    task automatic renameOp(input OpSlot op);             
+    
+    task automatic setupOnRename(input OpSlot op);
         AbstractInstruction ins = decAbs(op);
         Word result, target;
         InsDependencies deps;
@@ -705,15 +705,8 @@ module AbstractCore
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
-        setWriterR(op); // DB tracking
 
-        updateInds(renameInds, op); // Crucial state
-        
-        // Crucial state
-        registerTracker.reserveInt(op);
-        registerTracker.reserveFloat(op);
-        
-        if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
+        setWriterR(op); // DB tracking
 
         if (isStoreMemIns(decAbs(op))) begin // DB
             Word effAdr = calculateEffectiveAddress(ins, argVals);
@@ -728,9 +721,60 @@ module AbstractCore
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
         insMap.setDeps(op.id, deps);
-        insMap.setInds(op.id, renameInds);
         insMap.setArgValues(op.id, argVals);
+    endtask
+
+
+    task automatic renameOp(input OpSlot op);
+//        begin           
+//            AbstractInstruction ins = decAbs(op);
+//            Word result, target;
+//            InsDependencies deps;
+//            Word argVals[3];
+            
+//            // For insMap and mem queues
+//            argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
+//            // For ins map
+//            result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
+    
+//            // For insMap
+//            deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
+    
+//            runInEmulator(renamedEmul, op);
+//            renamedEmul.drain();
+//            target = renamedEmul.coreState.target; // For insMap
+    
+    
+//            setWriterR(op); // DB tracking
+    
+//            if (isStoreMemIns(decAbs(op))) begin // DB
+//                Word effAdr = calculateEffectiveAddress(ins, argVals);
+//                Word value = argVals[2];
+//                memTracker.addStore(op, effAdr, value);
+//            end
+//            if (isLoadMemIns(decAbs(op))) begin // DB
+//                Word effAdr = calculateEffectiveAddress(ins, argVals);
+//                memTracker.addLoad(op, effAdr, 'x);
+//            end
+    
+//            insMap.setResult(op.id, result);
+//            insMap.setTarget(op.id, target);
+//            insMap.setDeps(op.id, deps);
+//            insMap.setArgValues(op.id, argVals);
+//        end
+            
+            setupOnRename(op);
+
+        updateInds(renameInds, op); // Crucial state
+
+        // Crucial state
+        registerTracker.reserveInt(op);
+        registerTracker.reserveFloat(op);
         
+        if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
+        
+        insMap.setInds(op.id, renameInds);
+       
             lastRenamed = op;
             nRenamed++;
             updateLatestOOO();
@@ -739,15 +783,17 @@ module AbstractCore
 
 
     task automatic setLateEvent(input OpSlot op);    
-        AbstractInstruction abs = decAbs(op);
         LateEvent evt = getLateEvt(op);
-        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
-        
+
+        AbstractInstruction abs = decAbs(op);
         if (abs.def.o == O_halt) $error("halt not implemented");
+        
+        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
 
 
-    task automatic commitOp(input OpSlot op);
+    
+    task automatic verifyOnCommit(input OpSlot op);
         InstructionInfo info = insMap.get(op.id);
     
         Word trg = retiredEmul.coreState.target; // DB
@@ -768,7 +814,11 @@ module AbstractCore
         if (isBranchIns(decAbs(op))) begin
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
         end
+    endtask
+    
 
+    task automatic commitOp(input OpSlot op);
+        verifyOnCommit(op);
 
         updateInds(commitInds, op); // Crucial
 
@@ -778,7 +828,7 @@ module AbstractCore
         registerTracker.commitInt(op);
         registerTracker.commitFloat(op);
         
-        if (isMemOp(op)) memTracker.remove(op); // Crucial state
+        if (isMemOp(op)) memTracker.remove(op); // DB?
         
         // Crucial state
         if (isBranchIns(decAbs(op)))
@@ -788,13 +838,9 @@ module AbstractCore
         else
             retiredTarget <= retiredTarget + 4;
         
-        if (isStoreIns(decAbs(op))) begin
-            csq_N.push_back(storeQueue[0]); // Crucial state
-        end
+        if (isStoreIns(decAbs(op))) csq_N.push_back(storeQueue[0]); // Crucial state
+        if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
-        if (isSysIns(decAbs(op))) begin
-            setLateEvent(op); // Crucial state
-        end
         releaseQueues(op); // Crucial state
 
              //   insMap.content.delete(lastRetired.id);
