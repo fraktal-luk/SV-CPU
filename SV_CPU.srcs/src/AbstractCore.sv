@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = 'x;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -152,8 +152,11 @@ module AbstractCore
 
 
     int cycleCtr = 0;
-    Events evts;
+    
+    always @(posedge clk) cycleCtr++;
 
+
+    Events evts;
 
     BufferLevels oooLevels, oooAccepts; 
 
@@ -168,11 +171,9 @@ module AbstractCore
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
     BranchCheckpoint branchCP;
-    
-    
+     
     
     int fqSize = 0;
-
     
         Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
         Stage fetchQueue[$:FETCH_QUEUE_SIZE];
@@ -277,7 +278,8 @@ module AbstractCore
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
     StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, lastCommittedSqe = '{EMPTY_SLOT, 'x, 'x};
+    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x} //lastCommittedSqe = '{EMPTY_SLOT, 'x, 'x}
+    ;
 
     int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
@@ -299,14 +301,14 @@ module AbstractCore
 
     MemWriteInfo writeInfo, readInfo = EMPTY_WRITE_INFO;
 
-    InsDependencies lastDepsRe;
     InstructionInfo latestOOO[20], committedOOO[20];
 
     AbstractInstruction eventIns;
     Word retiredTarget = 0;
 
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr,  lastCommittedSqeStr, oooqStr;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr, // lastCommittedSqeStr, 
+        oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
         string iqRegularStr;
@@ -318,7 +320,6 @@ module AbstractCore
     
     assign readReq[0] = readInfo.req;
     assign readAdr[0] = readInfo.adr;
-
 
 
     function automatic LateEvent getLateEvt(input OpSlot op);
@@ -342,6 +343,7 @@ module AbstractCore
         return getLateEvent(op, abs, sr2, sr3).target;
     endfunction
 
+
     task automatic activateEvent();
         if (!csqEmpty) return;    
 
@@ -363,9 +365,6 @@ module AbstractCore
             lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
         end
     endtask
-
-
-    always @(posedge clk) cycleCtr++;
 
 
 
@@ -437,7 +436,6 @@ module AbstractCore
     end
 
 
-
     
     task automatic updateBookkeeping();
         fqSize <= fetchQueue.size();
@@ -475,57 +473,37 @@ module AbstractCore
 
 
 
-
-
     task automatic renameGroup(input OpSlotA ops);
         foreach (ops[i])
             if (ops[i].active)
                 renameOp(ops[i]);
     endtask
 
-    task automatic writeToOpQ(input OpSlotA sa);
-        foreach (sa[i]) if (sa[i].active) opQueue.push_back(sa[i]);
-        
-        // Mirror into separate queues 
-        foreach (sa[i]) if (sa[i].active) begin
-            if (isLoadIns(decAbs(sa[i])) || isStoreIns(decAbs(sa[i]))) T_iqMem.push_back(sa[i]);
-            else if (isSysIns(decAbs(sa[i]))) T_iqSys.push_back(sa[i]);
-            else if (isBranchIns(decAbs(sa[i]))) T_iqBranch.push_back(sa[i]);
-            else T_iqRegular.push_back(sa[i]);
-        end
-    endtask
-
-    task automatic writeToOOOQ(input OpSlotA sa);
-        foreach (sa[i]) if (sa[i].active) oooQueue.push_back('{sa[i].id, 0});
-    endtask
-
     task automatic addToQueues(input OpSlot op);
-        addToRob(op);        
-        if (isLoadIns(decAbs(op))) addToLoadQueue(op);
-        if (isStoreIns(decAbs(op))) addToStoreQueue(op);
-    endtask
-    
-    task automatic addToRob(input OpSlot op);
-        rob.push_back('{op});
-    endtask
+        oooQueue.push_back('{op.id, 0});
 
-    task automatic addToLoadQueue(input OpSlot op);
-        loadQueue.push_back('{op});
+        opQueue.push_back(op);
+        // Mirror into separate queues 
+        if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) T_iqMem.push_back(op);
+        else if (isSysIns(decAbs(op))) T_iqSys.push_back(op);
+        else if (isBranchIns(decAbs(op))) T_iqBranch.push_back(op);
+        else T_iqRegular.push_back(op);    
+    
+        rob.push_back('{op});      
+        if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
+        if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
     endtask
     
-    task automatic addToStoreQueue(input OpSlot op);
-        storeQueue.push_back('{op, 'x, 'x});
-    endtask
 
     // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPartRe();
+    task automatic runInOrderPartRe();        
         renameGroup(stageRename0);
+
         stageRename1 <= stageRename0;
 
-        writeToOpQ(stageRename1);
-        writeToOOOQ(stageRename1);
         foreach (stageRename1[i]) begin
-            if (stageRename1[i].active) addToQueues(stageRename1[i]);
+            OpSlot op = stageRename1[i];
+            if (op.active) addToQueues(op);
         end 
     endtask
     
@@ -709,33 +687,40 @@ module AbstractCore
     endtask
     
 
-    
     task automatic renameOp(input OpSlot op);             
         AbstractInstruction ins = decAbs(op);
         Word result, target;
         InsDependencies deps;
         Word argVals[3];
         
+        // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
+        // For ins map
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
 
+        // For insMap
         deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
-        target = renamedEmul.coreState.target;
+        target = renamedEmul.coreState.target; // For insMap
 
-        updateInds(renameInds, op);
+        setWriterR(op); // DB tracking
 
-        mapOpAtRename(op);
-        if (isBranchIns(decAbs(op))) saveCP(op);
+        updateInds(renameInds, op); // Crucial state
+        
+        // Crucial state
+        registerTracker.reserveInt(op);
+        registerTracker.reserveFloat(op);
+        
+        if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
 
-        if (isStoreMemIns(decAbs(op))) begin
+        if (isStoreMemIns(decAbs(op))) begin // DB
             Word effAdr = calculateEffectiveAddress(ins, argVals);
             Word value = argVals[2];
             memTracker.addStore(op, effAdr, value);
         end
-        if (isLoadMemIns(decAbs(op))) begin
+        if (isLoadMemIns(decAbs(op))) begin // DB
             Word effAdr = calculateEffectiveAddress(ins, argVals);
             memTracker.addLoad(op, effAdr, 'x);
         end
@@ -748,10 +733,8 @@ module AbstractCore
         
             lastRenamed = op;
             nRenamed++;
-            lastDepsRe <= deps;
             updateLatestOOO();
     endtask
-
 
 
 
@@ -763,44 +746,56 @@ module AbstractCore
         if (abs.def.o == O_halt) $error("halt not implemented");
     endtask
 
+
     task automatic commitOp(input OpSlot op);
         InstructionInfo info = insMap.get(op.id);
     
-        Word trg = retiredEmul.coreState.target;
+        Word trg = retiredEmul.coreState.target; // DB
         Word nextTrg;
-        Word bits = fetchInstruction(TMP_getP(), trg);
+        Word bits = fetchInstruction(TMP_getP(), trg); // DB
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
         
-        if (writesIntReg(op) || writesFloatReg(op))
+        if (writesIntReg(op) || writesFloatReg(op)) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
         
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
-        nextTrg = retiredEmul.coreState.target;
+        nextTrg = retiredEmul.coreState.target; // DB
 
-        updateInds(commitInds, op);
-
-        mapOpAtCommit(op);
-        
+        // DB
         if (isBranchIns(decAbs(op))) begin
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
-            retiredTarget <= branchTargetQueue[0].target;
         end
+
+
+        updateInds(commitInds, op); // Crucial
+
+        setWriterC(op); // DB
+        
+        // Crucial state
+        registerTracker.commitInt(op);
+        registerTracker.commitFloat(op);
+        
+        if (isMemOp(op)) memTracker.remove(op); // Crucial state
+        
+        // Crucial state
+        if (isBranchIns(decAbs(op)))
+            retiredTarget <= branchTargetQueue[0].target;
         else if (isSysIns(decAbs(op)))
             retiredTarget <= 'x;
         else
             retiredTarget <= retiredTarget + 4;
         
         if (isStoreIns(decAbs(op))) begin
-            csq_N.push_back(storeQueue[0]);
+            csq_N.push_back(storeQueue[0]); // Crucial state
         end
 
         if (isSysIns(decAbs(op))) begin
-            setLateEvent(op);
+            setLateEvent(op); // Crucial state
         end
-        releaseQueues(op);
+        releaseQueues(op); // Crucial state
 
              //   insMap.content.delete(lastRetired.id);
             lastRetired = op;
@@ -826,7 +821,6 @@ module AbstractCore
         
         if (isStoreIns(decAbs(op))) begin // Br queue entry release
             StoreQueueEntry sqe = storeQueue.pop_front();
-                lastCommittedSqe <= sqe;
             assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
         end
     endtask
@@ -847,23 +841,7 @@ module AbstractCore
     endfunction
 
 
-    task automatic mapOpAtRename(input OpSlot op);
-        setWriterR(op);
-        
-        registerTracker.reserveInt(op);
-        registerTracker.reserveFloat(op);
-    endtask
 
-
-
-    task automatic mapOpAtCommit(input OpSlot op);
-        setWriterC(op);
-        
-        registerTracker.commitInt(op);
-        registerTracker.commitFloat(op);
-        
-        if (isMemOp(op)) memTracker.remove(op);
-    endtask
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
         inds.rename = (inds.rename + 1) % ROB_SIZE;
@@ -877,7 +855,6 @@ module AbstractCore
         const int ind[$] = oooQueue.find_index with (item.id == op.id);
         assert (ind.size() > 0) oooQueue[ind[0]].done = '1; else $error("No such id in OOOQ: %d", op.id); 
     endtask
-
 
 
 
@@ -919,11 +896,9 @@ module AbstractCore
         doneOpSys <= igExec.sys;
     endtask
 
-      // assign cmp0 = (memOp_A === memOp);
 
     task automatic completeOp(input OpSlot op);            
         if (!op.active) return;
-
         updateOOOQ(op);
             lastCompleted = op;
             nCompleted++;
@@ -1159,19 +1134,13 @@ module AbstractCore
 
     assign lastRenamedStr = disasm(lastRenamed.bits);
     assign lastCompletedStr = disasm(lastCompleted.bits);
-    assign lastRetiredStr = disasm(lastRetired.bits);
-    assign lastCommittedSqeStr = disasm(lastCommittedSqe.op.bits);
-        
+    assign lastRetiredStr = disasm(lastRetired.bits);        
     
         string bqStr;
-        string csStr;
-        string csStr_N;
         always @(posedge clk) begin
             automatic int ids[$];
             foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
             $swrite(bqStr, "%p", ids);
-            //$swrite(csStr, "%p",  committedStoreQueue);
-            $swrite(csStr_N, "%p",  csq_N);
         end
 
 endmodule
