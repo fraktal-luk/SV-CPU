@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '0;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -59,15 +59,9 @@ module AbstractCore
 
     typedef OpSlot OpSlotA[FETCH_WIDTH];
 
-    typedef struct {
-        logic active;
-        int ctr;
-        Word baseAdr;
-        logic mask[FETCH_WIDTH];
-        Word words[FETCH_WIDTH];
-    } Stage;
+    typedef OpSlot Stage_N[FETCH_WIDTH];
 
-    const Stage EMPTY_STAGE = '{'0, -1, 'x, '{default: 0}, '{default: 'x}};
+    const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
 
     typedef struct {
         int id;
@@ -87,7 +81,6 @@ module AbstractCore
     const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
 
     typedef Word FetchGroup[FETCH_WIDTH];
-
 
     InstructionMap insMap = new();
 
@@ -175,52 +168,50 @@ module AbstractCore
     
     int fqSize = 0;
     
-        Stage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
-        Stage fetchQueue[$:FETCH_QUEUE_SIZE];
+        Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+        Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
+  
         int fetchCtr = 0;
         OpSlotA stageRename0 = '{default: EMPTY_SLOT};
 
         task automatic flushFrontend();
             fetchStage0 <= EMPTY_STAGE;
             fetchStage1 <= EMPTY_STAGE;
+
             fetchQueue.delete();
         endtask
 
         task automatic redirectFront();
             if (lateEventInfo.redirect)
-                ipStage <= '{'1, -1, lateEventInfo.target, '{default: '0}, '{default: 'x}};
+                ipStage <= '{0: '{1, -1, lateEventInfo.target, 'x}, default: EMPTY_SLOT};
             else if (branchEventInfo.redirect)
-                ipStage <= '{'1, -1, branchEventInfo.target, '{default: '0}, '{default: 'x}};
+                ipStage <= '{0: '{1, -1, branchEventInfo.target, 'x}, default: EMPTY_SLOT};
             else $fatal(2, "Should never get here");
-    
+
             flushFrontend();
-            
+
             stageRename0 <= '{default: EMPTY_SLOT};
         endtask
 
         task automatic fetchAndEnqueue();
-            OpSlotA ipSlotA, fetchStage0ua;
-            Stage ipStageU, fetchStage0u;
+            Stage_N fetchStage0ua, ipStageU;
             if (fetchAllow) begin
-                ipStage <= '{'1, -1, (ipStage.baseAdr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH, '{default: '0}, '{default: 'x}};
+                ipStage <= '{0: '{1, -1, (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH, 'x}, default: EMPTY_SLOT};
                 fetchCtr <= fetchCtr + FETCH_WIDTH;
             end
-      
-            ipStageU = setActive(ipStage, ipStage.active & fetchAllow, fetchCtr);
-            ipSlotA = makeOpA(ipStageU);
-    
-            foreach (ipSlotA[i]) if (ipSlotA[i].active) insMap.add(ipSlotA[i]);
-            
+
+            ipStageU = setActive(ipStage, ipStage[0].active & fetchAllow, fetchCtr);
+
+            foreach (ipStageU[i]) if (ipStageU[i].active) insMap.add(ipStageU[i]);
+
             fetchStage0 <= ipStageU;
-            
-            fetchStage0u = setWords(fetchStage0, insIn);
-            fetchStage0ua = makeOpA(fetchStage0u);
+            fetchStage0ua = setWords(fetchStage0, insIn);
             
             foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) insMap.setEncoding(fetchStage0ua[i]);
-            fetchStage1 <= fetchStage0u;
-    
-            if (fetchStage1.active) fetchQueue.push_back(fetchStage1);
-            
+
+            fetchStage1 <= fetchStage0ua;
+            if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);
+        
             stageRename0 <= readFromFQ();
         endtask
         
@@ -229,8 +220,8 @@ module AbstractCore
     
             // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
             if (fqSize > 0 && renameAllow) begin
-                Stage fqOut = fetchQueue.pop_front();
-                res = makeOpA(fqOut);
+                Stage_N fqOut_N = fetchQueue.pop_front();
+                foreach (fqOut_N[i]) res[i] = fqOut_N[i];
             end
             
             return res;
@@ -244,7 +235,6 @@ module AbstractCore
         else
             fetchAndEnqueue();
     end  
-
 
 
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
@@ -278,8 +268,7 @@ module AbstractCore
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
     StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x} //lastCommittedSqe = '{EMPTY_SLOT, 'x, 'x}
-    ;
+    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
 
     int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
@@ -291,6 +280,7 @@ module AbstractCore
         InsId id;
         Word target;
     } BranchTargetEntry;
+
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
 
 
@@ -307,8 +297,7 @@ module AbstractCore
     Word retiredTarget = 0;
 
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr, // lastCommittedSqeStr, 
-        oooqStr;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
         string iqRegularStr;
@@ -368,25 +357,19 @@ module AbstractCore
 
 
 
-
     task automatic drainWriteQueue();
        if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
-
        csq_N.pop_front();
     endtask
+
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
-            OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
-            InstructionInfo insInfo = insMap.get(opSt.id);
-            OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-            assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
-
+            OpSlot op = takeFrontOp();
             commitOp(op);
-
             if (isSysIns(decAbs(op))) break;
         end
     endtask
@@ -402,7 +385,6 @@ module AbstractCore
     endtask
 
 
-
     always @(posedge clk) begin
         readInfo <= EMPTY_WRITE_INFO;
 
@@ -415,7 +397,6 @@ module AbstractCore
         advanceOOOQ();        
         putWrite();
 
-
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectRest();
         else
@@ -426,7 +407,6 @@ module AbstractCore
         
         runExec();
         
-        
         foreach (doneOpsRegular_E[i]) completeOp(doneOpsRegular_E[i]);
         completeOp(doneOpBranch_E);
         completeOp(doneOpMem_E);
@@ -434,8 +414,9 @@ module AbstractCore
         
         updateBookkeeping();        
     end
-
-
+    
+        
+       // assign cmp0 = (fqSize_A == fqSize);
     
     task automatic updateBookkeeping();
         fqSize <= fetchQueue.size();
@@ -456,7 +437,6 @@ module AbstractCore
         opsReadyMem <= getReadyVec(T_iqMem);
         opsReadySys <= getReadyVec(T_iqSys);
         
-        
             insMapSize = insMap.size();
             trSize = memTracker.transactions.size();
 
@@ -470,7 +450,6 @@ module AbstractCore
                     iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
             end
     endtask
-
 
 
     task automatic renameGroup(input OpSlotA ops);
@@ -512,7 +491,7 @@ module AbstractCore
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign buffersAccepting = buffersAccept(oooAccepts);
 
-    assign insAdr = ipStage.baseAdr;
+    assign insAdr = ipStage[0].adr;
 
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
@@ -726,44 +705,7 @@ module AbstractCore
 
 
     task automatic renameOp(input OpSlot op);
-//        begin           
-//            AbstractInstruction ins = decAbs(op);
-//            Word result, target;
-//            InsDependencies deps;
-//            Word argVals[3];
-            
-//            // For insMap and mem queues
-//            argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
-//            // For ins map
-//            result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
-    
-//            // For insMap
-//            deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
-    
-//            runInEmulator(renamedEmul, op);
-//            renamedEmul.drain();
-//            target = renamedEmul.coreState.target; // For insMap
-    
-    
-//            setWriterR(op); // DB tracking
-    
-//            if (isStoreMemIns(decAbs(op))) begin // DB
-//                Word effAdr = calculateEffectiveAddress(ins, argVals);
-//                Word value = argVals[2];
-//                memTracker.addStore(op, effAdr, value);
-//            end
-//            if (isLoadMemIns(decAbs(op))) begin // DB
-//                Word effAdr = calculateEffectiveAddress(ins, argVals);
-//                memTracker.addLoad(op, effAdr, 'x);
-//            end
-    
-//            insMap.setResult(op.id, result);
-//            insMap.setTarget(op.id, target);
-//            insMap.setDeps(op.id, deps);
-//            insMap.setArgValues(op.id, argVals);
-//        end
-            
-            setupOnRename(op);
+        setupOnRename(op);
 
         updateInds(renameInds, op); // Crucial state
 
@@ -792,7 +734,15 @@ module AbstractCore
     endtask
 
 
-    
+    function automatic OpSlot takeFrontOp();
+        OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
+        InstructionInfo insInfo = insMap.get(opSt.id);
+        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+        assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
+        return op;
+    endfunction
+
+
     task automatic verifyOnCommit(input OpSlot op);
         InstructionInfo info = insMap.get(op.id);
     
@@ -1127,32 +1077,33 @@ module AbstractCore
 
     // $$Helper
     // TODO: remove Stage type
-    function automatic OpSlot makeOp(input Stage st, input int i);
-        if (!st.active || !st.mask[i]) return EMPTY_SLOT;
-        return '{1, st.ctr + i, st.baseAdr + 4*i, st.words[i]};
-    endfunction
 
-    function automatic OpSlotA makeOpA(input Stage st);
-        OpSlotA res = '{default: EMPTY_SLOT};
-        if (!st.active) return res;
+        function automatic Stage_N setActive(input Stage_N s, input logic on, input int ctr);
+            Stage_N res = s;
+            Word firstAdr = res[0].adr;
+            Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
+            
+            if (!on) return EMPTY_STAGE;
+            
+            foreach (res[i]) begin
+                res[i].active = (((firstAdr/4) % FETCH_WIDTH <= i)) === 1;
+                res[i].id = res[i].active ? ctr + i : -1;
+                res[i].adr = res[i].active ? baseAdr + 4*i : 'x;
+            end
 
-        foreach (st.words[i]) if (st.mask[i]) res[i] = makeOp(st, i);
-        return res;
-    endfunction
+            return res;
+        endfunction
 
-    function automatic Stage setActive(input Stage s, input logic on, input int ctr);
-        Stage res = s;
-        res.active = on;
-        res.ctr = ctr;
-        res.baseAdr = s.baseAdr & ~(4*FETCH_WIDTH-1);
-        foreach (res.mask[i]) if ((s.baseAdr/4) % FETCH_WIDTH <= i) res.mask[i] = '1;
-        return res;
-    endfunction
+        function automatic Stage_N setWords(input Stage_N s, input FetchGroup fg);
+            Stage_N res = s;
+            foreach (res[i])
+                if (res[i].active) res[i].bits = fg[i];
+            return res;
+        endfunction
 
-    function automatic Stage setWords(Stage s, FetchGroup fg);
-        Stage res = s;
-        res.words = fg;
-        return res;
+    function automatic logic anyActive(input Stage_N s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
     endfunction
 
 
@@ -1177,6 +1128,7 @@ module AbstractCore
             InstructionInfo last = insMap.get(lastRetired.id);
             committedOOO = {committedOOO[1:19], last};
         endtask
+
 
     assign lastRenamedStr = disasm(lastRenamed.bits);
     assign lastCompletedStr = disasm(lastCompleted.bits);
