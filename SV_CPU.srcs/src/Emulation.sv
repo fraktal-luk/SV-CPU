@@ -212,12 +212,12 @@ package Emulation;
     endfunction
 
 
-    function automatic ExecEvent resolveBranch(input CpuState state, input AbstractInstruction abs, input Word adr);//OpSlot op);
-        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
-        return resolveBranch_Internal(abs, adr, args);
-    endfunction
+//    function automatic ExecEvent resolveBranch(input CpuState state, input AbstractInstruction abs, input Word adr);//OpSlot op);
+//        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
+//        return resolveBranch_Internal(abs, adr, args);
+//    endfunction
 
-    function automatic ExecEvent resolveBranch_Internal(input AbstractInstruction abs, input Word adr, input Word3 vals);//OpSlot op);
+    function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Word adr, input Word3 vals);//OpSlot op);
         Word3 args = vals;
         bit redirect = 0;
         Word brTarget = (abs.mnemonic inside {"jz_r", "jnz_r"}) ? args[1] : adr + args[1];
@@ -338,10 +338,10 @@ package Emulation;
         writeIntReg(state, ins.dest, adr + 4);
     endfunction
 
-    function automatic void performAsyncEvent(ref CpuState state, input Word trg);
+    function automatic void performAsyncEvent(ref CpuState state, input Word trg, input Word prevTarget);
         state.sysRegs[5] = state.sysRegs[1];
         state.sysRegs[1] |= 2; // TODO: handle state register correctly
-        state.sysRegs[3] = state.target;
+        state.sysRegs[3] = prevTarget;//state.target;
 
         state.target = trg;
     endfunction
@@ -396,7 +396,7 @@ package Emulation;
             O_send: begin
                 state.target = adr + 4;
             end
-            default: return;
+            default: state.target = adr + 4;
         endcase
     endfunction
 
@@ -520,7 +520,7 @@ package Emulation;
 
 
         local function automatic void performBranch(input AbstractInstruction ins, input Word ip, input Word3 vals);
-            ExecEvent evt = resolveBranch_Internal(ins, ip, vals);
+            ExecEvent evt = resolveBranch(ins, ip, vals);
             Word trg = evt.redirect ? evt.target : ip + 4;
             
             if (!isBranchIns(ins)) return;
@@ -558,7 +558,7 @@ package Emulation;
         endfunction
 
         function automatic void interrupt();
-            performAsyncEvent(this.coreState, IP_INT);
+            performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
         
     endclass

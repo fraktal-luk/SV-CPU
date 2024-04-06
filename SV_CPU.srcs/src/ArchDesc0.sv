@@ -39,7 +39,7 @@ module ArchDesc0();
     endfunction
 
     task automatic setPrograms(ref Word mem[4096], input Section testSec, input Section callSec, input Section intSec);
-        mem = '{default: 0};
+        mem = '{default: 'x};
         writeProgram(mem, COMMON_ADR, common.words);          
         writeProgram(mem, 0, testSec.words);
         writeProgram(mem, IP_RESET, processLines(DEFAULT_RESET_HANDLER).words);
@@ -206,7 +206,7 @@ module ArchDesc0();
             runIntTestSim();
             
             $display("All tests done;");
-            $stop(1);
+            $stop(2);
         endtask
         
         

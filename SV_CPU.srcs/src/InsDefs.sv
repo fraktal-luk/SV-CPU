@@ -481,10 +481,19 @@ package InsDefs;
     endfunction
 
     function automatic string findMnemonic(input InstructionDef def);
+        //static int mnemct = 0;
+        //static int mnemt = 0;
         string found[$] = defMap.find_index with(matchDefinition(def, item));
         
         if (found.size() == 0) return "undef";        
         if (found.size() != 1) $fatal("No single definition for %p, %d", def, found.size());
+
+//        mnemct++;
+//        if (mnemct == 1000) begin
+//            mnemct = 0;
+//            mnemt++;
+//            $display("    > %d", mnemt);
+//        end
 
         return found[0];               
     endfunction
