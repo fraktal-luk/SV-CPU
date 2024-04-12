@@ -182,11 +182,20 @@ module AbstractCore
         endtask
 
         task automatic redirectFront();
+            Word target;
+        
             if (lateEventInfo.redirect)
-                ipStage <= '{0: '{1, -1, lateEventInfo.target, 'x}, default: EMPTY_SLOT};
+                //ipStage <= '{0: '{1, -1, , 'x}, default: EMPTY_SLOT};
+                target = lateEventInfo.target;
             else if (branchEventInfo.redirect)
-                ipStage <= '{0: '{1, -1, branchEventInfo.target, 'x}, default: EMPTY_SLOT};
+                //ipStage <= '{0: '{1, -1, , 'x}, default: EMPTY_SLOT};
+                target = branchEventInfo.target;
             else $fatal(2, "Should never get here");
+
+            ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+            fetchCtr <= fetchCtr + FETCH_WIDTH;
+            
+            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
 
             flushFrontend();
 
@@ -202,12 +211,15 @@ module AbstractCore
 
             ipStageU = setActive(ipStage, ipStage[0].active & fetchAllow, fetchCtr);
 
-            foreach (ipStageU[i]) if (ipStageU[i].active) insMap.add(ipStageU[i]);
+            //foreach (ipStageU[i]) if (ipStageU[i].active) insMap.add(ipStageU[i]);
 
             fetchStage0 <= ipStageU;
             fetchStage0ua = setWords(fetchStage0, insIn);
             
-            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) insMap.setEncoding(fetchStage0ua[i]);
+            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
+                insMap.add(fetchStage0ua[i]);
+                insMap.setEncoding(fetchStage0ua[i]);
+            end
 
             fetchStage1 <= fetchStage0ua;
             if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);
@@ -454,8 +466,10 @@ module AbstractCore
 
     task automatic renameGroup(input OpSlotA ops);
         foreach (ops[i])
-            if (ops[i].active)
+            if (ops[i].active) begin
                 renameOp(ops[i]);
+                putMilestone(ops[i].id, InstructionMap::Rename);
+            end
     endtask
 
     task automatic addToQueues(input OpSlot op);
@@ -854,7 +868,9 @@ module AbstractCore
 
 
 
-    task automatic execReset();    
+    task automatic execReset();
+            $display("Milestones;  %d", insMap.descs.size());
+      
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
@@ -1128,6 +1144,25 @@ module AbstractCore
             InstructionInfo last = insMap.get(lastRetired.id);
             committedOOO = {committedOOO[1:19], last};
         endtask
+
+
+    
+    task automatic registerNewTarget(input int fCtr, input Word target);
+        int slotPosition = (target/4) % FETCH_WIDTH;
+        Word baseAdr = target & ~(4*FETCH_WIDTH-1);
+        for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
+            Word adr = baseAdr + 4*i;
+            int index = fCtr + i;
+            
+            putMilestone(index, InstructionMap::GenAddress);
+        end
+        
+    endtask
+
+
+    task automatic putMilestone(input int id, input InstructionMap::Milestone kind);
+        insMap.putMilestone(id, kind, cycleCtr);
+    endtask
 
 
     assign lastRenamedStr = disasm(lastRenamed.bits);

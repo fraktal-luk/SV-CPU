@@ -293,10 +293,6 @@ package AbstractSim;
         function automatic void setActualResult(input int id, input Word res);
             content[id].actualResult = res;
         endfunction
-        
-//        function automatic void setDivergence(input int id, input int divergence);
-//            content[id].divergence = divergence;
-//        endfunction
 
         function automatic void setDeps(input int id, input InsDependencies deps);
             content[id].deps = deps;
@@ -309,6 +305,50 @@ package AbstractSim;
         function automatic void setArgValues(input int id, input Word vals[3]);
             content[id].argValues = vals;
         endfunction
+        
+        
+        
+        typedef enum {
+            GenAddress,
+            
+            FlushFront,
+            
+            PutFQ,
+            
+            Rename,
+            
+            FlushOOO,
+            
+            Wakeup,
+            CancelWakeup,
+            Issue,
+            Pullback,
+            
+            // mem related
+            PutSQ,
+            PutLQ,
+            WriteMemAddress,
+            WriteMemValue,
+            
+            
+            WriteResult,
+            Complete,
+            Retire
+        } Milestone;
+        
+        typedef struct {
+            InsId id;
+            Milestone kind;
+            int cycle;
+        } MilestoneDesc;
+        
+        MilestoneDesc descs[$];
+        
+        function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
+            descs.push_back('{id, kind, cycle});
+        endfunction
+        
+        
     endclass
 
 
