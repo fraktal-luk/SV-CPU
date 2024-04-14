@@ -257,6 +257,13 @@ package AbstractSim;
     class InstructionMap;
         InstructionInfo content[int];
         
+            InsId windowStart = 0;
+            InsId windowEnd = 0;
+            
+        InsId lastRenamed = -1;
+        InsId lastRetired = -1;
+        InsId lastKilled = -1;
+        
         function automatic InstructionInfo get(input int id);
                 //if (!content.exists(id)) $fatal(2, "Entry %p of %d", id, content.size());
         
@@ -305,8 +312,27 @@ package AbstractSim;
         function automatic void setArgValues(input int id, input Word vals[3]);
             content[id].argValues = vals;
         endfunction
+
+       
+        function automatic void setRetired(input int id);
+            lastRetired = id;
+            
+//            // Remove blocks older than 1024 IDs before last committed
+//            if (id > windowEnd + 1024) begin
+//                for (int i = windowStart; i < windowEnd; i += 1024) begin
+//                    if (blocks.exists(i)) blocks.delete(i);
+//                end
+//                windowStart = windowEnd;
+//                windowEnd += 1024;
+//            end
+            
+        endfunction
         
-        
+        function automatic void setKilled(input int id);
+            if (id > lastKilled) lastKilled = id;
+        endfunction
+
+       
         
         typedef enum {
             GenAddress,
@@ -342,10 +368,62 @@ package AbstractSim;
             int cycle;
         } MilestoneDesc;
         
+        typedef struct {
+            Milestone kind;
+            int cycle;
+        } MilestoneTag;
+        
         MilestoneDesc descs[$];
+        
+        // Registsry divided into blocks of 1024 IDs
+         // tree structure? container of blocks, each block is a container of lifecycles, each lifecycle is a collection of milestones
+         //
+            class InsRecord;
+                MilestoneTag tags[$];
+            endclass
+         
+            class Block;
+                InsRecord records[1024];
+            endclass
+         
+            
+         
+            Block blocks[int];
+            
+            
+            function automatic void cleanDescs();
+                while (descs.size() > 0 && descs[0].id < lastRetired - 10 /*&& descs[0].id < lastKilled - 10*/) begin
+                    MilestoneDesc desc = descs.pop_front();
+                end
+            endfunction
+            
+            
+            // TODO: create blocks when adding ins to the map?
+            function automatic Block getBlock(input int id);
+                int blockIndex = id/1024;
+                if (!blocks.exists(blockIndex)) blocks[blockIndex] = new();
+                
+                // Cleanup of blocks no longer in use?
+                // ...
+                
+                return blocks[blockIndex];
+            endfunction
+        
         
         function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
             descs.push_back('{id, kind, cycle});
+            
+            begin
+//                int blockIndex = id/1024;
+//                int offset = id - 1024*blockIndex;
+//                Block b = getBlock(id);
+//                InsRecord r = b.records[offset];
+//                if (r == null) begin
+//                    r = new();
+//                    b.records[offset] = r; 
+//                end
+//                r.tags.push_back('{kind, cycle});
+            end
         endfunction
         
         

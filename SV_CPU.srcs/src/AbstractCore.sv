@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = '1;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -107,8 +107,10 @@ module AbstractCore
         endfunction
 
         function automatic OpSlot eff(input OpSlot op);
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+                //insMap.setKilled(op.id);
                 return EMPTY_SLOT;
+            end
             return op;
         endfunction
 
@@ -178,6 +180,31 @@ module AbstractCore
             fetchStage0 <= EMPTY_STAGE;
             fetchStage1 <= EMPTY_STAGE;
 
+//                foreach (fetchStage0[i]) begin
+//                    putMilestone(fetchStage0[i].id, InstructionMap::FlushFront);
+//                    insMap.setKilled(fetchStage0[i].id);
+//                end
+//                foreach (fetchStage1[i]) begin
+//                    putMilestone(fetchStage1[i].id, InstructionMap::FlushFront);
+//                    insMap.setKilled(fetchStage1[i].id);
+//                end
+                
+                markKilledFrontStage(fetchStage0);
+                markKilledFrontStage(fetchStage1);
+                
+                foreach (fetchQueue[i]) begin
+                    Stage_N current = fetchQueue[i];
+                    
+                    markKilledFrontStage(current);
+                    
+//                    foreach (current[j]) begin
+                       
+                    
+//                        putMilestone(current[j].id, InstructionMap::FlushFront);
+//                        insMap.setKilled(current[j].id);
+//                    end
+                end
+                
             fetchQueue.delete();
         endtask
 
@@ -193,11 +220,24 @@ module AbstractCore
             else $fatal(2, "Should never get here");
 
             ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+//                foreach (ipStage[i]) begin
+//                    putMilestone(ipStage[i].id, InstructionMap::FlushFront);
+//                    insMap.setKilled(ipStage[i].id);
+//                end
+                
+                markKilledFrontStage(ipStage);
+                
             fetchCtr <= fetchCtr + FETCH_WIDTH;
             
             registerNewTarget(fetchCtr + FETCH_WIDTH, target);
 
             flushFrontend();
+
+//                foreach (stageRename0[i]) begin
+//                    putMilestone(stageRename0[i].id, InstructionMap::FlushFront);                
+//                    insMap.setKilled(stageRename0[i].id);
+//                end
+                markKilledFrontStage(stageRename0);
 
             stageRename0 <= '{default: EMPTY_SLOT};
         endtask
@@ -371,7 +411,7 @@ module AbstractCore
 
     task automatic drainWriteQueue();
        if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
-       csq_N.pop_front();
+       void'(csq_N.pop_front());
     endtask
 
 
@@ -382,6 +422,9 @@ module AbstractCore
         while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
             OpSlot op = takeFrontOp();
             commitOp(op);
+            putMilestone(op.id, InstructionMap::Retire);
+            insMap.setRetired(op.id);
+            
             if (isSysIns(decAbs(op))) break;
         end
     endtask
@@ -579,32 +622,139 @@ module AbstractCore
     // $$Bufs
     // write queue is not flushed!
     task automatic flushOooBuffersAll();
-        opQueue.delete();
-            T_iqRegular.delete();
-            T_iqBranch.delete();
-            T_iqMem.delete();
-            T_iqSys.delete();
-        oooQueue.delete();
-        branchCheckpointQueue.delete();
-        branchTargetQueue.delete();
-        rob.delete();
-        loadQueue.delete();
-        storeQueue.delete();
+        flushOpQueueAll();
+        flushOooQueueAll();
+        flushBranchCheckpointQueueAll();
+        flushBranchTargetQueueAll();
+        flushRobAll();
+        flushStoreQueueAll();
+        flushLoadQueueAll();
     endtask
     
-    task automatic flushOooBuffersPartial(input OpSlot op);
-        while (opQueue.size() > 0 && opQueue[$].id > op.id) void'(opQueue.pop_back());
-        while (T_iqRegular.size() > 0 && T_iqRegular[$].id > op.id) void'(T_iqRegular.pop_back());
-        while (T_iqBranch.size() > 0 && T_iqBranch[$].id > op.id) void'(T_iqBranch.pop_back());
-        while (T_iqMem.size() > 0 && T_iqMem[$].id > op.id) void'(T_iqMem.pop_back());
-        while (T_iqSys.size() > 0 && T_iqSys[$].id > op.id) void'(T_iqSys.pop_back());
     
-        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
-        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
+    task automatic flushOpQueueAll();
+        while (opQueue.size() > 0) begin
+            OpSlot op = (opQueue.pop_back());
+            //insMap.setKilled(op.id);
+        end
+        while (T_iqRegular.size() > 0) begin
+            void'(T_iqRegular.pop_back());
+        end
+        while (T_iqBranch.size() > 0) begin
+            void'(T_iqBranch.pop_back());
+        end
+        while (T_iqMem.size() > 0) begin
+            void'(T_iqMem.pop_back());
+        end
+        while (T_iqSys.size() > 0) begin
+            void'(T_iqSys.pop_back());
+        end
+    endtask
+
+    task automatic flushOooQueueAll();
+        while (oooQueue.size() > 0) begin
+            void'(oooQueue.pop_back());
+        end
+    endtask
+    
+    task automatic flushBranchCheckpointQueueAll();
+        while (branchCheckpointQueue.size() > 0) begin
+            void'(branchCheckpointQueue.pop_back());
+        end
+    endtask    
+
+    task automatic flushBranchTargetQueueAll();
+        while (branchTargetQueue.size() > 0) begin
+            void'(branchTargetQueue.pop_back());
+        end
+    endtask
+
+    task automatic flushRobAll();
+        while (rob.size() > 0) begin
+            RobEntry entry = (rob.pop_back());
+            putMilestone(entry.op.id, InstructionMap::FlushOOO);
+            insMap.setKilled(entry.op.id);
+        end
+    endtask
+ 
+    task automatic flushStoreQueueAll();
+        while (loadQueue.size() > 0) begin
+            void'(loadQueue.pop_back());
+        end
+    endtask
+   
+    task automatic flushLoadQueueAll();
+        while (storeQueue.size() > 0) begin
+            void'(storeQueue.pop_back());
+        end
+    endtask
+
+
+
+    task automatic flushOpQueuePartial(input OpSlot op);
+        while (opQueue.size() > 0 && opQueue[$].id > op.id) begin
+            void'(opQueue.pop_back());
+        end
+        while (T_iqRegular.size() > 0 && T_iqRegular[$].id > op.id) begin
+            void'(T_iqRegular.pop_back());
+        end
+        while (T_iqBranch.size() > 0 && T_iqBranch[$].id > op.id) begin
+            void'(T_iqBranch.pop_back());
+        end
+        while (T_iqMem.size() > 0 && T_iqMem[$].id > op.id) begin
+            void'(T_iqMem.pop_back());
+        end
+        while (T_iqSys.size() > 0 && T_iqSys[$].id > op.id) begin
+            void'(T_iqSys.pop_back());
+        end
+    endtask
+
+    task automatic flushOooQueuePartial(input OpSlot op);
+        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) begin
+            void'(oooQueue.pop_back());
+        end
+    endtask
+ 
+    task automatic flushBranchCheckpointQueuePartial(input OpSlot op);
+        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) begin
+            void'(branchCheckpointQueue.pop_back());
+        end
+    endtask    
+
+    task automatic flushBranchTargetQueuePartial(input OpSlot op);
         while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > op.id) void'(branchTargetQueue.pop_back());
-        while (rob.size() > 0 && rob[$].op.id > op.id) void'(rob.pop_back());
-        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
-        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
+    endtask
+
+    task automatic flushRobPartial(input OpSlot op);
+        while (rob.size() > 0 && rob[$].op.id > op.id) begin
+            RobEntry entry = (rob.pop_back());
+            putMilestone(entry.op.id, InstructionMap::FlushOOO);
+            insMap.setKilled(entry.op.id);
+        end
+    endtask
+
+    task automatic flushStoreQueuePartial(input OpSlot op);
+        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) begin
+            void'(loadQueue.pop_back());
+        end
+    endtask
+   
+    task automatic flushLoadQueuePartial(input OpSlot op);
+        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) begin
+            void'(storeQueue.pop_back());
+        end
+    endtask
+
+
+
+    task automatic flushOooBuffersPartial(input OpSlot op);
+        flushOpQueuePartial(op);
+        flushOooQueuePartial(op);
+        flushBranchCheckpointQueuePartial(op);
+        flushBranchTargetQueuePartial(op);
+        flushRobPartial(op);
+        flushStoreQueuePartial(op);
+        flushLoadQueuePartial(op);
     endtask
 
 
@@ -642,6 +792,12 @@ module AbstractCore
     
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT};
+//        foreach (stageRename1[i]) begin
+//            putMilestone(stageRename1[i].id, InstructionMap::FlushFront);
+//            insMap.setKilled(stageRename1[i].id);
+//        end
+
+        markKilledFrontStage(stageRename1);
 
         if (lateEventInfo.redirect) begin
             rollbackToStable(); // Rename stage
@@ -863,13 +1019,17 @@ module AbstractCore
 
     task automatic updateOOOQ(input OpSlot op);
         const int ind[$] = oooQueue.find_index with (item.id == op.id);
-        assert (ind.size() > 0) oooQueue[ind[0]].done = '1; else $error("No such id in OOOQ: %d", op.id); 
+        assert (ind.size() > 0) oooQueue[ind[0]].done = '1; else $error("No such id in OOOQ: %d", op.id);
+        putMilestone(op.id, InstructionMap::Complete); 
     endtask
 
 
 
     task automatic execReset();
-            $display("Milestones;  %d", insMap.descs.size());
+            insMap.cleanDescs();
+    
+            //$display("Milestones: %d;  %d : %d", insMap.descs.size(), insMap.descs[0].id, insMap.descs[$].id);
+            //$display("%p", insMap.descs);
       
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
@@ -1163,6 +1323,19 @@ module AbstractCore
     task automatic putMilestone(input int id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endtask
+
+    task automatic markKilledFrontStage(ref Stage_N stage);
+        foreach (stage[i]) begin
+            if (!stage[i].active) continue;
+            
+            putMilestone(stage[i].id, InstructionMap::FlushFront);
+            insMap.setKilled(stage[i].id);
+        end        
+    endtask
+
+
+
+
 
 
     assign lastRenamedStr = disasm(lastRenamed.bits);
