@@ -233,10 +233,8 @@ package AbstractSim;
         Word target;
         AbstractInstruction dec;
         Word result;
-            Word actualResult;
-        //int renameIndex;
+        Word actualResult;
         IndexSet inds;
-        //int divergence;
         InsDependencies deps;
         
         Word argValues[3];
@@ -247,26 +245,21 @@ package AbstractSim;
         res.id = op.id;
         res.adr = op.adr;
         res.bits = op.bits;
-        
-        //res.renameIndex = -1;
-        //res.divergence = -1;
+
         return res;
     endfunction
 
 
     class InstructionMap;
+        int indexList[$];
+    
         InstructionInfo content[int];
-        
-            InsId windowStart = 0;
-            InsId windowEnd = 0;
             
         InsId lastRenamed = -1;
         InsId lastRetired = -1;
         InsId lastKilled = -1;
         
-        function automatic InstructionInfo get(input int id);
-                //if (!content.exists(id)) $fatal(2, "Entry %p of %d", id, content.size());
-        
+        function automatic InstructionInfo get(input int id);        
             return content[id];
         endfunction
         
@@ -315,24 +308,13 @@ package AbstractSim;
 
        
         function automatic void setRetired(input int id);
-            lastRetired = id;
-            
-//            // Remove blocks older than 1024 IDs before last committed
-//            if (id > windowEnd + 1024) begin
-//                for (int i = windowStart; i < windowEnd; i += 1024) begin
-//                    if (blocks.exists(i)) blocks.delete(i);
-//                end
-//                windowStart = windowEnd;
-//                windowEnd += 1024;
-//            end
-            
+            lastRetired = id;          
         endfunction
         
         function automatic void setKilled(input int id);
             if (id > lastKilled) lastKilled = id;
         endfunction
 
-       
         
         typedef enum {
             GenAddress,
@@ -372,63 +354,36 @@ package AbstractSim;
             Milestone kind;
             int cycle;
         } MilestoneTag;
-        
-        MilestoneDesc descs[$];
-        
-        // Registsry divided into blocks of 1024 IDs
-         // tree structure? container of blocks, each block is a container of lifecycles, each lifecycle is a collection of milestones
-         //
-            class InsRecord;
-                MilestoneTag tags[$];
-            endclass
-         
-            class Block;
-                InsRecord records[1024];
-            endclass
-         
-            
-         
-            Block blocks[int];
-            
-            
-            function automatic void cleanDescs();
-                while (descs.size() > 0 && descs[0].id < lastRetired - 10 /*&& descs[0].id < lastKilled - 10*/) begin
-                    MilestoneDesc desc = descs.pop_front();
-                end
-            endfunction
-            
-            
-            // TODO: create blocks when adding ins to the map?
-            function automatic Block getBlock(input int id);
-                int blockIndex = id/1024;
-                if (!blocks.exists(blockIndex)) blocks[blockIndex] = new();
                 
-                // Cleanup of blocks no longer in use?
-                // ...
-                
-                return blocks[blockIndex];
-            endfunction
-        
+
+        class InsRecord;
+            MilestoneTag tags[$];
+        endclass
+    
+        InsRecord records[int];
+
+         
+        function automatic void registerIndex(input int id);
+            indexList.push_back(id);
+            records[id] = new();
+        endfunction
+
+
+        function automatic void cleanDescs();       
+            while (indexList[0] < lastRetired - 10) begin
+                content.delete(indexList[0]);
+                records.delete(indexList[0]);
+                void'(indexList.pop_front());
+            end
+        endfunction
         
         function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
-            descs.push_back('{id, kind, cycle});
-            
-            begin
-//                int blockIndex = id/1024;
-//                int offset = id - 1024*blockIndex;
-//                Block b = getBlock(id);
-//                InsRecord r = b.records[offset];
-//                if (r == null) begin
-//                    r = new();
-//                    b.records[offset] = r; 
-//                end
-//                r.tags.push_back('{kind, cycle});
-            end
+            if (id == -1) return;
+            records[id].tags.push_back('{kind, cycle});
         endfunction
         
         
     endclass
-
 
 
 
@@ -437,7 +392,6 @@ package AbstractSim;
         function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
                         input int intWr[32], input int floatWr[32],
                         input int intMapR[32], input int floatMapR[32],
-                        //input int renameInd, 
                         input IndexSet indexSet);
             this.op = op;
             this.state = state;
@@ -555,13 +509,11 @@ package AbstractSim;
             intRegs[pDestPrev] = 'x;
         endfunction
         
-        
         function automatic int findFreeInt();
             int res[$] = intInfo.find_first_index with (item.state == FREE);
             return res[0];
         endfunction
         
-
         
         function automatic void commitFloat(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
@@ -585,12 +537,9 @@ package AbstractSim;
             int res[$] = floatInfo.find_first_index with (item.state == FREE);
             return res[0];
         endfunction
-   
         
         
         function automatic void flush(input OpSlot op);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
-
             int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
 
@@ -612,7 +561,6 @@ package AbstractSim;
         endfunction
         
         function automatic void flushAll();
-            //int vDest = ins.dest;
             int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE);
 
@@ -648,7 +596,6 @@ package AbstractSim;
         endfunction
         
         function automatic void writeValueFloat(input OpSlot op, input Word value);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestFloat(op.id);
             if (!writesFloatReg(op)) return;
             
@@ -694,9 +641,6 @@ package AbstractSim;
             return res;
         endfunction
     endclass
-
-
-
 
 
 
@@ -765,61 +709,61 @@ package AbstractSim;
     const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, 'x};
 
     
-        typedef struct {
-            InsId owner;
-            Word adr;
-            Word val;
-        } Transaction;
+    typedef struct {
+        InsId owner;
+        Word adr;
+        Word val;
+    } Transaction;
 
 
-        class MemTracker;
-            Transaction transactions[$];
-            Transaction stores[$];
-            Transaction loads[$];
-            
+    class MemTracker;
+        Transaction transactions[$];
+        Transaction stores[$];
+        Transaction loads[$];
+        
 //            function automatic void reset();
 
 //            endfunction
-            
-            function automatic void addStore(input OpSlot op, input Word adr, input Word val);
-                transactions.push_back('{op.id, adr, val});
-                stores.push_back('{op.id, adr, val});
-            endfunction
+        
+        function automatic void addStore(input OpSlot op, input Word adr, input Word val);
+            transactions.push_back('{op.id, adr, val});
+            stores.push_back('{op.id, adr, val});
+        endfunction
 
-            function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
-                transactions.push_back('{op.id, adr, val});
-                loads.push_back('{op.id, adr, val});
-            endfunction
+        function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
+            transactions.push_back('{op.id, adr, val});
+            loads.push_back('{op.id, adr, val});
+        endfunction
 
-            function automatic void remove(input OpSlot op);
-                assert (transactions[0].owner == op.id) begin
-                    void'(transactions.pop_front());
-                    if (stores.size() != 0 && stores[0].owner == op.id) void'(stores.pop_front());
-                    if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
-                end
-                else $error("Incorrect transaction commit");
-            endfunction
-            
-            function automatic void flushAll();
-                transactions.delete();
-                stores.delete();
-                loads.delete();
-            endfunction
+        function automatic void remove(input OpSlot op);
+            assert (transactions[0].owner == op.id) begin
+                void'(transactions.pop_front());
+                if (stores.size() != 0 && stores[0].owner == op.id) void'(stores.pop_front());
+                if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
+            end
+            else $error("Incorrect transaction commit");
+        endfunction
+        
+        function automatic void flushAll();
+            transactions.delete();
+            stores.delete();
+            loads.delete();
+        endfunction
 
-            function automatic void flush(input OpSlot op);
-                while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
-                while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
-                while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
-            endfunction   
-            
-            // Find which op is the source of data
-            function automatic InsId checkWriter(input OpSlot op);
-                Transaction read[$] = transactions.find_first with (item.owner == op.id); 
-                Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
-            
-        endclass
+        function automatic void flush(input OpSlot op);
+            while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
+            while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
+            while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
+        endfunction   
+        
+        // Find which op is the source of data
+        function automatic InsId checkWriter(input OpSlot op);
+            Transaction read[$] = transactions.find_first with (item.owner == op.id); 
+            Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
+            return (writers.size() == 0) ? -1 : writers[$].owner;
+        endfunction
+        
+    endclass
     
 
 

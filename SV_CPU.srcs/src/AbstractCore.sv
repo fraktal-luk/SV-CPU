@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'x;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -108,7 +108,6 @@ module AbstractCore
 
         function automatic OpSlot eff(input OpSlot op);
             if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                //insMap.setKilled(op.id);
                 return EMPTY_SLOT;
             end
             return op;
@@ -147,7 +146,7 @@ module AbstractCore
 
 
     int cycleCtr = 0;
-    
+
     always @(posedge clk) cycleCtr++;
 
 
@@ -157,7 +156,7 @@ module AbstractCore
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
-    
+
     WriterTracker wrTracker;
 
     int nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
@@ -166,92 +165,60 @@ module AbstractCore
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
     BranchCheckpoint branchCP;
-     
-    
+
+
     int fqSize = 0;
-    
+
         Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
         Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
-  
+
         int fetchCtr = 0;
         OpSlotA stageRename0 = '{default: EMPTY_SLOT};
 
         task automatic flushFrontend();
+            markKilledFrontStage(fetchStage0);
+            markKilledFrontStage(fetchStage1);
             fetchStage0 <= EMPTY_STAGE;
             fetchStage1 <= EMPTY_STAGE;
 
-//                foreach (fetchStage0[i]) begin
-//                    putMilestone(fetchStage0[i].id, InstructionMap::FlushFront);
-//                    insMap.setKilled(fetchStage0[i].id);
-//                end
-//                foreach (fetchStage1[i]) begin
-//                    putMilestone(fetchStage1[i].id, InstructionMap::FlushFront);
-//                    insMap.setKilled(fetchStage1[i].id);
-//                end
-                
-                markKilledFrontStage(fetchStage0);
-                markKilledFrontStage(fetchStage1);
-                
-                foreach (fetchQueue[i]) begin
-                    Stage_N current = fetchQueue[i];
-                    
-                    markKilledFrontStage(current);
-                    
-//                    foreach (current[j]) begin
-                       
-                    
-//                        putMilestone(current[j].id, InstructionMap::FlushFront);
-//                        insMap.setKilled(current[j].id);
-//                    end
-                end
-                
+            foreach (fetchQueue[i]) begin
+                Stage_N current = fetchQueue[i];
+                markKilledFrontStage(current);
+            end
             fetchQueue.delete();
         endtask
 
         task automatic redirectFront();
             Word target;
-        
-            if (lateEventInfo.redirect)
-                //ipStage <= '{0: '{1, -1, , 'x}, default: EMPTY_SLOT};
-                target = lateEventInfo.target;
-            else if (branchEventInfo.redirect)
-                //ipStage <= '{0: '{1, -1, , 'x}, default: EMPTY_SLOT};
-                target = branchEventInfo.target;
+
+            if (lateEventInfo.redirect)         target = lateEventInfo.target;
+            else if (branchEventInfo.redirect)  target = branchEventInfo.target;
             else $fatal(2, "Should never get here");
 
+            markKilledFrontStage(ipStage);
             ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
-//                foreach (ipStage[i]) begin
-//                    putMilestone(ipStage[i].id, InstructionMap::FlushFront);
-//                    insMap.setKilled(ipStage[i].id);
-//                end
-                
-                markKilledFrontStage(ipStage);
-                
+
             fetchCtr <= fetchCtr + FETCH_WIDTH;
-            
+
             registerNewTarget(fetchCtr + FETCH_WIDTH, target);
 
             flushFrontend();
 
-//                foreach (stageRename0[i]) begin
-//                    putMilestone(stageRename0[i].id, InstructionMap::FlushFront);                
-//                    insMap.setKilled(stageRename0[i].id);
-//                end
-                markKilledFrontStage(stageRename0);
-
+            markKilledFrontStage(stageRename0);
             stageRename0 <= '{default: EMPTY_SLOT};
         endtask
 
         task automatic fetchAndEnqueue();
             Stage_N fetchStage0ua, ipStageU;
             if (fetchAllow) begin
-                ipStage <= '{0: '{1, -1, (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH, 'x}, default: EMPTY_SLOT};
+                Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
+                ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
                 fetchCtr <= fetchCtr + FETCH_WIDTH;
+                
+                registerNewTarget(fetchCtr + FETCH_WIDTH, target);
             end
 
             ipStageU = setActive(ipStage, ipStage[0].active & fetchAllow, fetchCtr);
-
-            //foreach (ipStageU[i]) if (ipStageU[i].active) insMap.add(ipStageU[i]);
 
             fetchStage0 <= ipStageU;
             fetchStage0ua = setWords(fetchStage0, insIn);
@@ -529,12 +496,11 @@ module AbstractCore
         if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
         if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
     endtask
-    
+
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();        
         renameGroup(stageRename0);
-
         stageRename1 <= stageRename0;
 
         foreach (stageRename1[i]) begin
@@ -542,7 +508,6 @@ module AbstractCore
             if (op.active) addToQueues(op);
         end 
     endtask
-    
     
     
     assign oooAccepts = getBufferAccepts(oooLevels);
@@ -792,11 +757,6 @@ module AbstractCore
     
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT};
-//        foreach (stageRename1[i]) begin
-//            putMilestone(stageRename1[i].id, InstructionMap::FlushFront);
-//            insMap.setKilled(stageRename1[i].id);
-//        end
-
         markKilledFrontStage(stageRename1);
 
         if (lateEventInfo.redirect) begin
@@ -893,7 +853,6 @@ module AbstractCore
     endtask
 
 
-
     task automatic setLateEvent(input OpSlot op);    
         LateEvent evt = getLateEvt(op);
 
@@ -963,7 +922,6 @@ module AbstractCore
 
         releaseQueues(op); // Crucial state
 
-             //   insMap.content.delete(lastRetired.id);
             lastRetired = op;
             nRetired++;
             updateCommittedOOO();
@@ -1008,7 +966,6 @@ module AbstractCore
 
 
 
-
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
         inds.rename = (inds.rename + 1) % ROB_SIZE;
         if (isBranchIns(decAbs(op))) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
@@ -1028,8 +985,7 @@ module AbstractCore
     task automatic execReset();
             insMap.cleanDescs();
     
-            //$display("Milestones: %d;  %d : %d", insMap.descs.size(), insMap.descs[0].id, insMap.descs[$].id);
-            //$display("%p", insMap.descs);
+        //$display("%d, %d (%d : %d)", insMap.content.size(), insMap.indexList.size(), insMap.indexList[0], insMap.indexList[$]);
       
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
@@ -1038,7 +994,7 @@ module AbstractCore
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
         lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
-        retiredEmul.interrupt();        
+        retiredEmul.interrupt();
     endtask
 
 
@@ -1106,7 +1062,7 @@ module AbstractCore
     function automatic Word3 getAndVerifyArgs(input OpSlot op);
         Word3 argsP = getPhysicalArgValues(registerTracker, op);
         Word3 argsM = insMap.get(op.id).argValues;
-        assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);//, parsingMap[abs.fmt].typeSpec);
+        assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);
         return argsP;
     endfunction;
 
@@ -1160,7 +1116,6 @@ module AbstractCore
     endfunction
 
 
-    // TODO: accept Event as arg?
     task automatic setExecEvent(input OpSlot op);
         AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
@@ -1251,16 +1206,13 @@ module AbstractCore
 
 
 
-    // $$Helper
-    // TODO: remove Stage type
-
         function automatic Stage_N setActive(input Stage_N s, input logic on, input int ctr);
             Stage_N res = s;
             Word firstAdr = res[0].adr;
             Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
-            
+
             if (!on) return EMPTY_STAGE;
-            
+
             foreach (res[i]) begin
                 res[i].active = (((firstAdr/4) % FETCH_WIDTH <= i)) === 1;
                 res[i].id = res[i].active ? ctr + i : -1;
@@ -1287,7 +1239,7 @@ module AbstractCore
         if (!op.active || op.id == -1) return DEFAULT_ABS_INS;     
         return insMap.get(op.id).dec;
     endfunction
-    
+
 
     // How many in front are ready to commit
     function automatic int countFrontCompleted();
@@ -1306,17 +1258,15 @@ module AbstractCore
         endtask
 
 
-    
     task automatic registerNewTarget(input int fCtr, input Word target);
         int slotPosition = (target/4) % FETCH_WIDTH;
         Word baseAdr = target & ~(4*FETCH_WIDTH-1);
         for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
             Word adr = baseAdr + 4*i;
             int index = fCtr + i;
-            
+            insMap.registerIndex(index);
             putMilestone(index, InstructionMap::GenAddress);
         end
-        
     endtask
 
 
@@ -1327,14 +1277,10 @@ module AbstractCore
     task automatic markKilledFrontStage(ref Stage_N stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
-            
             putMilestone(stage[i].id, InstructionMap::FlushFront);
             insMap.setKilled(stage[i].id);
         end        
     endtask
-
-
-
 
 
 
