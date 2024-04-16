@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'x;
+    logic dummy = '1;
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -150,17 +150,20 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
 
-    Events evts;
-
-    BufferLevels oooLevels, oooAccepts; 
+    // Overall
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
 
     WriterTracker wrTracker;
 
+    Events evts;
+    BufferLevels oooLevels, oooAccepts;
+
+
     int nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
-    int insMapSize = 0, trSize = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, oooqCompletedNum = 0, frontCompleted = 0;
+    int insMapSize = 0, trSize = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, 
+            oooqCompletedNum = 0, frontCompleted = 0; // DB
 
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
@@ -168,6 +171,9 @@ module AbstractCore
 
 
     int fqSize = 0;
+
+    // Frontend
+    generate
 
         Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
         Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
@@ -246,19 +252,27 @@ module AbstractCore
             return res;
         endfunction
         
-        
-    // Frontend process
-    always @(posedge clk) begin
-        if (lateEventInfo.redirect || branchEventInfo.redirect)
-            redirectFront();
-        else
-            fetchAndEnqueue();
-    end  
+            
+        // Frontend process
+        always @(posedge clk) begin
+            if (lateEventInfo.redirect || branchEventInfo.redirect)
+                redirectFront();
+            else
+                fetchAndEnqueue();
+                
+            fqSize <= fetchQueue.size();
+        end
+
+    endgenerate
+
+    assign insAdr = ipStage[0].adr;
 
 
-    OpSlotA stageRename1 = '{default: EMPTY_SLOT};
+    // Rename
+    OpSlotA stageRename1 = '{default: EMPTY_SLOT}; 
     
-    OpSlot opQueue[$:OP_QUEUE_SIZE];
+    // OOO IQ
+    OpSlot opQueue[$:OP_QUEUE_SIZE];            
         typedef logic ReadyVec[OP_QUEUE_SIZE];
         ReadyVec opsReady, opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
 
@@ -268,9 +282,15 @@ module AbstractCore
     OpSlot T_iqSys[$:OP_QUEUE_SIZE];
 
 
+    // Issue/Exec
+    IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
+    IssueGroup issuedSt0_E, issuedSt1_E;
+
+
+    // Exec
     OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
     OpSlot memOp_E, memOpPrev_E;
-        
+    
     OpSlot doneOpsRegular[4] = '{default: EMPTY_SLOT};
     OpSlot doneOpBranch = EMPTY_SLOT, doneOpMem = EMPTY_SLOT, doneOpSys = EMPTY_SLOT;
 
@@ -278,22 +298,24 @@ module AbstractCore
     OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
 
 
-    IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
-    IssueGroup issuedSt0_E, issuedSt1_E;
-
+    
+    
+    // OOO
     OpStatus oooQueue[$:OOO_QUEUE_SIZE];
 
     RobEntry rob[$:ROB_SIZE];
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
+    
+    // Committed
     StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
     StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
 
-    int bqIndex = 0, lqIndex = 0, sqIndex = 0;
+    //int bqIndex = 0, lqIndex = 0, sqIndex = 0;
 
+    // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
-    BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
     typedef struct {
         InsId id;
@@ -301,22 +323,33 @@ module AbstractCore
     } BranchTargetEntry;
 
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
+    BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
 
-    Word sysRegs_N[32];
+
+    // Overall DB
     Emulator renamedEmul = new(), retiredEmul = new();
 
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO, lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO, // Overall?
+             lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO; // Overall?
 
-    MemWriteInfo writeInfo, readInfo = EMPTY_WRITE_INFO;
+    MemWriteInfo writeInfo, // Committed
+                 readInfo = EMPTY_WRITE_INFO; // Exec
 
-    InstructionInfo latestOOO[20], committedOOO[20];
 
+    // Overall
     AbstractInstruction eventIns;
+
+    // Control
+    Word sysRegs_N[32];  
     Word retiredTarget = 0;
 
+
+    // DB
+    InstructionInfo latestOOO[20], committedOOO[20];
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
+
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
         string iqRegularStr;
@@ -328,6 +361,88 @@ module AbstractCore
     
     assign readReq[0] = readInfo.req;
     assign readAdr[0] = readInfo.adr;
+
+
+
+
+    always @(posedge clk) begin
+        //readInfo <= EMPTY_WRITE_INFO;
+
+        //branchEventInfo <= EMPTY_EVENT_INFO;
+        
+        lateEventInfo <= EMPTY_EVENT_INFO;
+
+        activateEvent();
+
+        drainWriteQueue();
+        advanceOOOQ();        
+        putWrite();
+
+
+        if (reset) execReset();
+        else if (interrupt) execInterrupt();
+        
+
+
+        if (lateEventInfo.redirect || branchEventInfo.redirect)
+            redirectRest();
+        else
+            runInOrderPartRe();
+
+//        if (reset) execReset();
+//        else if (interrupt) execInterrupt();
+        
+        readInfo <= EMPTY_WRITE_INFO;
+        branchEventInfo <= EMPTY_EVENT_INFO;
+        runExec();
+        
+        
+        foreach (doneOpsRegular_E[i]) completeOp(doneOpsRegular_E[i]);
+        completeOp(doneOpBranch_E);
+        completeOp(doneOpMem_E);
+        completeOp(doneOpSys_E);
+        
+        
+        updateBookkeeping();
+    end
+    
+        
+       // assign cmp0 = (fqSize_A == fqSize);
+    
+    task automatic updateBookkeeping();
+        //fqSize <= fetchQueue.size();
+        bcqSize <= branchCheckpointQueue.size();
+        oooLevels <= getBufferLevels();
+        
+            frontCompleted <= countFrontCompleted(); // DB
+
+        nFreeRegsInt <= registerTracker.getNumFreeInt();
+            nSpecRegsInt <= registerTracker.getNumSpecInt();
+            nStabRegsInt <= registerTracker.getNumStabInt();
+        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
+     
+        opsReady <= getReadyVec(opQueue);
+        
+        opsReadyRegular <= getReadyVec(T_iqRegular);
+        opsReadyBranch <= getReadyVec(T_iqBranch);
+        opsReadyMem <= getReadyVec(T_iqMem);
+        opsReadySys <= getReadyVec(T_iqSys);
+        
+            insMapSize = insMap.size();
+            trSize = memTracker.transactions.size();
+
+            begin
+                automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
+                oooqCompletedNum <= oooqDone.size();
+                $swrite(oooqStr, "%p", oooQueue);
+                $swrite(iqRegularStr, "%p", T_iqRegular);
+                iqRegularStrA = '{default: ""};
+                foreach (T_iqRegular[i])
+                    iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
+            end
+    endtask
+
+
 
 
     function automatic LateEvent getLateEvt(input OpSlot op);
@@ -376,6 +491,7 @@ module AbstractCore
 
 
 
+
     task automatic drainWriteQueue();
        if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
        void'(csq_N.pop_front());
@@ -407,71 +523,8 @@ module AbstractCore
     endtask
 
 
-    always @(posedge clk) begin
-        readInfo <= EMPTY_WRITE_INFO;
 
-        branchEventInfo <= EMPTY_EVENT_INFO;
-        lateEventInfo <= EMPTY_EVENT_INFO;
 
-        activateEvent();
-
-        drainWriteQueue();
-        advanceOOOQ();        
-        putWrite();
-
-        if (lateEventInfo.redirect || branchEventInfo.redirect)
-            redirectRest();
-        else
-            runInOrderPartRe();
-
-        if (reset) execReset();
-        else if (interrupt) execInterrupt();
-        
-        runExec();
-        
-        foreach (doneOpsRegular_E[i]) completeOp(doneOpsRegular_E[i]);
-        completeOp(doneOpBranch_E);
-        completeOp(doneOpMem_E);
-        completeOp(doneOpSys_E);
-        
-        updateBookkeeping();        
-    end
-    
-        
-       // assign cmp0 = (fqSize_A == fqSize);
-    
-    task automatic updateBookkeeping();
-        fqSize <= fetchQueue.size();
-        bcqSize <= branchCheckpointQueue.size();
-        oooLevels <= getBufferLevels();
-        
-        frontCompleted <= countFrontCompleted();
-
-        nFreeRegsInt <= registerTracker.getNumFreeInt();
-            nSpecRegsInt <= registerTracker.getNumSpecInt();
-            nStabRegsInt <= registerTracker.getNumStabInt();
-        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
-     
-        opsReady <= getReadyVec(opQueue);
-        
-        opsReadyRegular <= getReadyVec(T_iqRegular);
-        opsReadyBranch <= getReadyVec(T_iqBranch);
-        opsReadyMem <= getReadyVec(T_iqMem);
-        opsReadySys <= getReadyVec(T_iqSys);
-        
-            insMapSize = insMap.size();
-            trSize = memTracker.transactions.size();
-
-            begin
-                automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
-                oooqCompletedNum <= oooqDone.size();
-                $swrite(oooqStr, "%p", oooQueue);
-                $swrite(iqRegularStr, "%p", T_iqRegular);
-                iqRegularStrA = '{default: ""};
-                foreach (T_iqRegular[i])
-                    iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
-            end
-    endtask
 
 
     task automatic renameGroup(input OpSlotA ops);
@@ -513,7 +566,6 @@ module AbstractCore
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign buffersAccepting = buffersAccept(oooAccepts);
 
-    assign insAdr = ipStage[0].adr;
 
     assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
