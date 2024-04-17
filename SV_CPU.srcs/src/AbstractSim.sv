@@ -259,7 +259,8 @@ package AbstractSim;
         InsId lastRetired = -1;
         InsId lastKilled = -1;
         
-        function automatic InstructionInfo get(input int id);        
+        function automatic InstructionInfo get(input int id);
+                assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
             return content[id];
         endfunction
         

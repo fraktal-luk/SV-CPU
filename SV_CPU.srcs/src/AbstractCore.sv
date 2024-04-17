@@ -158,12 +158,13 @@ module AbstractCore
     WriterTracker wrTracker;
 
     Events evts;
-    BufferLevels oooLevels, oooAccepts;
+    BufferLevels oooLevels, oooLevels_N, oooAccepts;
 
 
-    int nFreeRegsInt = 0, nSpecRegsInt = 0, nStabRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
-    int insMapSize = 0, trSize = 0, nRenamed = 0, nCompleted = 0, nRetired = 0, 
-            oooqCompletedNum = 0, frontCompleted = 0; // DB
+    int nFreeRegsInt = 0, /*nSpecRegsInt = 0, nStabRegsInt = 0,*/ nFreeRegsFloat = 0, bcqSize = 0;
+    int insMapSize = 0, trSize = 0, nRenamed = 0, nCompleted = 0, nRetired = 0;//, 
+           // oooqCompletedNum = 0 //, frontCompleted = 0
+           // ;
 
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
@@ -378,43 +379,56 @@ module AbstractCore
 
         if (reset) execReset();
         else if (interrupt) execInterrupt();
-        
 
 
-        if (lateEventInfo.redirect || branchEventInfo.redirect)
+    
+
+        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             redirectRest();
-        else
+        end
+        else begin
             runInOrderPartRe();
+        end
 
+
+        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+            flushIqs();
+        end
+        else begin
+            writeToIqs();
+        end
+       
+        // Issue
         begin
             automatic IssueGroup igIssue = DEFAULT_ISSUE_GROUP;
             igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
             issuedSt0 <= effIG(igIssue);
         end
 
+        // Complete + write regs
         begin
-//            readInfo <= EMPTY_WRITE_INFO;
-//            branchEventInfo <= EMPTY_EVENT_INFO;
-//            runExec();
+            foreach (doneOpsRegular_E[i]) begin
+                completeOp(doneOpsRegular_E[i]);
+                writeResult_N(doneOpsRegular_E[i], execResultsRegular[i]);
+            end
+            
+            completeOp(doneOpBranch_E);
+            writeResult_N(doneOpBranch_E, execResultLink);
+    
+            completeOp(doneOpMem_E);
+            writeResult_N(doneOpMem_E, execResultMem);
+    
+            completeOp(doneOpSys_E);
         end
-
-        foreach (doneOpsRegular_E[i]) begin
-            completeOp(doneOpsRegular_E[i]);
-            writeResult_N(doneOpsRegular_E[i], execResultsRegular[i]);
-        end
         
-        completeOp(doneOpBranch_E);
-        writeResult_N(doneOpBranch_E, execResultLink);
+        // CAREFUL, TODO: this requires updates to IQs and reg tracker, so must be after both.
+        // Logic based on signals will be more complicated to do.
+        updateReadyVecs();
 
-        completeOp(doneOpMem_E);
-        writeResult_N(doneOpMem_E, execResultMem);
-
-        completeOp(doneOpSys_E);
-        
-        
         updateBookkeeping();
     end
-    
+
+
     // Exec process
     always @(posedge clk) begin
         begin
@@ -427,20 +441,7 @@ module AbstractCore
         
        // assign cmp0 = (fqSize_A == fqSize);
     
-    task automatic updateBookkeeping();
-        //fqSize <= fetchQueue.size();
-        bcqSize <= branchCheckpointQueue.size();
-        oooLevels <= getBufferLevels();
-        
-            frontCompleted <= countFrontCompleted(); // DB
-
-        nFreeRegsInt <= registerTracker.getNumFreeInt();
-            nSpecRegsInt <= registerTracker.getNumSpecInt();
-            nStabRegsInt <= registerTracker.getNumStabInt();
-        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
-     
-     
-        // IQ
+    task automatic updateReadyVecs();
         opsReady <= getReadyVec(opQueue);
         
         opsReadyRegular <= getReadyVec(T_iqRegular);
@@ -449,13 +450,27 @@ module AbstractCore
         opsReadySys <= getReadyVec(T_iqSys);
         
         
+        oooLevels_N.oq <= opQueue.size();
+    endtask
+    
+    
+    
+    task automatic updateBookkeeping();
+        bcqSize <= branchCheckpointQueue.size();
+        oooLevels <= getBufferLevels();
+        
+        nFreeRegsInt <= registerTracker.getNumFreeInt();
+        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
+     
+
+        
         // Overall DB
             insMapSize = insMap.size();
             trSize = memTracker.transactions.size();
 
             begin
                 automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
-                oooqCompletedNum <= oooqDone.size();
+            //    oooqCompletedNum <= oooqDone.size();
                 $swrite(oooqStr, "%p", oooQueue);
                 $swrite(iqRegularStr, "%p", T_iqRegular);
                 iqRegularStrA = '{default: ""};
@@ -546,9 +561,6 @@ module AbstractCore
 
 
 
-
-
-
     task automatic renameGroup(input OpSlotA ops);
         foreach (ops[i])
             if (ops[i].active) begin
@@ -557,35 +569,61 @@ module AbstractCore
             end
     endtask
 
-    task automatic addToQueues(input OpSlot op);
-        oooQueue.push_back('{op.id, 0});
 
+
+    task automatic writeToIqs();
+        foreach (stageRename1[i]) begin
+            OpSlot op = stageRename1[i];
+            if (op.active) begin
+                addToIssueQueues(op);
+            end
+        end
+    endtask
+
+    task automatic addToIssueQueues(input OpSlot op);
         opQueue.push_back(op);
         // Mirror into separate queues 
         if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) T_iqMem.push_back(op);
         else if (isSysIns(decAbs(op))) T_iqSys.push_back(op);
         else if (isBranchIns(decAbs(op))) T_iqBranch.push_back(op);
-        else T_iqRegular.push_back(op);    
+        else T_iqRegular.push_back(op); 
+    endtask
+
+    task automatic flushIqs();
+        if (lateEventInfo.redirect) begin
+            flushOpQueueAll();
+        end
+        else if (branchEventInfo.redirect) begin
+            flushOpQueuePartial(branchEventInfo.op);
+        end
+    endtask
+
+
+
+
+    task automatic addToQueues(input OpSlot op);
+        oooQueue.push_back('{op.id, 0});   
     
         rob.push_back('{op});      
         if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
         if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
     endtask
 
-
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();        
         renameGroup(stageRename0);
         stageRename1 <= stageRename0;
-
+        
         foreach (stageRename1[i]) begin
             OpSlot op = stageRename1[i];
-            if (op.active) addToQueues(op);
+            if (op.active) begin
+                addToQueues(op);
+            end
         end 
     endtask
     
     
-    assign oooAccepts = getBufferAccepts(oooLevels);
+    assign oooAccepts = getBufferAccepts(oooLevels, oooLevels_N);
     assign buffersAccepting = buffersAccept(oooAccepts);
 
 
@@ -636,9 +674,11 @@ module AbstractCore
         return res;
     endfunction
 
-    function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
+    function automatic BufferLevels getBufferAccepts(input BufferLevels levels, input BufferLevels levels_N);
         BufferLevels res;
         res.oq = levels.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+            //res.oq = levels_N.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        
         res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
         //res.bq = levels.bq <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
         res.rob = levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
@@ -660,8 +700,7 @@ module AbstractCore
     
     // $$Bufs
     // write queue is not flushed!
-    task automatic flushOooBuffersAll();
-        flushOpQueueAll();
+    task automatic flushOooBuffersAll();        
         flushOooQueueAll();
         flushBranchCheckpointQueueAll();
         flushBranchTargetQueueAll();
@@ -785,9 +824,7 @@ module AbstractCore
     endtask
 
 
-
     task automatic flushOooBuffersPartial(input OpSlot op);
-        flushOpQueuePartial(op);
         flushOooQueuePartial(op);
         flushBranchCheckpointQueuePartial(op);
         flushBranchTargetQueuePartial(op);
@@ -804,6 +841,7 @@ module AbstractCore
         registerTracker.restore(cp.intMapR, cp.floatMapR);
     endtask
 
+
     task automatic rollbackToCheckpoint();
         BranchCheckpoint single = branchCP;
 
@@ -813,6 +851,7 @@ module AbstractCore
         restoreMappings(single);
         renameInds = single.inds;
     endtask
+
 
     task automatic rollbackToStable();
         renamedEmul.setLike(retiredEmul);
@@ -828,7 +867,8 @@ module AbstractCore
         registerTracker.restore(registerTracker.intMapC, registerTracker.floatMapC);
         renameInds = commitInds;
     endtask
-    
+
+
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT};
         markKilledFrontStage(stageRename1);
@@ -1077,19 +1117,13 @@ module AbstractCore
     // $$Exec
     task automatic runExec();
         IssueGroup igExec = DEFAULT_ISSUE_GROUP;
-        
-//        begin
-//            IssueGroup igIssue = DEFAULT_ISSUE_GROUP;
-//            igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
-//            issuedSt0 <= effIG(igIssue);
-//        end
 
         issuedSt1 <= issuedSt0_E;
         igExec = issuedSt1_E;
 
-            execResultsRegular <= '{default: 'x};
-            execResultLink <= 'x;
-            execResultMem <= 'x;
+        execResultsRegular <= '{default: 'x};
+        execResultLink <= 'x;
+        execResultMem <= 'x;
 
         foreach (igExec.regular[i])
             if (igExec.regular[i].active) performRegularOp(igExec.regular[i], i);
@@ -1275,9 +1309,13 @@ module AbstractCore
     endtask
 
     task automatic writeResult_N(input OpSlot op, input Word value);
-        AbstractInstruction abs = decAbs(op);
-            //return;
-        writeResult_Impl(op, abs, value);
+        if (!op.active) return;
+
+        begin
+            AbstractInstruction abs = decAbs(op);
+                //return;
+            writeResult_Impl(op, abs, value);
+        end
     endtask
 
     task automatic writeResult_Impl(input OpSlot op, input AbstractInstruction abs, input Word value);
