@@ -276,6 +276,7 @@ module AbstractCore
     OpSlot opQueue[$:OP_QUEUE_SIZE];            
         typedef logic ReadyVec[OP_QUEUE_SIZE];
         ReadyVec opsReady, opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
+        ReadyVec opsReady_A, opsReadyRegular_A, opsReadyBranch_A, opsReadyMem_A, opsReadySys_A;
 
     OpSlot T_iqRegular[$:OP_QUEUE_SIZE];
     OpSlot T_iqBranch[$:OP_QUEUE_SIZE];
@@ -297,6 +298,10 @@ module AbstractCore
 
     OpSlot doneOpsRegular_E[4];
     OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
+
+    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
+    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
+
 
     Word execResultsRegular[4] = '{'x, 'x, 'x, 'x};
     Word execResultLink = 'x, execResultMem = 'x;
@@ -405,6 +410,10 @@ module AbstractCore
             issuedSt0 <= effIG(igIssue);
         end
 
+
+            updateReadyVecs();
+
+
         // Complete + write regs
         begin
             foreach (doneOpsRegular_E[i]) begin
@@ -423,7 +432,10 @@ module AbstractCore
         
         // CAREFUL, TODO: this requires updates to IQs and reg tracker, so must be after both.
         // Logic based on signals will be more complicated to do.
-        updateReadyVecs();
+        
+        
+        updateReadyVecs_A();
+
 
         updateBookkeeping();
     end
@@ -438,8 +450,17 @@ module AbstractCore
         end
     end
     
+
+//    assign opsReady_A = getReadyVec_A(opQueue);
+    
+//    assign opsReadyRegular_A = getReadyVec_A(T_iqRegular);
+//    assign opsReadyBranch_A = getReadyVec_A(T_iqBranch);
+//    assign opsReadyMem_A = getReadyVec_A(T_iqMem);
+//    assign opsReadySys_A = getReadyVec_A(T_iqSys);
+    
         
-       // assign cmp0 = (fqSize_A == fqSize);
+        assign cmp0 = (opsReady_A === opsReady);
+        always @(posedge clk) cmp1 <= cmp0;
     
     task automatic updateReadyVecs();
         opsReady <= getReadyVec(opQueue);
@@ -448,12 +469,22 @@ module AbstractCore
         opsReadyBranch <= getReadyVec(T_iqBranch);
         opsReadyMem <= getReadyVec(T_iqMem);
         opsReadySys <= getReadyVec(T_iqSys);
-        
-        
-        oooLevels_N.oq <= opQueue.size();
+
     endtask
     
-    
+
+    task automatic updateReadyVecs_A();
+
+        opsReady_A <= getReadyVec_A(opQueue);
+        
+        opsReadyRegular_A <= getReadyVec_A(T_iqRegular);
+        opsReadyBranch_A <= getReadyVec_A(T_iqBranch);
+        opsReadyMem_A <= getReadyVec_A(T_iqMem);
+        opsReadySys_A <= getReadyVec_A(T_iqSys);
+
+        oooLevels_N.oq <= opQueue.size();
+    endtask
+
     
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
@@ -461,7 +492,9 @@ module AbstractCore
         
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
-     
+        
+        intRegsReadyV <= registerTracker.intReady;
+        floatRegsReadyV <= registerTracker.floatReady;
 
         
         // Overall DB
@@ -570,7 +603,7 @@ module AbstractCore
     endtask
 
 
-
+/////////
     task automatic writeToIqs();
         foreach (stageRename1[i]) begin
             OpSlot op = stageRename1[i];
@@ -598,6 +631,84 @@ module AbstractCore
         end
     endtask
 
+
+    task automatic flushOpQueueAll();
+        while (opQueue.size() > 0) begin
+            OpSlot op = (opQueue.pop_back());
+            //insMap.setKilled(op.id);
+        end
+        while (T_iqRegular.size() > 0) begin
+            void'(T_iqRegular.pop_back());
+        end
+        while (T_iqBranch.size() > 0) begin
+            void'(T_iqBranch.pop_back());
+        end
+        while (T_iqMem.size() > 0) begin
+            void'(T_iqMem.pop_back());
+        end
+        while (T_iqSys.size() > 0) begin
+            void'(T_iqSys.pop_back());
+        end
+    endtask
+
+    task automatic flushOpQueuePartial(input OpSlot op);
+        while (opQueue.size() > 0 && opQueue[$].id > op.id) begin
+            void'(opQueue.pop_back());
+        end
+        while (T_iqRegular.size() > 0 && T_iqRegular[$].id > op.id) begin
+            void'(T_iqRegular.pop_back());
+        end
+        while (T_iqBranch.size() > 0 && T_iqBranch[$].id > op.id) begin
+            void'(T_iqBranch.pop_back());
+        end
+        while (T_iqMem.size() > 0 && T_iqMem[$].id > op.id) begin
+            void'(T_iqMem.pop_back());
+        end
+        while (T_iqSys.size() > 0 && T_iqSys[$].id > op.id) begin
+            void'(T_iqSys.pop_back());
+        end
+    endtask
+
+
+    function automatic IssueGroup issueFromOpQ(ref OpSlot queue[$:OP_QUEUE_SIZE], input int size, input ReadyVec rv);
+        IssueGroup res = DEFAULT_ISSUE_GROUP;
+
+        int maxNum = size > 4 ? 4 : size;
+        if (maxNum > queue.size()) maxNum = queue.size(); // Queue may be flushing in this cycle, so possiblre shrinkage is checked here 
+    
+        for (int i = 0; i < maxNum; i++) begin
+            OpSlot op;
+            
+            if (!rv[i]) break;
+            
+            op = queue.pop_front();
+            assert (op.active) else $fatal(2, "Op from queue is empty!");
+            res.num++;
+            
+            if (isBranchIns(decAbs(op))) begin
+                res.branch = op;
+                assert (op === T_iqBranch.pop_front()) else $error("wrong");
+                break;
+            end
+            else if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
+                res.mem = op;
+                assert (op === T_iqMem.pop_front()) else $error("wrong");
+                break;
+            end
+            else if (isSysIns(decAbs(op))) begin
+                res.sys = op;
+                assert (op === T_iqSys.pop_front()) else $error("wrong");
+                break;
+            end
+            
+            assert (op === T_iqRegular.pop_front()) else $error("wrong");
+            res.regular[i] = op;
+        end
+        
+        return res;
+    endfunction
+
+////////////////////
 
 
 
@@ -708,26 +819,7 @@ module AbstractCore
         flushStoreQueueAll();
         flushLoadQueueAll();
     endtask
-    
-    
-    task automatic flushOpQueueAll();
-        while (opQueue.size() > 0) begin
-            OpSlot op = (opQueue.pop_back());
-            //insMap.setKilled(op.id);
-        end
-        while (T_iqRegular.size() > 0) begin
-            void'(T_iqRegular.pop_back());
-        end
-        while (T_iqBranch.size() > 0) begin
-            void'(T_iqBranch.pop_back());
-        end
-        while (T_iqMem.size() > 0) begin
-            void'(T_iqMem.pop_back());
-        end
-        while (T_iqSys.size() > 0) begin
-            void'(T_iqSys.pop_back());
-        end
-    endtask
+
 
     task automatic flushOooQueueAll();
         while (oooQueue.size() > 0) begin
@@ -767,25 +859,6 @@ module AbstractCore
         end
     endtask
 
-
-
-    task automatic flushOpQueuePartial(input OpSlot op);
-        while (opQueue.size() > 0 && opQueue[$].id > op.id) begin
-            void'(opQueue.pop_back());
-        end
-        while (T_iqRegular.size() > 0 && T_iqRegular[$].id > op.id) begin
-            void'(T_iqRegular.pop_back());
-        end
-        while (T_iqBranch.size() > 0 && T_iqBranch[$].id > op.id) begin
-            void'(T_iqBranch.pop_back());
-        end
-        while (T_iqMem.size() > 0 && T_iqMem[$].id > op.id) begin
-            void'(T_iqMem.pop_back());
-        end
-        while (T_iqSys.size() > 0 && T_iqSys[$].id > op.id) begin
-            void'(T_iqSys.pop_back());
-        end
-    endtask
 
     task automatic flushOooQueuePartial(input OpSlot op);
         while (oooQueue.size() > 0 && oooQueue[$].id > op.id) begin
@@ -1162,6 +1235,21 @@ module AbstractCore
         storeQueue[ind[0]].val = val;
     endtask
 
+
+
+        function automatic logic3 checkArgsReady_A(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+            logic3 res;
+            foreach (deps.types[i])
+                case (deps.types[i])
+                    SRC_ZERO:  res[i] = 1;
+                    SRC_CONST: res[i] = 1;
+                    SRC_INT:   res[i] = intRegsReadyV[deps.sources[i]];
+                    SRC_FLOAT: res[i] = floatRegsReadyV[deps.sources[i]];
+                endcase      
+            return res;
+        endfunction
+
+
     function automatic ReadyVec getReadyVec(input OpSlot iq[$:OP_QUEUE_SIZE]);
         ReadyVec res = '{default: 'z};
         foreach (iq[i]) begin
@@ -1171,6 +1259,18 @@ module AbstractCore
         end
         return res;
     endfunction
+
+
+        function automatic ReadyVec getReadyVec_A(input OpSlot iq[$:OP_QUEUE_SIZE]);
+            ReadyVec res = '{default: 'z};
+            foreach (iq[i]) begin
+                InsDependencies deps = insMap.get(iq[i].id).deps;
+                logic3 ra = checkArgsReady_A(deps);
+                res[i] = ra.and();
+            end
+            return res;
+        endfunction
+    
 
     function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
         InsDependencies deps = insMap.get(op.id).deps;
@@ -1263,44 +1363,6 @@ module AbstractCore
         performLinkOp(op);
     endtask
 
-
-    function automatic IssueGroup issueFromOpQ(ref OpSlot queue[$:OP_QUEUE_SIZE], input int size, input ReadyVec rv);
-        IssueGroup res = DEFAULT_ISSUE_GROUP;
-
-        int maxNum = size > 4 ? 4 : size;
-        if (maxNum > queue.size()) maxNum = queue.size(); // Queue may be flushing in this cycle, so possiblre shrinkage is checked here 
-    
-        for (int i = 0; i < maxNum; i++) begin
-            OpSlot op;
-            
-            if (!rv[i]) break;
-            
-            op = queue.pop_front();
-            assert (op.active) else $fatal(2, "Op from queue is empty!");
-            res.num++;
-            
-            if (isBranchIns(decAbs(op))) begin
-                res.branch = op;
-                assert (op === T_iqBranch.pop_front()) else $error("wrong");
-                break;
-            end
-            else if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
-                res.mem = op;
-                assert (op === T_iqMem.pop_front()) else $error("wrong");
-                break;
-            end
-            else if (isSysIns(decAbs(op))) begin
-                res.sys = op;
-                assert (op === T_iqSys.pop_front()) else $error("wrong");
-                break;
-            end
-            
-            assert (op === T_iqRegular.pop_front()) else $error("wrong");
-            res.regular[i] = op;
-        end
-        
-        return res;
-    endfunction
 
 
     task automatic writeResult(input OpSlot op, input AbstractInstruction abs, input Word value);
