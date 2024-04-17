@@ -297,7 +297,8 @@ module AbstractCore
     OpSlot doneOpsRegular_E[4];
     OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
 
-
+    Word execResultsRegular[4] = '{'x, 'x, 'x, 'x};
+    Word execResultLink = 'x, execResultMem = 'x;
     
     
     // OOO
@@ -366,10 +367,6 @@ module AbstractCore
 
 
     always @(posedge clk) begin
-        //readInfo <= EMPTY_WRITE_INFO;
-
-        //branchEventInfo <= EMPTY_EVENT_INFO;
-        
         lateEventInfo <= EMPTY_EVENT_INFO;
 
         activateEvent();
@@ -389,21 +386,42 @@ module AbstractCore
         else
             runInOrderPartRe();
 
-//        if (reset) execReset();
-//        else if (interrupt) execInterrupt();
+        begin
+            automatic IssueGroup igIssue = DEFAULT_ISSUE_GROUP;
+            igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
+            issuedSt0 <= effIG(igIssue);
+        end
+
+        begin
+//            readInfo <= EMPTY_WRITE_INFO;
+//            branchEventInfo <= EMPTY_EVENT_INFO;
+//            runExec();
+        end
+
+        foreach (doneOpsRegular_E[i]) begin
+            completeOp(doneOpsRegular_E[i]);
+            writeResult_N(doneOpsRegular_E[i], execResultsRegular[i]);
+        end
         
-        readInfo <= EMPTY_WRITE_INFO;
-        branchEventInfo <= EMPTY_EVENT_INFO;
-        runExec();
-        
-        
-        foreach (doneOpsRegular_E[i]) completeOp(doneOpsRegular_E[i]);
         completeOp(doneOpBranch_E);
+        writeResult_N(doneOpBranch_E, execResultLink);
+
         completeOp(doneOpMem_E);
+        writeResult_N(doneOpMem_E, execResultMem);
+
         completeOp(doneOpSys_E);
         
         
         updateBookkeeping();
+    end
+    
+    // Exec process
+    always @(posedge clk) begin
+        begin
+            readInfo <= EMPTY_WRITE_INFO;
+            branchEventInfo <= EMPTY_EVENT_INFO;
+            runExec();
+        end
     end
     
         
@@ -421,6 +439,8 @@ module AbstractCore
             nStabRegsInt <= registerTracker.getNumStabInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
      
+     
+        // IQ
         opsReady <= getReadyVec(opQueue);
         
         opsReadyRegular <= getReadyVec(T_iqRegular);
@@ -428,6 +448,8 @@ module AbstractCore
         opsReadyMem <= getReadyVec(T_iqMem);
         opsReadySys <= getReadyVec(T_iqSys);
         
+        
+        // Overall DB
             insMapSize = insMap.size();
             trSize = memTracker.transactions.size();
 
@@ -1050,18 +1072,27 @@ module AbstractCore
     endtask
 
 
+
+
     // $$Exec
     task automatic runExec();
-        IssueGroup igIssue = DEFAULT_ISSUE_GROUP, igExec = DEFAULT_ISSUE_GROUP;
-
-        igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
-        issuedSt0 <= effIG(igIssue);
+        IssueGroup igExec = DEFAULT_ISSUE_GROUP;
+        
+//        begin
+//            IssueGroup igIssue = DEFAULT_ISSUE_GROUP;
+//            igIssue = issueFromOpQ(opQueue, oooLevels.oq, opsReady);
+//            issuedSt0 <= effIG(igIssue);
+//        end
 
         issuedSt1 <= issuedSt0_E;
         igExec = issuedSt1_E;
 
+            execResultsRegular <= '{default: 'x};
+            execResultLink <= 'x;
+            execResultMem <= 'x;
+
         foreach (igExec.regular[i])
-            if (igExec.regular[i].active) performRegularOp(igExec.regular[i]);
+            if (igExec.regular[i].active) performRegularOp(igExec.regular[i], i);
         if (igExec.branch.active)   execBranch(igExec.branch);
         if (igExec.mem.active) performMemFirst(igExec.mem);
 
@@ -1079,6 +1110,7 @@ module AbstractCore
 
     task automatic completeOp(input OpSlot op);            
         if (!op.active) return;
+        
         updateOOOQ(op);
             lastCompleted = op;
             nCompleted++;
@@ -1120,11 +1152,12 @@ module AbstractCore
 
 
 
-    task automatic performRegularOp(input OpSlot op);
+    task automatic performRegularOp(input OpSlot op, input int index);
         AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
         Word result = calculateResult(abs, args, op.adr); // !!!!
         
+            execResultsRegular[index] <= result;
         writeResult(op, abs, result);
     endtask    
 
@@ -1156,6 +1189,8 @@ module AbstractCore
           //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
 
+            execResultMem <= data;
+
         writeResult(op, abs, data);
     endtask
 
@@ -1184,7 +1219,8 @@ module AbstractCore
     task automatic performLinkOp(input OpSlot op);
         AbstractInstruction abs = decAbs(op);
         Word result = op.adr + 4;
-        
+
+            execResultLink <= result;       
         writeResult(op, abs, result);
     endtask
     
@@ -1234,9 +1270,20 @@ module AbstractCore
 
 
     task automatic writeResult(input OpSlot op, input AbstractInstruction abs, input Word value);
+            return;
+        writeResult_Impl(op, abs, value);
+    endtask
+
+    task automatic writeResult_N(input OpSlot op, input Word value);
+        AbstractInstruction abs = decAbs(op);
+            //return;
+        writeResult_Impl(op, abs, value);
+    endtask
+
+    task automatic writeResult_Impl(input OpSlot op, input AbstractInstruction abs, input Word value);
         Word result = insMap.get(op.id).result;        
         insMap.setActualResult(op.id, value);
- 
+
         if (writesIntReg(op)) begin
             registerTracker.setReadyInt(op.id);
             registerTracker.writeValueInt(op, value);
