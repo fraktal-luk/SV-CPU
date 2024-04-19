@@ -7,10 +7,143 @@ import Emulation::*;
 import AbstractSim::*;
 
 
+
+
+
+    // Frontend
+    module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
+    
+        typedef Word FetchGroup[FETCH_WIDTH];
+
+    
+   // generate
+
+        int fqSize = 0;
+
+
+        Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+        Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
+
+        int fetchCtr = 0;
+        OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+
+
+        function automatic Stage_N setActive(input Stage_N s, input logic on, input int ctr);
+            Stage_N res = s;
+            Word firstAdr = res[0].adr;
+            Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
+
+            if (!on) return EMPTY_STAGE;
+
+            foreach (res[i]) begin
+                res[i].active = (((firstAdr/4) % FETCH_WIDTH <= i)) === 1;
+                res[i].id = res[i].active ? ctr + i : -1;
+                res[i].adr = res[i].active ? baseAdr + 4*i : 'x;
+            end
+
+            return res;
+        endfunction
+
+        function automatic Stage_N setWords(input Stage_N s, input FetchGroup fg);
+            Stage_N res = s;
+            foreach (res[i])
+                if (res[i].active) res[i].bits = fg[i];
+            return res;
+        endfunction
+
+
+        task automatic flushFrontend();
+            markKilledFrontStage(fetchStage0);
+            markKilledFrontStage(fetchStage1);
+            fetchStage0 <= EMPTY_STAGE;
+            fetchStage1 <= EMPTY_STAGE;
+
+            foreach (fetchQueue[i]) begin
+                Stage_N current = fetchQueue[i];
+                markKilledFrontStage(current);
+            end
+            fetchQueue.delete();
+        endtask
+
+        task automatic redirectFront();
+            Word target;
+
+            if (lateEventInfo.redirect)         target = lateEventInfo.target;
+            else if (branchEventInfo.redirect)  target = branchEventInfo.target;
+            else $fatal(2, "Should never get here");
+
+            markKilledFrontStage(ipStage);
+            ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+
+            fetchCtr <= fetchCtr + FETCH_WIDTH;
+
+            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
+
+            flushFrontend();
+
+            markKilledFrontStage(stageRename0);
+            stageRename0 <= '{default: EMPTY_SLOT};
+        endtask
+
+        task automatic fetchAndEnqueue();
+            Stage_N fetchStage0ua, ipStageU;
+            if (AbstractCore.fetchAllow) begin
+                Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
+                ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+                fetchCtr <= fetchCtr + FETCH_WIDTH;
+                
+                registerNewTarget(fetchCtr + FETCH_WIDTH, target);
+            end
+
+            ipStageU = setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
+
+            fetchStage0 <= ipStageU;
+            fetchStage0ua = setWords(fetchStage0, AbstractCore.insIn);
+            
+            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
+                insMap.add(fetchStage0ua[i]);
+                insMap.setEncoding(fetchStage0ua[i]);
+            end
+
+            fetchStage1 <= fetchStage0ua;
+            if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);
+        
+            stageRename0 <= readFromFQ();
+        endtask
+        
+        function automatic OpSlotA readFromFQ();
+            OpSlotA res = '{default: EMPTY_SLOT};
+    
+            // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
+            if (fqSize > 0 && AbstractCore.renameAllow) begin
+                Stage_N fqOut_N = fetchQueue.pop_front();
+                foreach (fqOut_N[i]) res[i] = fqOut_N[i];
+            end
+            
+            return res;
+        endfunction
+        
+            
+        // Frontend process
+        always @(posedge AbstractCore.clk) begin
+            if (lateEventInfo.redirect || branchEventInfo.redirect)
+                redirectFront();
+            else
+                fetchAndEnqueue();
+                
+            fqSize <= fetchQueue.size();
+        end
+
+    //endgenerate
+
+    endmodule
+    
+
+
+
 module AbstractCore
 #(
-    parameter FETCH_WIDTH = 4,
-    parameter LOAD_WIDTH = FETCH_WIDTH
+
 )
 (
     input logic clk,
@@ -24,22 +157,25 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'x;
+    logic dummy = '1;
 
 
-    localparam int FETCH_QUEUE_SIZE = 8;
-    localparam int BC_QUEUE_SIZE = 64;
 
-    localparam int N_REGS_INT = 128;
-    localparam int N_REGS_FLOAT = 128;
 
-    localparam int OP_QUEUE_SIZE = 24;
-    localparam int OOO_QUEUE_SIZE = 120;
 
-    localparam int ROB_SIZE = 128;
+//    localparam int FETCH_QUEUE_SIZE = 8;
+//    localparam int BC_QUEUE_SIZE = 64;
+
+//    localparam int N_REGS_INT = 128;
+//    localparam int N_REGS_FLOAT = 128;
+
+//    localparam int OP_QUEUE_SIZE = 24;
+//    localparam int OOO_QUEUE_SIZE = 120;
+
+//    localparam int ROB_SIZE = 128;
     
-    localparam int LQ_SIZE = 80;
-    localparam int SQ_SIZE = 80;
+//    localparam int LQ_SIZE = 80;
+//    localparam int SQ_SIZE = 80;
     
     
     typedef struct {
@@ -57,11 +193,11 @@ module AbstractCore
     } StoreQueueEntry;
 
 
-    typedef OpSlot OpSlotA[FETCH_WIDTH];
+//    typedef OpSlot OpSlotA[FETCH_WIDTH];
 
-    typedef OpSlot Stage_N[FETCH_WIDTH];
+//    typedef OpSlot Stage_N[FETCH_WIDTH];
 
-    const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
+//    const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
 
     typedef struct {
         int id;
@@ -80,7 +216,6 @@ module AbstractCore
     
     const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
 
-    typedef Word FetchGroup[FETCH_WIDTH];
 
     InstructionMap insMap = new();
 
@@ -152,6 +287,11 @@ module AbstractCore
 
     // Overall
 
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO, // Overall?
+             lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO; // Overall?
+
+
+
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
 
@@ -169,127 +309,139 @@ module AbstractCore
     BranchCheckpoint branchCP;
 
 
-    int fqSize = 0;
-
-    // Frontend
-    generate
-
-        Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
-        Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
-
-        int fetchCtr = 0;
-        OpSlotA stageRename0 = '{default: EMPTY_SLOT};
 
 
-        function automatic Stage_N setActive(input Stage_N s, input logic on, input int ctr);
-            Stage_N res = s;
-            Word firstAdr = res[0].adr;
-            Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
-
-            if (!on) return EMPTY_STAGE;
-
-            foreach (res[i]) begin
-                res[i].active = (((firstAdr/4) % FETCH_WIDTH <= i)) === 1;
-                res[i].id = res[i].active ? ctr + i : -1;
-                res[i].adr = res[i].active ? baseAdr + 4*i : 'x;
-            end
-
-            return res;
-        endfunction
-
-        function automatic Stage_N setWords(input Stage_N s, input FetchGroup fg);
-            Stage_N res = s;
-            foreach (res[i])
-                if (res[i].active) res[i].bits = fg[i];
-            return res;
-        endfunction
-
-
-        task automatic flushFrontend();
-            markKilledFrontStage(fetchStage0);
-            markKilledFrontStage(fetchStage1);
-            fetchStage0 <= EMPTY_STAGE;
-            fetchStage1 <= EMPTY_STAGE;
-
-            foreach (fetchQueue[i]) begin
-                Stage_N current = fetchQueue[i];
-                markKilledFrontStage(current);
-            end
-            fetchQueue.delete();
-        endtask
-
-        task automatic redirectFront();
-            Word target;
-
-            if (lateEventInfo.redirect)         target = lateEventInfo.target;
-            else if (branchEventInfo.redirect)  target = branchEventInfo.target;
-            else $fatal(2, "Should never get here");
-
-            markKilledFrontStage(ipStage);
-            ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
-
-            fetchCtr <= fetchCtr + FETCH_WIDTH;
-
-            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
-
-            flushFrontend();
-
-            markKilledFrontStage(stageRename0);
-            stageRename0 <= '{default: EMPTY_SLOT};
-        endtask
-
-        task automatic fetchAndEnqueue();
-            Stage_N fetchStage0ua, ipStageU;
-            if (fetchAllow) begin
-                Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
-                ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
-                fetchCtr <= fetchCtr + FETCH_WIDTH;
-                
-                registerNewTarget(fetchCtr + FETCH_WIDTH, target);
-            end
-
-            ipStageU = setActive(ipStage, ipStage[0].active & fetchAllow, fetchCtr);
-
-            fetchStage0 <= ipStageU;
-            fetchStage0ua = setWords(fetchStage0, insIn);
-            
-            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
-                insMap.add(fetchStage0ua[i]);
-                insMap.setEncoding(fetchStage0ua[i]);
-            end
-
-            fetchStage1 <= fetchStage0ua;
-            if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);
-        
-            stageRename0 <= readFromFQ();
-        endtask
-        
-        function automatic OpSlotA readFromFQ();
-            OpSlotA res = '{default: EMPTY_SLOT};
+//    // Frontend
+//    module Frontend();
     
-            // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
-            if (fqSize > 0 && renameAllow) begin
-                Stage_N fqOut_N = fetchQueue.pop_front();
-                foreach (fqOut_N[i]) res[i] = fqOut_N[i];
-            end
+//   // generate
+
+//        int fqSize = 0;
+
+
+//        Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+//        Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
+
+//        int fetchCtr = 0;
+//        OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+
+
+//        function automatic Stage_N setActive(input Stage_N s, input logic on, input int ctr);
+//            Stage_N res = s;
+//            Word firstAdr = res[0].adr;
+//            Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
+
+//            if (!on) return EMPTY_STAGE;
+
+//            foreach (res[i]) begin
+//                res[i].active = (((firstAdr/4) % FETCH_WIDTH <= i)) === 1;
+//                res[i].id = res[i].active ? ctr + i : -1;
+//                res[i].adr = res[i].active ? baseAdr + 4*i : 'x;
+//            end
+
+//            return res;
+//        endfunction
+
+//        function automatic Stage_N setWords(input Stage_N s, input FetchGroup fg);
+//            Stage_N res = s;
+//            foreach (res[i])
+//                if (res[i].active) res[i].bits = fg[i];
+//            return res;
+//        endfunction
+
+
+//        task automatic flushFrontend();
+//            markKilledFrontStage(fetchStage0);
+//            markKilledFrontStage(fetchStage1);
+//            fetchStage0 <= EMPTY_STAGE;
+//            fetchStage1 <= EMPTY_STAGE;
+
+//            foreach (fetchQueue[i]) begin
+//                Stage_N current = fetchQueue[i];
+//                markKilledFrontStage(current);
+//            end
+//            fetchQueue.delete();
+//        endtask
+
+//        task automatic redirectFront();
+//            Word target;
+
+//            if (lateEventInfo.redirect)         target = lateEventInfo.target;
+//            else if (branchEventInfo.redirect)  target = branchEventInfo.target;
+//            else $fatal(2, "Should never get here");
+
+//            markKilledFrontStage(ipStage);
+//            ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+
+//            fetchCtr <= fetchCtr + FETCH_WIDTH;
+
+//            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
+
+//            flushFrontend();
+
+//            markKilledFrontStage(stageRename0);
+//            stageRename0 <= '{default: EMPTY_SLOT};
+//        endtask
+
+//        task automatic fetchAndEnqueue();
+//            Stage_N fetchStage0ua, ipStageU;
+//            if (fetchAllow) begin
+//                Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
+//                ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+//                fetchCtr <= fetchCtr + FETCH_WIDTH;
+                
+//                registerNewTarget(fetchCtr + FETCH_WIDTH, target);
+//            end
+
+//            ipStageU = setActive(ipStage, ipStage[0].active & fetchAllow, fetchCtr);
+
+//            fetchStage0 <= ipStageU;
+//            fetchStage0ua = setWords(fetchStage0, insIn);
             
-            return res;
-        endfunction
+//            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
+//                insMap.add(fetchStage0ua[i]);
+//                insMap.setEncoding(fetchStage0ua[i]);
+//            end
+
+//            fetchStage1 <= fetchStage0ua;
+//            if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);
+        
+//            stageRename0 <= readFromFQ();
+//        endtask
+        
+//        function automatic OpSlotA readFromFQ();
+//            OpSlotA res = '{default: EMPTY_SLOT};
+    
+//            // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
+//            if (fqSize > 0 && renameAllow) begin
+//                Stage_N fqOut_N = fetchQueue.pop_front();
+//                foreach (fqOut_N[i]) res[i] = fqOut_N[i];
+//            end
+            
+//            return res;
+//        endfunction
         
             
-        // Frontend process
-        always @(posedge clk) begin
-            if (lateEventInfo.redirect || branchEventInfo.redirect)
-                redirectFront();
-            else
-                fetchAndEnqueue();
+//        // Frontend process
+//        always @(posedge clk) begin
+//            if (lateEventInfo.redirect || branchEventInfo.redirect)
+//                redirectFront();
+//            else
+//                fetchAndEnqueue();
                 
-            fqSize <= fetchQueue.size();
-        end
+//            fqSize <= fetchQueue.size();
+//        end
 
-    endgenerate
+//    //endgenerate
 
-    assign insAdr = ipStage[0].adr;
+//    endmodule
+    
+    
+    Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
+
+
+
+    assign insAdr = theFrontend.ipStage[0].adr;
 
 
     // Rename
@@ -520,8 +672,6 @@ module AbstractCore
     // Overall DB
     Emulator renamedEmul = new(), retiredEmul = new();
 
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO, // Overall?
-             lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO; // Overall?
 
     MemWriteInfo writeInfo, // Committed
                  readInfo = EMPTY_WRITE_INFO; // Exec
@@ -738,8 +888,8 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();        
-        renameGroup(stageRename0);
-        stageRename1 <= stageRename0;
+        renameGroup(theFrontend.stageRename0);
+        stageRename1 <= theFrontend.stageRename0;
         
         foreach (stageRename1[i]) begin
             OpSlot op = stageRename1[i];
@@ -754,7 +904,7 @@ module AbstractCore
     assign buffersAccepting = buffersAccept(oooAccepts);
 
 
-    assign fetchAllow = fetchQueueAccepts(fqSize) && bcQueueAccepts(bcqSize);
+    assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
 
     assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};

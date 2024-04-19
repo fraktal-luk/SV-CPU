@@ -13,6 +13,26 @@ package AbstractSim;
 
     typedef Word Mword;
 
+
+    localparam int FETCH_QUEUE_SIZE = 8;
+    localparam int BC_QUEUE_SIZE = 64;
+
+    localparam int N_REGS_INT = 128;
+    localparam int N_REGS_FLOAT = 128;
+
+    localparam int OP_QUEUE_SIZE = 24;
+    localparam int OOO_QUEUE_SIZE = 120;
+
+    localparam int ROB_SIZE = 128;
+    
+    localparam int LQ_SIZE = 80;
+    localparam int SQ_SIZE = 80;
+
+
+    localparam FETCH_WIDTH = 4;
+    localparam LOAD_WIDTH = FETCH_WIDTH;
+
+
     typedef struct {
         logic active;
         int id;
@@ -21,6 +41,13 @@ package AbstractSim;
     } OpSlot;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+
+    typedef OpSlot OpSlotA[FETCH_WIDTH];
+
+    typedef OpSlot Stage_N[FETCH_WIDTH];
+
+    const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
+
 
 
     typedef Word Ptype[4096];
