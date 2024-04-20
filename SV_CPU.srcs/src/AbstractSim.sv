@@ -48,6 +48,39 @@ package AbstractSim;
 
     const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
 
+   
+    typedef struct {
+        OpSlot op;
+    } RobEntry;
+    
+    typedef struct {
+        OpSlot op;
+    } LoadQueueEntry;
+    
+    typedef struct {
+        OpSlot op;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
+
+
+
+    typedef struct {
+        int id;
+        logic done;
+    }
+    OpStatus;
+
+    typedef struct {
+        int num;
+        OpSlot regular[4];
+        OpSlot branch;
+        OpSlot mem;
+        OpSlot sys;
+    } IssueGroup;
+    
+    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
+
 
 
     typedef Word Ptype[4096];
@@ -820,5 +853,41 @@ package AbstractSim;
         
         sysRegs[1] |= 2; // TODO: handle state register correctly
     endfunction
+
+
+    function automatic logic anyActive(input Stage_N s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+
+   
+    typedef struct {
+        int oq;
+        int oooq;
+        //int bq;
+        int rob;
+        int lq;
+        int sq;
+        int csq;
+    } BufferLevels;
+
+
+        typedef struct {
+            OpSlot late;
+            OpSlot exec;
+        } Events;
+
+    typedef struct {
+        InsId id;
+        Word target;
+    } BranchTargetEntry;
+
+    typedef struct {
+        InsId intWritersR[32] = '{default: -1};
+        InsId floatWritersR[32] = '{default: -1};
+        InsId intWritersC[32] = '{default: -1};
+        InsId floatWritersC[32] = '{default: -1};
+    } WriterTracker;
 
 endpackage
