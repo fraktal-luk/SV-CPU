@@ -317,13 +317,196 @@ import AbstractSim::*;
             // Issue
             begin
                 automatic IssueGroup igIssue = issueFromOpQ(opQueue, AbstractCore.oooLevels_N.oq, opsReady);
-                AbstractCore.issuedSt0 <= effIG(igIssue);
+                AbstractCore.theExecBlock.issuedSt0 <= effIG(igIssue);
                 updateReadyVecs_A();
             end
         end
         
     //endgenerate
     endmodule
+
+
+
+
+
+    module ExecBlock(ref InstructionMap insMap);
+
+        // Issue/Exec
+        IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
+        IssueGroup issuedSt0_E, issuedSt1_E;
+    
+        // Exec
+        OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
+        OpSlot memOp_E, memOpPrev_E;
+        
+        OpSlot doneOpsRegular[4] = '{default: EMPTY_SLOT};
+        OpSlot doneOpBranch = EMPTY_SLOT, doneOpMem = EMPTY_SLOT, doneOpSys = EMPTY_SLOT;
+    
+        OpSlot doneOpsRegular_E[4];
+        OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
+    
+    
+    
+        Word execResultsRegular[4] = '{'x, 'x, 'x, 'x};
+        Word execResultLink = 'x, execResultMem = 'x;
+
+    
+        // Exec process
+        always @(posedge AbstractCore.clk) begin
+            begin
+                AbstractCore.readInfo <= EMPTY_WRITE_INFO;
+                AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+                runExec();
+            end
+        end
+        
+        assign memOp_E = eff(memOp_A);
+        assign memOpPrev_E = eff(memOpPrev);
+    
+        assign issuedSt0_E = effIG(issuedSt0);
+        assign issuedSt1_E = effIG(issuedSt1);
+    
+        assign doneOpsRegular_E = effA(doneOpsRegular);
+        assign doneOpBranch_E = eff(doneOpBranch);
+        assign doneOpMem_E = eff(doneOpMem);
+        assign doneOpSys_E = eff(doneOpSys);
+    
+    
+    
+        // $$Exec
+        task automatic runExec();
+            IssueGroup igExec = DEFAULT_ISSUE_GROUP;
+    
+            issuedSt1 <= issuedSt0_E;
+            igExec = issuedSt1_E;
+    
+            execResultsRegular <= '{default: 'x};
+            execResultLink <= 'x;
+            execResultMem <= 'x;
+    
+            foreach (igExec.regular[i])
+                if (igExec.regular[i].active) performRegularOp(igExec.regular[i], i);
+            if (igExec.branch.active)   execBranch(igExec.branch);
+            if (igExec.mem.active) performMemFirst(igExec.mem);
+    
+            memOp_A <= igExec.mem;
+    
+            memOpPrev <= memOp_E;
+            if (memOpPrev_E.active) performMemLater(memOpPrev_E);
+    
+            doneOpsRegular <= igExec.regular;
+            doneOpBranch <= igExec.branch;
+            doneOpMem <= memOpPrev_E;
+            doneOpSys <= igExec.sys;
+        endtask
+    
+    
+    
+        
+    
+        task automatic setBranchTarget(input OpSlot op, input Word trg);
+            int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == op.id);
+            AbstractCore.branchTargetQueue[ind[0]].target = trg;
+        endtask
+    
+        task automatic updateSQ(input InsId id, input Word adr, input Word val);
+            int ind[$] = AbstractCore.storeQueue.find_first_index with (item.op.id == id);
+            AbstractCore.storeQueue[ind[0]].adr = adr;
+            AbstractCore.storeQueue[ind[0]].val = val;
+        endtask
+        
+    
+        function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
+            InsDependencies deps = insMap.get(op.id).deps;
+            return getArgValues(tracker, deps);            
+        endfunction
+    
+        function automatic Word3 getAndVerifyArgs(input OpSlot op);
+            Word3 argsP = getPhysicalArgValues(AbstractCore.registerTracker, op);
+            Word3 argsM = insMap.get(op.id).argValues;
+            assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);
+            return argsP;
+        endfunction;
+    
+    
+    
+        task automatic performRegularOp(input OpSlot op, input int index);
+            AbstractInstruction abs = decAbs(op);
+            Word3 args = getAndVerifyArgs(op);
+            Word result = calculateResult(abs, args, op.adr); // !!!!
+            
+            execResultsRegular[index] <= result;
+        endtask    
+    
+        task automatic performMemFirst(input OpSlot op);
+            AbstractInstruction abs = decAbs(op);
+            Word3 args = getAndVerifyArgs(op);
+            Word adr = calculateEffectiveAddress(abs, args);
+    
+            // TODO: compare adr with that in memTracker
+            if (isStoreIns(decAbs(op))) updateSQ(op.id, adr, args[2]);
+    
+            AbstractCore.readInfo <= '{1, adr, 'x};
+        endtask
+    
+        typedef StoreQueueEntry StoreQueueExtract[$];
+    
+        task automatic performMemLater(input OpSlot op);
+            AbstractInstruction abs = decAbs(op);
+            Word3 args = getAndVerifyArgs(op);
+    
+            Word adr = calculateEffectiveAddress(abs, args);
+    
+            StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
+            // Get last (youngest) of the matching stores
+            Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
+            Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+        
+            if (matchingStores.size() != 0) begin
+              //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
+            end
+    
+            execResultMem <= data;
+        endtask
+    
+        function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
+            // TODO: develop adr overlap check?
+            StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+            StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq_N.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+            StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
+            return matchingStores;
+        endfunction
+    
+    
+        task automatic setExecEvent(input OpSlot op);
+            AbstractInstruction abs = decAbs(op);
+            Word3 args = getAndVerifyArgs(op);
+    
+            ExecEvent evt = resolveBranch(abs, op.adr, args);
+    
+            BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == op.id);
+            AbstractCore.branchCP = found[0];
+            setBranchTarget(op, evt.redirect ? evt.target : op.adr + 4);
+    
+            AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
+        endtask
+    
+        task automatic performLinkOp(input OpSlot op);
+            AbstractInstruction abs = decAbs(op);
+            Word result = op.adr + 4;
+    
+            execResultLink <= result;       
+        endtask
+        
+        task automatic execBranch(input OpSlot op);
+            setExecEvent(op);
+            performLinkOp(op);
+        endtask
+    
+
+    endmodule
+
+
 
 
 

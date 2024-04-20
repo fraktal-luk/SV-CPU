@@ -9,7 +9,6 @@ import AbstractSim::*;
 
 
 
-
 module AbstractCore
 #(
 
@@ -30,50 +29,15 @@ module AbstractCore
 
 
     InstructionMap insMap = new();
+    // Overall DB
+    Emulator renamedEmul = new(), retiredEmul = new();
+
+
+        typedef OpSlot OpSlot4[4];
+
 
     logic sigValue, wrongValue;
 
-        function automatic OpSlot tick(input OpSlot op, input Events evts);
-            return op;
-        endfunction
-
-        function automatic OpSlot eff(input OpSlot op);
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                return EMPTY_SLOT;
-            end
-            return op;
-        endfunction
-
-        function automatic IssueGroup effIG(input IssueGroup ig);
-            IssueGroup res;
-            
-            foreach (ig.regular[i])
-                res.regular[i] = eff(ig.regular[i]);
-
-            res.branch = eff(ig.branch);
-            res.mem = eff(ig.mem);
-            res.sys = eff(ig.sys);
-            
-            res.num = ig.num;
-            
-            return res;
-        endfunction
-        
-        typedef OpSlot OpSlot4[4];
-
-        function automatic OpSlot4 effA(input OpSlot ops[4]);
-            OpSlot res[4];
-            foreach (ops[i]) res[i] = eff(ops[i]);
-            return res;
-        endfunction
-
-
-//    typedef struct {
-//        InsId intWritersR[32] = '{default: -1};
-//        InsId floatWritersR[32] = '{default: -1};
-//        InsId intWritersC[32] = '{default: -1};
-//        InsId floatWritersC[32] = '{default: -1};
-//    } WriterTracker;
 
 
     int cycleCtr = 0;
@@ -84,9 +48,7 @@ module AbstractCore
     // Overall
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO, // Overall?
-             lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO; // Overall?
-
-
+              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO; // Overall?
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
@@ -102,51 +64,35 @@ module AbstractCore
 
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
+
     BranchCheckpoint branchCP;
 
 
     
-    
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
+    // Rename
+    OpSlotA stageRename1 = '{default: EMPTY_SLOT}; 
+
+    IssueQueueComplex theIssueQueues(insMap);
+
+    ExecBlock theExecBlock(insMap);
+
+
+
+    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
+    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
 
-    // Rename
-    OpSlotA stageRename1 = '{default: EMPTY_SLOT}; 
-
-    // Issue/Exec
-    IssueGroup issuedSt0 = DEFAULT_ISSUE_GROUP, issuedSt1 = DEFAULT_ISSUE_GROUP;
-    IssueGroup issuedSt0_E, issuedSt1_E;
-   
-   
-    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
-    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
-
-   
-
-    IssueQueueComplex theIssueQueues(insMap);
-
-
-    // Exec
-    OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
-    OpSlot memOp_E, memOpPrev_E;
-    
-    OpSlot doneOpsRegular[4] = '{default: EMPTY_SLOT};
-    OpSlot doneOpBranch = EMPTY_SLOT, doneOpMem = EMPTY_SLOT, doneOpSys = EMPTY_SLOT;
-
-    OpSlot doneOpsRegular_E[4];
-    OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
-
-
-
-    Word execResultsRegular[4] = '{'x, 'x, 'x, 'x};
-    Word execResultLink = 'x, execResultMem = 'x;
-    
-    
     // OOO
+    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+
+    BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
+    BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
+
     OpStatus oooQueue[$:OOO_QUEUE_SIZE];
 
     RobEntry rob[$:ROB_SIZE];
@@ -156,21 +102,6 @@ module AbstractCore
     // Committed
     StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
     StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
-
-    // OOO
-    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
-
-//    typedef struct {
-//        InsId id;
-//        Word target;
-//    } BranchTargetEntry;
-
-    BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
-    BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
-
-
-    // Overall DB
-    Emulator renamedEmul = new(), retiredEmul = new();
 
 
     MemWriteInfo writeInfo, // Committed
@@ -195,14 +126,6 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
-    assign eventIns = decAbs(lateEventInfo.op);
-    assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
-    assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
-    
-    assign readReq[0] = readInfo.req;
-    assign readAdr[0] = readInfo.adr;
-
-
 
     always @(posedge clk) begin
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -226,37 +149,27 @@ module AbstractCore
         end
 
 
-
         // Complete + write regs
         begin
-            foreach (doneOpsRegular_E[i]) begin
-                completeOp(doneOpsRegular_E[i]);
-                writeResult_N(doneOpsRegular_E[i], execResultsRegular[i]);
+            foreach (theExecBlock.doneOpsRegular_E[i]) begin
+                completeOp(theExecBlock.doneOpsRegular_E[i]);
+                writeResult_N(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
             end
             
-            completeOp(doneOpBranch_E);
-            writeResult_N(doneOpBranch_E, execResultLink);
+            completeOp(theExecBlock.doneOpBranch_E);
+            writeResult_N(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
     
-            completeOp(doneOpMem_E);
-            writeResult_N(doneOpMem_E, execResultMem);
+            completeOp(theExecBlock.doneOpMem_E);
+            writeResult_N(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
     
-            completeOp(doneOpSys_E);
+            completeOp(theExecBlock.doneOpSys_E);
         end
         
         updateBookkeeping();
     end
 
 
-    // Exec process
-    always @(posedge clk) begin
-        begin
-            readInfo <= EMPTY_WRITE_INFO;
-            branchEventInfo <= EMPTY_EVENT_INFO;
-            runExec();
-        end
-    end
     
-
     
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
@@ -268,22 +181,10 @@ module AbstractCore
         intRegsReadyV <= registerTracker.intReady;
         floatRegsReadyV <= registerTracker.floatReady;
 
-        
         // Overall DB
             insMapSize = insMap.size();
             trSize = memTracker.transactions.size();
-
-            begin
-//                automatic OpStatus oooqDone[$] = (oooQueue.find with (item.done == 1));
-//            //    oooqCompletedNum <= oooqDone.size();
-//                $swrite(oooqStr, "%p", oooQueue);
-//                $swrite(iqRegularStr, "%p", T_iqRegular);
-//                iqRegularStrA = '{default: ""};
-//                foreach (T_iqRegular[i])
-//                    iqRegularStrA[i] = disasm(T_iqRegular[i].bits);
-            end
     endtask
-
 
 
 
@@ -416,6 +317,14 @@ module AbstractCore
     assign sig = sigValue;
     assign wrong = wrongValue;
 
+    assign eventIns = decAbs(lateEventInfo.op);
+    assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
+    assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
+    
+    assign readReq[0] = readInfo.req;
+    assign readAdr[0] = readInfo.adr;
+
+
 
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
@@ -425,23 +334,11 @@ module AbstractCore
         return k <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
-    
-    assign memOp_E = eff(memOp_A);
-    assign memOpPrev_E = eff(memOpPrev);
-
-    assign issuedSt0_E = effIG(issuedSt0);
-    assign issuedSt1_E = effIG(issuedSt1);
-
-    assign doneOpsRegular_E = effA(doneOpsRegular);
-    assign doneOpBranch_E = eff(doneOpBranch);
-    assign doneOpMem_E = eff(doneOpMem);
-    assign doneOpSys_E = eff(doneOpSys);
 
 
 
     function automatic BufferLevels getBufferLevels();
         BufferLevels res;
-        //res.oq = theIssueQueues.opQueue.size();
         res.oooq = oooQueue.size();
         //res.bq = branchCheckpointQueue.size();
         res.rob = rob.size();
@@ -453,8 +350,8 @@ module AbstractCore
 
     function automatic BufferLevels getBufferAccepts(input BufferLevels levels, input BufferLevels levels_N);
         BufferLevels res;
-        //res.oq = levels.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.oq = levels_N.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        
+        res.oq = levels_N.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
         
         res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
         //res.bq = levels.bq <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
@@ -473,6 +370,7 @@ module AbstractCore
     function logic regsAccept(input int nI, input int nF);
         return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
     endfunction
+    
     
     
     // $$Bufs
@@ -640,13 +538,13 @@ module AbstractCore
     
 
 
-        task automatic markKilledFrontStage(ref Stage_N stage);
-            foreach (stage[i]) begin
-                if (!stage[i].active) continue;
-                putMilestone(stage[i].id, InstructionMap::FlushFront);
-                insMap.setKilled(stage[i].id);
-            end
-        endtask
+    task automatic markKilledFrontStage(ref Stage_N stage);
+        foreach (stage[i]) begin
+            if (!stage[i].active) continue;
+            putMilestone(stage[i].id, InstructionMap::FlushFront);
+            insMap.setKilled(stage[i].id);
+        end
+    endtask
 
 
 
@@ -843,13 +741,9 @@ module AbstractCore
         putMilestone(op.id, InstructionMap::Complete); 
     endtask
 
-
-
     task automatic execReset();
             insMap.cleanDescs();
     
-        //$display("%d, %d (%d : %d)", insMap.content.size(), insMap.indexList.size(), insMap.indexList[0], insMap.indexList[$]);
-      
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
@@ -860,36 +754,6 @@ module AbstractCore
         retiredEmul.interrupt();
     endtask
 
-
-
-    // $$Exec
-    task automatic runExec();
-        IssueGroup igExec = DEFAULT_ISSUE_GROUP;
-
-        issuedSt1 <= issuedSt0_E;
-        igExec = issuedSt1_E;
-
-        execResultsRegular <= '{default: 'x};
-        execResultLink <= 'x;
-        execResultMem <= 'x;
-
-        foreach (igExec.regular[i])
-            if (igExec.regular[i].active) performRegularOp(igExec.regular[i], i);
-        if (igExec.branch.active)   execBranch(igExec.branch);
-        if (igExec.mem.active) performMemFirst(igExec.mem);
-
-        memOp_A <= igExec.mem;
-
-        memOpPrev <= memOp_E;
-        if (memOpPrev_E.active) performMemLater(memOpPrev_E);
-
-        doneOpsRegular <= igExec.regular;
-        doneOpBranch <= igExec.branch;
-        doneOpMem <= memOpPrev_E;
-        doneOpSys <= igExec.sys;
-    endtask
-
-
     task automatic completeOp(input OpSlot op);            
         if (!op.active) return;
         
@@ -898,105 +762,6 @@ module AbstractCore
             nCompleted++;
     endtask
     
-
-    task automatic setBranchTarget(input OpSlot op, input Word trg);
-        int ind[$] = branchTargetQueue.find_first_index with (item.id == op.id);
-        branchTargetQueue[ind[0]].target = trg;
-    endtask
-
-    task automatic updateSQ(input InsId id, input Word adr, input Word val);
-        int ind[$] = storeQueue.find_first_index with (item.op.id == id);
-        storeQueue[ind[0]].adr = adr;
-        storeQueue[ind[0]].val = val;
-    endtask
-    
-
-    function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
-        InsDependencies deps = insMap.get(op.id).deps;
-        return getArgValues(tracker, deps);            
-    endfunction
-
-    function automatic Word3 getAndVerifyArgs(input OpSlot op);
-        Word3 argsP = getPhysicalArgValues(registerTracker, op);
-        Word3 argsM = insMap.get(op.id).argValues;
-        assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);
-        return argsP;
-    endfunction;
-
-
-
-    task automatic performRegularOp(input OpSlot op, input int index);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
-        Word result = calculateResult(abs, args, op.adr); // !!!!
-        
-        execResultsRegular[index] <= result;
-    endtask    
-
-    task automatic performMemFirst(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
-        Word adr = calculateEffectiveAddress(abs, args);
-
-        // TODO: compare adr with that in memTracker
-        if (isStoreIns(decAbs(op))) updateSQ(op.id, adr, args[2]);
-
-        readInfo <= '{1, adr, 'x};
-    endtask
-
-    typedef StoreQueueEntry StoreQueueExtract[$];
-
-    task automatic performMemLater(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
-
-        Word adr = calculateEffectiveAddress(abs, args);
-
-        StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
-        // Get last (youngest) of the matching stores
-        Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : readIn[0];
-        Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
-    
-        if (matchingStores.size() != 0) begin
-          //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
-        end
-
-        execResultMem <= data;
-    endtask
-
-    function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
-        // TODO: develop adr overlap check?
-        StoreQueueEntry oooMatchingStores[$] = storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-        StoreQueueEntry committedMatchingStores[$] = csq_N.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-        StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
-        return matchingStores;
-    endfunction
-
-
-    task automatic setExecEvent(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
-
-        ExecEvent evt = resolveBranch(abs, op.adr, args);
-
-        BranchCheckpoint found[$] = branchCheckpointQueue.find with (item.op.id == op.id);
-        branchCP = found[0];
-        setBranchTarget(op, evt.redirect ? evt.target : op.adr + 4);
-
-        branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
-    endtask
-
-    task automatic performLinkOp(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word result = op.adr + 4;
-
-        execResultLink <= result;       
-    endtask
-    
-    task automatic execBranch(input OpSlot op);
-        setExecEvent(op);
-        performLinkOp(op);
-    endtask
 
 
     task automatic writeResult_N(input OpSlot op, input Word value);
@@ -1032,23 +797,17 @@ module AbstractCore
     endfunction
 
 
-//    function automatic logic anyActive(input Stage_N s);
-//        foreach (s[i]) if (s[i].active) return 1;
-//        return 0;
-//    endfunction
-
-
     function automatic AbstractInstruction decAbs(input OpSlot op);
         if (!op.active || op.id == -1) return DEFAULT_ABS_INS;     
         return insMap.get(op.id).dec;
     endfunction
 
 
-    // How many in front are ready to commit
-    function automatic int countFrontCompleted();
-        int found[$] = oooQueue.find_first_index with (!item.done);
-        return (found.size() == 0) ? oooQueue.size() : found[0];
-    endfunction
+        // How many in front are ready to commit
+        function automatic int countFrontCompleted();
+            int found[$] = oooQueue.find_first_index with (!item.done);
+            return (found.size() == 0) ? oooQueue.size() : found[0];
+        endfunction
 
         task automatic updateLatestOOO();
             InstructionInfo last = insMap.get(lastRenamed.id);
@@ -1061,30 +820,43 @@ module AbstractCore
         endtask
 
 
-//    task automatic registerNewTarget(input int fCtr, input Word target);
-//        int slotPosition = (target/4) % FETCH_WIDTH;
-//        Word baseAdr = target & ~(4*FETCH_WIDTH-1);
-//        for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
-//            Word adr = baseAdr + 4*i;
-//            int index = fCtr + i;
-//            insMap.registerIndex(index);
-//            putMilestone(index, InstructionMap::GenAddress);
-//        end
-//    endtask
-
-
     task automatic putMilestone(input int id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endtask
 
-//    task automatic markKilledFrontStage(ref Stage_N stage);
-//        foreach (stage[i]) begin
-//            if (!stage[i].active) continue;
-//            putMilestone(stage[i].id, InstructionMap::FlushFront);
-//            insMap.setKilled(stage[i].id);
-//        end
-//    endtask
 
+        function automatic OpSlot tick(input OpSlot op, input Events evts);
+            return op;
+        endfunction
+
+        function automatic OpSlot eff(input OpSlot op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+                return EMPTY_SLOT;
+            end
+            return op;
+        endfunction
+
+        function automatic IssueGroup effIG(input IssueGroup ig);
+            IssueGroup res;
+            
+            foreach (ig.regular[i])
+                res.regular[i] = eff(ig.regular[i]);
+
+            res.branch = eff(ig.branch);
+            res.mem = eff(ig.mem);
+            res.sys = eff(ig.sys);
+            
+            res.num = ig.num;
+            
+            return res;
+        endfunction
+        
+
+        function automatic OpSlot4 effA(input OpSlot ops[4]);
+            OpSlot res[4];
+            foreach (ops[i]) res[i] = eff(ops[i]);
+            return res;
+        endfunction
 
 
     assign lastRenamedStr = disasm(lastRenamed.bits);
