@@ -8,10 +8,8 @@ import AbstractSim::*;
 
 
 
-
 module AbstractCore
 #(
-
 )
 (
     input logic clk,
@@ -25,20 +23,14 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = 'x;
 
 
     InstructionMap insMap = new();
-    // Overall DB
     Emulator renamedEmul = new(), retiredEmul = new();
 
 
-        typedef OpSlot OpSlot4[4];
-
-
     logic sigValue, wrongValue;
-
-
 
     int cycleCtr = 0;
 
@@ -46,45 +38,22 @@ module AbstractCore
 
 
     // Overall
-
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO, // Overall?
-              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO; // Overall?
-
-    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
-    MemTracker memTracker = new();
-
-    WriterTracker wrTracker;
-
-    Events evts;
-    BufferLevels oooLevels, oooLevels_N, oooAccepts;
-
-
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
     int insMapSize = 0, trSize = 0, nRenamed = 0, nCompleted = 0, nRetired = 0;
 
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
-
+    AbstractInstruction eventIns;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO,
+              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
     BranchCheckpoint branchCP;
 
-
-    
-    Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
-
-    // Rename
-    OpSlotA stageRename1 = '{default: EMPTY_SLOT}; 
-
-    IssueQueueComplex theIssueQueues(insMap);
-
-    ExecBlock theExecBlock(insMap);
+    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
+    MemTracker memTracker = new();
 
 
-
-    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
-    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
-
-
-    assign insAdr = theFrontend.ipStage[0].adr;
+    Events evts;
+    BufferLevels oooLevels, oooLevels_N, oooAccepts;
 
 
     // OOO
@@ -98,22 +67,34 @@ module AbstractCore
     RobEntry rob[$:ROB_SIZE];
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
-    
+
+    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
+    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
+
     // Committed
     StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
     StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
 
-
     MemWriteInfo writeInfo, // Committed
                  readInfo = EMPTY_WRITE_INFO; // Exec
-
-
-    // Overall
-    AbstractInstruction eventIns;
 
     // Control
     Word sysRegs_N[32];  
     Word retiredTarget = 0;
+
+
+    ///////////////////////////
+
+    Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
+
+    // Rename
+    OpSlotA stageRename1 = '{default: EMPTY_SLOT};
+
+    IssueQueueComplex theIssueQueues(insMap);
+
+    ExecBlock theExecBlock(insMap);
+
+    ///////////////////////////////////////////
 
 
     // DB
@@ -126,9 +107,8 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
-
     always @(posedge clk) begin
-        lateEventInfo <= EMPTY_EVENT_INFO;
+        //lateEventInfo <= EMPTY_EVENT_INFO;
 
         activateEvent();
 
@@ -136,10 +116,8 @@ module AbstractCore
         advanceOOOQ();        
         putWrite();
 
-
         if (reset) execReset();
         else if (interrupt) execInterrupt();
-
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             redirectRest();
@@ -168,6 +146,8 @@ module AbstractCore
         updateBookkeeping();
     end
 
+
+    assign insAdr = theFrontend.ipStage[0].adr;
 
     
     
@@ -210,7 +190,10 @@ module AbstractCore
     endfunction
 
 
+
     task automatic activateEvent();
+        lateEventInfo <= EMPTY_EVENT_INFO;
+    
         if (!csqEmpty) return;    
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
@@ -231,8 +214,6 @@ module AbstractCore
             lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
         end
     endtask
-
-
 
 
     task automatic drainWriteQueue();
@@ -274,10 +255,6 @@ module AbstractCore
                 putMilestone(ops[i].id, InstructionMap::Rename);
             end
     endtask
-
-
-
-
 
     task automatic addToQueues(input OpSlot op);
         oooQueue.push_back('{op.id, 0});   
@@ -335,8 +312,6 @@ module AbstractCore
     endfunction
 
 
-
-
     function automatic BufferLevels getBufferLevels();
         BufferLevels res;
         res.oooq = oooQueue.size();
@@ -370,7 +345,6 @@ module AbstractCore
     function logic regsAccept(input int nI, input int nF);
         return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
     endfunction
-    
     
     
     // $$Bufs
@@ -471,37 +445,17 @@ module AbstractCore
     endtask
 
 
-    task automatic restoreMappings(input BranchCheckpoint cp);
-        wrTracker.intWritersR = cp.intWriters;
-        wrTracker.floatWritersR = cp.floatWriters;
-
-        registerTracker.restore(cp.intMapR, cp.floatMapR);
-    endtask
-
 
     task automatic rollbackToCheckpoint();
         BranchCheckpoint single = branchCP;
-
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
-        
-        restoreMappings(single);
         renameInds = single.inds;
     endtask
 
 
-    task automatic rollbackToStable();
+    task automatic rollbackToStable();    
         renamedEmul.setLike(retiredEmul);
-        
-        if (lateEventInfo.reset) begin
-            wrTracker.intWritersR = '{default: -1};
-            wrTracker.floatWritersR = '{default: -1};
-        end
-        else begin
-            wrTracker.intWritersR = wrTracker.intWritersC;
-            wrTracker.floatWritersR = wrTracker.floatWritersC;
-        end
-        registerTracker.restore(registerTracker.intMapC, registerTracker.floatMapC);
         renameInds = commitInds;
     endtask
 
@@ -512,13 +466,12 @@ module AbstractCore
 
         if (lateEventInfo.redirect) begin
             rollbackToStable(); // Rename stage
-        end
-        else if (branchEventInfo.redirect) begin
-            rollbackToCheckpoint(); // Rename stage
-        end
 
-        if (lateEventInfo.redirect) begin
             flushOooBuffersAll();
+                if (lateEventInfo.reset)
+                    registerTracker.restoreReset();
+                else
+                    registerTracker.restoreStable();
             registerTracker.flushAll();
             memTracker.flushAll();
             
@@ -529,7 +482,10 @@ module AbstractCore
             end
         end
         else if (branchEventInfo.redirect) begin
+            rollbackToCheckpoint(); // Rename stage
+        
             flushOooBuffersPartial(branchEventInfo.op);  
+                registerTracker.restoreCP(branchCP.intMapR, branchCP.floatMapR, branchCP.intWriters, branchCP.floatWriters);
             registerTracker.flush(branchEventInfo.op);
             memTracker.flush(branchEventInfo.op);
         end
@@ -549,9 +505,10 @@ module AbstractCore
 
 
     task automatic saveCP(input OpSlot op);
-        int intMapR[32] = registerTracker.intMapR;
-        int floatMapR[32] = registerTracker.floatMapR;
-        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem, wrTracker.intWritersR, wrTracker.floatWritersR, intMapR, floatMapR, renameInds);
+        BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
+                                    registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
+                                    registerTracker.intMapR, registerTracker.floatMapR,
+                                    renameInds);
         branchCheckpointQueue.push_back(cp);
         branchTargetQueue.push_back('{op.id, 'z});
     endtask
@@ -575,9 +532,6 @@ module AbstractCore
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
-
-        setWriterR(op); // DB tracking
-
         if (isStoreMemIns(decAbs(op))) begin // DB
             Word effAdr = calculateEffectiveAddress(ins, argVals);
             Word value = argVals[2];
@@ -600,9 +554,7 @@ module AbstractCore
 
         updateInds(renameInds, op); // Crucial state
 
-        // Crucial state
-        registerTracker.reserveInt(op);
-        registerTracker.reserveFloat(op);
+        registerTracker.reserve(op);
         
         if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
         
@@ -662,11 +614,7 @@ module AbstractCore
 
         updateInds(commitInds, op); // Crucial
 
-        setWriterC(op); // DB
-        
-        // Crucial state
-        registerTracker.commitInt(op);
-        registerTracker.commitFloat(op);
+        registerTracker.commit(op);
         
         if (isMemOp(op)) memTracker.remove(op); // DB?
         
@@ -709,22 +657,6 @@ module AbstractCore
             assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
         end
     endtask
-
-
-    function automatic void setWriterR(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        if (hasIntDest(abs)) wrTracker.intWritersR[abs.dest] = op.id;
-        if (hasFloatDest(abs)) wrTracker.floatWritersR[abs.dest] = op.id;
-        wrTracker.intWritersR[0] = -1;
-    endfunction
-
-    function automatic void setWriterC(input OpSlot op);  
-        AbstractInstruction abs = decAbs(op);
-        if (hasIntDest(abs)) wrTracker.intWritersC[abs.dest] = op.id;
-        if (hasFloatDest(abs)) wrTracker.floatWritersC[abs.dest] = op.id;
-        wrTracker.intWritersC[0] = -1;
-    endfunction
-
 
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);

@@ -42,6 +42,8 @@ package AbstractSim;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
 
+    typedef OpSlot OpSlot4[4];
+
     typedef OpSlot OpSlotA[FETCH_WIDTH];
 
     typedef OpSlot Stage_N[FETCH_WIDTH];
@@ -481,6 +483,15 @@ package AbstractSim;
     typedef logic logic3[3];
 
 
+    typedef struct {
+        InsId intWritersR[32] = '{default: -1};
+        InsId floatWritersR[32] = '{default: -1};
+        InsId intWritersC[32] = '{default: -1};
+        InsId floatWritersC[32] = '{default: -1};
+    } WriterTracker;
+
+
+
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
         typedef enum {FREE, SPECULATIVE, STABLE
         } PhysRegState;
@@ -509,6 +520,9 @@ package AbstractSim;
         int floatMapC[32] = '{default: 0};
  
        
+        WriterTracker wrTracker;
+        
+       
         function automatic int findDestInt(input InsId id);
             int inds[$] = intInfo.find_first_index with (item.owner == id);
             return inds.size() > 0 ? inds[0] : -1;
@@ -518,6 +532,20 @@ package AbstractSim;
             int pDest = findDestInt(id);
             intReady[pDest] = 1;
         endfunction;
+
+
+        function automatic void reserve(input OpSlot op);
+            setWriterR(op);
+            reserveInt(op);
+            reserveFloat(op);
+        endfunction
+
+        function automatic void commit(input OpSlot op);
+            setWriterC(op);
+            commitInt(op);
+            commitFloat(op);
+        endfunction
+
 
         function automatic void reserveInt(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
@@ -642,12 +670,31 @@ package AbstractSim;
             // Restoring map is separate
         endfunction
  
-        function automatic void restore(input int intM[32], input int floatM[32]);
+        function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
             intMapR = intM;
             floatMapR = floatM;
+            
+                wrTracker.intWritersR = intWriters;
+                wrTracker.floatWritersR = floatWriters;
         endfunction
         
+            function automatic void restoreReset();
+                intMapR = intMapC;
+                floatMapR = floatMapC;
+            
+                wrTracker.intWritersR = '{default: -1};
+                wrTracker.floatWritersR = '{default: -1};
+            endfunction
         
+            function automatic void restoreStable();
+                intMapR = intMapC;
+                floatMapR = floatMapC;
+            
+                wrTracker.intWritersR = wrTracker.intWritersC;
+                wrTracker.floatWritersR = wrTracker.floatWritersC;
+            endfunction
+
+      
         function automatic void writeValueInt(input OpSlot op, input Word value);
             AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestInt(op.id);
@@ -701,6 +748,23 @@ package AbstractSim;
                 endcase      
             return res;
         endfunction
+        
+        
+        function automatic void setWriterR(input OpSlot op);
+            AbstractInstruction abs = decodeAbstract(op.bits);
+            if (hasIntDest(abs)) wrTracker.intWritersR[abs.dest] = op.id;
+            if (hasFloatDest(abs)) wrTracker.floatWritersR[abs.dest] = op.id;
+            wrTracker.intWritersR[0] = -1;
+        endfunction
+    
+        function automatic void setWriterC(input OpSlot op);  
+            AbstractInstruction abs = decodeAbstract(op.bits);
+            if (hasIntDest(abs)) wrTracker.intWritersC[abs.dest] = op.id;
+            if (hasFloatDest(abs)) wrTracker.floatWritersC[abs.dest] = op.id;
+            wrTracker.intWritersC[0] = -1;
+        endfunction
+        
+        
     endclass
 
 
@@ -883,11 +947,5 @@ package AbstractSim;
         Word target;
     } BranchTargetEntry;
 
-    typedef struct {
-        InsId intWritersR[32] = '{default: -1};
-        InsId floatWritersR[32] = '{default: -1};
-        InsId intWritersC[32] = '{default: -1};
-        InsId floatWritersC[32] = '{default: -1};
-    } WriterTracker;
 
 endpackage
