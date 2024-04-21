@@ -29,9 +29,6 @@ module AbstractCore
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
-
-    logic sigValue, wrongValue;
-
     int cycleCtr = 0;
 
     always @(posedge clk) cycleCtr++;
@@ -39,7 +36,7 @@ module AbstractCore
 
     // Overall
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
-    int insMapSize = 0, trSize = 0, nRenamed = 0, nCompleted = 0, nRetired = 0;
+    int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0;
 
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
@@ -98,7 +95,6 @@ module AbstractCore
 
 
     // DB
-    InstructionInfo latestOOO[20], committedOOO[20];
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
 
@@ -108,8 +104,6 @@ module AbstractCore
         string iqRegularStrA[OP_QUEUE_SIZE];
 
     always @(posedge clk) begin
-        //lateEventInfo <= EMPTY_EVENT_INFO;
-
         activateEvent();
 
         drainWriteQueue();
@@ -119,26 +113,25 @@ module AbstractCore
         if (reset) execReset();
         else if (interrupt) execInterrupt();
 
-        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+
+        if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectRest();
-        end
-        else begin
+        else
             runInOrderPartRe();
-        end
 
 
         // Complete + write regs
         begin
             foreach (theExecBlock.doneOpsRegular_E[i]) begin
                 completeOp(theExecBlock.doneOpsRegular_E[i]);
-                writeResult_N(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
+                writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
             end
             
             completeOp(theExecBlock.doneOpBranch_E);
-            writeResult_N(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
+            writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
     
             completeOp(theExecBlock.doneOpMem_E);
-            writeResult_N(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
+            writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
     
             completeOp(theExecBlock.doneOpSys_E);
         end
@@ -149,7 +142,6 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    
     
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
@@ -165,7 +157,6 @@ module AbstractCore
             insMapSize = insMap.size();
             trSize = memTracker.transactions.size();
     endtask
-
 
 
     function automatic LateEvent getLateEvt(input OpSlot op);
@@ -271,9 +262,8 @@ module AbstractCore
         
         foreach (stageRename1[i]) begin
             OpSlot op = stageRename1[i];
-            if (op.active) begin
+            if (op.active)
                 addToQueues(op);
-            end
         end 
     endtask
     
@@ -291,12 +281,12 @@ module AbstractCore
     assign writeAdr = writeInfo.adr;
     assign writeOut = writeInfo.value;
 
-    assign sig = sigValue;
-    assign wrong = wrongValue;
+//    assign sig = sigValue;
+//    assign wrong = wrongValue;
 
     assign eventIns = decAbs(lateEventInfo.op);
-    assign sigValue = lateEventInfo.op.active && (eventIns.def.o == O_send);
-    assign wrongValue = lateEventInfo.op.active && (eventIns.def.o == O_undef);
+    assign sig = lateEventInfo.op.active && (eventIns.def.o == O_send);
+    assign wrong = lateEventInfo.op.active && (eventIns.def.o == O_undef);
     
     assign readReq[0] = readInfo.req;
     assign readAdr[0] = readInfo.adr;
@@ -360,21 +350,15 @@ module AbstractCore
 
 
     task automatic flushOooQueueAll();
-        while (oooQueue.size() > 0) begin
-            void'(oooQueue.pop_back());
-        end
+        while (oooQueue.size() > 0) void'(oooQueue.pop_back());
     endtask
     
     task automatic flushBranchCheckpointQueueAll();
-        while (branchCheckpointQueue.size() > 0) begin
-            void'(branchCheckpointQueue.pop_back());
-        end
+        while (branchCheckpointQueue.size() > 0) void'(branchCheckpointQueue.pop_back());
     endtask    
 
     task automatic flushBranchTargetQueueAll();
-        while (branchTargetQueue.size() > 0) begin
-            void'(branchTargetQueue.pop_back());
-        end
+        while (branchTargetQueue.size() > 0) void'(branchTargetQueue.pop_back());
     endtask
 
     task automatic flushRobAll();
@@ -386,28 +370,20 @@ module AbstractCore
     endtask
  
     task automatic flushStoreQueueAll();
-        while (loadQueue.size() > 0) begin
-            void'(loadQueue.pop_back());
-        end
+        while (loadQueue.size() > 0) void'(loadQueue.pop_back());
     endtask
    
     task automatic flushLoadQueueAll();
-        while (storeQueue.size() > 0) begin
-            void'(storeQueue.pop_back());
-        end
+        while (storeQueue.size() > 0) void'(storeQueue.pop_back());
     endtask
 
 
     task automatic flushOooQueuePartial(input OpSlot op);
-        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) begin
-            void'(oooQueue.pop_back());
-        end
+        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
     endtask
  
     task automatic flushBranchCheckpointQueuePartial(input OpSlot op);
-        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) begin
-            void'(branchCheckpointQueue.pop_back());
-        end
+        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
     endtask    
 
     task automatic flushBranchTargetQueuePartial(input OpSlot op);
@@ -423,15 +399,11 @@ module AbstractCore
     endtask
 
     task automatic flushStoreQueuePartial(input OpSlot op);
-        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) begin
-            void'(loadQueue.pop_back());
-        end
+        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
     endtask
    
     task automatic flushLoadQueuePartial(input OpSlot op);
-        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) begin
-            void'(storeQueue.pop_back());
-        end
+        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
     endtask
 
 
@@ -443,7 +415,6 @@ module AbstractCore
         flushStoreQueuePartial(op);
         flushLoadQueuePartial(op);
     endtask
-
 
 
     task automatic rollbackToCheckpoint();
@@ -468,10 +439,12 @@ module AbstractCore
             rollbackToStable(); // Rename stage
 
             flushOooBuffersAll();
-                if (lateEventInfo.reset)
-                    registerTracker.restoreReset();
-                else
-                    registerTracker.restoreStable();
+            
+            if (lateEventInfo.reset)
+                registerTracker.restoreReset();
+            else
+                registerTracker.restoreStable();
+                    
             registerTracker.flushAll();
             memTracker.flushAll();
             
@@ -485,15 +458,15 @@ module AbstractCore
             rollbackToCheckpoint(); // Rename stage
         
             flushOooBuffersPartial(branchEventInfo.op);  
-                registerTracker.restoreCP(branchCP.intMapR, branchCP.floatMapR, branchCP.intWriters, branchCP.floatWriters);
+            
+            registerTracker.restoreCP(branchCP.intMapR, branchCP.floatMapR, branchCP.intWriters, branchCP.floatWriters);
             registerTracker.flush(branchEventInfo.op);
             memTracker.flush(branchEventInfo.op);
         end
         
     endtask
     
-
-
+    
     task automatic markKilledFrontStage(ref Stage_N stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
@@ -501,7 +474,6 @@ module AbstractCore
             insMap.setKilled(stage[i].id);
         end
     endtask
-
 
 
     task automatic saveCP(input OpSlot op);
@@ -522,58 +494,49 @@ module AbstractCore
         
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
-        // For ins map
-        result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state
-
-        // For insMap
-        deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR);
+        result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
+        deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR); // For insMap
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
-        if (isStoreMemIns(decAbs(op))) begin // DB
-            Word effAdr = calculateEffectiveAddress(ins, argVals);
-            Word value = argVals[2];
-            memTracker.addStore(op, effAdr, value);
-        end
-        if (isLoadMemIns(decAbs(op))) begin // DB
-            Word effAdr = calculateEffectiveAddress(ins, argVals);
-            memTracker.addLoad(op, effAdr, 'x);
-        end
-
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
         insMap.setDeps(op.id, deps);
         insMap.setArgValues(op.id, argVals);
-    endtask
 
-
-    task automatic renameOp(input OpSlot op);
-        setupOnRename(op);
+        // Mem tracker
+        if (isMemOp(op)) addToMemTracker(op, ins, argVals); // DB
 
         updateInds(renameInds, op); // Crucial state
-
         registerTracker.reserve(op);
-        
+
         if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
         
         insMap.setInds(op.id, renameInds);
-       
-            lastRenamed = op;
-            nRenamed++;
-            updateLatestOOO();
-    endtask
-
-
-    task automatic setLateEvent(input OpSlot op);    
-        LateEvent evt = getLateEvt(op);
-
-        AbstractInstruction abs = decAbs(op);
-        if (abs.def.o == O_halt) $error("halt not implemented");
         
-        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
+
+        task automatic addToMemTracker(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
+             Word effAdr = calculateEffectiveAddress(ins, argVals);
+
+            if (isStoreMemIns(ins)) begin 
+                Word value = argVals[2];
+                memTracker.addStore(op, effAdr, value);
+            end
+            if (isLoadMemIns(ins)) begin
+                memTracker.addLoad(op, effAdr, 'x);
+            end
+        endtask
+        
+
+    task automatic renameOp(input OpSlot op);
+        setupOnRename(op);
+       
+        lastRenamed = op;
+    endtask
+
 
 
     function automatic OpSlot takeFrontOp();
@@ -603,9 +566,8 @@ module AbstractCore
         nextTrg = retiredEmul.coreState.target; // DB
 
         // DB
-        if (isBranchIns(decAbs(op))) begin
+        if (isBranchIns(decAbs(op)))
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
-        end
     endtask
     
 
@@ -633,7 +595,14 @@ module AbstractCore
 
             lastRetired = op;
             nRetired++;
-            updateCommittedOOO();
+    endtask
+
+    task automatic setLateEvent(input OpSlot op);    
+        LateEvent evt = getLateEvt(op);
+        AbstractInstruction abs = decAbs(op);
+        if (abs.def.o == O_halt) $error("halt not implemented");
+        
+        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
 
     task automatic releaseQueues(input OpSlot op);
@@ -667,12 +636,6 @@ module AbstractCore
     endfunction
 
 
-    task automatic updateOOOQ(input OpSlot op);
-        const int ind[$] = oooQueue.find_index with (item.id == op.id);
-        assert (ind.size() > 0) oooQueue[ind[0]].done = '1; else $error("No such id in OOOQ: %d", op.id);
-        putMilestone(op.id, InstructionMap::Complete); 
-    endtask
-
     task automatic execReset();
             insMap.cleanDescs();
     
@@ -686,6 +649,13 @@ module AbstractCore
         retiredEmul.interrupt();
     endtask
 
+
+    task automatic updateOOOQ(input OpSlot op);
+        const int ind[$] = oooQueue.find_index with (item.id == op.id);
+        assert (ind.size() > 0) oooQueue[ind[0]].done = 1; else $error("No such id in OOOQ: %d", op.id);
+        putMilestone(op.id, InstructionMap::Complete); 
+    endtask
+    
     task automatic completeOp(input OpSlot op);            
         if (!op.active) return;
         
@@ -695,18 +665,8 @@ module AbstractCore
     endtask
     
 
-
-    task automatic writeResult_N(input OpSlot op, input Word value);
+    task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
-
-        begin
-            AbstractInstruction abs = decAbs(op);
-            writeResult_Impl(op, abs, value);
-        end
-    endtask
-
-    task automatic writeResult_Impl(input OpSlot op, input AbstractInstruction abs, input Word value);
-        Word result = insMap.get(op.id).result;        
         insMap.setActualResult(op.id, value);
 
         if (writesIntReg(op)) begin
@@ -735,22 +695,6 @@ module AbstractCore
     endfunction
 
 
-        // How many in front are ready to commit
-        function automatic int countFrontCompleted();
-            int found[$] = oooQueue.find_first_index with (!item.done);
-            return (found.size() == 0) ? oooQueue.size() : found[0];
-        endfunction
-
-        task automatic updateLatestOOO();
-            InstructionInfo last = insMap.get(lastRenamed.id);
-            latestOOO = {latestOOO[1:19], last};
-        endtask
-
-        task automatic updateCommittedOOO();
-            InstructionInfo last = insMap.get(lastRetired.id);
-            committedOOO = {committedOOO[1:19], last};
-        endtask
-
 
     task automatic putMilestone(input int id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
@@ -762,9 +706,8 @@ module AbstractCore
         endfunction
 
         function automatic OpSlot eff(input OpSlot op);
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
                 return EMPTY_SLOT;
-            end
             return op;
         endfunction
 
@@ -773,11 +716,9 @@ module AbstractCore
             
             foreach (ig.regular[i])
                 res.regular[i] = eff(ig.regular[i]);
-
             res.branch = eff(ig.branch);
             res.mem = eff(ig.mem);
             res.sys = eff(ig.sys);
-            
             res.num = ig.num;
             
             return res;
@@ -793,7 +734,7 @@ module AbstractCore
 
     assign lastRenamedStr = disasm(lastRenamed.bits);
     assign lastCompletedStr = disasm(lastCompleted.bits);
-    assign lastRetiredStr = disasm(lastRetired.bits);        
+    assign lastRetiredStr = disasm(lastRetired.bits);
     
         string bqStr;
         always @(posedge clk) begin
