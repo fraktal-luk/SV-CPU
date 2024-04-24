@@ -444,8 +444,17 @@ import AbstractSim::*;
             Word adr = calculateEffectiveAddress(abs, args);
     
             // TODO: compare adr with that in memTracker
-            if (isStoreIns(decAbs(op))) updateSQ(op.id, adr, args[2]);
-    
+            if (isStoreIns(decAbs(op))) begin
+                updateSQ(op.id, adr, args[2]);
+                
+                if (isStoreMemIns(decAbs(op))) begin
+                    checkStoreValue(op.id, adr, args[2]);
+                    
+                    putMilestone(op.id, InstructionMap::WriteMemAddress);
+                    putMilestone(op.id, InstructionMap::WriteMemValue);
+                end
+            end
+
             AbstractCore.readInfo <= '{1, adr, 'x};
         endtask
     

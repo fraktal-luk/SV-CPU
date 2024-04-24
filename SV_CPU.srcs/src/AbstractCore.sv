@@ -208,8 +208,10 @@ module AbstractCore
 
 
     task automatic drainWriteQueue();
+        StoreQueueEntry sqe;
        if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
-       void'(csq_N.pop_front());
+       sqe = csq_N.pop_front();
+       putMilestone(sqe.op.id, InstructionMap::Drain);
     endtask
 
 
@@ -253,6 +255,9 @@ module AbstractCore
         rob.push_back('{op});      
         if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
         if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
+        
+        if (isBranchIns(decAbs(op))) branchTargetQueue.push_back('{op.id, 'z});
+
     endtask
 
     // Frontend, rename and everything before getting to OOO queues
@@ -271,7 +276,6 @@ module AbstractCore
     assign oooAccepts = getBufferAccepts(oooLevels, oooLevels_N);
     assign buffersAccepting = buffersAccept(oooAccepts);
 
-
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
 
@@ -280,9 +284,6 @@ module AbstractCore
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;
     assign writeOut = writeInfo.value;
-
-//    assign sig = sigValue;
-//    assign wrong = wrongValue;
 
     assign eventIns = decAbs(lateEventInfo.op);
     assign sig = lateEventInfo.op.active && (eventIns.def.o == O_send);
@@ -482,7 +483,6 @@ module AbstractCore
                                     registerTracker.intMapR, registerTracker.floatMapR,
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
-        branchTargetQueue.push_back('{op.id, 'z});
     endtask
     
     
@@ -501,25 +501,27 @@ module AbstractCore
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
+        updateInds(renameInds, op); // Crucial state
+
+        registerTracker.reserve(op);
+        if (isMemOp(op)) addToMemTracker(op, ins, argVals); // DB
+
+        if (isBranchIns(decAbs(op))) begin
+//            branchTargetQueue.push_back('{op.id, 'z});
+            saveCP(op); // Crucial state
+        end
+
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
         insMap.setDeps(op.id, deps);
         insMap.setArgValues(op.id, argVals);
-
-        // Mem tracker
-        if (isMemOp(op)) addToMemTracker(op, ins, argVals); // DB
-
-        updateInds(renameInds, op); // Crucial state
-        registerTracker.reserve(op);
-
-        if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
         
         insMap.setInds(op.id, renameInds);
         
     endtask
 
         task automatic addToMemTracker(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
-             Word effAdr = calculateEffectiveAddress(ins, argVals);
+            Word effAdr = calculateEffectiveAddress(ins, argVals);
 
             if (isStoreMemIns(ins)) begin 
                 Word value = argVals[2];
@@ -550,23 +552,22 @@ module AbstractCore
 
     task automatic verifyOnCommit(input OpSlot op);
         InstructionInfo info = insMap.get(op.id);
-    
+
         Word trg = retiredEmul.coreState.target; // DB
         Word nextTrg;
         Word bits = fetchInstruction(TMP_getP(), trg); // DB
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
-        
+
         if (writesIntReg(op) || writesFloatReg(op)) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
-        
+
         runInEmulator(retiredEmul, op);
         retiredEmul.drain();
         nextTrg = retiredEmul.coreState.target; // DB
 
-        // DB
-        if (isBranchIns(decAbs(op)))
+        if (isBranchIns(decAbs(op))) // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask
     
@@ -663,11 +664,13 @@ module AbstractCore
             lastCompleted = op;
             nCompleted++;
     endtask
-    
+
 
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
         insMap.setActualResult(op.id, value);
+
+        putMilestone(op.id, InstructionMap::WriteResult);
 
         if (writesIntReg(op)) begin
             registerTracker.setReadyInt(op.id);
@@ -742,5 +745,13 @@ module AbstractCore
             foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
             $swrite(bqStr, "%p", ids);
         end
+
+
+    function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
+        Transaction tr[$] = memTracker.stores.find with (item.owner == id);
+        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
+    endfunction
+
+
 
 endmodule

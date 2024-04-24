@@ -371,7 +371,11 @@ package AbstractSim;
 
        
         function automatic void setRetired(input int id);
-            lastRetired = id;          
+            lastRetired = id;
+            
+                $swrite(lastRecordStr, "%p", records[id]);
+                
+                setLastRecordArr(id);
         endfunction
         
         function automatic void setKilled(input int id);
@@ -389,22 +393,32 @@ package AbstractSim;
             Rename,
             
             FlushOOO,
+                // TODO: flush in every region? (ROB, subpipes, queues etc.)
             
             Wakeup,
             CancelWakeup,
             Issue,
             Pullback,
             
-            // mem related
-            PutSQ,
-            PutLQ,
+                ReadArg, // TODO: by source type
+                
+                ExecRedirect,            
+            
+            ReadMem,
+            ReadSysReg,
+            ReadSQ,
+            
             WriteMemAddress,
             WriteMemValue,
+            
+            // TODO: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
             
             
             WriteResult,
             Complete,
-            Retire
+            Retire,
+            
+            Drain
         } Milestone;
         
         typedef struct {
@@ -424,6 +438,18 @@ package AbstractSim;
         endclass
     
         InsRecord records[int];
+
+            MilestoneTag lastRecordArr[16];
+            string lastRecordStr;
+
+                function automatic void setLastRecordArr(input InsId id);
+                    MilestoneTag def = '{Retire, -1};
+                    InsRecord rec = records[id];
+                    lastRecordArr = '{default: def};
+                    
+                    foreach(rec.tags[i])
+                        lastRecordArr[i] = rec.tags[i];
+                endfunction
 
          
         function automatic void registerIndex(input int id);
