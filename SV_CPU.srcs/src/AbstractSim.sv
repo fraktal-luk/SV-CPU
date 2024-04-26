@@ -13,6 +13,26 @@ package AbstractSim;
 
     typedef Word Mword;
 
+
+    localparam int FETCH_QUEUE_SIZE = 8;
+    localparam int BC_QUEUE_SIZE = 64;
+
+    localparam int N_REGS_INT = 128;
+    localparam int N_REGS_FLOAT = 128;
+
+    localparam int OP_QUEUE_SIZE = 24;
+    localparam int OOO_QUEUE_SIZE = 120;
+
+    localparam int ROB_SIZE = 128;
+    
+    localparam int LQ_SIZE = 80;
+    localparam int SQ_SIZE = 80;
+
+
+    localparam FETCH_WIDTH = 4;
+    localparam LOAD_WIDTH = FETCH_WIDTH;
+
+
     typedef struct {
         logic active;
         int id;
@@ -21,6 +41,48 @@ package AbstractSim;
     } OpSlot;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+
+    typedef OpSlot OpSlot4[4];
+
+    typedef OpSlot OpSlotA[FETCH_WIDTH];
+
+    typedef OpSlot Stage_N[FETCH_WIDTH];
+
+    const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
+
+   
+    typedef struct {
+        OpSlot op;
+    } RobEntry;
+    
+    typedef struct {
+        OpSlot op;
+    } LoadQueueEntry;
+    
+    typedef struct {
+        OpSlot op;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
+
+
+
+    typedef struct {
+        int id;
+        logic done;
+    }
+    OpStatus;
+
+    typedef struct {
+        int num;
+        OpSlot regular[4];
+        OpSlot branch;
+        OpSlot mem;
+        OpSlot sys;
+    } IssueGroup;
+    
+    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
+
 
 
     typedef Word Ptype[4096];
@@ -233,10 +295,8 @@ package AbstractSim;
         Word target;
         AbstractInstruction dec;
         Word result;
-            Word actualResult;
-        //int renameIndex;
+        Word actualResult;
         IndexSet inds;
-        //int divergence;
         InsDependencies deps;
         
         Word argValues[3];
@@ -247,19 +307,22 @@ package AbstractSim;
         res.id = op.id;
         res.adr = op.adr;
         res.bits = op.bits;
-        
-        //res.renameIndex = -1;
-        //res.divergence = -1;
+
         return res;
     endfunction
 
 
     class InstructionMap;
+        int indexList[$];
+    
         InstructionInfo content[int];
+            
+        InsId lastRenamed = -1;
+        InsId lastRetired = -1;
+        InsId lastKilled = -1;
         
         function automatic InstructionInfo get(input int id);
-                //if (!content.exists(id)) $fatal(2, "Entry %p of %d", id, content.size());
-        
+                assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
             return content[id];
         endfunction
         
@@ -293,10 +356,6 @@ package AbstractSim;
         function automatic void setActualResult(input int id, input Word res);
             content[id].actualResult = res;
         endfunction
-        
-//        function automatic void setDivergence(input int id, input int divergence);
-//            content[id].divergence = divergence;
-//        endfunction
 
         function automatic void setDeps(input int id, input InsDependencies deps);
             content[id].deps = deps;
@@ -309,8 +368,111 @@ package AbstractSim;
         function automatic void setArgValues(input int id, input Word vals[3]);
             content[id].argValues = vals;
         endfunction
-    endclass
 
+       
+        function automatic void setRetired(input int id);
+            lastRetired = id;
+            
+                $swrite(lastRecordStr, "%p", records[id]);
+                
+                setLastRecordArr(id);
+        endfunction
+        
+        function automatic void setKilled(input int id);
+            if (id > lastKilled) lastKilled = id;
+        endfunction
+
+        
+        typedef enum {
+            GenAddress,
+            
+            FlushFront,
+            
+            PutFQ,
+            
+            Rename,
+            
+            FlushOOO,
+                // TODO: flush in every region? (ROB, subpipes, queues etc.)
+            
+            Wakeup,
+            CancelWakeup,
+            Issue,
+            Pullback,
+            
+                ReadArg, // TODO: by source type
+                
+                ExecRedirect,            
+            
+            ReadMem,
+            ReadSysReg,
+            ReadSQ,
+            
+            WriteMemAddress,
+            WriteMemValue,
+            
+            // TODO: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
+            
+            
+            WriteResult,
+            Complete,
+            Retire,
+            
+            Drain
+        } Milestone;
+        
+        typedef struct {
+            InsId id;
+            Milestone kind;
+            int cycle;
+        } MilestoneDesc;
+        
+        typedef struct {
+            Milestone kind;
+            int cycle;
+        } MilestoneTag;
+                
+
+        class InsRecord;
+            MilestoneTag tags[$];
+        endclass
+    
+        InsRecord records[int];
+
+            MilestoneTag lastRecordArr[16];
+            string lastRecordStr;
+
+                function automatic void setLastRecordArr(input InsId id);
+                    MilestoneTag def = '{Retire, -1};
+                    InsRecord rec = records[id];
+                    lastRecordArr = '{default: def};
+                    
+                    foreach(rec.tags[i])
+                        lastRecordArr[i] = rec.tags[i];
+                endfunction
+
+         
+        function automatic void registerIndex(input int id);
+            indexList.push_back(id);
+            records[id] = new();
+        endfunction
+
+
+        function automatic void cleanDescs();       
+            while (indexList[0] < lastRetired - 10) begin
+                content.delete(indexList[0]);
+                records.delete(indexList[0]);
+                void'(indexList.pop_front());
+            end
+        endfunction
+        
+        function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
+            if (id == -1) return;
+            records[id].tags.push_back('{kind, cycle});
+        endfunction
+        
+        
+    endclass
 
 
 
@@ -319,7 +481,6 @@ package AbstractSim;
         function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
                         input int intWr[32], input int floatWr[32],
                         input int intMapR[32], input int floatMapR[32],
-                        //input int renameInd, 
                         input IndexSet indexSet);
             this.op = op;
             this.state = state;
@@ -346,6 +507,15 @@ package AbstractSim;
 
 
     typedef logic logic3[3];
+
+
+    typedef struct {
+        InsId intWritersR[32] = '{default: -1};
+        InsId floatWritersR[32] = '{default: -1};
+        InsId intWritersC[32] = '{default: -1};
+        InsId floatWritersC[32] = '{default: -1};
+    } WriterTracker;
+
 
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
@@ -376,6 +546,9 @@ package AbstractSim;
         int floatMapC[32] = '{default: 0};
  
        
+        WriterTracker wrTracker;
+        
+       
         function automatic int findDestInt(input InsId id);
             int inds[$] = intInfo.find_first_index with (item.owner == id);
             return inds.size() > 0 ? inds[0] : -1;
@@ -385,6 +558,20 @@ package AbstractSim;
             int pDest = findDestInt(id);
             intReady[pDest] = 1;
         endfunction;
+
+
+        function automatic void reserve(input OpSlot op);
+            setWriterR(op);
+            reserveInt(op);
+            reserveFloat(op);
+        endfunction
+
+        function automatic void commit(input OpSlot op);
+            setWriterC(op);
+            commitInt(op);
+            commitFloat(op);
+        endfunction
+
 
         function automatic void reserveInt(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
@@ -437,13 +624,11 @@ package AbstractSim;
             intRegs[pDestPrev] = 'x;
         endfunction
         
-        
         function automatic int findFreeInt();
             int res[$] = intInfo.find_first_index with (item.state == FREE);
             return res[0];
         endfunction
         
-
         
         function automatic void commitFloat(input OpSlot op);
             AbstractInstruction ins = decodeAbstract(op.bits);
@@ -467,12 +652,9 @@ package AbstractSim;
             int res[$] = floatInfo.find_first_index with (item.state == FREE);
             return res[0];
         endfunction
-   
         
         
         function automatic void flush(input OpSlot op);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
-
             int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
 
@@ -494,7 +676,6 @@ package AbstractSim;
         endfunction
         
         function automatic void flushAll();
-            //int vDest = ins.dest;
             int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE);
 
@@ -515,12 +696,31 @@ package AbstractSim;
             // Restoring map is separate
         endfunction
  
-        function automatic void restore(input int intM[32], input int floatM[32]);
+        function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
             intMapR = intM;
             floatMapR = floatM;
+            
+                wrTracker.intWritersR = intWriters;
+                wrTracker.floatWritersR = floatWriters;
         endfunction
         
+            function automatic void restoreReset();
+                intMapR = intMapC;
+                floatMapR = floatMapC;
+            
+                wrTracker.intWritersR = '{default: -1};
+                wrTracker.floatWritersR = '{default: -1};
+            endfunction
         
+            function automatic void restoreStable();
+                intMapR = intMapC;
+                floatMapR = floatMapC;
+            
+                wrTracker.intWritersR = wrTracker.intWritersC;
+                wrTracker.floatWritersR = wrTracker.floatWritersC;
+            endfunction
+
+      
         function automatic void writeValueInt(input OpSlot op, input Word value);
             AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestInt(op.id);
@@ -530,7 +730,6 @@ package AbstractSim;
         endfunction
         
         function automatic void writeValueFloat(input OpSlot op, input Word value);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
             int pDest = findDestFloat(op.id);
             if (!writesFloatReg(op)) return;
             
@@ -575,10 +774,24 @@ package AbstractSim;
                 endcase      
             return res;
         endfunction
+        
+        
+        function automatic void setWriterR(input OpSlot op);
+            AbstractInstruction abs = decodeAbstract(op.bits);
+            if (hasIntDest(abs)) wrTracker.intWritersR[abs.dest] = op.id;
+            if (hasFloatDest(abs)) wrTracker.floatWritersR[abs.dest] = op.id;
+            wrTracker.intWritersR[0] = -1;
+        endfunction
+    
+        function automatic void setWriterC(input OpSlot op);  
+            AbstractInstruction abs = decodeAbstract(op.bits);
+            if (hasIntDest(abs)) wrTracker.intWritersC[abs.dest] = op.id;
+            if (hasFloatDest(abs)) wrTracker.floatWritersC[abs.dest] = op.id;
+            wrTracker.intWritersC[0] = -1;
+        endfunction
+        
+        
     endclass
-
-
-
 
 
 
@@ -647,61 +860,61 @@ package AbstractSim;
     const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, 'x};
 
     
-        typedef struct {
-            InsId owner;
-            Word adr;
-            Word val;
-        } Transaction;
+    typedef struct {
+        InsId owner;
+        Word adr;
+        Word val;
+    } Transaction;
 
 
-        class MemTracker;
-            Transaction transactions[$];
-            Transaction stores[$];
-            Transaction loads[$];
-            
+    class MemTracker;
+        Transaction transactions[$];
+        Transaction stores[$];
+        Transaction loads[$];
+        
 //            function automatic void reset();
 
 //            endfunction
-            
-            function automatic void addStore(input OpSlot op, input Word adr, input Word val);
-                transactions.push_back('{op.id, adr, val});
-                stores.push_back('{op.id, adr, val});
-            endfunction
+        
+        function automatic void addStore(input OpSlot op, input Word adr, input Word val);
+            transactions.push_back('{op.id, adr, val});
+            stores.push_back('{op.id, adr, val});
+        endfunction
 
-            function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
-                transactions.push_back('{op.id, adr, val});
-                loads.push_back('{op.id, adr, val});
-            endfunction
+        function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
+            transactions.push_back('{op.id, adr, val});
+            loads.push_back('{op.id, adr, val});
+        endfunction
 
-            function automatic void remove(input OpSlot op);
-                assert (transactions[0].owner == op.id) begin
-                    void'(transactions.pop_front());
-                    if (stores.size() != 0 && stores[0].owner == op.id) void'(stores.pop_front());
-                    if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
-                end
-                else $error("Incorrect transaction commit");
-            endfunction
-            
-            function automatic void flushAll();
-                transactions.delete();
-                stores.delete();
-                loads.delete();
-            endfunction
+        function automatic void remove(input OpSlot op);
+            assert (transactions[0].owner == op.id) begin
+                void'(transactions.pop_front());
+                if (stores.size() != 0 && stores[0].owner == op.id) void'(stores.pop_front());
+                if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
+            end
+            else $error("Incorrect transaction commit");
+        endfunction
+        
+        function automatic void flushAll();
+            transactions.delete();
+            stores.delete();
+            loads.delete();
+        endfunction
 
-            function automatic void flush(input OpSlot op);
-                while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
-                while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
-                while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
-            endfunction   
-            
-            // Find which op is the source of data
-            function automatic InsId checkWriter(input OpSlot op);
-                Transaction read[$] = transactions.find_first with (item.owner == op.id); 
-                Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
-            
-        endclass
+        function automatic void flush(input OpSlot op);
+            while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
+            while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
+            while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
+        endfunction   
+        
+        // Find which op is the source of data
+        function automatic InsId checkWriter(input OpSlot op);
+            Transaction read[$] = transactions.find_first with (item.owner == op.id); 
+            Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
+            return (writers.size() == 0) ? -1 : writers[$].owner;
+        endfunction
+        
+    endclass
     
 
 
@@ -730,5 +943,35 @@ package AbstractSim;
         
         sysRegs[1] |= 2; // TODO: handle state register correctly
     endfunction
+
+
+    function automatic logic anyActive(input Stage_N s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+
+   
+    typedef struct {
+        int oq;
+        int oooq;
+        //int bq;
+        int rob;
+        int lq;
+        int sq;
+        int csq;
+    } BufferLevels;
+
+
+        typedef struct {
+            OpSlot late;
+            OpSlot exec;
+        } Events;
+
+    typedef struct {
+        InsId id;
+        Word target;
+    } BranchTargetEntry;
+
 
 endpackage
