@@ -8,6 +8,185 @@ import AbstractSim::*;
 
 
 
+module ReorderBuffer
+#(
+    parameter int WIDTH = 4
+)
+(
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input OpSlotA inGroup,
+    output OpSlotA outGroup
+);
+
+    localparam int DEPTH = ROB_SIZE/WIDTH;
+
+
+    int startPointer = 0, endPointer = 0;
+    int size;
+    logic allow;
+
+    typedef struct {
+        InsId id;
+        logic completed;
+    } OpRecord;
+    
+    const OpRecord EMPTY_RECORD = '{id: -1, completed: 'x};
+    typedef OpRecord OpRecordA[WIDTH];
+
+    typedef struct {
+        OpRecord records[WIDTH];
+    } Row;
+
+    const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
+
+    Row outRow = EMPTY_ROW;
+    Row array[DEPTH] = '{default: EMPTY_ROW};
+    
+        InsId lastIn = -1, lastRestored = -1, lastOut = -1;
+    
+    assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
+    assign allow = (size < DEPTH - 3);
+    
+    task automatic flushArrayAll();
+                lastRestored = lateEventInfo.op.id;
+                
+            endPointer = startPointer;
+            array = '{default: EMPTY_ROW};
+    endtask
+    
+    
+    task automatic flushArrayPartial();
+        logic clear = 0;
+        int causingGroup = insMap.get(branchEventInfo.op.id).inds.renameG;
+        int causingSlot = insMap.get(branchEventInfo.op.id).slot;
+        InsId causingId = branchEventInfo.op.id;
+        int p = startPointer;
+        
+            lastRestored = branchEventInfo.op.id;
+            
+        for (int i = 0; i < DEPTH; i++) begin
+            OpRecord row[WIDTH] = array[p % DEPTH].records;
+            for (int c = 0; c < WIDTH; c++) begin
+                if (row[c].id == causingId) endPointer = (p+1) % (2*DEPTH);
+                if (row[c].id > causingId) array[p % DEPTH].records[c] = EMPTY_RECORD;
+            end
+            
+            p++;
+        end
+
+    endtask
+    
+    
+    task automatic markOpCompleted(input OpSlot op); 
+        InsId id = op.id;
+        
+        if (!op.active) return;
+        
+        for (int r = 0; r < DEPTH; r++)
+            for (int c = 0; c < WIDTH; c++) begin
+                if (array[r].records[c].id == id)
+                    array[r].records[c].completed = 1;
+            end
+        
+    endtask
+    
+    
+    task automatic markCompleted();
+        //OpSlot op;
+        
+        foreach (theExecBlock.doneOpsRegular_E[i]) begin
+            markOpCompleted(theExecBlock.doneOpsRegular_E[i]);
+        end
+        
+        markOpCompleted(theExecBlock.doneOpBranch_E);
+        markOpCompleted(theExecBlock.doneOpMem_E);
+        markOpCompleted(theExecBlock.doneOpSys_E);
+        
+    endtask
+    
+    
+    
+    
+    always @(posedge AbstractCore.clk) begin
+
+        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect)
+            outRow <= EMPTY_ROW;
+        else if (frontCompleted()) begin
+                lastOut = getLastOut(lastOut, array[startPointer % DEPTH].records);
+            
+            outRow <= array[startPointer % DEPTH];
+
+            array[startPointer % DEPTH] = EMPTY_ROW;
+            startPointer = (startPointer+1) % (2*DEPTH);
+            
+        end
+        else
+            outRow <= EMPTY_ROW;
+
+        // Completion
+        markCompleted();
+
+
+        if (lateEventInfo.redirect) begin
+            flushArrayAll();
+            
+        end
+        else if (branchEventInfo.redirect) begin
+            flushArrayPartial();
+            
+           // endPointer = insMap.get(branchEventInfo.op.id).inds.renameG;
+        end
+        else if (anyActive(inGroup))
+            add(inGroup);
+
+    end
+
+
+    function automatic OpRecordA makeRecord(input OpSlotA ops);
+        OpRecordA res = '{default: EMPTY_RECORD};
+        foreach (ops[i])
+            res[i] = ops[i].active ? '{ops[i].id, 0} : '{-1, 'x};   
+        return res;
+    endfunction
+
+
+    task automatic add(input OpSlotA in);
+            lastIn = getLastOut(lastIn, makeRecord(in));
+            
+        array[endPointer % DEPTH].records = makeRecord(in);
+        //int row = AbstractCore.renameInds.
+        endPointer = (endPointer+1) % (2*DEPTH);
+    endtask
+    
+    function automatic logic frontCompleted();
+        OpRecordA records = array[startPointer % DEPTH].records;
+        if (endPointer == startPointer) return 0;
+
+        foreach (records[i])
+            if (records[i].id != -1 && records[i].completed === 0)
+                return 0;
+        
+        return 1;
+    endfunction
+    
+    
+        function automatic InsId getLastOut(input InsId prev, input OpRecordA recs);
+            InsId tmp = prev;
+            
+            foreach (recs[i])
+                if  (recs[i].id != -1)
+                    tmp = recs[i].id;
+                    
+            return tmp;
+        endfunction
+    
+endmodule
+
+
+
+
 module AbstractCore
 #(
 )
@@ -23,7 +202,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'x;
+    logic dummy = 'z;
 
 
     InstructionMap insMap = new();
@@ -55,6 +234,7 @@ module AbstractCore
 
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+        int currentSlot;
 
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
@@ -86,6 +266,8 @@ module AbstractCore
 
     // Rename
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
+
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     IssueQueueComplex theIssueQueues(insMap);
 
@@ -219,13 +401,15 @@ module AbstractCore
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
-        while (oooQueue.size() > 0 && oooQueue[0].done == 1) begin
+        while (oooQueue.size() > 0 && oooQueue[0].done == 1
+                    && oooQueue[0].id <= theRob.lastOut
+                ) begin
             OpSlot op = takeFrontOp();
             commitOp(op);
             putMilestone(op.id, InstructionMap::Retire);
             insMap.setRetired(op.id);
             
-            if (isSysIns(decAbs(op))) break;
+            if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) break;
         end
     endtask
 
@@ -242,11 +426,19 @@ module AbstractCore
 
 
     task automatic renameGroup(input OpSlotA ops);
-        foreach (ops[i])
+        
+        
+        if (anyActive(ops))
+            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
+    
+        currentSlot = 0;
+        foreach (ops[i]) begin
             if (ops[i].active) begin
                 renameOp(ops[i]);
                 putMilestone(ops[i].id, InstructionMap::Rename);
             end
+            currentSlot++;
+        end
     endtask
 
     task automatic addToQueues(input OpSlot op);
@@ -277,7 +469,8 @@ module AbstractCore
     assign buffersAccepting = buffersAccept(oooAccepts);
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat);
+    assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
+                                                && theRob.allow;
 
     assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
 
@@ -517,6 +710,7 @@ module AbstractCore
         insMap.setArgValues(op.id, argVals);
         
         insMap.setInds(op.id, renameInds);
+            insMap.setSlot(op.id, currentSlot);
         
     endtask
 
@@ -560,6 +754,8 @@ module AbstractCore
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
 
+        assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
+
         if (writesIntReg(op) || writesFloatReg(op)) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
 
@@ -576,6 +772,7 @@ module AbstractCore
         verifyOnCommit(op);
 
         updateInds(commitInds, op); // Crucial
+            commitInds.renameG = insMap.get(op.id).inds.renameG;
 
         registerTracker.commit(op);
         
@@ -630,10 +827,10 @@ module AbstractCore
 
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
-        inds.rename = (inds.rename + 1) % ROB_SIZE;
-        if (isBranchIns(decAbs(op))) inds.bq = (inds.bq + 1) % BC_QUEUE_SIZE;
-        if (isLoadIns(decAbs(op))) inds.lq = (inds.lq + 1) % LQ_SIZE;
-        if (isStoreIns(decAbs(op))) inds.sq = (inds.sq + 1) % SQ_SIZE;
+        inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
+        if (isBranchIns(decAbs(op))) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
+        if (isLoadIns(decAbs(op))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
+        if (isStoreIns(decAbs(op))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
 
 
@@ -753,5 +950,10 @@ module AbstractCore
     endfunction
 
 
+//    function automatic logic checkOpCompleted(input InsId id);
+//        OpStatus statuses[$] = oooQueue.find with (item.id == id);
+//        if (statuses.size() > 0) return statuses[0].done;
+//        else return 'x;
+//    endfunction
 
 endmodule

@@ -282,6 +282,7 @@ package AbstractSim;
 
     typedef struct {
         int rename;
+        int renameG;
         int bq;
         int lq;
         int sq;
@@ -297,9 +298,12 @@ package AbstractSim;
         Word result;
         Word actualResult;
         IndexSet inds;
+        int slot;
         InsDependencies deps;
         
         Word argValues[3];
+        logic argError;
+        
     } InstructionInfo;
 
     function automatic InstructionInfo makeInsInfo(input OpSlot op);
@@ -307,6 +311,8 @@ package AbstractSim;
         res.id = op.id;
         res.adr = op.adr;
         res.bits = op.bits;
+
+        res.argError = 0;
 
         return res;
     endfunction
@@ -364,9 +370,17 @@ package AbstractSim;
         function automatic void setInds(input int id, input IndexSet indexSet);
             content[id].inds = indexSet;
         endfunction
-        
+
+        function automatic void setSlot(input int id, input int slot);
+            content[id].slot = slot;
+        endfunction
+       
         function automatic void setArgValues(input int id, input Word vals[3]);
             content[id].argValues = vals;
+        endfunction
+
+        function automatic void setArgError(input int id);
+            content[id].argError = 1;
         endfunction
 
        

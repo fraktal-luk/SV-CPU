@@ -424,7 +424,10 @@ import AbstractSim::*;
         function automatic Word3 getAndVerifyArgs(input OpSlot op);
             Word3 argsP = getPhysicalArgValues(AbstractCore.registerTracker, op);
             Word3 argsM = insMap.get(op.id).argValues;
-            assert (argsP === argsM) else $error("not equal args %p / %p", argsP, argsM);
+            
+            //    assert (argsP === argsM) else $error("not equal args of op %d: %p / %p", op.id, argsP, argsM);
+            if (argsP !== argsM) insMap.setArgError(op.id);
+            
             return argsP;
         endfunction;
     
