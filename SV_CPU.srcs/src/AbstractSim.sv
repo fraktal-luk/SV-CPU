@@ -406,6 +406,10 @@ package AbstractSim;
             
             Rename,
             
+                RobEnter,
+                RobFlush,
+                RobExit,
+            
             FlushOOO,
                 // TODO: flush in every region? (ROB, subpipes, queues etc.)
             

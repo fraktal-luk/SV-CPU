@@ -8,180 +8,79 @@ import AbstractSim::*;
 
 
 
-module ReorderBuffer
+module StoreQueue
 #(
-    parameter int WIDTH = 4
 )
 (
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotA inGroup,
-    output OpSlotA outGroup
+    input OpSlotA inGroup
 );
 
-    localparam int DEPTH = ROB_SIZE/WIDTH;
+    localparam int SIZE = SQ_SIZE;
 
+    typedef struct {
+        InsId id;
+    } QueueEntry;
+
+    const QueueEntry EMPTY_ENTRY = '{-1};
 
     int startPointer = 0, endPointer = 0;
     int size;
     logic allow;
+    
+    assign size = (endPointer - startPointer + 2*SIZE) % (2*SIZE);
+    assign allow = (size < SIZE - 3);
 
-    typedef struct {
-        InsId id;
-        logic completed;
-    } OpRecord;
-    
-    const OpRecord EMPTY_RECORD = '{id: -1, completed: 'x};
-    typedef OpRecord OpRecordA[WIDTH];
-
-    typedef struct {
-        OpRecord records[WIDTH];
-    } Row;
-
-    const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
-
-    Row outRow = EMPTY_ROW;
-    Row array[DEPTH] = '{default: EMPTY_ROW};
-    
-        InsId lastIn = -1, lastRestored = -1, lastOut = -1;
-    
-    assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
-    assign allow = (size < DEPTH - 3);
-    
-    task automatic flushArrayAll();
-                lastRestored = lateEventInfo.op.id;
-                
-            endPointer = startPointer;
-            array = '{default: EMPTY_ROW};
-    endtask
+    QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
     
     
-    task automatic flushArrayPartial();
-        logic clear = 0;
-        int causingGroup = insMap.get(branchEventInfo.op.id).inds.renameG;
-        int causingSlot = insMap.get(branchEventInfo.op.id).slot;
+    
+    task automatic flushPartial();
         InsId causingId = branchEventInfo.op.id;
+        
         int p = startPointer;
         
-            lastRestored = branchEventInfo.op.id;
-            
-        for (int i = 0; i < DEPTH; i++) begin
-            OpRecord row[WIDTH] = array[p % DEPTH].records;
-            for (int c = 0; c < WIDTH; c++) begin
-                if (row[c].id == causingId) endPointer = (p+1) % (2*DEPTH);
-                if (row[c].id > causingId) array[p % DEPTH].records[c] = EMPTY_RECORD;
-            end
-            
+        endPointer = startPointer;
+        
+        for (int i = 0; i < SIZE; i++) begin
+            if (content[p % SIZE].id > causingId)
+                content[p % SIZE] = EMPTY_ENTRY; 
+            else if (content[p % SIZE].id == -1)
+                break;
+            else
+                endPointer = (p+1) % (2*SIZE);   
             p++;
         end
-
     endtask
-    
-    
-    task automatic markOpCompleted(input OpSlot op); 
-        InsId id = op.id;
-        
-        if (!op.active) return;
-        
-        for (int r = 0; r < DEPTH; r++)
-            for (int c = 0; c < WIDTH; c++) begin
-                if (array[r].records[c].id == id)
-                    array[r].records[c].completed = 1;
-            end
-        
-    endtask
-    
-    
-    task automatic markCompleted();
-        //OpSlot op;
-        
-        foreach (theExecBlock.doneOpsRegular_E[i]) begin
-            markOpCompleted(theExecBlock.doneOpsRegular_E[i]);
-        end
-        
-        markOpCompleted(theExecBlock.doneOpBranch_E);
-        markOpCompleted(theExecBlock.doneOpMem_E);
-        markOpCompleted(theExecBlock.doneOpSys_E);
-        
-    endtask
-    
-    
     
     
     always @(posedge AbstractCore.clk) begin
-
-        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect)
-            outRow <= EMPTY_ROW;
-        else if (frontCompleted()) begin
-                lastOut = getLastOut(lastOut, array[startPointer % DEPTH].records);
-            
-            outRow <= array[startPointer % DEPTH];
-
-            array[startPointer % DEPTH] = EMPTY_ROW;
-            startPointer = (startPointer+1) % (2*DEPTH);
-            
+        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.lastRetired.id) begin
+            content[startPointer % SIZE] = EMPTY_ENTRY;
+            startPointer = (startPointer+1) % (2*SIZE);
         end
-        else
-            outRow <= EMPTY_ROW;
-
-        // Completion
-        markCompleted();
-
-
+    
         if (lateEventInfo.redirect) begin
-            flushArrayAll();
-            
+            content = '{default: EMPTY_ENTRY};
+            endPointer = startPointer;
         end
         else if (branchEventInfo.redirect) begin
-            flushArrayPartial();
-            
-           // endPointer = insMap.get(branchEventInfo.op.id).inds.renameG;
+           flushPartial(); 
         end
-        else if (anyActive(inGroup))
-            add(inGroup);
-
+        else if (anyActive(inGroup)) begin
+            // put ops which are stores
+            foreach (inGroup[i]) begin
+                if (isStoreIns(decAbs(inGroup[i]))) begin
+                    content[endPointer % SIZE].id = inGroup[i].id;
+                    endPointer = (endPointer+1) % (2*SIZE);
+                end
+            end
+            
+        end
     end
 
-
-    function automatic OpRecordA makeRecord(input OpSlotA ops);
-        OpRecordA res = '{default: EMPTY_RECORD};
-        foreach (ops[i])
-            res[i] = ops[i].active ? '{ops[i].id, 0} : '{-1, 'x};   
-        return res;
-    endfunction
-
-
-    task automatic add(input OpSlotA in);
-            lastIn = getLastOut(lastIn, makeRecord(in));
-            
-        array[endPointer % DEPTH].records = makeRecord(in);
-        //int row = AbstractCore.renameInds.
-        endPointer = (endPointer+1) % (2*DEPTH);
-    endtask
-    
-    function automatic logic frontCompleted();
-        OpRecordA records = array[startPointer % DEPTH].records;
-        if (endPointer == startPointer) return 0;
-
-        foreach (records[i])
-            if (records[i].id != -1 && records[i].completed === 0)
-                return 0;
-        
-        return 1;
-    endfunction
-    
-    
-        function automatic InsId getLastOut(input InsId prev, input OpRecordA recs);
-            InsId tmp = prev;
-            
-            foreach (recs[i])
-                if  (recs[i].id != -1)
-                    tmp = recs[i].id;
-                    
-            return tmp;
-        endfunction
-    
 endmodule
 
 
@@ -202,7 +101,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = 'z;
+    logic dummy = '1;
 
 
     InstructionMap insMap = new();
@@ -268,6 +167,7 @@ module AbstractCore
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
+        StoreQueue theSq(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     IssueQueueComplex theIssueQueues(insMap);
 
@@ -401,7 +301,7 @@ module AbstractCore
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
-        while (oooQueue.size() > 0 && oooQueue[0].done == 1
+        while (oooQueue.size() > 0 //&& oooQueue[0].done == 1
                     && oooQueue[0].id <= theRob.lastOut
                 ) begin
             OpSlot op = takeFrontOp();
@@ -850,7 +750,7 @@ module AbstractCore
 
     task automatic updateOOOQ(input OpSlot op);
         const int ind[$] = oooQueue.find_index with (item.id == op.id);
-        assert (ind.size() > 0) oooQueue[ind[0]].done = 1; else $error("No such id in OOOQ: %d", op.id);
+        //assert (ind.size() > 0) oooQueue[ind[0]].done = 1; else $error("No such id in OOOQ: %d", op.id);
         putMilestone(op.id, InstructionMap::Complete); 
     endtask
     
@@ -949,11 +849,5 @@ module AbstractCore
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
     endfunction
 
-
-//    function automatic logic checkOpCompleted(input InsId id);
-//        OpStatus statuses[$] = oooQueue.find with (item.id == id);
-//        if (statuses.size() > 0) return statuses[0].done;
-//        else return 'x;
-//    endfunction
-
 endmodule
+
