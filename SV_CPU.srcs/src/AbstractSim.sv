@@ -398,6 +398,8 @@ package AbstractSim;
 
         
         typedef enum {
+                ___,
+        
             GenAddress,
             
             FlushFront,
@@ -461,7 +463,7 @@ package AbstractSim;
             string lastRecordStr;
 
                 function automatic void setLastRecordArr(input InsId id);
-                    MilestoneTag def = '{Retire, -1};
+                    MilestoneTag def = '{___, -1};
                     InsRecord rec = records[id];
                     lastRecordArr = '{default: def};
                     
@@ -487,6 +489,15 @@ package AbstractSim;
         function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
+        endfunction
+        
+        
+        function automatic void verifyMilestones(input int id);
+            MilestoneTag tagList[$] = records[id].tags;
+                
+                MilestoneTag found[$] = tagList.find_first with (item.kind == RobExit);
+                assert (found.size() > 0) else $error("Op %d: not seen exiting ROB!", id); 
+            
         endfunction
         
         

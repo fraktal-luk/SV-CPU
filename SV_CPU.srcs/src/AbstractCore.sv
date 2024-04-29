@@ -8,83 +8,6 @@ import AbstractSim::*;
 
 
 
-module StoreQueue
-#(
-)
-(
-    ref InstructionMap insMap,
-    input EventInfo branchEventInfo,
-    input EventInfo lateEventInfo,
-    input OpSlotA inGroup
-);
-
-    localparam int SIZE = SQ_SIZE;
-
-    typedef struct {
-        InsId id;
-    } QueueEntry;
-
-    const QueueEntry EMPTY_ENTRY = '{-1};
-
-    int startPointer = 0, endPointer = 0;
-    int size;
-    logic allow;
-    
-    assign size = (endPointer - startPointer + 2*SIZE) % (2*SIZE);
-    assign allow = (size < SIZE - 3);
-
-    QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
-    
-    
-    
-    task automatic flushPartial();
-        InsId causingId = branchEventInfo.op.id;
-        
-        int p = startPointer;
-        
-        endPointer = startPointer;
-        
-        for (int i = 0; i < SIZE; i++) begin
-            if (content[p % SIZE].id > causingId)
-                content[p % SIZE] = EMPTY_ENTRY; 
-            else if (content[p % SIZE].id == -1)
-                break;
-            else
-                endPointer = (p+1) % (2*SIZE);   
-            p++;
-        end
-    endtask
-    
-    
-    always @(posedge AbstractCore.clk) begin
-        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.lastRetired.id) begin
-            content[startPointer % SIZE] = EMPTY_ENTRY;
-            startPointer = (startPointer+1) % (2*SIZE);
-        end
-    
-        if (lateEventInfo.redirect) begin
-            content = '{default: EMPTY_ENTRY};
-            endPointer = startPointer;
-        end
-        else if (branchEventInfo.redirect) begin
-           flushPartial(); 
-        end
-        else if (anyActive(inGroup)) begin
-            // put ops which are stores
-            foreach (inGroup[i]) begin
-                if (isStoreIns(decAbs(inGroup[i]))) begin
-                    content[endPointer % SIZE].id = inGroup[i].id;
-                    endPointer = (endPointer+1) % (2*SIZE);
-                end
-            end
-            
-        end
-    end
-
-endmodule
-
-
-
 
 module AbstractCore
 #(
@@ -167,7 +90,10 @@ module AbstractCore
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
-        StoreQueue theSq(insMap, branchEventInfo, lateEventInfo, stageRename1);
+    StoreQueue
+        theSq(insMap, branchEventInfo, lateEventInfo, stageRename1);
+    StoreQueue#(.IS_LOAD_QUEUE(1))
+        theLq(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     IssueQueueComplex theIssueQueues(insMap);
 
@@ -308,6 +234,7 @@ module AbstractCore
             commitOp(op);
             putMilestone(op.id, InstructionMap::Retire);
             insMap.setRetired(op.id);
+                insMap.verifyMilestones(op.id);
             
             if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) break;
         end
