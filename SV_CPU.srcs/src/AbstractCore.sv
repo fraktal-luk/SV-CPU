@@ -90,10 +90,12 @@ module AbstractCore
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
-    StoreQueue
+    StoreQueue#(.SIZE(SQ_SIZE))
         theSq(insMap, branchEventInfo, lateEventInfo, stageRename1);
-    StoreQueue#(.IS_LOAD_QUEUE(1))
+    StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE))
         theLq(insMap, branchEventInfo, lateEventInfo, stageRename1);
+    StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE))
+        theBq(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     IssueQueueComplex theIssueQueues(insMap);
 
@@ -297,7 +299,7 @@ module AbstractCore
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
-                                                && theRob.allow;
+                                                && theRob.allow && theSq.allow && theLq.allow;;
 
     assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
 
@@ -390,11 +392,11 @@ module AbstractCore
         end
     endtask
  
-    task automatic flushStoreQueueAll();
+    task automatic flushLoadQueueAll();
         while (loadQueue.size() > 0) void'(loadQueue.pop_back());
     endtask
    
-    task automatic flushLoadQueueAll();
+    task automatic flushStoreQueueAll();
         while (storeQueue.size() > 0) void'(storeQueue.pop_back());
     endtask
 
@@ -419,11 +421,11 @@ module AbstractCore
         end
     endtask
 
-    task automatic flushStoreQueuePartial(input OpSlot op);
+    task automatic flushLoadQueuePartial(input OpSlot op);
         while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
     endtask
    
-    task automatic flushLoadQueuePartial(input OpSlot op);
+    task automatic flushStoreQueuePartial(input OpSlot op);
         while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
     endtask
 

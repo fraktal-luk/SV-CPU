@@ -718,7 +718,10 @@ endmodule
 
 module StoreQueue
 #(
-    parameter logic IS_LOAD_QUEUE = 0
+    parameter logic IS_LOAD_QUEUE = 0,
+    parameter logic IS_BRANCH_QUEUE = 0,
+    
+    parameter int SIZE
 )
 (
     ref InstructionMap insMap,
@@ -727,7 +730,9 @@ module StoreQueue
     input OpSlotA inGroup
 );
 
-    localparam int SIZE = SQ_SIZE;
+    localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
+
+    //localparam int SIZE = SQ_SIZE;
 
     typedef struct {
         InsId id;
@@ -740,7 +745,7 @@ module StoreQueue
     logic allow;
     
     assign size = (endPointer - startPointer + 2*SIZE) % (2*SIZE);
-    assign allow = (size < SIZE - 3);
+    assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
     QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
     
@@ -792,7 +797,9 @@ module StoreQueue
             // put ops which are stores
             foreach (inGroup[i]) begin
                 automatic logic applies = 
-                                IS_LOAD_QUEUE ? isLoadIns(decAbs(inGroup[i])) : isStoreIns(decAbs(inGroup[i]));
+                                  IS_LOAD_QUEUE && isLoadIns(decAbs(inGroup[i]))
+                              ||  IS_BRANCH_QUEUE && isBranchIns(decAbs(inGroup[i]))
+                              ||  IS_STORE_QUEUE && isStoreIns(decAbs(inGroup[i]));
             
                 if (applies) begin
                     content[endPointer % SIZE].id = inGroup[i].id;

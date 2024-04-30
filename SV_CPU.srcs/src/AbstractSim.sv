@@ -27,10 +27,12 @@ package AbstractSim;
     
     localparam int LQ_SIZE = 80;
     localparam int SQ_SIZE = 80;
-
+    localparam int BQ_SIZE = 32;
+    
 
     localparam FETCH_WIDTH = 4;
-    localparam LOAD_WIDTH = FETCH_WIDTH;
+    localparam RENAME_WIDTH = 4;
+    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
 
     typedef struct {
