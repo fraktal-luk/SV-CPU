@@ -28,6 +28,8 @@ module AbstractCore
 
 
     localparam logic TMP_SEPARATE_SYS_IQ = 1;
+    localparam logic TMP_SEPARATE_MEM_IQ = 1;
+    localparam logic TMP_SEPARATE_BR_IQ = 1;
 
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();

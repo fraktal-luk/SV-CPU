@@ -182,11 +182,15 @@ module IssueQueueComplex(ref InstructionMap insMap);
         
 //        if (mainApplies) opQueue.push_back(op);
 
-        if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) opQueue.push_back(op);
+        if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
+            if (!AbstractCore.TMP_SEPARATE_MEM_IQ) opQueue.push_back(op);
+        end
         else if (isSysIns(decAbs(op))) begin 
             if (!AbstractCore.TMP_SEPARATE_SYS_IQ) opQueue.push_back(op);
         end
-        else if (isBranchIns(decAbs(op))) opQueue.push_back(op);
+        else if (isBranchIns(decAbs(op))) begin
+            if (!AbstractCore.TMP_SEPARATE_BR_IQ) opQueue.push_back(op);
+        end
         else opQueue.push_back(op); 
 
         // Mirror into separate queues 
@@ -318,11 +322,21 @@ module IssueQueueComplex(ref InstructionMap insMap);
             res.regular[i] = op;
         end
         
+        
         if (AbstractCore.TMP_SEPARATE_SYS_IQ)
             if (T_iqSys.size() > 0 && opsReadySys[0]) begin
                 res.sys = T_iqSys.pop_front();
             end
-        
+
+        if (AbstractCore.TMP_SEPARATE_MEM_IQ)
+            if (T_iqMem.size() > 0 && opsReadyMem[0]) begin
+                res.mem = T_iqMem.pop_front();
+            end
+
+        if (AbstractCore.TMP_SEPARATE_BR_IQ)
+            if (T_iqBranch.size() > 0 && opsReadyBranch[0]) begin
+                res.branch = T_iqBranch.pop_front();
+            end       
         
         return res;
     endfunction
