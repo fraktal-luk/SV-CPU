@@ -415,6 +415,7 @@ package AbstractSim;
                 RobExit,
             
             FlushOOO,
+                FlushExec,
                 // TODO: flush in every region? (ROB, subpipes, queues etc.)
             
             Wakeup,
@@ -985,6 +986,10 @@ package AbstractSim;
    
     typedef struct {
         int oq;
+            int iqRegular;
+            int iqBranch;
+            int iqMem;
+            int iqSys;
         int oooq;
         //int bq;
         int rob;

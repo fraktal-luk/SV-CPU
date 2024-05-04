@@ -27,6 +27,8 @@ module AbstractCore
     logic dummy = '1;
 
 
+    localparam logic TMP_SEPARATE_SYS_IQ = 1;
+
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
@@ -340,6 +342,10 @@ module AbstractCore
         BufferLevels res;
         
         res.oq = levels_N.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+            res.iqRegular = levels_N.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+            res.iqBranch = levels_N.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+            res.iqMem = levels_N.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+            res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
         
         res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
         //res.bq = levels.bq <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
@@ -351,7 +357,12 @@ module AbstractCore
     endfunction
 
     function automatic logic buffersAccept(input BufferLevels acc);
-        return acc.oq && acc.oooq //&& acc.bq 
+        return acc.oq
+                && acc.iqRegular
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqSys
+                     && acc.oooq //&& acc.bq 
                                   && acc.rob && acc.lq && acc.sq && acc.csq;
     endfunction
   
@@ -725,13 +736,23 @@ module AbstractCore
 
 
 
-    task automatic putMilestone(input int id, input InstructionMap::Milestone kind);
+    function automatic void putMilestone(input int id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
-    endtask
+    endfunction
 
 
-        function automatic OpSlot tick(input OpSlot op, input Events evts);
+        function automatic OpSlot tick(input OpSlot op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+                putMilestone(op.id, InstructionMap::FlushExec);
+                return EMPTY_SLOT;
+            end
             return op;
+        endfunction
+
+        function automatic OpSlotA tickA(input OpSlotA opA);
+            OpSlotA res;
+            foreach (opA[i]) res[i] = opA[i];
+            return res;
         endfunction
 
         function automatic OpSlot eff(input OpSlot op);
@@ -752,7 +773,19 @@ module AbstractCore
             
             return res;
         endfunction
-        
+
+        function automatic IssueGroup tickIG(input IssueGroup ig);
+            IssueGroup res;
+            
+            res.regular = tickA(ig.regular);
+            res.branch = tick(ig.branch);
+            res.mem = tick(ig.mem);
+            res.sys = tick(ig.sys);
+            res.num = ig.num;
+            
+            return res;
+        endfunction
+                
 
         function automatic OpSlot4 effA(input OpSlot ops[4]);
             OpSlot res[4];

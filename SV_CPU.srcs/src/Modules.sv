@@ -178,7 +178,17 @@ module IssueQueueComplex(ref InstructionMap insMap);
     endtask
 
     task automatic addToIssueQueues(input OpSlot op);
-        opQueue.push_back(op);
+//        logic mainApplies = (!AbstractCore.TMP_SEPARATE_SYS_IQ) || !isSysIns(decAbs(op));
+        
+//        if (mainApplies) opQueue.push_back(op);
+
+        if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) opQueue.push_back(op);
+        else if (isSysIns(decAbs(op))) begin 
+            if (!AbstractCore.TMP_SEPARATE_SYS_IQ) opQueue.push_back(op);
+        end
+        else if (isBranchIns(decAbs(op))) opQueue.push_back(op);
+        else opQueue.push_back(op); 
+
         // Mirror into separate queues 
         if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) T_iqMem.push_back(op);
         else if (isSysIns(decAbs(op))) T_iqSys.push_back(op);
@@ -273,6 +283,52 @@ module IssueQueueComplex(ref InstructionMap insMap);
     endfunction
 
 
+    function automatic IssueGroup issueFromQueues(ref OpSlot queue[$:OP_QUEUE_SIZE], input int size, input ReadyVec rv);
+        IssueGroup res = DEFAULT_ISSUE_GROUP;
+
+        int maxNum = size > 4 ? 4 : size;
+        if (maxNum > queue.size()) maxNum = queue.size(); // Queue may be flushing in this cycle, so possiblre shrinkage is checked here 
+    
+        for (int i = 0; i < maxNum; i++) begin
+            OpSlot op;
+            
+            if (!rv[i]) break;
+            
+            op = queue.pop_front();
+            assert (op.active) else $fatal(2, "Op from queue is empty!");
+            res.num++;
+            
+            if (isBranchIns(decAbs(op))) begin
+                res.branch = op;
+                assert (op === T_iqBranch.pop_front()) else $error("wrong");
+                break;
+            end
+            else if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) begin
+                res.mem = op;
+                assert (op === T_iqMem.pop_front()) else $error("wrong");
+                break;
+            end
+            else if (isSysIns(decAbs(op))) begin
+                res.sys = op;
+                assert (op === T_iqSys.pop_front()) else $error("wrong");
+                break;
+            end
+            
+            assert (op === T_iqRegular.pop_front()) else $error("wrong");
+            res.regular[i] = op;
+        end
+        
+        if (AbstractCore.TMP_SEPARATE_SYS_IQ)
+            if (T_iqSys.size() > 0 && opsReadySys[0]) begin
+                res.sys = T_iqSys.pop_front();
+            end
+        
+        
+        return res;
+    endfunction
+
+
+
     function automatic logic3 checkArgsReady_A(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
         logic3 res;
         foreach (deps.types[i])
@@ -305,6 +361,10 @@ module IssueQueueComplex(ref InstructionMap insMap);
         opsReadySys <= getReadyVec_A(T_iqSys);
 
         AbstractCore.oooLevels_N.oq <= opQueue.size();
+        AbstractCore.oooLevels_N.iqRegular <= T_iqRegular.size();
+        AbstractCore.oooLevels_N.iqBranch <= T_iqBranch.size();
+        AbstractCore.oooLevels_N.iqMem <= T_iqMem.size();
+        AbstractCore.oooLevels_N.iqSys <= T_iqSys.size();
     endtask    
 
 
@@ -316,8 +376,14 @@ module IssueQueueComplex(ref InstructionMap insMap);
        
         // Issue
         begin
-            automatic IssueGroup igIssue = issueFromOpQ(opQueue, AbstractCore.oooLevels_N.oq, opsReady);
-            AbstractCore.theExecBlock.issuedSt0 <= effIG(igIssue);
+            automatic IssueGroup igIssue = //issueFromOpQ(opQueue, AbstractCore.oooLevels_N.oq, opsReady);
+                                           issueFromQueues(opQueue, AbstractCore.oooLevels_N.oq, opsReady);
+            
+                //
+            
+            AbstractCore.theExecBlock.issuedSt0 <= tickIG(igIssue);
+            
+            
             updateReadyVecs_A();
         end
     end
@@ -377,7 +443,7 @@ module ExecBlock(ref InstructionMap insMap);
     task automatic runExec();
         IssueGroup igExec = DEFAULT_ISSUE_GROUP;
 
-        issuedSt1 <= issuedSt0_E;
+        issuedSt1 <= tickIG(issuedSt0);
         igExec = issuedSt1_E;
 
         execResultsRegular <= '{default: 'x};
@@ -389,15 +455,15 @@ module ExecBlock(ref InstructionMap insMap);
         if (igExec.branch.active)   execBranch(igExec.branch);
         if (igExec.mem.active) performMemFirst(igExec.mem);
 
-        memOp_A <= igExec.mem;
+        memOp_A <= tick(igExec.mem);
 
-        memOpPrev <= memOp_E;
+        memOpPrev <= tick(memOp_E);
         if (memOpPrev_E.active) performMemLater(memOpPrev_E);
 
-        doneOpsRegular <= igExec.regular;
-        doneOpBranch <= igExec.branch;
-        doneOpMem <= memOpPrev_E;
-        doneOpSys <= igExec.sys;
+        doneOpsRegular <= tickA(issuedSt1.regular);
+        doneOpBranch <= tick(issuedSt1.branch);
+        doneOpMem <= tick(memOpPrev);
+        doneOpSys <= tick(issuedSt1.sys);
     endtask
 
 
@@ -721,7 +787,7 @@ module StoreQueue
     parameter logic IS_LOAD_QUEUE = 0,
     parameter logic IS_BRANCH_QUEUE = 0,
     
-    parameter int SIZE
+    parameter int SIZE = 32
 )
 (
     ref InstructionMap insMap,
