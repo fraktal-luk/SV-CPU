@@ -27,10 +27,6 @@ module AbstractCore
     logic dummy = '1;
 
 
-//    localparam logic TMP_SEPARATE_SYS_IQ = 1;
-//    localparam logic TMP_SEPARATE_MEM_IQ = 1;
-//    localparam logic TMP_SEPARATE_BR_IQ = 1;
-
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
@@ -101,7 +97,7 @@ module AbstractCore
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE))
         theBq(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
-    IssueQueueComplex theIssueQueues(insMap);
+    IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     ExecBlock theExecBlock(insMap);
 
