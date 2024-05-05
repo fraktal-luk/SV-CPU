@@ -396,6 +396,8 @@ package AbstractSim;
         
         function automatic void setKilled(input int id);
             if (id > lastKilled) lastKilled = id;
+            
+                setLastKilledRecordArr(id);
         endfunction
 
         
@@ -463,6 +465,7 @@ package AbstractSim;
         InsRecord records[int];
 
             MilestoneTag lastRecordArr[16];
+            MilestoneTag lastKilledRecordArr[16];
             string lastRecordStr;
 
                 function automatic void setLastRecordArr(input InsId id);
@@ -472,6 +475,19 @@ package AbstractSim;
                     
                     foreach(rec.tags[i])
                         lastRecordArr[i] = rec.tags[i];
+                endfunction
+
+                function automatic void setLastKilledRecordArr(input InsId id);
+                    MilestoneTag def = '{___, -1};
+                    InsRecord rec;
+   
+                        if (!records.exists(id)) return;
+                    
+                    rec = records[id];
+                    lastKilledRecordArr = '{default: def};
+                    
+                    foreach(rec.tags[i])
+                        lastKilledRecordArr[i] = rec.tags[i];
                 endfunction
 
          

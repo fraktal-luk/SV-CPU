@@ -392,15 +392,27 @@ module IssueQueueComplex(ref InstructionMap insMap);
         begin
             automatic IssueGroup igIssue = //issueFromOpQ(opQueue, AbstractCore.oooLevels_N.oq, opsReady);
                                            issueFromQueues(opQueue, AbstractCore.oooLevels_N.oq, opsReady);
-            
-                //
-            
+
             AbstractCore.theExecBlock.issuedSt0 <= tickIG(igIssue);
-            
+            markIssued(igIssue);
             
             updateReadyVecs_A();
         end
     end
+    
+    function automatic void markIssued(input IssueGroup ig);
+        foreach (ig.regular[i]) markOpIssued(ig.regular[i]);
+        markOpIssued(ig.branch);
+        markOpIssued(ig.mem);
+        markOpIssued(ig.sys);
+    endfunction
+    
+    function automatic void markOpIssued(input OpSlot op);
+        if (!op.active || op.id == -1) return;
+        
+        putMilestone(op.id, InstructionMap::Issue);
+    endfunction
+    
     
 //endgenerate
 endmodule
