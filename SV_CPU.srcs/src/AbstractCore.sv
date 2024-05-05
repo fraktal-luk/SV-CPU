@@ -27,9 +27,9 @@ module AbstractCore
     logic dummy = '1;
 
 
-    localparam logic TMP_SEPARATE_SYS_IQ = 1;
-    localparam logic TMP_SEPARATE_MEM_IQ = 1;
-    localparam logic TMP_SEPARATE_BR_IQ = 1;
+//    localparam logic TMP_SEPARATE_SYS_IQ = 1;
+//    localparam logic TMP_SEPARATE_MEM_IQ = 1;
+//    localparam logic TMP_SEPARATE_BR_IQ = 1;
 
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -359,7 +359,7 @@ module AbstractCore
     endfunction
 
     function automatic logic buffersAccept(input BufferLevels acc);
-        return acc.oq
+        return 1 //acc.oq
                 && acc.iqRegular
                 && acc.iqBranch
                 && acc.iqMem
