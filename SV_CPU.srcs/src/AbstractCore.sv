@@ -108,12 +108,21 @@ module AbstractCore
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
 
+        IssueGroup issued_T0, issued_T1;
+        
+        assign issued_T0 = theExecBlock.issuedSt0;
+        assign issued_T1 = theIssueQueues.ig;
+
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
+            assign cmp0 = issued_T1 === issued_T0;
+
     always @(posedge clk) begin
+                cmp1 = cmp0;
+    
         activateEvent();
 
         drainWriteQueue();

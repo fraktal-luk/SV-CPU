@@ -143,12 +143,93 @@ endmodule
 
 
 
-module IssueQueue(
+module IssueQueue
+#(
+    parameter int SIZE = OP_QUEUE_SIZE,
+    parameter int OUT_WIDTH = 1
+)
+(
                 ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo,
-                input OpSlotA inGroup
+                input OpSlotA inGroup,
+                input logic inMask[$size(OpSlotA)],
+                
+                output OpSlot outGroup[OUT_WIDTH]
 );
+
+    typedef logic ReadyVec[SIZE];
+
+    int num = 0;
+
+    OpSlot content[$:SIZE];
+    ReadyVec readyVec = '{default: 'z};
+    
+    OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
+    
+    assign outGroup = issued;
+    
+    
+    always @(posedge AbstractCore.clk) begin
+
+        if (lateEventInfo.redirect || branchEventInfo.redirect)
+            flushIq();
+        else begin
+            writeInput();
+        end
+        
+        issue();
+
+        
+        num <= content.size();
+        
+        readyVec <= getReadyVec_A(content);
+    end
+
+
+    task automatic flushIq();
+        if (lateEventInfo.redirect) begin
+            flushOpQueueAll();
+        end
+        else if (branchEventInfo.redirect) begin
+            flushOpQueuePartial(branchEventInfo.op);
+        end
+    endtask
+
+
+    task automatic flushOpQueueAll();
+        while (content.size() > 0) begin
+            void'(content.pop_back());
+        end
+    endtask
+
+    task automatic flushOpQueuePartial(input OpSlot op);
+        while (content.size() > 0 && content[$].id > op.id) begin
+            void'(content.pop_back());
+        end
+    endtask
+
+    task automatic writeInput();
+        foreach (inGroup[i]) begin
+            OpSlot op = inGroup[i];
+            if (op.active && inMask[i]) begin
+                content.push_back(op);
+            end
+        end
+    endtask
+
+    task automatic issue();
+        int n = OUT_WIDTH > num ? num : OUT_WIDTH;
+        if (content.size() < n) n = content.size();
+        
+        issued = '{default: EMPTY_SLOT};
+                
+        foreach (issued[i])
+            if (i < n && readyVec[i])
+                issued[i] = tick(content.pop_front());
+            else
+                break;//issued[i] = EMPTY_SLOT;
+    endtask
 
 endmodule
 
@@ -160,6 +241,9 @@ module IssueQueueComplex(
                             input EventInfo lateEventInfo,
                             input OpSlotA inGroup
 );
+
+    localparam int IN_WIDTH = $size(inGroup);
+
     typedef logic ReadyVec[OP_QUEUE_SIZE];
 
     OpSlot T_iqRegular[$:OP_QUEUE_SIZE];
@@ -169,6 +253,30 @@ module IssueQueueComplex(
 
     ReadyVec opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
 
+        logic regularMask[IN_WIDTH];
+        OpSlot issuedRegular[4];
+        OpSlot issuedMem[1];
+        OpSlot issuedSys[1];
+        OpSlot issuedBranch[1];
+        
+        IssueGroup ig;
+        
+        IssueQueue#(.OUT_WIDTH(4)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
+                                                issuedRegular);
+        IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
+                                                issuedBranch);
+        IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
+                                                issuedMem);
+        IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
+                                                issuedSys);
+
+
+        assign ig.regular = issuedRegular;
+        assign ig.branch = issuedBranch[0];
+        assign ig.mem = issuedMem[0];
+        assign ig.sys = issuedSys[0];
+
+
     task automatic writeToIqs();
         foreach (inGroup[i]) begin
             OpSlot op = inGroup[i];
@@ -177,6 +285,43 @@ module IssueQueueComplex(
             end
         end
     endtask
+    
+    typedef struct {
+        logic regular[IN_WIDTH];
+        logic branch[IN_WIDTH];
+        logic mem[IN_WIDTH];
+        logic sys[IN_WIDTH];
+    } RoutingInfo;
+    
+    const RoutingInfo DEFAULT_ROUTING_INFO = '{
+        regular: '{default: 0},
+        branch: '{default: 0},
+        mem: '{default: 0},
+        sys: '{default: 0}
+    };
+    
+    RoutingInfo routingInfo;
+    
+    assign routingInfo = routeOps(inGroup); 
+    assign regularMask = routingInfo.regular;
+
+
+    function automatic RoutingInfo routeOps(input OpSlotA gr);
+        RoutingInfo res = DEFAULT_ROUTING_INFO;
+        
+        foreach (gr[i]) begin
+            OpSlot op = gr[i]; 
+            
+            if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) res.mem[i] = 1;
+            else if (isSysIns(decAbs(op))) res.sys[i] = 1;
+            else if (isBranchIns(decAbs(op))) res.branch[i] = 1;
+            else res.regular[i] = 1;
+        end
+        
+        return res;
+    endfunction
+
+
 
     task automatic addToIssueQueues(input OpSlot op);    
         if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) T_iqMem.push_back(op);
@@ -190,7 +335,7 @@ module IssueQueueComplex(
             flushOpQueuesAll();
         end
         else if (branchEventInfo.redirect) begin
-            flushOpQueuesPartial(AbstractCore.branchEventInfo.op);
+            flushOpQueuesPartial(branchEventInfo.op);
         end
     endtask
 
@@ -241,7 +386,7 @@ module IssueQueueComplex(
             op = T_iqRegular.pop_front();
             
             assert (op.active) else $fatal(2, "Op from queue is empty!");
-            res.num++;
+            //res.num++;
             
             res.regular[i] = op;
         end
