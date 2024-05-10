@@ -227,12 +227,25 @@ module IssueQueue
         
         issued = '{default: EMPTY_SLOT};
                 
-        foreach (issued[i])
-            if (i < n && readyVec[i])
-                issued[i] = tick(content.pop_front());
+        foreach (issued[i]) begin
+            OpSlot op;
+        
+            if (i < n && readyVec[i]) begin
+                op = content.pop_front();
+                issued[i] = tick(op);
+                markOpIssued(op);
+            end
             else
                 break;//issued[i] = EMPTY_SLOT;
+        end
     endtask
+
+    function automatic void markOpIssued(input OpSlot op);
+        if (!op.active || op.id == -1) return;
+        
+        putMilestone(op.id, InstructionMap::Issue);
+    endfunction
+
 
 endmodule
 
@@ -468,8 +481,7 @@ module IssueQueueComplex(
         begin
             automatic IssueGroup igIssue = issueFromQueues();
 
-            //AbstractCore.theExecBlock.issuedSt0 <= tickIG(igIssue);
-            markIssued(igIssue);
+            //markIssued(igIssue);
             updateReadyVecs_A();
         end
     end
@@ -493,8 +505,7 @@ endmodule
 
 module ExecBlock(ref InstructionMap insMap);
 
-    IssueGroup issuedSt0,// = DEFAULT_ISSUE_GROUP,
-                issuedSt1 = DEFAULT_ISSUE_GROUP;
+    IssueGroup issuedSt0, issuedSt1 = DEFAULT_ISSUE_GROUP;
     IssueGroup issuedSt0_E, issuedSt1_E;
 
 
@@ -513,28 +524,18 @@ module ExecBlock(ref InstructionMap insMap);
 
     // Exec process
     always @(posedge AbstractCore.clk) begin
-        begin
-            AbstractCore.readInfo <= EMPTY_WRITE_INFO;
-            AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-            runExec();
-        end
+        AbstractCore.readInfo <= EMPTY_WRITE_INFO;
+        AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+        //runExec();
+        issuedSt1 <= tickIG(issuedSt0);
+        runExecRegular(issuedSt1_E);
+        runExecBranch(issuedSt1_E);
+        runExecSys(issuedSt1_E);
+        runExecMem(issuedSt1_E);
     end
     
-        assign issuedSt0 = //AbstractCore.
-                            theIssueQueues.ig;
     
-    assign memOp_E = eff(memOp_A);
-    assign memOpPrev_E = eff(memOpPrev);
-
-    assign issuedSt0_E = effIG(issuedSt0);
-    assign issuedSt1_E = effIG(issuedSt1);
-
-    assign doneOpsRegular_E = effA(doneOpsRegular);
-    assign doneOpBranch_E = eff(doneOpBranch);
-    assign doneOpMem_E = eff(doneOpMem);
-    assign doneOpSys_E = eff(doneOpSys);
-
-
+    
     task automatic runExecRegular(input IssueGroup igExec);
         execResultsRegular <= '{default: 'x};
     
@@ -563,32 +564,28 @@ module ExecBlock(ref InstructionMap insMap);
     
     task automatic runExecSys(input IssueGroup igExec);
         doneOpSys <= tick(igExec.sys);
-
     endtask
 
+//    task automatic runExec();
+//        issuedSt1 <= tickIG(issuedSt0);
+//        runExecRegular(issuedSt1_E);
+//        runExecBranch(issuedSt1_E);
+//        runExecSys(issuedSt1_E);
+//        runExecMem(issuedSt1_E);
+//    endtask
 
-    task automatic runExec();
-        //IssueGroup igExec = DEFAULT_ISSUE_GROUP;
+    assign issuedSt0 = theIssueQueues.ig;
+    
+    assign memOp_E = eff(memOp_A);
+    assign memOpPrev_E = eff(memOpPrev);
 
-        issuedSt1 <= tickIG(issuedSt0);
-        //igExec = issuedSt1_E;
+    assign issuedSt0_E = effIG(issuedSt0);
+    assign issuedSt1_E = effIG(issuedSt1);
 
-        //execResultsRegular <= '{default: 'x};
-        //execResultLink <= 'x;
-        //execResultMem <= 'x;
-
-        runExecRegular(issuedSt1_E);
-        runExecBranch(issuedSt1_E);
-        runExecSys(issuedSt1_E);   
-       
-//        if (igExec.mem.active) performMemFirst(igExec.mem);
-//        memOp_A <= tick(igExec.mem);
-//        memOpPrev <= tick(memOp_E);
-//        if (memOpPrev_E.active) performMemLater(memOpPrev_E);
-//        doneOpMem <= tick(memOpPrev);
-        
-        runExecMem(issuedSt1_E);
-    endtask
+    assign doneOpsRegular_E = effA(doneOpsRegular);
+    assign doneOpBranch_E = eff(doneOpBranch);
+    assign doneOpMem_E = eff(doneOpMem);
+    assign doneOpSys_E = eff(doneOpSys);
 
 
     task automatic setBranchTarget(input OpSlot op, input Word trg);
