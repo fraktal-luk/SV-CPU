@@ -78,12 +78,18 @@ package AbstractSim;
     typedef struct {
         int num;
         OpSlot regular[4];
+        OpSlot float;
         OpSlot branch;
         OpSlot mem;
         OpSlot sys;
     } IssueGroup;
     
-    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
+    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
+                                        regular: '{default: EMPTY_SLOT},
+                                        float: EMPTY_SLOT,
+                                        branch: EMPTY_SLOT,
+                                        mem: EMPTY_SLOT,
+                                        sys: EMPTY_SLOT};
 
 
 

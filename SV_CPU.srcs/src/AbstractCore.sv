@@ -773,6 +773,7 @@ module AbstractCore
             
             foreach (ig.regular[i])
                 res.regular[i] = eff(ig.regular[i]);
+            res.float = eff(ig.float);
             res.branch = eff(ig.branch);
             res.mem = eff(ig.mem);
             res.sys = eff(ig.sys);
@@ -785,6 +786,7 @@ module AbstractCore
             IssueGroup res;
             
             res.regular = tickA(ig.regular);
+            res.float = tick(ig.float);
             res.branch = tick(ig.branch);
             res.mem = tick(ig.mem);
             res.sys = tick(ig.sys);
