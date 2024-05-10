@@ -51,7 +51,7 @@ module AbstractCore
 
 
     Events evts;
-    BufferLevels oooLevels, oooLevels_N, oooAccepts;
+    BufferLevels oooLevels, oooLevels_N, oooLevels_N2, oooAccepts;
 
 
     // OOO
@@ -82,6 +82,8 @@ module AbstractCore
     Word retiredTarget = 0;
 
 
+    OpSlotA robOut;
+
     ///////////////////////////
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
@@ -89,7 +91,7 @@ module AbstractCore
     // Rename
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
     StoreQueue#(.SIZE(SQ_SIZE))
         theSq(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE))
@@ -118,10 +120,10 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
-            assign cmp0 = issued_T1 === issued_T0;
+            assign cmp0 = oooLevels_N2 === oooLevels_N;
 
     always @(posedge clk) begin
-                cmp1 = cmp0;
+                cmp1 = ( issued_T1 === issued_T0);//cmp0;
     
         activateEvent();
 

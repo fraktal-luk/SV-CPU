@@ -149,13 +149,13 @@ module IssueQueue
     parameter int OUT_WIDTH = 1
 )
 (
-                ref InstructionMap insMap,
-                input EventInfo branchEventInfo,
-                input EventInfo lateEventInfo,
-                input OpSlotA inGroup,
-                input logic inMask[$size(OpSlotA)],
-                
-                output OpSlot outGroup[OUT_WIDTH]
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input OpSlotA inGroup,
+    input logic inMask[$size(OpSlotA)],
+    
+    output OpSlot outGroup[OUT_WIDTH]
 );
 
     typedef logic ReadyVec[SIZE];
@@ -236,7 +236,7 @@ module IssueQueue
                 markOpIssued(op);
             end
             else
-                break;//issued[i] = EMPTY_SLOT;
+                break;
         end
     endtask
 
@@ -252,65 +252,50 @@ endmodule
 
 
 module IssueQueueComplex(
-                            ref InstructionMap insMap,
-                            input EventInfo branchEventInfo,
-                            input EventInfo lateEventInfo,
-                            input OpSlotA inGroup
+                        ref InstructionMap insMap,
+                        input EventInfo branchEventInfo,
+                        input EventInfo lateEventInfo,
+                        input OpSlotA inGroup
 );
 
     localparam int IN_WIDTH = $size(inGroup);
 
     typedef logic ReadyVec[OP_QUEUE_SIZE];
 
-    OpSlot T_iqRegular[$:OP_QUEUE_SIZE];
-    OpSlot T_iqBranch[$:OP_QUEUE_SIZE];
-    OpSlot T_iqMem[$:OP_QUEUE_SIZE];
-    OpSlot T_iqSys[$:OP_QUEUE_SIZE];
-
-    ReadyVec opsReadyRegular, opsReadyBranch, opsReadyMem, opsReadySys;
-
-        logic regularMask[IN_WIDTH];
-        OpSlot issuedRegular[4];
-        OpSlot issuedFloat[1];
-        OpSlot issuedMem[1];
-        OpSlot issuedSys[1];
-        OpSlot issuedBranch[1];
-        
-        IssueGroup ig, ig1;
-        
-        IssueQueue#(.OUT_WIDTH(4)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
-                                                issuedRegular);
-        IssueQueue#(.OUT_WIDTH(1)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
-                                                issuedFloat);
-        IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
-                                                issuedBranch);
-        IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
-                                                issuedMem);
-        IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
-                                                issuedSys);
+    logic regularMask[IN_WIDTH];
+    OpSlot issuedRegular[4];
+    OpSlot issuedFloat[1];
+    OpSlot issuedMem[1];
+    OpSlot issuedSys[1];
+    OpSlot issuedBranch[1];
+    
+    IssueGroup ig, ig1;
+    
+    IssueQueue#(.OUT_WIDTH(4)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
+                                            issuedRegular);
+    IssueQueue#(.OUT_WIDTH(1)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
+                                            issuedFloat);
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
+                                            issuedBranch);
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
+                                            issuedMem);
+    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
+                                            issuedSys);
 
 
-        assign ig.regular = issuedRegular;
-        assign ig.float = issuedFloat[0];
-        assign ig.branch = issuedBranch[0];
-        assign ig.mem = issuedMem[0];
-        assign ig.sys = issuedSys[0];
+    assign ig.regular = issuedRegular;
+    assign ig.float = issuedFloat[0];
+    assign ig.branch = issuedBranch[0];
+    assign ig.mem = issuedMem[0];
+    assign ig.sys = issuedSys[0];
 
-        assign ig1.regular = regularQueue.issued1;
-        assign ig1.float = floatQueue.issued1[0];
-        assign ig1.branch = branchQueue.issued1[0];
-        assign ig1.mem = memQueue.issued1[0];
-        assign ig1.sys = sysQueue.issued1[0];
+    assign ig1.regular = regularQueue.issued1;
+    assign ig1.float = floatQueue.issued1[0];
+    assign ig1.branch = branchQueue.issued1[0];
+    assign ig1.mem = memQueue.issued1[0];
+    assign ig1.sys = sysQueue.issued1[0];
 
 
-    task automatic writeToIqs();
-        foreach (inGroup[i]) begin
-            OpSlot op = inGroup[i];
-            if (op.active) begin
-                addToIssueQueues(op);
-            end
-        end
-    endtask
     
     typedef struct {
         logic regular[IN_WIDTH];
@@ -351,92 +336,7 @@ module IssueQueueComplex(
     endfunction
 
 
-
-    task automatic addToIssueQueues(input OpSlot op);    
-        if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) T_iqMem.push_back(op);
-        else if (isSysIns(decAbs(op))) T_iqSys.push_back(op);
-        else if (isBranchIns(decAbs(op))) T_iqBranch.push_back(op);
-        else T_iqRegular.push_back(op);
-    endtask
-
-    task automatic flushIqs();
-        if (lateEventInfo.redirect) begin
-            flushOpQueuesAll();
-        end
-        else if (branchEventInfo.redirect) begin
-            flushOpQueuesPartial(branchEventInfo.op);
-        end
-    endtask
-
-
-    task automatic flushOpQueuesAll();
-        while (T_iqRegular.size() > 0) begin
-            void'(T_iqRegular.pop_back());
-        end
-        while (T_iqBranch.size() > 0) begin
-            void'(T_iqBranch.pop_back());
-        end
-        while (T_iqMem.size() > 0) begin
-            void'(T_iqMem.pop_back());
-        end
-        while (T_iqSys.size() > 0) begin
-            void'(T_iqSys.pop_back());
-        end
-    endtask
-
-    task automatic flushOpQueuesPartial(input OpSlot op);
-        while (T_iqRegular.size() > 0 && T_iqRegular[$].id > op.id) begin
-            void'(T_iqRegular.pop_back());
-        end
-        while (T_iqBranch.size() > 0 && T_iqBranch[$].id > op.id) begin
-            void'(T_iqBranch.pop_back());
-        end
-        while (T_iqMem.size() > 0 && T_iqMem[$].id > op.id) begin
-            void'(T_iqMem.pop_back());
-        end
-        while (T_iqSys.size() > 0 && T_iqSys[$].id > op.id) begin
-            void'(T_iqSys.pop_back());
-        end
-    endtask
-
-
-    function automatic IssueGroup issueFromQueues();
-        IssueGroup res = DEFAULT_ISSUE_GROUP;
-        
-        int size = AbstractCore.oooLevels_N.iqRegular;
-        int maxNum = size > 4 ? 4 : size;
-        if (maxNum > T_iqRegular.size()) maxNum = T_iqRegular.size(); // Queue may be flushing in this cycle, so possiblre shrinkage is checked here 
-    
-        for (int i = 0; i < maxNum; i++) begin
-            OpSlot op;
-            
-            if (!opsReadyRegular[i]) break;
-            
-            op = T_iqRegular.pop_front();
-            
-            assert (op.active) else $fatal(2, "Op from queue is empty!");
-            //res.num++;
-            
-            res.regular[i] = op;
-        end
-        
-        if (T_iqSys.size() > 0 && opsReadySys[0]) begin
-            res.sys = T_iqSys.pop_front();
-        end
-
-        if (T_iqMem.size() > 0 && opsReadyMem[0]) begin
-            res.mem = T_iqMem.pop_front();
-        end
-
-        if (T_iqBranch.size() > 0 && opsReadyBranch[0]) begin
-            res.branch = T_iqBranch.pop_front();
-        end       
-        
-        return res;
-    endfunction
-
-
-    function automatic logic3 checkArgsReady_A(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+    function automatic logic3 checkArgsReady_A(input InsDependencies deps);
         logic3 res;
         foreach (deps.types[i])
             case (deps.types[i])
@@ -459,46 +359,13 @@ module IssueQueueComplex(
     endfunction
 
 
-    task automatic updateReadyVecs_A();        
-        opsReadyRegular <= getReadyVec_A(T_iqRegular);
-        opsReadyBranch <= getReadyVec_A(T_iqBranch);
-        opsReadyMem <= getReadyVec_A(T_iqMem);
-        opsReadySys <= getReadyVec_A(T_iqSys);
+    assign    AbstractCore.oooLevels_N2.iqRegular = regularQueue.num;
+    assign    AbstractCore.oooLevels_N2.iqBranch = branchQueue.num;
+    assign    AbstractCore.oooLevels_N2.iqMem = memQueue.num;
+    assign    AbstractCore.oooLevels_N2.iqSys = sysQueue.num;
 
-        AbstractCore.oooLevels_N.iqRegular <= T_iqRegular.size();
-        AbstractCore.oooLevels_N.iqBranch <= T_iqBranch.size();
-        AbstractCore.oooLevels_N.iqMem <= T_iqMem.size();
-        AbstractCore.oooLevels_N.iqSys <= T_iqSys.size();
-    endtask    
+    assign AbstractCore.oooLevels_N = AbstractCore.oooLevels_N2;
 
-
-    always @(posedge AbstractCore.clk) begin
-        if (lateEventInfo.redirect || branchEventInfo.redirect)
-            flushIqs();
-        else
-            writeToIqs();
-       
-        begin
-            automatic IssueGroup igIssue = issueFromQueues();
-
-            //markIssued(igIssue);
-            updateReadyVecs_A();
-        end
-    end
-    
-    function automatic void markIssued(input IssueGroup ig);
-        foreach (ig.regular[i]) markOpIssued(ig.regular[i]);
-        markOpIssued(ig.branch);
-        markOpIssued(ig.mem);
-        markOpIssued(ig.sys);
-    endfunction
-    
-    function automatic void markOpIssued(input OpSlot op);
-        if (!op.active || op.id == -1) return;
-        
-        putMilestone(op.id, InstructionMap::Issue);
-    endfunction
-    
 endmodule
 
 
@@ -522,57 +389,71 @@ module ExecBlock(ref InstructionMap insMap);
     Word execResultLink = 'x, execResultMem = 'x;
 
 
-    // Exec process
+    always @(posedge AbstractCore.clk) begin
+
+        issuedSt1.float <= tick(issuedSt0.float);
+                
+
+    end
+
+    always @(posedge AbstractCore.clk) begin
+        issuedSt1.regular <= tickA(issuedSt0.regular);
+        runExecRegular(issuedSt1_E.regular);
+
+    end
+
+    always @(posedge AbstractCore.clk) begin
+        AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+
+        issuedSt1.branch <= tick(issuedSt0.branch);       
+        runExecBranch(issuedSt1_E.branch);
+    end
+
+
+    always @(posedge AbstractCore.clk) begin
+        issuedSt1.sys <= tick(issuedSt0.sys);       
+        runExecSys(issuedSt1_E.sys);
+    end
+
+
     always @(posedge AbstractCore.clk) begin
         AbstractCore.readInfo <= EMPTY_WRITE_INFO;
-        AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-        //runExec();
-        issuedSt1 <= tickIG(issuedSt0);
-        runExecRegular(issuedSt1_E);
-        runExecBranch(issuedSt1_E);
-        runExecSys(issuedSt1_E);
-        runExecMem(issuedSt1_E);
+
+        issuedSt1.mem <= tick(issuedSt0.mem);       
+        runExecMem(issuedSt1_E.mem);
     end
     
     
     
-    task automatic runExecRegular(input IssueGroup igExec);
+    task automatic runExecRegular(input OpSlot ops[4]);
         execResultsRegular <= '{default: 'x};
     
-        foreach (igExec.regular[i])
-            if (igExec.regular[i].active) performRegularOp(igExec.regular[i], i);
-        doneOpsRegular <= tickA(igExec.regular);
-
+        foreach (ops[i])
+            if (ops[i].active) performRegularOp(ops[i], i);
+        doneOpsRegular <= tickA(ops);
     endtask
     
-    task automatic runExecBranch(input IssueGroup igExec);
+    task automatic runExecBranch(input OpSlot op);
         execResultLink <= 'x;
 
-        if (igExec.branch.active)   execBranch(igExec.branch);
-        doneOpBranch <= tick(igExec.branch);
+        if (op.active)   execBranch(op);
+        doneOpBranch <= tick(op);
     endtask
     
-    task automatic runExecMem(input IssueGroup igExec);
+    task automatic runExecMem(input OpSlot op);
         execResultMem <= 'x;
     
-        if (igExec.mem.active) performMemFirst(igExec.mem);
-        memOp_A <= tick(igExec.mem);
+        if (op.active) performMemFirst(op);
+        memOp_A <= tick(op);
         memOpPrev <= tick(memOp_E);
         if (memOpPrev_E.active) performMemLater(memOpPrev_E);
         doneOpMem <= tick(memOpPrev);
     endtask
     
-    task automatic runExecSys(input IssueGroup igExec);
-        doneOpSys <= tick(igExec.sys);
+    task automatic runExecSys(input OpSlot op);
+        doneOpSys <= tick(op);
     endtask
 
-//    task automatic runExec();
-//        issuedSt1 <= tickIG(issuedSt0);
-//        runExecRegular(issuedSt1_E);
-//        runExecBranch(issuedSt1_E);
-//        runExecSys(issuedSt1_E);
-//        runExecMem(issuedSt1_E);
-//    endtask
 
     assign issuedSt0 = theIssueQueues.ig;
     
