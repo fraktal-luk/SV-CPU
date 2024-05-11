@@ -44,6 +44,7 @@ package AbstractSim;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
 
+    typedef OpSlot OpSlot2[2];
     typedef OpSlot OpSlot4[4];
 
     typedef OpSlot OpSlotA[FETCH_WIDTH];
@@ -77,7 +78,7 @@ package AbstractSim;
 
     typedef struct {
         int num;
-        OpSlot regular[4];
+        OpSlot regular[2];
         OpSlot float;
         OpSlot branch;
         OpSlot mem;

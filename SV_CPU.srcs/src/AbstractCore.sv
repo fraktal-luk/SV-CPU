@@ -101,7 +101,7 @@ module AbstractCore
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
-    ExecBlock theExecBlock(insMap);
+    ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     ///////////////////////////////////////////
 
@@ -120,10 +120,10 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
-            assign cmp0 = oooLevels_N2 === oooLevels_N;
+            assign cmp0 = theExecBlock.doneOpsRegular[0] === theExecBlock.regular0.doneOp;
 
     always @(posedge clk) begin
-                cmp1 = ( issued_T1 === issued_T0);//cmp0;
+                cmp1 = cmp0;
     
         activateEvent();
 
@@ -758,11 +758,11 @@ module AbstractCore
             return op;
         endfunction
 
-        function automatic OpSlotA tickA(input OpSlotA opA);
-            OpSlotA res;
-            foreach (opA[i]) res[i] = opA[i];
-            return res;
-        endfunction
+//        function automatic OpSlot2 tickA(input OpSlot opA[2]);
+//            OpSlot res[2];
+//            foreach (opA[i]) res[i] = opA[i];
+//            return res;
+//        endfunction
 
         function automatic OpSlot eff(input OpSlot op);
             if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
@@ -787,7 +787,8 @@ module AbstractCore
         function automatic IssueGroup tickIG(input IssueGroup ig);
             IssueGroup res;
             
-            res.regular = tickA(ig.regular);
+            res.regular[0] = tick(ig.regular[0]);
+            res.regular[1] = tick(ig.regular[1]);
             res.float = tick(ig.float);
             res.branch = tick(ig.branch);
             res.mem = tick(ig.mem);
@@ -798,11 +799,11 @@ module AbstractCore
         endfunction
                 
 
-        function automatic OpSlot4 effA(input OpSlot ops[4]);
-            OpSlot res[4];
-            foreach (ops[i]) res[i] = eff(ops[i]);
-            return res;
-        endfunction
+//        function automatic OpSlot2 effA(input OpSlot ops[2]);
+//            OpSlot res[2];
+//            foreach (ops[i]) res[i] = eff(ops[i]);
+//            return res;
+//        endfunction
 
 
     assign lastRenamedStr = disasm(lastRenamed.bits);
