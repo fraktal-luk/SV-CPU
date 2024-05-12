@@ -449,7 +449,7 @@ module ExecBlock(ref InstructionMap insMap,
     OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
     OpSlot memOp_E, memOpPrev_E;
     
-    OpSlot doneOpBranch, doneOpMem = EMPTY_SLOT,   doneOpBranch_XXX = EMPTY_SLOT, doneOpMem_XXX = EMPTY_SLOT,
+    OpSlot doneOpBranch, doneOpMem,   doneOpBranch_XXX = EMPTY_SLOT, doneOpMem_XXX = EMPTY_SLOT,
             doneOpSys = EMPTY_SLOT,
             inOpBranch;
 
@@ -460,7 +460,7 @@ module ExecBlock(ref InstructionMap insMap,
     OpSlot doneOpBranch_E, doneOpMem_E,
             doneOpSys_E;
 
-    Word execResultLink, execResultMem = 'x,   execResultLink_XXX = 'x, execResultMem_XXX = 'x;
+    Word execResultLink, execResultMem,   execResultLink_XXX = 'x, execResultMem_XXX = 'x;
 
 
         RegularSubpipe regular0(
@@ -536,46 +536,36 @@ module ExecBlock(ref InstructionMap insMap,
         endtask
 
         task automatic execBranch(input OpSlot op);
+//            AbstractInstruction abs = decAbs(op);
+//            Word3 args = getAndVerifyArgs(op);
+    
+//            ExecEvent evt = resolveBranch(abs, op.adr, args);
+
+            setBranchInCore(op);//, evt);
+            execResultLink_XXX <= op.adr + 4;
+        endtask
+
+        task automatic setBranchInCore(input OpSlot op);//, input ExecEvent evt);
             AbstractInstruction abs = decAbs(op);
             Word3 args = getAndVerifyArgs(op);
     
             ExecEvent evt = resolveBranch(abs, op.adr, args);
-    
-            setBranchInCore(op, evt);
-    
-//            BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == op.id);
-//            AbstractCore.branchCP = found[0];
-//            setBranchTarget(op, evt.redirect ? evt.target : op.adr + 4);
-
-//            AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
+            BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == op.id);
             
-            //execResultLink <= op.adr + 4;
-                execResultLink_XXX <= op.adr + 4;
+            int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == op.id);
+            Word trg = evt.redirect ? evt.target : op.adr + 4;
+            
+            AbstractCore.branchTargetQueue[ind[0]].target = trg;
+            AbstractCore.branchCP = found[0];
+            AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
         endtask
-
- //       task automatic setBranchTarget(input OpSlot op, input Word trg);
-//            int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == op.id);
-//            AbstractCore.branchTargetQueue[ind[0]].target = trg;
-//        endtask
-
-            task automatic setBranchInCore(input OpSlot op, input ExecEvent evt);
-
-                BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == op.id);
-                
-                int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == op.id);
-                Word trg = evt.redirect ? evt.target : op.adr + 4;
-                AbstractCore.branchTargetQueue[ind[0]].target = trg;
-            
-                AbstractCore.branchCP = found[0];
-                //setBranchTarget(op, trg);
-    
-                AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
-                
-            endtask
 
 
     assign execResultLink = execResultLink_XXX;
     assign doneOpBranch = doneOpBranch_XXX;
+
+    assign execResultMem = execResultMem_XXX;
+    assign doneOpMem = doneOpMem_XXX;
 
 
     //----------------
@@ -591,21 +581,33 @@ module ExecBlock(ref InstructionMap insMap,
     
     //-------------------------
     always @(posedge AbstractCore.clk) begin
-
         issuedSt1.mem <= tick(issuedSt0.mem);
         
-        AbstractCore.readInfo <= EMPTY_WRITE_INFO;     
-        runExecMem(issuedSt1_E.mem);
+        runExecMem();//issuedSt1_E.mem);
     end
     
-        task automatic runExecMem(input OpSlot op);
-            execResultMem <= 'x;
+        task automatic runExecMem();//input OpSlot op);
+            AbstractCore.readInfo <= EMPTY_WRITE_INFO;
         
-            if (op.active) performMemFirst(op);
-            memOp_A <= tick(op);
-            memOpPrev <= tick(memOp_E);
-            if (memOpPrev_E.active) performMemLater(memOpPrev_E);
-            doneOpMem <= tick(memOpPrev);
+            //execResultMem <= 'x;
+            execResultMem_XXX <= 'x;
+        
+            if (issuedSt1_E.mem.active) begin
+                performMemFirst(issuedSt1_E.mem);
+            end
+            
+            memOp_A <= tick(issuedSt1.mem);
+            
+            memOpPrev <= tick(memOp_A);
+            
+            if (memOpPrev_E.active) begin
+                //performMemLater(memOpPrev_E);
+                //execResultMem <= calcMemLater(op); 
+                execResultMem_XXX <= calcMemLater(memOpPrev_E); 
+            end
+            
+            //doneOpMem <= tick(memOpPrev);
+            doneOpMem_XXX <= tick(memOpPrev);
         endtask
     
     
@@ -625,17 +627,37 @@ module ExecBlock(ref InstructionMap insMap,
                     putMilestone(op.id, InstructionMap::WriteMemValue);
                 end
             end
-    
+
+            // 
             AbstractCore.readInfo <= '{1, adr, 'x};
         endtask
     
     
-        task automatic performMemLater(input OpSlot op);
+//        task automatic performMemLater(input OpSlot op);
+////            AbstractInstruction abs = decAbs(op);
+////            Word3 args = getAndVerifyArgs(op);
+    
+////            Word adr = calculateEffectiveAddress(abs, args);
+
+////            StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
+////            // Get last (youngest) of the matching stores
+////            Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
+////            Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+        
+////            if (matchingStores.size() != 0) begin
+////              //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
+////            end
+    
+//            execResultMem <= //data;
+//                               calcMemLater(op); 
+//        endtask
+    
+        function automatic Word calcMemLater(input OpSlot op);
             AbstractInstruction abs = decAbs(op);
             Word3 args = getAndVerifyArgs(op);
     
             Word adr = calculateEffectiveAddress(abs, args);
-    
+
             StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
             // Get last (youngest) of the matching stores
             Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
@@ -645,9 +667,9 @@ module ExecBlock(ref InstructionMap insMap,
               //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
             end
     
-            execResultMem <= data;
-        endtask
-    
+            return data;
+        endfunction
+
 
 
         task automatic updateSQ(input InsId id, input Word adr, input Word val);
