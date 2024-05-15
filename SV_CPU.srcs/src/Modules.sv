@@ -402,35 +402,35 @@ module RegularSubpipe(
 endmodule
 
 
-//module BranchSubpipe(
-//    ref InstructionMap insMap,
-//    input EventInfo branchEventInfo,
-//    input EventInfo lateEventInfo,
-//    input OpSlot op0,
-//    input OpSlot op1
-//);
+module BranchSubpipe(
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input OpSlot op0,
+    input OpSlot op1
+);
 
-//    OpSlot op0_E, op_E;
-//    OpSlot doneOp = EMPTY_SLOT;
-//    OpSlot doneOp_E;
-//    Word result = 'x;
+    OpSlot op0_E, op_E;
+    OpSlot doneOp = EMPTY_SLOT;
+    OpSlot doneOp_E;
+    Word result = 'x;
 
-//    always @(posedge AbstractCore.clk) begin
-//        //    op1 <= tick(op0);
+    always @(posedge AbstractCore.clk) begin
+        //    op1 <= tick(op0);
 
-//        result <= 'x;
+        result <= 'x;
     
-//        if (op_E.active)
-//            //result <= calcRegularOp(op_E)
-//            ;
-//        doneOp <= tick(op_E);
-//    end
+        //if (op_E.active)
+            runExecBranch(op_E)
+            ;
+        doneOp <= tick(op_E);
+    end
 
-//    assign op0_E = eff(op0);
-//    assign op_E = eff(op1);
-//    assign doneOp_E = eff(doneOp);
+    assign op0_E = eff(op0);
+    assign op_E = eff(op1);
+    assign doneOp_E = eff(doneOp);
 
-//endmodule
+endmodule
 
 
 
@@ -451,11 +451,11 @@ module ExecBlock(ref InstructionMap insMap,
     
     OpSlot doneOpBranch, doneOpMem,   doneOpBranch_XXX = EMPTY_SLOT, doneOpMem_XXX = EMPTY_SLOT,
             doneOpSys = EMPTY_SLOT,
-            inOpBranch;
+            inOpBranch, inOpMem;
 
-    OpSlot doneOpsRegular[2] = '{default: EMPTY_SLOT};
+    OpSlot doneOpsRegular[2];// = '{default: EMPTY_SLOT};
     OpSlot doneOpsRegular_E[2];
-    Word execResultsRegular[2] = '{'x, 'x};
+    Word execResultsRegular[2];// = '{'x, 'x};
     
     OpSlot doneOpBranch_E, doneOpMem_E,
             doneOpSys_E;
@@ -477,8 +477,16 @@ module ExecBlock(ref InstructionMap insMap,
             lateEventInfo,
             issuedSt0.regular[1],
             issuedSt1.regular[1]
-        );       
+        );
 
+
+        BranchSubpipe branch0(
+            insMap,
+            branchEventInfo,
+            lateEventInfo,
+            issuedSt0.branch,
+            issuedSt1.branch
+        );
 
 
     always @(posedge AbstractCore.clk) begin
@@ -494,17 +502,17 @@ module ExecBlock(ref InstructionMap insMap,
     end
 
         task automatic runExecRegular0(input OpSlot op);
-            execResultsRegular[0] <= 'x;
+           // execResultsRegular[0] <= 'x;
         
-            if (op.active) execResultsRegular[0] <= calcRegularOp(op);
-            doneOpsRegular[0] <= tick(op);
+           // if (op.active) execResultsRegular[0] <= calcRegularOp(op);
+           // doneOpsRegular[0] <= tick(op);
         endtask
 
         task automatic runExecRegular1(input OpSlot op);
-            execResultsRegular[1] <= 'x;
+           // execResultsRegular[1] <= 'x;
         
-            if (op.active) execResultsRegular[1] <= calcRegularOp(op);
-            doneOpsRegular[1] <= tick(op);
+           // if (op.active) execResultsRegular[1] <= calcRegularOp(op);
+           // doneOpsRegular[1] <= tick(op);
         endtask
 
         function automatic Word calcRegularOp(input OpSlot op);
@@ -518,30 +526,38 @@ module ExecBlock(ref InstructionMap insMap,
 
     //--------------
     assign inOpBranch = issuedSt1_E.branch;
-    
+    assign inOpMem = issuedSt1_E.mem;
+
+
+//             doneOpsRegular[0] === regular0.doneOp;
+//             doneOpsRegular[1] === regular1.doneOp;
+//             execResultsRegular[0] === regular0.result;
+//             execResultsRegular[1] === regular1.result;
+
+            assign doneOpsRegular[0] = regular0.doneOp;
+            assign doneOpsRegular[1] = regular1.doneOp;
+            assign execResultsRegular[0] = regular0.result;
+            assign execResultsRegular[1] = regular1.result;
+
     always @(posedge AbstractCore.clk) begin
-        AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+        //AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
 
         issuedSt1.branch <= tick(issuedSt0.branch);     
-        runExecBranch(inOpBranch);
+        
+           // runExecBranch(inOpBranch);
     end
 
         task automatic runExecBranch(input OpSlot op);
-            //execResultLink <= 'x;
-                execResultLink_XXX <= 'x;
+            AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+            execResultLink_XXX <= 'x;
 
             if (op.active) execBranch(op);
-            //doneOpBranch <= tick(op);
-                doneOpBranch_XXX <= tick(op);
+            
+            doneOpBranch_XXX <= tick(op);
         endtask
 
         task automatic execBranch(input OpSlot op);
-//            AbstractInstruction abs = decAbs(op);
-//            Word3 args = getAndVerifyArgs(op);
-    
-//            ExecEvent evt = resolveBranch(abs, op.adr, args);
-
-            setBranchInCore(op);//, evt);
+            setBranchInCore(op);
             execResultLink_XXX <= op.adr + 4;
         endtask
 
@@ -563,50 +579,35 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign execResultLink = execResultLink_XXX;
     assign doneOpBranch = doneOpBranch_XXX;
+                         
 
     assign execResultMem = execResultMem_XXX;
     assign doneOpMem = doneOpMem_XXX;
-
-
-    //----------------
-    always @(posedge AbstractCore.clk) begin
-        issuedSt1.sys <= tick(issuedSt0.sys);       
-        runExecSys(issuedSt1_E.sys);
-    end
-    
-        task automatic runExecSys(input OpSlot op);
-            doneOpSys <= tick(op);
-        endtask
 
     
     //-------------------------
     always @(posedge AbstractCore.clk) begin
         issuedSt1.mem <= tick(issuedSt0.mem);
         
-        runExecMem();//issuedSt1_E.mem);
+        runExecMem();
     end
     
-        task automatic runExecMem();//input OpSlot op);
+        task automatic runExecMem();
             AbstractCore.readInfo <= EMPTY_WRITE_INFO;
         
-            //execResultMem <= 'x;
-            execResultMem_XXX <= 'x;
-        
-            if (issuedSt1_E.mem.active) begin
-                performMemFirst(issuedSt1_E.mem);
+            if (inOpMem.active) begin
+                performMemFirst(inOpMem);
             end
             
             memOp_A <= tick(issuedSt1.mem);
             
             memOpPrev <= tick(memOp_A);
             
+            execResultMem_XXX <= 'x;
             if (memOpPrev_E.active) begin
-                //performMemLater(memOpPrev_E);
-                //execResultMem <= calcMemLater(op); 
                 execResultMem_XXX <= calcMemLater(memOpPrev_E); 
             end
             
-            //doneOpMem <= tick(memOpPrev);
             doneOpMem_XXX <= tick(memOpPrev);
         endtask
     
@@ -631,26 +632,7 @@ module ExecBlock(ref InstructionMap insMap,
             // 
             AbstractCore.readInfo <= '{1, adr, 'x};
         endtask
-    
-    
-//        task automatic performMemLater(input OpSlot op);
-////            AbstractInstruction abs = decAbs(op);
-////            Word3 args = getAndVerifyArgs(op);
-    
-////            Word adr = calculateEffectiveAddress(abs, args);
 
-////            StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
-////            // Get last (youngest) of the matching stores
-////            Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
-////            Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
-        
-////            if (matchingStores.size() != 0) begin
-////              //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
-////            end
-    
-//            execResultMem <= //data;
-//                               calcMemLater(op); 
-//        endtask
     
         function automatic Word calcMemLater(input OpSlot op);
             AbstractInstruction abs = decAbs(op);
@@ -701,6 +683,18 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneOpBranch_E = eff(doneOpBranch);
     assign doneOpMem_E = eff(doneOpMem);
     assign doneOpSys_E = eff(doneOpSys);
+
+
+
+    //----------------
+    always @(posedge AbstractCore.clk) begin
+        issuedSt1.sys <= tick(issuedSt0.sys);       
+        runExecSys(issuedSt1_E.sys);
+    end
+    
+        task automatic runExecSys(input OpSlot op);
+            doneOpSys <= tick(op);
+        endtask
 
 
 

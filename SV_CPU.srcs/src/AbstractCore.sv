@@ -24,7 +24,7 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '1;
+    logic dummy = '0;
 
 
     InstructionMap insMap = new();
@@ -120,10 +120,17 @@ module AbstractCore
         string iqRegularStr;
         string iqRegularStrA[OP_QUEUE_SIZE];
 
+            //assign cmp0 = theExecBlock.doneOpBranch === theExecBlock.branch0.doneOp;
+           // assign cmp0 = theExecBlock.inOpBranch === theExecBlock.branch0.op_E;
             assign cmp0 = theExecBlock.doneOpsRegular[0] === theExecBlock.regular0.doneOp;
+            assign cmpw0[0] = theExecBlock.doneOpsRegular[0] === theExecBlock.regular0.doneOp;
+            assign cmpw0[1] = theExecBlock.doneOpsRegular[1] === theExecBlock.regular1.doneOp;
+            assign cmpw0[2] = theExecBlock.execResultsRegular[0] === theExecBlock.regular0.result;
+            assign cmpw0[3] = theExecBlock.execResultsRegular[1] === theExecBlock.regular1.result;
 
     always @(posedge clk) begin
                 cmp1 = cmp0;
+                cmpw1 = cmpw0;
     
         activateEvent();
 
