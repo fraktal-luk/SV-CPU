@@ -127,6 +127,8 @@ module AbstractCore
             assign cmpw0[1] = theExecBlock.doneOpsRegular[1] === theExecBlock.regular1.doneOp;
             assign cmpw0[2] = theExecBlock.execResultsRegular[0] === theExecBlock.regular0.result;
             assign cmpw0[3] = theExecBlock.execResultsRegular[1] === theExecBlock.regular1.result;
+            assign cmpw0[4] = theExecBlock.execResultLink === theExecBlock.branch0.result;
+            assign cmpw0[5] = theExecBlock.doneOpBranch === theExecBlock.branch0.doneOp;
 
     always @(posedge clk) begin
                 cmp1 = cmp0;

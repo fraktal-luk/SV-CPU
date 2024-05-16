@@ -420,9 +420,11 @@ module BranchSubpipe(
 
         result <= 'x;
     
-        //if (op_E.active)
-            runExecBranch(op_E)
-            ;
+        runExecBranch(op_E);
+        
+        if (op_E.active)
+            result <= op_E.adr + 4;
+        
         doneOp <= tick(op_E);
     end
 
@@ -445,7 +447,6 @@ module ExecBlock(ref InstructionMap insMap,
     IssueGroup issuedSt0, issuedSt1 = DEFAULT_ISSUE_GROUP;
     IssueGroup issuedSt0_E, issuedSt1_E;
 
-
     OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
     OpSlot memOp_E, memOpPrev_E;
     
@@ -453,9 +454,9 @@ module ExecBlock(ref InstructionMap insMap,
             doneOpSys = EMPTY_SLOT,
             inOpBranch, inOpMem;
 
-    OpSlot doneOpsRegular[2];// = '{default: EMPTY_SLOT};
+    OpSlot doneOpsRegular[2];
     OpSlot doneOpsRegular_E[2];
-    Word execResultsRegular[2];// = '{'x, 'x};
+    Word execResultsRegular[2];
     
     OpSlot doneOpBranch_E, doneOpMem_E,
             doneOpSys_E;
@@ -489,39 +490,29 @@ module ExecBlock(ref InstructionMap insMap,
         );
 
 
-    always @(posedge AbstractCore.clk) begin
-        issuedSt1.float <= tick(issuedSt0.float);
-    end
+            always @(posedge AbstractCore.clk) begin
+                issuedSt1.float <= tick(issuedSt0.float);
+            end
 
     //--------
     always @(posedge AbstractCore.clk) begin
         issuedSt1.regular[0] <= tick(issuedSt0.regular[0]);
         issuedSt1.regular[1] <= tick(issuedSt0.regular[1]);
-        runExecRegular0(issuedSt1_E.regular[0]);
-        runExecRegular1(issuedSt1_E.regular[1]);
     end
 
-        task automatic runExecRegular0(input OpSlot op);
-           // execResultsRegular[0] <= 'x;
-        
-           // if (op.active) execResultsRegular[0] <= calcRegularOp(op);
-           // doneOpsRegular[0] <= tick(op);
-        endtask
+    always @(posedge AbstractCore.clk) begin
+        issuedSt1.branch <= tick(issuedSt0.branch);        
+    end
+    
+    
 
-        task automatic runExecRegular1(input OpSlot op);
-           // execResultsRegular[1] <= 'x;
+    function automatic Word calcRegularOp(input OpSlot op);
+        AbstractInstruction abs = decAbs(op);
+        Word3 args = getAndVerifyArgs(op);
+        Word result = calculateResult(abs, args, op.adr); // !!!!
         
-           // if (op.active) execResultsRegular[1] <= calcRegularOp(op);
-           // doneOpsRegular[1] <= tick(op);
-        endtask
-
-        function automatic Word calcRegularOp(input OpSlot op);
-            AbstractInstruction abs = decAbs(op);
-            Word3 args = getAndVerifyArgs(op);
-            Word result = calculateResult(abs, args, op.adr); // !!!!
-            
-            return result;
-        endfunction
+        return result;
+    endfunction
 
 
     //--------------
@@ -529,39 +520,29 @@ module ExecBlock(ref InstructionMap insMap,
     assign inOpMem = issuedSt1_E.mem;
 
 
-//             doneOpsRegular[0] === regular0.doneOp;
-//             doneOpsRegular[1] === regular1.doneOp;
-//             execResultsRegular[0] === regular0.result;
-//             execResultsRegular[1] === regular1.result;
+    assign doneOpsRegular[0] = regular0.doneOp;
+    assign doneOpsRegular[1] = regular1.doneOp;
+    assign execResultsRegular[0] = regular0.result;
+    assign execResultsRegular[1] = regular1.result;
 
-            assign doneOpsRegular[0] = regular0.doneOp;
-            assign doneOpsRegular[1] = regular1.doneOp;
-            assign execResultsRegular[0] = regular0.result;
-            assign execResultsRegular[1] = regular1.result;
-
-    always @(posedge AbstractCore.clk) begin
-        //AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-
-        issuedSt1.branch <= tick(issuedSt0.branch);     
-        
-           // runExecBranch(inOpBranch);
-    end
 
         task automatic runExecBranch(input OpSlot op);
-            AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
             execResultLink_XXX <= 'x;
-
-            if (op.active) execBranch(op);
+            if (op.active) begin
+                execResultLink_XXX <= op.adr + 4;
+            end
             
             doneOpBranch_XXX <= tick(op);
+            
+            AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+            if (op.active) begin
+                setBranchInCore(op);
+            end
+            
         endtask
 
-        task automatic execBranch(input OpSlot op);
-            setBranchInCore(op);
-            execResultLink_XXX <= op.adr + 4;
-        endtask
 
-        task automatic setBranchInCore(input OpSlot op);//, input ExecEvent evt);
+        task automatic setBranchInCore(input OpSlot op);
             AbstractInstruction abs = decAbs(op);
             Word3 args = getAndVerifyArgs(op);
     
