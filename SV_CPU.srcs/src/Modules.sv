@@ -94,7 +94,6 @@ module MemSubpipe(
 
     
         if (op_E.active)
-            //result <= calcRegularOp(op_E)
             performMemFirst(op_E);
             ;
         doneOpE0 <= tick(op1);
@@ -123,10 +122,9 @@ endmodule
 module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
-                        );
+);
 
     typedef StoreQueueEntry StoreQueueExtract[$];
-
 
     IssueGroup issuedSt0, issuedSt1 = DEFAULT_ISSUE_GROUP;
     IssueGroup issuedSt0_E, issuedSt1_E;
@@ -134,21 +132,18 @@ module ExecBlock(ref InstructionMap insMap,
     OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
     OpSlot memOp_E, memOpPrev_E;
     
-    OpSlot doneOpBranch, doneOpMem, //  doneOpBranch_XXX = EMPTY_SLOT, 
-            doneOpMem_XXX = EMPTY_SLOT,
-            doneOpSys = EMPTY_SLOT,
-            //inOpBranch, 
-            inOpMem;
+    OpSlot doneOpBranch, doneOpMem, doneOpSys = EMPTY_SLOT;
+    OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
 
     OpSlot doneOpsRegular[2];
     OpSlot doneOpsRegular_E[2];
     Word execResultsRegular[2];
-    
-    OpSlot doneOpBranch_E, doneOpMem_E,
-            doneOpSys_E;
 
-    Word execResultLink, execResultMem,// execResultLink_XXX = 'x, 
-                execResultMem_XXX = 'x;
+    OpSlot doneOpsFloat[2];
+    OpSlot doneOpsFloat_E[2];
+    Word execResultsFloat[2];
+    Word execResultLink, execResultMem;
+
 
     RegularSubpipe regular0(
         insMap,
@@ -183,33 +178,59 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
 
+        RegularSubpipe float0(
+            insMap,
+            branchEventInfo,
+            lateEventInfo,
+            issuedSt0.float[0],
+            issuedSt1.float[0]
+        );
+    
+        RegularSubpipe float1(
+            insMap,
+            branchEventInfo,
+            lateEventInfo,
+            issuedSt0.float[1],
+            issuedSt1.float[1]
+        );
+
+
     always @(posedge AbstractCore.clk) begin
-        issuedSt1.float <= tick(issuedSt0.float);
+        issuedSt1.float[0] <= tick(issuedSt0.float[0]);
+        issuedSt1.float[1] <= tick(issuedSt0.float[1]);
     end
 
     //--------
     always @(posedge AbstractCore.clk) begin
         issuedSt1.regular[0] <= tick(issuedSt0.regular[0]);
         issuedSt1.regular[1] <= tick(issuedSt0.regular[1]);
-        issuedSt1.branch <= tick(issuedSt0.branch);        
+        issuedSt1.branch <= tick(issuedSt0.branch);
+        issuedSt1.mem <= tick(issuedSt0.mem);
+        issuedSt1.sys <= tick(issuedSt0.sys);
     end
 
-
-    //--------------
-    assign inOpMem = issuedSt1_E.mem;
+    always @(posedge AbstractCore.clk) begin
+        doneOpSys <= tick(issuedSt1_E.sys);
+    end
 
 
     assign doneOpsRegular[0] = regular0.doneOp;
     assign doneOpsRegular[1] = regular1.doneOp;
+    
+    assign doneOpsFloat[0] = float0.doneOp;
+    assign doneOpsFloat[1] = float1.doneOp;
+
+    assign doneOpBranch = branch0.doneOp;
+    assign doneOpMem = mem0.doneOpE2;
+
     assign execResultsRegular[0] = regular0.result;
     assign execResultsRegular[1] = regular1.result;
+    
+    assign execResultsFloat[0] = float0.result;
+    assign execResultsFloat[1] = float1.result;
+    
     assign execResultLink = branch0.result;
-    assign doneOpBranch = branch0.doneOp;
-
-    assign execResultMem = //execResultMem_XXX;
-                           mem0.result;
-    assign doneOpMem = //doneOpMem_XXX;
-                        mem0.doneOpE2;
+    assign execResultMem = mem0.result;
 
 
 
@@ -244,110 +265,62 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
 
-                         
 
 
-    
-    //-------------------------
-    always @(posedge AbstractCore.clk) begin
-        issuedSt1.mem <= tick(issuedSt0.mem);
-        
-        
-        //runExecMem();
-        //AbstractCore.readInfo <= EMPTY_WRITE_INFO;
-    
-        if (inOpMem.active) begin
-            //performMemFirst(inOpMem);
-        end
-        
-        memOp_A <= tick(issuedSt1.mem);
-        
-        memOpPrev <= tick(memOp_A);
-        
-        execResultMem_XXX <= 'x;
-        if (memOpPrev_E.active) begin
-            execResultMem_XXX <= calcMemLater(memOpPrev_E); 
-        end
-        
-        doneOpMem_XXX <= tick(memOpPrev);
-    end
-    
-    
-        task automatic performMemFirst(input OpSlot op);
-            AbstractInstruction abs = decAbs(op);
-            Word3 args = getAndVerifyArgs(op);
-            Word adr = calculateEffectiveAddress(abs, args);
+    task automatic performMemFirst(input OpSlot op);
+        AbstractInstruction abs = decAbs(op);
+        Word3 args = getAndVerifyArgs(op);
+        Word adr = calculateEffectiveAddress(abs, args);
 
-            // TODO: compare adr with that in memTracker
-            if (isStoreIns(decAbs(op))) begin
-                updateSQ(op.id, adr, args[2]);
+        // TODO: compare adr with that in memTracker
+        if (isStoreIns(decAbs(op))) begin
+            updateSQ(op.id, adr, args[2]);
+            
+            if (isStoreMemIns(decAbs(op))) begin
+                checkStoreValue(op.id, adr, args[2]);
                 
-                if (isStoreMemIns(decAbs(op))) begin
-                    checkStoreValue(op.id, adr, args[2]);
-                    
-                    putMilestone(op.id, InstructionMap::WriteMemAddress);
-                    putMilestone(op.id, InstructionMap::WriteMemValue);
-                end
+                putMilestone(op.id, InstructionMap::WriteMemAddress);
+                putMilestone(op.id, InstructionMap::WriteMemValue);
             end
+        end
 
-            // 
-            AbstractCore.readInfo <= '{1, adr, 'x};
-        endtask
+        AbstractCore.readInfo <= '{1, adr, 'x};
+    endtask
 
+
+    function automatic Word calcMemLater(input OpSlot op);
+        AbstractInstruction abs = decAbs(op);
+        Word3 args = getAndVerifyArgs(op);
+
+        Word adr = calculateEffectiveAddress(abs, args);
+
+        StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
+        // Get last (youngest) of the matching stores
+        Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
+        Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
     
-        function automatic Word calcMemLater(input OpSlot op);
-            AbstractInstruction abs = decAbs(op);
-            Word3 args = getAndVerifyArgs(op);
-    
-            Word adr = calculateEffectiveAddress(abs, args);
+        if (matchingStores.size() != 0) begin
+          //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
+        end
 
-            StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
-            // Get last (youngest) of the matching stores
-            Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
-            Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
-        
-            if (matchingStores.size() != 0) begin
-              //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
-            end
-    
-            return data;
-        endfunction
+        return data;
+    endfunction
 
 
 
-        task automatic updateSQ(input InsId id, input Word adr, input Word val);
-            int ind[$] = AbstractCore.storeQueue.find_first_index with (item.op.id == id);
-            AbstractCore.storeQueue[ind[0]].adr = adr;
-            AbstractCore.storeQueue[ind[0]].val = val;
-        endtask
-    
-        function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
-            // TODO: develop adr overlap check?
-            StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-            StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq_N.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-            StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
-            return matchingStores;
-        endfunction
-    
-//        task automatic runExecMem();
-//            AbstractCore.readInfo <= EMPTY_WRITE_INFO;
-        
-//            if (inOpMem.active) begin
-//                performMemFirst(inOpMem);
-//            end
-            
-//            memOp_A <= tick(issuedSt1.mem);
-            
-//            memOpPrev <= tick(memOp_A);
-            
-//            execResultMem_XXX <= 'x;
-//            if (memOpPrev_E.active) begin
-//                execResultMem_XXX <= calcMemLater(memOpPrev_E); 
-//            end
-            
-//            doneOpMem_XXX <= tick(memOpPrev);
-//        endtask
+    task automatic updateSQ(input InsId id, input Word adr, input Word val);
+        int ind[$] = AbstractCore.storeQueue.find_first_index with (item.op.id == id);
+        AbstractCore.storeQueue[ind[0]].adr = adr;
+        AbstractCore.storeQueue[ind[0]].val = val;
+    endtask
 
+    function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
+        // TODO: develop adr overlap check?
+        StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+        StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq_N.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+        StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
+        return matchingStores;
+    endfunction
 
 
     assign issuedSt0 = theIssueQueues.ig;
@@ -360,21 +333,11 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneOpsRegular_E[0] = eff(doneOpsRegular[0]);
     assign doneOpsRegular_E[1] = eff(doneOpsRegular[1]);
+    assign doneOpsFloat_E[0] = eff(doneOpsFloat[0]);
+    assign doneOpsFloat_E[1] = eff(doneOpsFloat[1]);
     assign doneOpBranch_E = eff(doneOpBranch);
     assign doneOpMem_E = eff(doneOpMem);
     assign doneOpSys_E = eff(doneOpSys);
-
-
-
-    //----------------
-    always @(posedge AbstractCore.clk) begin
-        issuedSt1.sys <= tick(issuedSt0.sys);       
-        runExecSys(issuedSt1_E.sys);
-    end
-    
-        task automatic runExecSys(input OpSlot op);
-            doneOpSys <= tick(op);
-        endtask
 
 
 
@@ -392,11 +355,7 @@ module ExecBlock(ref InstructionMap insMap,
         return argsP;
     endfunction;
 
-
 endmodule
-
-
-
 
 
 
@@ -501,7 +460,11 @@ module ReorderBuffer
         foreach (theExecBlock.doneOpsRegular_E[i]) begin
             markOpCompleted(theExecBlock.doneOpsRegular_E[i]);
         end
-        
+
+        foreach (theExecBlock.doneOpsFloat_E[i]) begin
+            markOpCompleted(theExecBlock.doneOpsFloat_E[i]);
+        end
+                
         markOpCompleted(theExecBlock.doneOpBranch_E);
         markOpCompleted(theExecBlock.doneOpMem_E);
         markOpCompleted(theExecBlock.doneOpSys_E);
@@ -805,7 +768,7 @@ module IssueQueueComplex(
 
     logic regularMask[IN_WIDTH];
     OpSlot issuedRegular[2];
-    OpSlot issuedFloat[1];
+    OpSlot issuedFloat[2];
     OpSlot issuedMem[1];
     OpSlot issuedSys[1];
     OpSlot issuedBranch[1];
@@ -814,7 +777,7 @@ module IssueQueueComplex(
     
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
                                             issuedRegular);
-    IssueQueue#(.OUT_WIDTH(1)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
                                             issuedFloat);
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
                                             issuedBranch);
@@ -825,13 +788,13 @@ module IssueQueueComplex(
 
 
     assign ig.regular = issuedRegular;
-    assign ig.float = issuedFloat[0];
+    assign ig.float = issuedFloat;
     assign ig.branch = issuedBranch[0];
     assign ig.mem = issuedMem[0];
     assign ig.sys = issuedSys[0];
 
     assign ig1.regular = regularQueue.issued1;
-    assign ig1.float = floatQueue.issued1[0];
+    assign ig1.float = floatQueue.issued1;
     assign ig1.branch = branchQueue.issued1[0];
     assign ig1.mem = memQueue.issued1[0];
     assign ig1.sys = sysQueue.issued1[0];
@@ -869,7 +832,11 @@ module IssueQueueComplex(
             if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) res.mem[i] = 1;
             else if (isSysIns(decAbs(op))) res.sys[i] = 1;
             else if (isBranchIns(decAbs(op))) res.branch[i] = 1;
-            else if (isFloatCalcIns(decAbs(op))) res.regular[i] = 1;
+            else if (isFloatCalcIns(decAbs(op))) 
+                if (AbstractCore.USE_FLOAT_SUBPIPES)
+                    res.float[i] = 1;
+                else
+                    res.regular[i] = 1;
             else res.regular[i] = 1;
         end
         

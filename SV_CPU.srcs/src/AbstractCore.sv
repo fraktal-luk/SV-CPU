@@ -26,6 +26,8 @@ module AbstractCore
     
     logic dummy = '0;
 
+        localparam logic USE_FLOAT_SUBPIPES = 1;
+
 
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -156,7 +158,12 @@ module AbstractCore
                 completeOp(theExecBlock.doneOpsRegular_E[i]);
                 writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
             end
-            
+
+            foreach (theExecBlock.doneOpsFloat_E[i]) begin
+                completeOp(theExecBlock.doneOpsFloat_E[i]);
+                writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
+            end
+                        
             completeOp(theExecBlock.doneOpBranch_E);
             writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
     
@@ -784,7 +791,8 @@ module AbstractCore
             
             foreach (ig.regular[i])
                 res.regular[i] = eff(ig.regular[i]);
-            res.float = eff(ig.float);
+            res.float[0] = eff(ig.float[0]);
+            res.float[1] = eff(ig.float[1]);
             res.branch = eff(ig.branch);
             res.mem = eff(ig.mem);
             res.sys = eff(ig.sys);
@@ -798,7 +806,8 @@ module AbstractCore
             
             res.regular[0] = tick(ig.regular[0]);
             res.regular[1] = tick(ig.regular[1]);
-            res.float = tick(ig.float);
+            res.float[0] = tick(ig.float[0]);
+            res.float[1] = tick(ig.float[1]);
             res.branch = tick(ig.branch);
             res.mem = tick(ig.mem);
             res.sys = tick(ig.sys);
