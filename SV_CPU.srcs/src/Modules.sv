@@ -90,12 +90,20 @@ module MemSubpipe(
 
         result <= 'x;
     
+        AbstractCore.readInfo <= EMPTY_WRITE_INFO;
+
+    
         if (op_E.active)
             //result <= calcRegularOp(op_E)
+            performMemFirst(op_E);
             ;
         doneOpE0 <= tick(op1);
         
         doneOpE1 <= tick(doneOpE0);
+        
+        if (doneOpE1_E.active) begin
+            result <= calcMemLater(doneOpE1_E); 
+        end
         
         doneOpE2 <= tick(doneOpE1);
         
@@ -198,8 +206,10 @@ module ExecBlock(ref InstructionMap insMap,
     assign execResultLink = branch0.result;
     assign doneOpBranch = branch0.doneOp;
 
-    assign execResultMem = execResultMem_XXX;
-    assign doneOpMem = doneOpMem_XXX;
+    assign execResultMem = //execResultMem_XXX;
+                           mem0.result;
+    assign doneOpMem = //doneOpMem_XXX;
+                        mem0.doneOpE2;
 
 
 
@@ -244,10 +254,10 @@ module ExecBlock(ref InstructionMap insMap,
         
         
         //runExecMem();
-        AbstractCore.readInfo <= EMPTY_WRITE_INFO;
+        //AbstractCore.readInfo <= EMPTY_WRITE_INFO;
     
         if (inOpMem.active) begin
-            performMemFirst(inOpMem);
+            //performMemFirst(inOpMem);
         end
         
         memOp_A <= tick(issuedSt1.mem);
