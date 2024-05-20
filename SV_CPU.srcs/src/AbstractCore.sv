@@ -26,8 +26,6 @@ module AbstractCore
     
     logic dummy = '0;
 
-        localparam logic USE_FLOAT_SUBPIPES = 1;
-
 
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -112,30 +110,12 @@ module AbstractCore
     OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
 
-        IssueGroup issued_T0, issued_T1;
-        
-        assign issued_T0 = theExecBlock.issuedSt0;
-        assign issued_T1 = theIssueQueues.ig;
-
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
-        string iqRegularStr;
-        string iqRegularStrA[OP_QUEUE_SIZE];
 
-            //assign cmp0 = theExecBlock.doneOpBranch === theExecBlock.branch0.doneOp;
-           // assign cmp0 = theExecBlock.inOpBranch === theExecBlock.branch0.op_E;
-            assign cmp0 = theExecBlock.doneOpsRegular[0] === theExecBlock.regular0.doneOp;
-            assign cmpw0[0] = theExecBlock.doneOpsRegular[0] === theExecBlock.regular0.doneOp;
-            assign cmpw0[1] = theExecBlock.doneOpsRegular[1] === theExecBlock.regular1.doneOp;
-            assign cmpw0[2] = theExecBlock.execResultsRegular[0] === theExecBlock.regular0.result;
-            assign cmpw0[3] = theExecBlock.execResultsRegular[1] === theExecBlock.regular1.result;
-            assign cmpw0[4] = theExecBlock.execResultLink === theExecBlock.branch0.result;
-            assign cmpw0[5] = theExecBlock.doneOpBranch === theExecBlock.branch0.doneOp;
+
 
     always @(posedge clk) begin
-                cmp1 = cmp0;
-                cmpw1 = cmpw0;
-    
         activateEvent();
 
         drainWriteQueue();
@@ -282,8 +262,6 @@ module AbstractCore
 
 
     task automatic renameGroup(input OpSlotA ops);
-        
-        
         if (anyActive(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
     
@@ -355,11 +333,9 @@ module AbstractCore
     function automatic BufferLevels getBufferLevels();
         BufferLevels res;
         res.oooq = oooQueue.size();
-        //res.bq = branchCheckpointQueue.size();
         res.rob = rob.size();
         res.lq = loadQueue.size();
         res.sq = storeQueue.size();
-        //res.csq = committedStoreQueue.size();
         return res;
     endfunction
 
@@ -373,11 +349,10 @@ module AbstractCore
             res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
         
         res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
-        //res.bq = levels.bq <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
         res.rob = levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
         res.lq = levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
         res.sq = levels.sq <= SQ_SIZE - 3*FETCH_WIDTH;
-        res.csq = 1;//committedStoreQueue.size();
+        res.csq = 1;
         return res;
     endfunction
 
@@ -565,7 +540,6 @@ module AbstractCore
         if (isMemOp(op)) addToMemTracker(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
-//            branchTargetQueue.push_back('{op.id, 'z});
             saveCP(op); // Crucial state
         end
 
@@ -714,8 +688,7 @@ module AbstractCore
 
 
     task automatic updateOOOQ(input OpSlot op);
-        const int ind[$] = oooQueue.find_index with (item.id == op.id);
-        //assert (ind.size() > 0) oooQueue[ind[0]].done = 1; else $error("No such id in OOOQ: %d", op.id);
+        //const int ind[$] = oooQueue.find_index with (item.id == op.id);
         putMilestone(op.id, InstructionMap::Complete); 
     endtask
     
@@ -766,62 +739,19 @@ module AbstractCore
     endfunction
 
 
-        function automatic OpSlot tick(input OpSlot op);
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                putMilestone(op.id, InstructionMap::FlushExec);
-                return EMPTY_SLOT;
-            end
-            return op;
-        endfunction
+    function automatic OpSlot tick(input OpSlot op);
+        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+            putMilestone(op.id, InstructionMap::FlushExec);
+            return EMPTY_SLOT;
+        end
+        return op;
+    endfunction
 
-//        function automatic OpSlot2 tickA(input OpSlot opA[2]);
-//            OpSlot res[2];
-//            foreach (opA[i]) res[i] = opA[i];
-//            return res;
-//        endfunction
-
-        function automatic OpSlot eff(input OpSlot op);
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
-                return EMPTY_SLOT;
-            return op;
-        endfunction
-
-        function automatic IssueGroup effIG(input IssueGroup ig);
-            IssueGroup res;
-            
-            foreach (ig.regular[i])
-                res.regular[i] = eff(ig.regular[i]);
-            res.float[0] = eff(ig.float[0]);
-            res.float[1] = eff(ig.float[1]);
-            res.branch = eff(ig.branch);
-            res.mem = eff(ig.mem);
-            res.sys = eff(ig.sys);
-            res.num = ig.num;
-            
-            return res;
-        endfunction
-
-        function automatic IssueGroup tickIG(input IssueGroup ig);
-            IssueGroup res;
-            
-            res.regular[0] = tick(ig.regular[0]);
-            res.regular[1] = tick(ig.regular[1]);
-            res.float[0] = tick(ig.float[0]);
-            res.float[1] = tick(ig.float[1]);
-            res.branch = tick(ig.branch);
-            res.mem = tick(ig.mem);
-            res.sys = tick(ig.sys);
-            res.num = ig.num;
-            
-            return res;
-        endfunction
-                
-
-//        function automatic OpSlot2 effA(input OpSlot ops[2]);
-//            OpSlot res[2];
-//            foreach (ops[i]) res[i] = eff(ops[i]);
-//            return res;
-//        endfunction
+    function automatic OpSlot eff(input OpSlot op);
+        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+            return EMPTY_SLOT;
+        return op;
+    endfunction
 
 
     assign lastRenamedStr = disasm(lastRenamed.bits);

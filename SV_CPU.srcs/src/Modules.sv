@@ -13,17 +13,16 @@ module RegularSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0,
-    input OpSlot op1
+    input OpSlot op0
 );
 
-    OpSlot op0_E, op_E;
+    OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
     OpSlot doneOp = EMPTY_SLOT;
     OpSlot doneOp_E;
     Word result = 'x;
 
     always @(posedge AbstractCore.clk) begin
-        //    op1 <= tick(op0);
+        op1 <= tick(op0);
 
         result <= 'x;
     
@@ -43,17 +42,16 @@ module BranchSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0,
-    input OpSlot op1
+    input OpSlot op0
 );
 
-    OpSlot op0_E, op_E;
+    OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
     OpSlot doneOp = EMPTY_SLOT;
     OpSlot doneOp_E;
     Word result = 'x;
 
     always @(posedge AbstractCore.clk) begin
-        //    op1 <= tick(op0);
+        op1 <= tick(op0);
 
         result <= 'x;
     
@@ -76,26 +74,23 @@ module MemSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0,
-    input OpSlot op1
+    input OpSlot op0
 );
 
-    OpSlot op0_E, op_E;
+    OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
     OpSlot doneOpE0 = EMPTY_SLOT, doneOpE1 = EMPTY_SLOT, doneOpE2 = EMPTY_SLOT;
     OpSlot doneOpE0_E, doneOpE1_E, doneOpE2_E;
     Word result = 'x;
 
     always @(posedge AbstractCore.clk) begin
-        //    op1 <= tick(op0);
+        op1 <= tick(op0);
 
         result <= 'x;
     
         AbstractCore.readInfo <= EMPTY_WRITE_INFO;
 
-    
-        if (op_E.active)
-            performMemFirst(op_E);
-            ;
+        if (op_E.active) performMemFirst(op_E);
+
         doneOpE0 <= tick(op1);
         
         doneOpE1 <= tick(doneOpE0);
@@ -126,11 +121,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     typedef StoreQueueEntry StoreQueueExtract[$];
 
-    IssueGroup issuedSt0, issuedSt1 = DEFAULT_ISSUE_GROUP;
-    IssueGroup issuedSt0_E, issuedSt1_E;
-
-    OpSlot memOp_A = EMPTY_SLOT, memOpPrev = EMPTY_SLOT;
-    OpSlot memOp_E, memOpPrev_E;
+    IssueGroup issuedSt0;
     
     OpSlot doneOpBranch, doneOpMem, doneOpSys = EMPTY_SLOT;
     OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
@@ -149,68 +140,47 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.regular[0],
-        issuedSt1.regular[0]
+        issuedSt0.regular[0]
     );
 
     RegularSubpipe regular1(
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.regular[1],
-        issuedSt1.regular[1]
+        issuedSt0.regular[1]
     );
 
     BranchSubpipe branch0(
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.branch,
-        issuedSt1.branch
+        issuedSt0.branch
     );
 
     MemSubpipe mem0(
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.mem,
-        issuedSt1.mem
+        issuedSt0.mem
+    );
+
+    RegularSubpipe float0(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        issuedSt0.float[0]
+    );
+
+    RegularSubpipe float1(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        issuedSt0.float[1]
     );
 
 
-        RegularSubpipe float0(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            issuedSt0.float[0],
-            issuedSt1.float[0]
-        );
-    
-        RegularSubpipe float1(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            issuedSt0.float[1],
-            issuedSt1.float[1]
-        );
-
-
     always @(posedge AbstractCore.clk) begin
-        issuedSt1.float[0] <= tick(issuedSt0.float[0]);
-        issuedSt1.float[1] <= tick(issuedSt0.float[1]);
-    end
-
-    //--------
-    always @(posedge AbstractCore.clk) begin
-        issuedSt1.regular[0] <= tick(issuedSt0.regular[0]);
-        issuedSt1.regular[1] <= tick(issuedSt0.regular[1]);
-        issuedSt1.branch <= tick(issuedSt0.branch);
-        issuedSt1.mem <= tick(issuedSt0.mem);
-        issuedSt1.sys <= tick(issuedSt0.sys);
-    end
-
-    always @(posedge AbstractCore.clk) begin
-        doneOpSys <= tick(issuedSt1_E.sys);
+        doneOpSys <= tick(issuedSt0.sys);
     end
 
 
@@ -324,12 +294,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     assign issuedSt0 = theIssueQueues.ig;
-    
-    assign memOp_E = eff(memOp_A);
-    assign memOpPrev_E = eff(memOpPrev);
 
-    assign issuedSt0_E = effIG(issuedSt0);
-    assign issuedSt1_E = effIG(issuedSt1);
 
     assign doneOpsRegular_E[0] = eff(doneOpsRegular[0]);
     assign doneOpsRegular_E[1] = eff(doneOpsRegular[1]);
@@ -356,7 +321,6 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction;
 
 endmodule
-
 
 
 
@@ -832,11 +796,7 @@ module IssueQueueComplex(
             if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) res.mem[i] = 1;
             else if (isSysIns(decAbs(op))) res.sys[i] = 1;
             else if (isBranchIns(decAbs(op))) res.branch[i] = 1;
-            else if (isFloatCalcIns(decAbs(op))) 
-                if (AbstractCore.USE_FLOAT_SUBPIPES)
-                    res.float[i] = 1;
-                else
-                    res.regular[i] = 1;
+            else if (isFloatCalcIns(decAbs(op))) res.float[i] = 1;
             else res.regular[i] = 1;
         end
         
