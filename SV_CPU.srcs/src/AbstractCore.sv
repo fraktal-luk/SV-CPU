@@ -26,6 +26,70 @@ module AbstractCore
     
     logic dummy = '0;
 
+    
+        ExecDefs::Forwarding_0 fw0;
+
+
+        ForwardingElement intImages[N_INT_PORTS][-3:1];
+        ForwardingElement memImages[N_MEM_PORTS][-3:1];
+        ForwardingElement floatImages[N_VEC_PORTS][-3:1];
+        IntByStage intImagesTr;
+        MemByStage memImagesTr;
+        VecByStage floatImagesTr;
+
+        
+        OpSlot AAA_op;
+        
+        assign AAA_op = theExecBlock.doneOpBranch;
+
+
+
+        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+            IntByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+            MemByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+            VecByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+
+        assign intImages = theExecBlock.intImages;
+        assign memImages = theExecBlock.memImages;
+        assign floatImages = theExecBlock.floatImages;
+        
+
+        assign intImagesTr = trsInt(intImages);
+        assign memImagesTr = trsMem(memImages);
+        assign floatImagesTr = trsVec(floatImages);
+        
 
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -51,7 +115,7 @@ module AbstractCore
 
 
     Events evts;
-    BufferLevels oooLevels, oooLevels_N, oooLevels_N2, oooAccepts;
+    BufferLevels oooLevels, oooLevels_N, oooAccepts;
 
 
     // OOO
@@ -524,6 +588,7 @@ module AbstractCore
         Word result, target;
         InsDependencies deps;
         Word argVals[3];
+        int physDest = -1;
         
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
@@ -536,7 +601,7 @@ module AbstractCore
 
         updateInds(renameInds, op); // Crucial state
 
-        registerTracker.reserve(op);
+        physDest = registerTracker.reserve(op);
         if (isMemOp(op)) addToMemTracker(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
@@ -546,6 +611,7 @@ module AbstractCore
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
         insMap.setDeps(op.id, deps);
+        insMap.setPhysDest(op.id, physDest);
         insMap.setArgValues(op.id, argVals);
         
         insMap.setInds(op.id, renameInds);

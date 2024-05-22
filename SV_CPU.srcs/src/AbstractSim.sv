@@ -1,8 +1,8 @@
 
-import Base::*;
-import InsDefs::*;
-import Asm::*;
-import Emulation::*;
+//import Base::*;
+//import InsDefs::*;
+//import Asm::*;
+//import Emulation::*;
 
 package AbstractSim;
     
@@ -309,6 +309,7 @@ package AbstractSim;
         IndexSet inds;
         int slot;
         InsDependencies deps;
+        int physDest;
         
         Word argValues[3];
         logic argError;
@@ -320,6 +321,8 @@ package AbstractSim;
         res.id = op.id;
         res.adr = op.adr;
         res.bits = op.bits;
+
+        res.physDest = -1;
 
         res.argError = 0;
 
@@ -383,7 +386,11 @@ package AbstractSim;
         function automatic void setSlot(input int id, input int slot);
             content[id].slot = slot;
         endfunction
-       
+
+        function automatic void setPhysDest(input int id, input int dest);
+            content[id].physDest = dest;
+        endfunction
+      
         function automatic void setArgValues(input int id, input Word vals[3]);
             content[id].argValues = vals;
         endfunction
@@ -615,10 +622,14 @@ package AbstractSim;
         endfunction;
 
 
-        function automatic void reserve(input OpSlot op);
+        function automatic int reserve(input OpSlot op);
             setWriterR(op);
             reserveInt(op);
             reserveFloat(op);
+            
+            if (writesFloatReg(op)) return findDestFloat(op.id);
+            else if (writesIntReg(op)) return findDestInt(op.id);
+            else return -1;
         endfunction
 
         function automatic void commit(input OpSlot op);
