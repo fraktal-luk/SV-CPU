@@ -508,6 +508,9 @@ module IssueQueue
              forwardVecM1,// = '{default: 'z},
              forwardVec0,// = '{default: 'z},
              forwardVec1,// = '{default: 'z},
+                    readyVec_C,
+                    readyVec_B,
+                    readyVec_T,
                     readyVec_A;
     ReadyVec3 ready3Vec,// = '{default: dummy3}, 
             forward3VecM3,// = '{default: dummy3},
@@ -520,37 +523,57 @@ module IssueQueue
     OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
     OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
     
-        logic cmpb;
+        logic cmpb, cmpb0, cmpb1;
         
         
     
     assign outGroup = issued;
     
-    assign readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1);
-    assign readyVec_A = makeReadyVec(readyOrForward3Vec);
+    //assign readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1);
+    //assign readyVec_A = makeReadyVec(readyOrForward3Vec);
+    assign readyVec_B = makeReadyVec(ready3Vec);
 
     function automatic ReadyVec3 gatherReadyOrForwards(input ReadyVec3 ready, input ReadyVec3 fwM3, 
                                                       input ReadyVec3 fwM2, input ReadyVec3 fwM1,
                                                       input ReadyVec3 fw0, input ReadyVec3 fw1);
-        ReadyVec3 res = ready;
+        ReadyVec3 res = '{default: dummy3};
         
         foreach (res[i]) begin
             logic slot[3] = res[i];
-            foreach (slot[a])
-                res[i][a] |= (fwM3[i][a] | fwM2[i][a] | fwM1[i][a] | fw0[i][a] | fw1[i][a]);
+            foreach (slot[a]) begin
+                if ($isunknown(ready[i][a])) res[i][a] = 'z;
+                else res[i][a] = (ready[i][a] | fwM3[i][a] | fwM2[i][a] | fwM1[i][a] | fw0[i][a] | fw1[i][a]);
+            end
         end
         
         return res;    
     endfunction
 
     function automatic ReadyVec makeReadyVec(input ReadyVec3 argV);
-        ReadyVec res;
-        foreach (res[i]) res[i] = argV[i].and();
+        ReadyVec res = '{default: 'z};
+        foreach (res[i]) 
+            res[i] = $isunknown(argV[i]) ? 'z : argV[i].and();
         return res;
     endfunction
     
 
     always @(posedge AbstractCore.clk) begin
+            readyVec_T = getReadyVec(content);
+
+            ready3Vec = getReadyVec3(content);
+            //    readyVec_B <= makeReadyVec(getReadyVec3(content));
+            
+            forward3VecM3 = getForwardVec3(content, -3);
+            forward3VecM2 = getForwardVec3(content, -2);
+            forward3VecM1 = getForwardVec3(content, -1);
+            forward3Vec0 = getForwardVec3(content, 0);
+            forward3Vec1 = getForwardVec3(content, 1);
+            
+            readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1);
+            
+                //readyVec_A = makeReadyVec( gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1));
+                readyVec_A = makeReadyVec(readyOrForward3Vec);
+
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             flushIq();
@@ -565,29 +588,27 @@ module IssueQueue
         
         num <= content.size();
         
-        readyVec <= getReadyVec(content);
-//            forwardVecM2 <= getForwardVec(content, -2);
-//            forwardVecM1 <= getForwardVec(content, -1);
-//            forwardVec0 <= getForwardVec(content, 0);
-//            forwardVec1 <= getForwardVec(content, 1);
-            
-//        ready3Vec <= getReadyVec3(content);
-//            forward3VecM3 <= getForwardVec3(content, -3);
-//            forward3VecM2 <= getForwardVec3(content, -2);
-//            forward3VecM1 <= getForwardVec3(content, -1);
-//            forward3Vec0 <= getForwardVec3(content, 0);
-//            forward3Vec1 <= getForwardVec3(content, 1);
+        //readyVec <= getReadyVec(content);
+        
+//                if (!(readyVec_A === readyVec_T)) begin
+//                    $display(">>>> %p", readyVec_T);
+//                    $display("     %p", readyVec_A);
+                    
+//                    $display("     %p", readyOrForward3Vec[0:7]);
+//                    $display("     %p", ready3Vec[0:7]);
+//                    $display("     %p", forward3VecM3[0:7]);
+//                    $display("     %p", forward3VecM2[0:7]);
+//                    $display("     %p", forward3VecM1[0:7]);
+//                    $display("     %p", forward3Vec0[0:7]);
+//                    $display("     %p", forward3Vec1[0:7]);
+//                end
     end
 
-       // assign readyVec = getReadyVec(content);
+            assign cmpb = (readyVec_A === readyVec_T);
+            assign cmpb0 = (readyVec_B === readyVec_T);
+            assign cmpb1 = (readyVec_C === readyVec_T);
 
-       assign     ready3Vec = getReadyVec3(content);
-       assign     forward3VecM3 = getForwardVec3(content, -3);
-       assign     forward3VecM2 = getForwardVec3(content, -2);
-       assign     forward3VecM1 = getForwardVec3(content, -1);
-       assign     forward3Vec0 = getForwardVec3(content, 0);
-       assign     forward3Vec1 = getForwardVec3(content, 1);
-
+       assign readyVec_C = getReadyVec(content);
 
     task automatic flushIq();
         if (lateEventInfo.redirect) begin
@@ -621,21 +642,33 @@ module IssueQueue
     endtask
 
     task automatic issue();
+        OpSlot ops[$];
         int n = OUT_WIDTH > num ? num : OUT_WIDTH;
         if (content.size() < n) n = content.size();
         
-        issued = '{default: EMPTY_SLOT};
-                
+        issued <= '{default: EMPTY_SLOT};
+         
         foreach (issued[i]) begin
             OpSlot op;
         
-            if (i < n && readyVec[i]) begin
-                op = content.pop_front();
-                issued[i] = tick(op);
-                markOpIssued(op);
+            //if (i < n && readyVec[i]) begin
+            if (i < n && readyVec_T[i]) begin
+                op = //content.pop_front();
+                     content[i];
+                ops.push_back(op);
+                //issued[i] <= tick(op);
+                //markOpIssued(op);
             end
             else
                 break;
+        end
+        
+        foreach (ops[i]) begin
+            OpSlot op = ops[i];
+            issued[i] <= tick(op);
+            markOpIssued(op);
+            
+            content.pop_front();
         end
     endtask
 
@@ -764,7 +797,7 @@ module IssueQueueComplex(
                 end
                 SRC_FLOAT: begin
                     ForwardingElement feVec[N_VEC_PORTS] = theExecBlock.floatImagesTr[stage];
-                    res[0] = 0;
+                    res[i] = 0;
                     foreach (feVec[i]) begin
                         InstructionInfo ii;
                         if (feVec[i].id == -1) continue;
