@@ -776,34 +776,45 @@ module IssueQueueComplex(
                     ForwardingElement feInt[N_INT_PORTS] = theExecBlock.intImagesTr[stage];
                     ForwardingElement feMem[N_MEM_PORTS] = theExecBlock.memImagesTr[stage];
                     res[i] = 0;
-                    foreach (feInt[i]) begin
+                    foreach (feInt[p]) begin
                         InstructionInfo ii;
-                        if (feInt[i].id == -1) continue;
-                        ii = insMap.get(feInt[i].id);
+                        if (feInt[p].id == -1) continue;
+                        ii = insMap.get(feInt[p].id);
+                        //if (feInt[p].id === deps.producers[i]) begin
                         if (ii.physDest === deps.sources[i]) begin
                             res[i] = 1;
-                            //    $display("huhu!");
+                                assert (feInt[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else begin
+                                    $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
+                                    $display("%p", ii);
+                                end
+                                //$display("Match int: %d ->; p %d", feInt[p].id, deps.sources[i]);
                         end
                     end
-                    foreach (feMem[i]) begin
+                    foreach (feMem[p]) begin
                         InstructionInfo ii;
-                        if (feMem[i].id == -1) continue;
-                        ii = insMap.get(feMem[i].id);
+                        if (feMem[p].id == -1) continue;
+                        ii = insMap.get(feMem[p].id);
                         if (ii.physDest === deps.sources[i]) begin
+                        //if (feMem[p].id === deps.producers[i]) begin
                             res[i] = 1;
-                            //$display(" haaa ha!");
+                                assert (feMem[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
+                                //$display("Match mem: %d ->; p %d", feMem[p].id, deps.sources[i]);
                         end
                     end
                 end
                 SRC_FLOAT: begin
                     ForwardingElement feVec[N_VEC_PORTS] = theExecBlock.floatImagesTr[stage];
                     res[i] = 0;
-                    foreach (feVec[i]) begin
+                    foreach (feVec[p]) begin
                         InstructionInfo ii;
-                        if (feVec[i].id == -1) continue;
-                        ii = insMap.get(feVec[i].id);
+                        if (feVec[p].id == -1) continue;
+                        ii = insMap.get(feVec[p].id);
                         if (ii.physDest === deps.sources[i]) begin
+                        //if (ii.feVec[p].id === deps.producers[i]) begin
                             res[i] = 1;
+                            
+                                assert (feVec[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
+                                //$display("Match FP: %d ->; p %d", feVec[p].id, deps.sources[i]);
                         end
                     end
                 end

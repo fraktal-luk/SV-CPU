@@ -286,6 +286,7 @@ package AbstractSim;
     typedef struct {
         int sources[3];
         SourceType types[3];
+        InsId producers[3];
     } InsDependencies;
 
 
@@ -871,7 +872,7 @@ package AbstractSim;
         foreach (sources[i]) begin
             if (typeSpec[i + 2] == "i") begin
                 sources[i] = mapInt[abs.sources[i]];
-                types[i] = SRC_INT;
+                types[i] = sources[i] ? SRC_INT: SRC_ZERO;
             end
             else if (typeSpec[i + 2] == "f") begin
                 sources[i] = mapFloat[abs.sources[i]];
@@ -888,8 +889,43 @@ package AbstractSim;
             end
         end
 
-        return '{sources, types};
+        return '{sources, types, '{-1, -1, -1}};
     endfunction
+
+        function automatic InsDependencies getPhysicalArgs_N(input OpSlot op, input RegisterTracker regTracker);
+            int mapInt[32] = regTracker.intMapR;
+            int mapFloat[32] = regTracker.floatMapR;
+            int sources[3] = '{-1, -1, -1};
+            InsId producers[3] = '{-1, -1, -1};
+            SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
+            
+            AbstractInstruction abs = decodeAbstract(op.bits);
+            string typeSpec = parsingMap[abs.fmt].typeSpec;
+            
+            foreach (sources[i]) begin
+                if (typeSpec[i + 2] == "i") begin
+                    sources[i] = mapInt[abs.sources[i]];
+                    types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+                        producers[i] = regTracker.intInfo[sources[i]].owner;
+                end
+                else if (typeSpec[i + 2] == "f") begin
+                    sources[i] = mapFloat[abs.sources[i]];
+                    types[i] = SRC_FLOAT;
+                        producers[i] = regTracker.floatInfo[sources[i]].owner;
+                end
+                else if (typeSpec[i + 2] == "c") begin
+                    sources[i] = abs.sources[i];
+                    types[i] = SRC_CONST;
+                end
+                else if (typeSpec[i + 2] == "0") begin
+                    sources[i] = //abs.sources[i];
+                                0;
+                    types[i] = SRC_ZERO;
+                end
+            end
+    
+            return '{sources, types, producers};
+        endfunction
 
 
     function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);

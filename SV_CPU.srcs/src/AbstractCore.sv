@@ -593,7 +593,8 @@ module AbstractCore
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
-        deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR); // For insMap
+        //deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR); // For insMap
+        deps = getPhysicalArgs_N(op, registerTracker); // For insMap
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
