@@ -862,8 +862,41 @@ package AbstractSim;
 
 
 
-    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
+//    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
+//        int sources[3] = '{-1, -1, -1};
+//        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
+        
+//        AbstractInstruction abs = decodeAbstract(op.bits);
+//        string typeSpec = parsingMap[abs.fmt].typeSpec;
+        
+//        foreach (sources[i]) begin
+//            if (typeSpec[i + 2] == "i") begin
+//                sources[i] = mapInt[abs.sources[i]];
+//                types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+//            end
+//            else if (typeSpec[i + 2] == "f") begin
+//                sources[i] = mapFloat[abs.sources[i]];
+//                types[i] = SRC_FLOAT;
+//            end
+//            else if (typeSpec[i + 2] == "c") begin
+//                sources[i] = abs.sources[i];
+//                types[i] = SRC_CONST;
+//            end
+//            else if (typeSpec[i + 2] == "0") begin
+//                sources[i] = //abs.sources[i];
+//                            0;
+//                types[i] = SRC_ZERO;
+//            end
+//        end
+
+//        return '{sources, types, '{-1, -1, -1}};
+//    endfunction
+
+    function automatic InsDependencies getPhysicalArgs_N(input OpSlot op, input RegisterTracker regTracker);
+        int mapInt[32] = regTracker.intMapR;
+        int mapFloat[32] = regTracker.floatMapR;
         int sources[3] = '{-1, -1, -1};
+        InsId producers[3] = '{-1, -1, -1};
         SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
         
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -873,10 +906,12 @@ package AbstractSim;
             if (typeSpec[i + 2] == "i") begin
                 sources[i] = mapInt[abs.sources[i]];
                 types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+                    producers[i] = regTracker.intInfo[sources[i]].owner;
             end
             else if (typeSpec[i + 2] == "f") begin
                 sources[i] = mapFloat[abs.sources[i]];
                 types[i] = SRC_FLOAT;
+                    producers[i] = regTracker.floatInfo[sources[i]].owner;
             end
             else if (typeSpec[i + 2] == "c") begin
                 sources[i] = abs.sources[i];
@@ -889,58 +924,23 @@ package AbstractSim;
             end
         end
 
-        return '{sources, types, '{-1, -1, -1}};
+        return '{sources, types, producers};
     endfunction
 
-        function automatic InsDependencies getPhysicalArgs_N(input OpSlot op, input RegisterTracker regTracker);
-            int mapInt[32] = regTracker.intMapR;
-            int mapFloat[32] = regTracker.floatMapR;
-            int sources[3] = '{-1, -1, -1};
-            InsId producers[3] = '{-1, -1, -1};
-            SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
-            
-            AbstractInstruction abs = decodeAbstract(op.bits);
-            string typeSpec = parsingMap[abs.fmt].typeSpec;
-            
-            foreach (sources[i]) begin
-                if (typeSpec[i + 2] == "i") begin
-                    sources[i] = mapInt[abs.sources[i]];
-                    types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-                        producers[i] = regTracker.intInfo[sources[i]].owner;
-                end
-                else if (typeSpec[i + 2] == "f") begin
-                    sources[i] = mapFloat[abs.sources[i]];
-                    types[i] = SRC_FLOAT;
-                        producers[i] = regTracker.floatInfo[sources[i]].owner;
-                end
-                else if (typeSpec[i + 2] == "c") begin
-                    sources[i] = abs.sources[i];
-                    types[i] = SRC_CONST;
-                end
-                else if (typeSpec[i + 2] == "0") begin
-                    sources[i] = //abs.sources[i];
-                                0;
-                    types[i] = SRC_ZERO;
-                end
-            end
-    
-            return '{sources, types, producers};
-        endfunction
 
+//    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+//        Word res[3];
+//        foreach (res[i]) begin
+//            case (deps.types[i])
+//                SRC_ZERO: res[i] = 0;
+//                SRC_CONST: res[i] = deps.sources[i];
+//                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
+//                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
+//            endcase
+//        end
 
-    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-        Word res[3];
-        foreach (res[i]) begin
-            case (deps.types[i])
-                SRC_ZERO: res[i] = 0;
-                SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
-                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
-            endcase
-        end
-
-        return res;
-    endfunction
+//        return res;
+//    endfunction
 
 
     typedef struct {

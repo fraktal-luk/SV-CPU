@@ -233,6 +233,7 @@ endmodule
 
 
 
+
 module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
@@ -443,13 +444,16 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneOpSys_E = eff(doneOpSys);
 
 
-    function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
-        InsDependencies deps = insMap.get(op.id).deps;
-        return getArgValues(tracker, deps);            
-    endfunction
+//    function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
+//        InsDependencies deps = insMap.get(op.id).deps;
+//        return getArgValues_N(tracker, deps);            
+//    endfunction
 
     function automatic Word3 getAndVerifyArgs(input OpSlot op);
-        Word3 argsP = getPhysicalArgValues(AbstractCore.registerTracker, op);
+        InsDependencies deps = insMap.get(op.id).deps;
+        //return getArgValues_N(tracker, deps); 
+        Word3 argsP = //getPhysicalArgValues(AbstractCore.registerTracker, op);
+                      getArgValues_F(AbstractCore.registerTracker, deps);
         Word3 argsM = insMap.get(op.id).argValues;
         
         if (argsP !== argsM) insMap.setArgError(op.id);
@@ -474,6 +478,67 @@ module ExecBlock(ref InstructionMap insMap,
             
         endfunction
 
+
+
+    function automatic Word3 getArgValues_N(input RegisterTracker tracker, input InsDependencies deps);
+        Word res[3];
+        foreach (res[i]) begin
+            case (deps.types[i])
+                SRC_ZERO: res[i] = 0;
+                SRC_CONST: res[i] = deps.sources[i];
+                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
+                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
+            endcase
+        end
+
+        return res;
+    endfunction
+
+    function automatic Word3 getArgValues_F(input RegisterTracker tracker, input InsDependencies deps);
+        Word res[3];
+        logic3 ready = checkArgsReady(deps);
+        logic3 forw1 = checkForwardsReady(deps, 1);
+        logic3 forw0 = checkForwardsReady(deps, 0);
+        Word vals1[3] = getForwardedValues(deps, 1);
+        Word vals0[3] = getForwardedValues(deps, 0);
+        
+        foreach (res[i]) begin
+            case (deps.types[i])
+                SRC_ZERO: res[i] = 0;
+                SRC_CONST: res[i] = deps.sources[i];
+                SRC_INT: begin
+                    if (ready[i])
+                        res[i] = tracker.intRegs[deps.sources[i]];
+                    else if (forw1[i]) begin
+                        $display(".......");
+                        res[i] = vals1[i];
+                    end
+                    else if (forw0[i]) begin
+                        $display(".......");
+                        res[i] = vals0[i];
+                    end
+                    else
+                        $fatal(2, "oh no");
+                end
+                SRC_FLOAT: begin
+                    if (ready[i])
+                        res[i] = tracker.floatRegs[deps.sources[i]];
+                    else if (forw1[i]) begin
+                        $display(".......");
+                        res[i] = vals1[i];
+                    end
+                    else if (forw0[i]) begin
+                        $display(".......");
+                        res[i] = vals0[i];
+                    end
+                    else
+                        $fatal(2, "oh no");
+                end
+            endcase
+        end
+
+        return res;
+    endfunction
 
 endmodule
 
@@ -668,7 +733,7 @@ module IssueQueue
             issued[i] <= tick(op);
             markOpIssued(op);
             
-            content.pop_front();
+            void'(content.pop_front());
         end
     endtask
 
@@ -752,76 +817,6 @@ module IssueQueueComplex(
         
         return res;
     endfunction
-
-
-    function automatic logic3 checkArgsReady(input InsDependencies deps);
-        logic3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 1;
-                SRC_CONST: res[i] = 1;
-                SRC_INT:   res[i] = AbstractCore.intRegsReadyV[deps.sources[i]];
-                SRC_FLOAT: res[i] = AbstractCore.floatRegsReadyV[deps.sources[i]];
-            endcase      
-        return res;
-    endfunction
-
-    function automatic logic3 checkForwardsReady(input InsDependencies deps, input int stage);
-        logic3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   begin
-                    ForwardingElement feInt[N_INT_PORTS] = theExecBlock.intImagesTr[stage];
-                    ForwardingElement feMem[N_MEM_PORTS] = theExecBlock.memImagesTr[stage];
-                    res[i] = 0;
-                    foreach (feInt[p]) begin
-                        InstructionInfo ii;
-                        if (feInt[p].id == -1) continue;
-                        ii = insMap.get(feInt[p].id);
-                        //if (feInt[p].id === deps.producers[i]) begin
-                        if (ii.physDest === deps.sources[i]) begin
-                            res[i] = 1;
-                                assert (feInt[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else begin
-                                    $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                    $display("%p", ii);
-                                end
-                                //$display("Match int: %d ->; p %d", feInt[p].id, deps.sources[i]);
-                        end
-                    end
-                    foreach (feMem[p]) begin
-                        InstructionInfo ii;
-                        if (feMem[p].id == -1) continue;
-                        ii = insMap.get(feMem[p].id);
-                        if (ii.physDest === deps.sources[i]) begin
-                        //if (feMem[p].id === deps.producers[i]) begin
-                            res[i] = 1;
-                                assert (feMem[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                //$display("Match mem: %d ->; p %d", feMem[p].id, deps.sources[i]);
-                        end
-                    end
-                end
-                SRC_FLOAT: begin
-                    ForwardingElement feVec[N_VEC_PORTS] = theExecBlock.floatImagesTr[stage];
-                    res[i] = 0;
-                    foreach (feVec[p]) begin
-                        InstructionInfo ii;
-                        if (feVec[p].id == -1) continue;
-                        ii = insMap.get(feVec[p].id);
-                        if (ii.physDest === deps.sources[i]) begin
-                        //if (ii.feVec[p].id === deps.producers[i]) begin
-                            res[i] = 1;
-                            
-                                assert (feVec[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                //$display("Match FP: %d ->; p %d", feVec[p].id, deps.sources[i]);
-                        end
-                    end
-                end
-            endcase      
-        return res;
-    endfunction
-
 
 
     function automatic ReadyVec getReadyVec(input OpSlot iq[$:OP_QUEUE_SIZE]);
