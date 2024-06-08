@@ -7,10 +7,12 @@ import Emulation::*;
 import AbstractSim::*;
     
 module ArchDesc0();
-        logic dummy0, dummy1, dummy2, dummy3;
-            assign dummy0 = core.theIssueQueues.regularQueue.cmpb;
-            assign dummy1 = core.theIssueQueues.regularQueue.cmpb0;
-            assign dummy2 = core.theIssueQueues.regularQueue.cmpb1;
+        logic dummy0, dummy1, dummy2, dummy3,dummy4;
+            assign dummy0 = core.theIssueQueues.regularQueue.cmpb0;
+            assign dummy1 = core.theIssueQueues.floatQueue.cmpb0;
+            assign dummy2 = core.theIssueQueues.memQueue.cmpb0;
+            assign dummy3 = core.theIssueQueues.branchQueue.cmpb0;
+            assign dummy4 = core.theIssueQueues.sysQueue.cmpb0;
 
 
     localparam CYCLE = 10;

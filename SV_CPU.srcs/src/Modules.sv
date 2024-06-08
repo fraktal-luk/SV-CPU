@@ -15,53 +15,76 @@ package ExecDefs;
     import Emulation::*;
     
     import AbstractSim::*;
-    
-      
-        // Numbered exec ports:
-        // I0
-        // I1
-        // I2
-        // ...
-        // M0
-        // M1
-        // M2
-        // ...
-        // V0
-        // V1
-        // V2
-        // ...
 
-        localparam int N_INT_PORTS = 4;
-        localparam int N_MEM_PORTS = 4;
-        localparam int N_VEC_PORTS = 4;
 
-        typedef logic ReadyVec[OP_QUEUE_SIZE];
-        typedef logic ReadyVec3[OP_QUEUE_SIZE][3];
+    localparam int N_INT_PORTS = 4;
+    localparam int N_MEM_PORTS = 4;
+    localparam int N_VEC_PORTS = 4;
 
-        typedef struct {
-            InsId id;
-        } ForwardingElement;
+    typedef logic ReadyVec[OP_QUEUE_SIZE];
+    typedef logic ReadyVec3[OP_QUEUE_SIZE][3];
 
-        localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
+    typedef struct {
+        InsId id;
+    } ForwardingElement;
 
-        typedef struct {
-            ForwardingElement pipesInt[N_INT_PORTS];
-            
-            ForwardingElement subpipe0[-3:1];
-            
-            InsId regular1;
-            InsId branch0;
-            InsId mem0;
-            
-            InsId float0;
-            InsId float1;
-        } Forwarding_0;
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
 
-        localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
+    typedef struct {
+        ForwardingElement pipesInt[N_INT_PORTS];
         
-        typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
-        typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
-        typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
+        ForwardingElement subpipe0[-3:1];
+        
+        InsId regular1;
+        InsId branch0;
+        InsId mem0;
+        
+        InsId float0;
+        InsId float1;
+    } Forwarding_0;
+
+    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
+    
+    typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
+    typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
+    typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
+
+
+    function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+        IntByStage res;
+        
+        foreach (imgs[p]) begin
+            ForwardingElement img[-3:1] = imgs[p];
+            foreach (img[s])
+                res[s][p] = img[s];
+        end
+        
+        return res;
+    endfunction
+
+    function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+        MemByStage res;
+        
+        foreach (imgs[p]) begin
+            ForwardingElement img[-3:1] = imgs[p];
+            foreach (img[s])
+                res[s][p] = img[s];
+        end
+        
+        return res;
+    endfunction
+
+    function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+        VecByStage res;
+        
+        foreach (imgs[p]) begin
+            ForwardingElement img[-3:1] = imgs[p];
+            foreach (img[s])
+                res[s][p] = img[s];
+        end
+        
+        return res;
+    endfunction
 
 endpackage
 
@@ -76,8 +99,8 @@ module RegularSubpipe(
 );
 
     OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
-    OpSlot doneOp = EMPTY_SLOT;
-    OpSlot doneOp_E;
+    OpSlot doneOp = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;;
+    OpSlot doneOp_E, doneOpD0_E;
     Word result = 'x;
 
     always @(posedge AbstractCore.clk) begin
@@ -88,17 +111,20 @@ module RegularSubpipe(
         if (op_E.active)
             result <= calcRegularOp(op_E);
         doneOp <= tick(op1);
+        doneOpD0 <= tick(doneOp);
     end
 
     assign op0_E = eff(op0);
     assign op_E = eff(op1);
     assign doneOp_E = eff(doneOp);
+    assign doneOpD0_E = eff(doneOpD0);
 
     function automatic OpSlot forward(input int stage);
         case (stage)
+            -2: return op0_E;
             -1: return op_E;
             0:  return doneOp_E;
-            
+            1:  return doneOpD0_E;
             default: return EMPTY_SLOT;
         endcase
     endfunction 
@@ -110,7 +136,7 @@ module RegularSubpipe(
         -2: '{id: op0_E.id},
         -1: '{id: op_E.id},
         0: '{id:  doneOp_E.id},
-        //1: '{id: op0.id},
+        1: '{id:  doneOpD0_E.id},
         default: EMPTY_FORWARDING_ELEMENT
     };
 
@@ -125,8 +151,8 @@ module BranchSubpipe(
 );
 
     OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
-    OpSlot doneOp = EMPTY_SLOT;
-    OpSlot doneOp_E;
+    OpSlot doneOp = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;;
+    OpSlot doneOp_E, doneOpD0_E;
     Word result = 'x;
 
     always @(posedge AbstractCore.clk) begin
@@ -136,21 +162,26 @@ module BranchSubpipe(
     
         runExecBranch(op_E);
         
-        if (op_E.active)
+        if (op_E.active) begin
+            insMap.setActualResult(op_E.id, op_E.adr + 4);
             result <= op_E.adr + 4;
+        end
         
         doneOp <= tick(op1);
+        doneOpD0 <= tick(doneOp);
     end
 
     assign op0_E = eff(op0);
     assign op_E = eff(op1);
     assign doneOp_E = eff(doneOp);
+    assign doneOpD0_E = eff(doneOpD0);
 
     function automatic OpSlot forward(input int stage);
         case (stage)
+            -2: return op0_E;
             -1: return op_E;
             0:  return doneOp_E;
-            
+            1:  return doneOpD0_E;
             default: return EMPTY_SLOT;
         endcase
     endfunction
@@ -162,7 +193,7 @@ module BranchSubpipe(
         -2: '{id: op0_E.id},
         -1: '{id: op_E.id},
         0: '{id:  doneOp_E.id},
-        //1: '{id: op0.id},
+        1: '{id:  doneOpD0_E.id},
         default: EMPTY_FORWARDING_ELEMENT
     };
 endmodule
@@ -176,8 +207,8 @@ module MemSubpipe(
 );
 
     OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
-    OpSlot doneOpE0 = EMPTY_SLOT, doneOpE1 = EMPTY_SLOT, doneOpE2 = EMPTY_SLOT;
-    OpSlot doneOpE0_E, doneOpE1_E, doneOpE2_E;
+    OpSlot doneOpE0 = EMPTY_SLOT, doneOpE1 = EMPTY_SLOT, doneOpE2 = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;
+    OpSlot doneOpE0_E, doneOpE1_E, doneOpE2_E, doneOpD0_E;
     Word result = 'x;
 
     always @(posedge AbstractCore.clk) begin
@@ -198,7 +229,7 @@ module MemSubpipe(
         end
         
         doneOpE2 <= tick(doneOpE1);
-        
+        doneOpD0 <= tick(doneOpE2);
     end
 
     assign op0_E = eff(op0);
@@ -206,6 +237,7 @@ module MemSubpipe(
     assign doneOpE0_E = eff(doneOpE0);
     assign doneOpE1_E = eff(doneOpE1);
     assign doneOpE2_E = eff(doneOpE2);
+    assign doneOpD0_E = eff(doneOpD0);
 
     function automatic OpSlot forward(input int stage);
         case (stage)
@@ -214,7 +246,7 @@ module MemSubpipe(
             -2: return doneOpE0_E;
             -1: return doneOpE1_E;
             0:  return doneOpE2_E;
-            
+            1:  return doneOpD0_E;
             default: return EMPTY_SLOT;
         endcase
     endfunction
@@ -226,11 +258,10 @@ module MemSubpipe(
         -2: '{id: doneOpE0_E.id},
         -1: '{id: doneOpE1_E.id},
         0: '{id:  doneOpE2_E.id},
-        //1: '{id: op0.id},
+        1: '{id:  doneOpD0_E.id},
         default: EMPTY_FORWARDING_ELEMENT
     };
 endmodule
-
 
 
 
@@ -238,7 +269,6 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-
     typedef StoreQueueEntry StoreQueueExtract[$];
 
     IssueGroup issuedSt0;
@@ -328,7 +358,6 @@ module ExecBlock(ref InstructionMap insMap,
     assign execResultMem = mem0.result;
 
 
-
     ForwardingElement intImages[N_INT_PORTS][-3:1];
     ForwardingElement memImages[N_MEM_PORTS][-3:1];
     ForwardingElement floatImages[N_VEC_PORTS][-3:1];
@@ -350,6 +379,8 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
         Word result = calculateResult(abs, args, op.adr); // !!!!
+        
+        insMap.setActualResult(op.id, result);
         
         return result;
     endfunction
@@ -414,6 +445,8 @@ module ExecBlock(ref InstructionMap insMap,
           //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
 
+        insMap.setActualResult(op.id, data);
+
         return data;
     endfunction
 
@@ -444,55 +477,20 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneOpSys_E = eff(doneOpSys);
 
 
-//    function automatic Word3 getPhysicalArgValues(input RegisterTracker tracker, input OpSlot op);
-//        InsDependencies deps = insMap.get(op.id).deps;
-//        return getArgValues_N(tracker, deps);            
-//    endfunction
-
     function automatic Word3 getAndVerifyArgs(input OpSlot op);
         InsDependencies deps = insMap.get(op.id).deps;
-        //return getArgValues_N(tracker, deps); 
-        Word3 argsP = //getPhysicalArgValues(AbstractCore.registerTracker, op);
-                      getArgValues_F(AbstractCore.registerTracker, deps);
+        Word3 argsP = getArgValues_F(AbstractCore.registerTracker, deps);
         Word3 argsM = insMap.get(op.id).argValues;
         
-        if (argsP !== argsM) insMap.setArgError(op.id);
+        if (argsP !== argsM) begin
+            insMap.setArgError(op.id);
+            //$display("Arg error at %d, %p for %p", op.id, argsP, argsM);
+            //$display("%p, %s // %p", op,  disasm(op.bits), deps);
+        end
         
         return argsP;
     endfunction;
 
-
-
-
-        function automatic void getForwards();
-            // int results:
-            // regular0
-            // regular1
-            // branch0
-            // mem0
-            
-            // float results:
-            // float0
-            // float1
-            
-            
-        endfunction
-
-
-
-    function automatic Word3 getArgValues_N(input RegisterTracker tracker, input InsDependencies deps);
-        Word res[3];
-        foreach (res[i]) begin
-            case (deps.types[i])
-                SRC_ZERO: res[i] = 0;
-                SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
-                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
-            endcase
-        end
-
-        return res;
-    endfunction
 
     function automatic Word3 getArgValues_F(input RegisterTracker tracker, input InsDependencies deps);
         Word res[3];
@@ -510,11 +508,11 @@ module ExecBlock(ref InstructionMap insMap,
                     if (ready[i])
                         res[i] = tracker.intRegs[deps.sources[i]];
                     else if (forw1[i]) begin
-                        $display(".......");
+                        $display("....get(1) a %d = %d", i, vals1[i]);
                         res[i] = vals1[i];
                     end
                     else if (forw0[i]) begin
-                        $display(".......");
+                        $display("....get(0) a %d = %d", i, vals0[i]);
                         res[i] = vals0[i];
                     end
                     else
@@ -560,54 +558,41 @@ module IssueQueue
     output OpSlot outGroup[OUT_WIDTH]
 );
 
-    //typedef logic ReadyVec[SIZE];
-    //typedef logic ReadyVec3[SIZE][3];
-
     int num = 0;
 
     localparam logic dummy3[3] = '{'z, 'z, 'z};
 
+    localparam ReadyVec3 FORWARDING_VEC_ALL_Z = '{default: dummy3};
+    localparam ReadyVec3 FORWARDING_ALL_Z[-3:1] = '{default: FORWARDING_VEC_ALL_Z};
+
     OpSlot content[$:SIZE];
-    ReadyVec readyVec = '{default: 'z},
-             forwardVecM2,// = '{default: 'z},
-             forwardVecM1,// = '{default: 'z},
-             forwardVec0,// = '{default: 'z},
-             forwardVec1,// = '{default: 'z},
-                    readyVec_C,
-                    readyVec_B,
-                    readyVec_T,
-                    readyVec_A;
-    ReadyVec3 ready3Vec,// = '{default: dummy3}, 
-            forward3VecM3,// = '{default: dummy3},
-            forward3VecM2,// = '{default: dummy3},
-            forward3VecM1,// = '{default: dummy3}, 
-            forward3Vec0,// = '{default: dummy3},
-            forward3Vec1,// = '{default: dummy3},
-              readyOrForward3Vec;// = '{default: dummy3};
+    ReadyVec readyVec, readyVec_A;
+    ReadyVec3   ready3Vec,
+                readyOrForward3Vec_N;
+    ReadyVec3   forwardingMatches[-3:1] = FORWARDING_ALL_Z;
     
+
     OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
     OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
-    
-        logic cmpb, cmpb0, cmpb1;
-        
-        
-    
-    assign outGroup = issued;
-    
-    //assign readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1);
-    //assign readyVec_A = makeReadyVec(readyOrForward3Vec);
-    assign readyVec_B = makeReadyVec(ready3Vec);
 
-    function automatic ReadyVec3 gatherReadyOrForwards(input ReadyVec3 ready, input ReadyVec3 fwM3, 
-                                                      input ReadyVec3 fwM2, input ReadyVec3 fwM1,
-                                                      input ReadyVec3 fw0, input ReadyVec3 fw1);
+        logic cmpb, cmpb0, cmpb1;
+
+
+    assign outGroup = issued;
+
+
+    function automatic ReadyVec3 gatherReadyOrForwards_N(input ReadyVec3 ready, input ReadyVec3 forwards[-3:1]);
         ReadyVec3 res = '{default: dummy3};
         
         foreach (res[i]) begin
             logic slot[3] = res[i];
             foreach (slot[a]) begin
                 if ($isunknown(ready[i][a])) res[i][a] = 'z;
-                else res[i][a] = (ready[i][a] | fwM3[i][a] | fwM2[i][a] | fwM1[i][a] | fw0[i][a] | fw1[i][a]);
+                else begin
+                    res[i][a] = ready[i][a];
+                    // CAREFUL: not using -3 here
+                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a];
+                end
             end
         end
         
@@ -623,22 +608,13 @@ module IssueQueue
     
 
     always @(posedge AbstractCore.clk) begin
-            readyVec_T = getReadyVec(content);
+        ready3Vec = getReadyVec3(content);
+        foreach (forwardingMatches[i]) forwardingMatches[i] = getForwardVec3(content, i);
 
-            ready3Vec = getReadyVec3(content);
-            //    readyVec_B <= makeReadyVec(getReadyVec3(content));
-            
-            forward3VecM3 = getForwardVec3(content, -3);
-            forward3VecM2 = getForwardVec3(content, -2);
-            forward3VecM1 = getForwardVec3(content, -1);
-            forward3Vec0 = getForwardVec3(content, 0);
-            forward3Vec1 = getForwardVec3(content, 1);
-            
-            readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1);
-            
-                //readyVec_A = makeReadyVec( gatherReadyOrForwards(ready3Vec, forward3VecM3, forward3VecM2, forward3VecM1, forward3Vec0, forward3Vec1));
-                readyVec_A = makeReadyVec(readyOrForward3Vec);
+        readyVec = makeReadyVec(ready3Vec);
 
+        readyOrForward3Vec_N = gatherReadyOrForwards_N(ready3Vec, forwardingMatches);
+        readyVec_A = makeReadyVec(readyOrForward3Vec_N);
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             flushIq();
@@ -652,36 +628,17 @@ module IssueQueue
             issued1[i] <= tick(issued[i]);
         
         num <= content.size();
-        
-        //readyVec <= getReadyVec(content);
-        
-//                if (!(readyVec_A === readyVec_T)) begin
-//                    $display(">>>> %p", readyVec_T);
-//                    $display("     %p", readyVec_A);
-                    
-//                    $display("     %p", readyOrForward3Vec[0:7]);
-//                    $display("     %p", ready3Vec[0:7]);
-//                    $display("     %p", forward3VecM3[0:7]);
-//                    $display("     %p", forward3VecM2[0:7]);
-//                    $display("     %p", forward3VecM1[0:7]);
-//                    $display("     %p", forward3Vec0[0:7]);
-//                    $display("     %p", forward3Vec1[0:7]);
-//                end
+
     end
 
-            assign cmpb = (readyVec_A === readyVec_T);
-            assign cmpb0 = (readyVec_B === readyVec_T);
-            assign cmpb1 = (readyVec_C === readyVec_T);
+     //   assign cmpb = (readyVec_A === readyVec_T);
+     //   assign cmpb0 = (readyOrForward3Vec_N === readyOrForward3Vec);
+     //  assign cmpb1 = (readyVec_C === readyVec_T);
 
-       assign readyVec_C = getReadyVec(content);
 
     task automatic flushIq();
-        if (lateEventInfo.redirect) begin
-            flushOpQueueAll();
-        end
-        else if (branchEventInfo.redirect) begin
-            flushOpQueuePartial(branchEventInfo.op);
-        end
+        if (lateEventInfo.redirect) flushOpQueueAll();
+        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
     endtask
 
 
@@ -716,13 +673,9 @@ module IssueQueue
         foreach (issued[i]) begin
             OpSlot op;
         
-            //if (i < n && readyVec[i]) begin
-            if (i < n && readyVec_T[i]) begin
-                op = //content.pop_front();
-                     content[i];
+            if (i < n && readyVec[i]) begin // TODO: switch to readyVec_A when ready
+                op = content[i];
                 ops.push_back(op);
-                //issued[i] <= tick(op);
-                //markOpIssued(op);
             end
             else
                 break;
@@ -743,10 +696,7 @@ module IssueQueue
         putMilestone(op.id, InstructionMap::Issue);
     endfunction
 
-
 endmodule
-
-
 
 
 
@@ -758,7 +708,6 @@ module IssueQueueComplex(
 );
 
     localparam int IN_WIDTH = $size(inGroup);
-
 
 
     logic regularMask[IN_WIDTH];
@@ -819,16 +768,6 @@ module IssueQueueComplex(
     endfunction
 
 
-    function automatic ReadyVec getReadyVec(input OpSlot iq[$:OP_QUEUE_SIZE]);
-        ReadyVec res = '{default: 'z};
-        foreach (iq[i]) begin
-            InsDependencies deps = insMap.get(iq[i].id).deps;
-            logic3 ra = checkArgsReady(deps);
-            res[i] = ra.and();
-        end
-        return res;
-    endfunction
-
     function automatic ReadyVec3 getReadyVec3(input OpSlot iq[$:OP_QUEUE_SIZE]);
         logic D3[3] = '{'z, 'z, 'z};
         ReadyVec3 res = '{default: D3};
@@ -840,26 +779,16 @@ module IssueQueueComplex(
         return res;
     endfunction
     
-        function automatic ReadyVec getForwardVec(input OpSlot iq[$:OP_QUEUE_SIZE], input int stage);
-            ReadyVec res = '{default: 'z};
-            foreach (iq[i]) begin
-                InsDependencies deps = insMap.get(iq[i].id).deps;
-                logic3 ra = checkForwardsReady(deps, stage);
-                res[i] = ra.and();
-            end
-            return res;
-        endfunction
-
-        function automatic ReadyVec3 getForwardVec3(input OpSlot iq[$:OP_QUEUE_SIZE], input int stage);
-            logic D3[3] = '{'z, 'z, 'z};
-            ReadyVec3 res = '{default: D3};
-            foreach (iq[i]) begin
-                InsDependencies deps = insMap.get(iq[i].id).deps;
-                logic3 ra = checkForwardsReady(deps, stage);
-                res[i] = ra;
-            end
-            return res;
-        endfunction
+    function automatic ReadyVec3 getForwardVec3(input OpSlot iq[$:OP_QUEUE_SIZE], input int stage);
+        logic D3[3] = '{'z, 'z, 'z};
+        ReadyVec3 res = '{default: D3};
+        foreach (iq[i]) begin
+            InsDependencies deps = insMap.get(iq[i].id).deps;
+            logic3 ra = checkForwardsReady(deps, stage);
+            res[i] = ra;
+        end
+        return res;
+    endfunction
 
 
     IssueGroup ig;

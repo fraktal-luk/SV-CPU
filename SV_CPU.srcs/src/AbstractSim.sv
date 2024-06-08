@@ -830,17 +830,20 @@ package AbstractSim;
         endfunction
         
         
-        function automatic logic3 checkArgsReady(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
-            logic3 res;
-            foreach (deps.types[i])
-                case (deps.types[i])
-                    SRC_ZERO:  res[i] = 1;
-                    SRC_CONST: res[i] = 1;
-                    SRC_INT:   res[i] = intReady[deps.sources[i]];
-                    SRC_FLOAT: res[i] = floatReady[deps.sources[i]];
-                endcase      
-            return res;
-        endfunction
+//        function automatic logic3 checkArgsReady(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+//            logic3 res;
+//                        $display("ch paket");
+
+            
+//            foreach (deps.types[i])
+//                case (deps.types[i])
+//                    SRC_ZERO:  res[i] = 1;
+//                    SRC_CONST: res[i] = 1;
+//                    SRC_INT:   res[i] = intReady[deps.sources[i]];
+//                    SRC_FLOAT: res[i] = floatReady[deps.sources[i]];
+//                endcase      
+//            return res;
+//        endfunction
         
         
         function automatic void setWriterR(input OpSlot op);

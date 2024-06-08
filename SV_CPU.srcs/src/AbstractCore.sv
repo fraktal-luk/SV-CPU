@@ -6,7 +6,7 @@ import Emulation::*;
 
 import AbstractSim::*;
 
-
+import ExecDefs::*;
 
 
 module AbstractCore
@@ -24,72 +24,8 @@ module AbstractCore
     output logic wrong
 );
     
-    logic dummy = '0;
+    logic dummy = '1;
 
-    
-        ExecDefs::Forwarding_0 fw0;
-
-
-        ForwardingElement intImages[N_INT_PORTS][-3:1];
-        ForwardingElement memImages[N_MEM_PORTS][-3:1];
-        ForwardingElement floatImages[N_VEC_PORTS][-3:1];
-        IntByStage intImagesTr;
-        MemByStage memImagesTr;
-        VecByStage floatImagesTr;
-
-        
-        OpSlot AAA_op;
-        
-        assign AAA_op = theExecBlock.doneOpBranch;
-
-
-
-        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
-            IntByStage res;
-            
-            foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
-                foreach (img[s])
-                    res[s][p] = img[s];
-            end
-            
-            return res;
-        endfunction
-
-        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
-            MemByStage res;
-            
-            foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
-                foreach (img[s])
-                    res[s][p] = img[s];
-            end
-            
-            return res;
-        endfunction
-
-        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
-            VecByStage res;
-            
-            foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
-                foreach (img[s])
-                    res[s][p] = img[s];
-            end
-            
-            return res;
-        endfunction
-
-
-        assign intImages = theExecBlock.intImages;
-        assign memImages = theExecBlock.memImages;
-        assign floatImages = theExecBlock.floatImages;
-        
-
-        assign intImagesTr = trsInt(intImages);
-        assign memImagesTr = trsMem(memImages);
-        assign floatImagesTr = trsVec(floatImages);
-        
 
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -188,7 +124,6 @@ module AbstractCore
 
         if (reset) execReset();
         else if (interrupt) execInterrupt();
-
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectRest();
@@ -300,14 +235,12 @@ module AbstractCore
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
-        while (oooQueue.size() > 0 //&& oooQueue[0].done == 1
-                    && oooQueue[0].id <= theRob.lastOut
-                ) begin
+        while (oooQueue.size() > 0 && oooQueue[0].id <= theRob.lastOut) begin
             OpSlot op = takeFrontOp();
             commitOp(op);
             putMilestone(op.id, InstructionMap::Retire);
             insMap.setRetired(op.id);
-                insMap.verifyMilestones(op.id);
+            insMap.verifyMilestones(op.id);
             
             if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) break;
         end
@@ -755,7 +688,6 @@ module AbstractCore
 
 
     task automatic updateOOOQ(input OpSlot op);
-        //const int ind[$] = oooQueue.find_index with (item.id == op.id);
         putMilestone(op.id, InstructionMap::Complete); 
     endtask
     
@@ -770,7 +702,13 @@ module AbstractCore
 
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
-        insMap.setActualResult(op.id, value);
+            
+//            if (op.id == 585) begin
+//                InstructionInfo ii = insMap.get(op.id);
+//                $display("585 writing: %d, %d", ii.result, ii.actualResult);
+//            end
+        
+        //insMap.setActualResult(op.id, value);
 
         putMilestone(op.id, InstructionMap::WriteResult);
 
@@ -842,6 +780,9 @@ module AbstractCore
 
     function automatic logic3 checkArgsReady(input InsDependencies deps);
         logic3 res;
+        
+       //     $display("ch core");
+        
         foreach (deps.types[i])
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 1;
@@ -860,50 +801,10 @@ module AbstractCore
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = 0;
                 SRC_INT:   begin
-                    ForwardingElement feInt[N_INT_PORTS] = theExecBlock.intImagesTr[stage];
-                    ForwardingElement feMem[N_MEM_PORTS] = theExecBlock.memImagesTr[stage];
-                    res[i] = 0;
-                    foreach (feInt[p]) begin
-                        InstructionInfo ii;
-                        if (feInt[p].id == -1) continue;
-                        ii = insMap.get(feInt[p].id);
-                        if (feInt[p].id === deps.producers[i]) begin
-                        //if (ii.physDest === deps.sources[i]) begin
-                            res[i] = 1;
-                                assert (feInt[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else begin
-                                    $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                    $display("%p", ii);
-                                end
-                                //$display("Match int: %d ->; p %d", feInt[p].id, deps.sources[i]);
-                        end
-                    end
-                    foreach (feMem[p]) begin
-                        InstructionInfo ii;
-                        if (feMem[p].id == -1) continue;
-                        ii = insMap.get(feMem[p].id);
-                        //if (ii.physDest === deps.sources[i]) begin
-                        if (feMem[p].id === deps.producers[i]) begin
-                            res[i] = 1;
-                                assert (feMem[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                //$display("Match mem: %d ->; p %d", feMem[p].id, deps.sources[i]);
-                        end
-                    end
+                    res[i] = checkForwardInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
                 end
                 SRC_FLOAT: begin
-                    ForwardingElement feVec[N_VEC_PORTS] = theExecBlock.floatImagesTr[stage];
-                    res[i] = 0;
-                    foreach (feVec[p]) begin
-                        InstructionInfo ii;
-                        if (feVec[p].id == -1) continue;
-                        ii = insMap.get(feVec[p].id);
-                        //if (ii.physDest === deps.sources[i]) begin
-                        if (feVec[p].id === deps.producers[i]) begin
-                            res[i] = 1;
-                            
-                                assert (feVec[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                //$display("Match FP: %d ->; p %d", feVec[p].id, deps.sources[i]);
-                        end
-                    end
+                    res[i] = checkForwardVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
                 end
             endcase      
         return res;
@@ -918,54 +819,93 @@ module AbstractCore
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = 0;
                 SRC_INT:   begin
-                    ForwardingElement feInt[N_INT_PORTS] = theExecBlock.intImagesTr[stage];
-                    ForwardingElement feMem[N_MEM_PORTS] = theExecBlock.memImagesTr[stage];
-                    res[i] = 0;
-                    foreach (feInt[p]) begin
-                        InstructionInfo ii;
-                        if (feInt[p].id == -1) continue;
-                        ii = insMap.get(feInt[p].id);
-                        if (feInt[p].id === deps.producers[i]) begin
-                        //if (ii.physDest === deps.sources[i]) begin
-                            res[i] = ii.actualResult;
-                                assert (feInt[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else begin
-                                    $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                    $display("%p", ii);
-                                end
-                                //$display("Match int: %d ->; p %d", feInt[p].id, deps.sources[i]);
-                        end
-                    end
-                    foreach (feMem[p]) begin
-                        InstructionInfo ii;
-                        if (feMem[p].id == -1) continue;
-                        ii = insMap.get(feMem[p].id);
-                        //if (ii.physDest === deps.sources[i]) begin
-                        if (feMem[p].id === deps.producers[i]) begin
-                            res[i] = ii.actualResult;
-                                assert (feMem[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                //$display("Match mem: %d ->; p %d", feMem[p].id, deps.sources[i]);
-                        end
-                    end
+                    res[i] = getForwardValueInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
                 end
                 SRC_FLOAT: begin
-                    ForwardingElement feVec[N_VEC_PORTS] = theExecBlock.floatImagesTr[stage];
-                    res[i] = 0;
-                    foreach (feVec[p]) begin
-                        InstructionInfo ii;
-                        if (feVec[p].id == -1) continue;
-                        ii = insMap.get(feVec[p].id);
-                        //if (ii.physDest === deps.sources[i]) begin
-                        if (feVec[p].id === deps.producers[i]) begin
-                            res[i] = ii.actualResult;
-                            
-                                assert (feVec[p].id === deps.producers[i] && ii.physDest === deps.sources[i]) else $fatal(2, "Not exatc match, should be %p:", deps.producers[i]);
-                                //$display("Match FP: %d ->; p %d", feVec[p].id, deps.sources[i]);
-                        end
-                    end
+                    res[i] = getForwardValueVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
                 end
             endcase      
         return res;
     endfunction
+
+  
+    function automatic Word getForwardValueVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
+        foreach (feVec[p]) begin
+            InstructionInfo ii;
+            if (feVec[p].id == -1) continue;
+            ii = insMap.get(feVec[p].id);
+            if (feVec[p].id === producer) begin
+                assert (feVec[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return ii.actualResult;
+            end
+        end
+        return 'x;
+    endfunction;
+
+    function automatic Word getForwardValueInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+        foreach (feInt[p]) begin
+            InstructionInfo ii;
+            if (feInt[p].id == -1) continue;
+            ii = insMap.get(feInt[p].id);
+            if (feInt[p].id === producer) begin
+                assert (feInt[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return ii.actualResult;
+            end
+        end
+        
+        foreach (feMem[p]) begin
+            InstructionInfo ii;
+            if (feMem[p].id == -1) continue;
+            ii = insMap.get(feMem[p].id);
+            if (feMem[p].id === producer) begin
+                assert (feMem[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return ii.actualResult;
+            end
+        end
+
+        return 'x;
+    endfunction;
+
+
+  
+    function automatic logic checkForwardVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
+        foreach (feVec[p]) begin
+            InstructionInfo ii;
+            if (feVec[p].id == -1) continue;
+            ii = insMap.get(feVec[p].id);
+            if (feVec[p].id === producer) begin
+                assert (feVec[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return 1;
+            end
+        end
+        return 0;
+    endfunction;
+
+    function automatic logic checkForwardInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+        foreach (feInt[p]) begin
+            InstructionInfo ii;
+            if (feInt[p].id == -1) continue;
+            ii = insMap.get(feInt[p].id);
+            if (feInt[p].id === producer) begin
+                assert (feInt[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return 1;
+            end
+        end
+        
+        foreach (feMem[p]) begin
+            InstructionInfo ii;
+            if (feMem[p].id == -1) continue;
+            ii = insMap.get(feMem[p].id);
+            if (feMem[p].id === producer) begin
+                assert (feMem[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return 1;
+            end
+        end
+
+        return 0;
+    endfunction;
+
+
 
 endmodule
 
