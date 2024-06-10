@@ -1,8 +1,8 @@
 
-import Base::*;
-import InsDefs::*;
-import Asm::*;
-import Emulation::*;
+//import Base::*;
+//import InsDefs::*;
+//import Asm::*;
+//import Emulation::*;
 
 package AbstractSim;
     
@@ -27,10 +27,12 @@ package AbstractSim;
     
     localparam int LQ_SIZE = 80;
     localparam int SQ_SIZE = 80;
-
+    localparam int BQ_SIZE = 32;
+    
 
     localparam FETCH_WIDTH = 4;
-    localparam LOAD_WIDTH = FETCH_WIDTH;
+    localparam RENAME_WIDTH = 4;
+    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
 
     typedef struct {
@@ -42,6 +44,7 @@ package AbstractSim;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
 
+    typedef OpSlot OpSlot2[2];
     typedef OpSlot OpSlot4[4];
 
     typedef OpSlot OpSlotA[FETCH_WIDTH];
@@ -75,13 +78,19 @@ package AbstractSim;
 
     typedef struct {
         int num;
-        OpSlot regular[4];
+        OpSlot regular[2];
+        OpSlot float[2];
         OpSlot branch;
         OpSlot mem;
         OpSlot sys;
     } IssueGroup;
     
-    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, regular: '{default: EMPTY_SLOT}, branch: EMPTY_SLOT, mem: EMPTY_SLOT, sys: EMPTY_SLOT};
+    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
+                                        regular: '{default: EMPTY_SLOT},
+                                        float: '{default: EMPTY_SLOT},
+                                        branch: EMPTY_SLOT,
+                                        mem: EMPTY_SLOT,
+                                        sys: EMPTY_SLOT};
 
 
 
@@ -277,11 +286,13 @@ package AbstractSim;
     typedef struct {
         int sources[3];
         SourceType types[3];
+        InsId producers[3];
     } InsDependencies;
 
 
     typedef struct {
         int rename;
+        int renameG;
         int bq;
         int lq;
         int sq;
@@ -297,9 +308,13 @@ package AbstractSim;
         Word result;
         Word actualResult;
         IndexSet inds;
+        int slot;
         InsDependencies deps;
+        int physDest;
         
         Word argValues[3];
+        logic argError;
+        
     } InstructionInfo;
 
     function automatic InstructionInfo makeInsInfo(input OpSlot op);
@@ -307,6 +322,10 @@ package AbstractSim;
         res.id = op.id;
         res.adr = op.adr;
         res.bits = op.bits;
+
+        res.physDest = -1;
+
+        res.argError = 0;
 
         return res;
     endfunction
@@ -364,9 +383,21 @@ package AbstractSim;
         function automatic void setInds(input int id, input IndexSet indexSet);
             content[id].inds = indexSet;
         endfunction
-        
+
+        function automatic void setSlot(input int id, input int slot);
+            content[id].slot = slot;
+        endfunction
+
+        function automatic void setPhysDest(input int id, input int dest);
+            content[id].physDest = dest;
+        endfunction
+      
         function automatic void setArgValues(input int id, input Word vals[3]);
             content[id].argValues = vals;
+        endfunction
+
+        function automatic void setArgError(input int id);
+            content[id].argError = 1;
         endfunction
 
        
@@ -380,10 +411,14 @@ package AbstractSim;
         
         function automatic void setKilled(input int id);
             if (id > lastKilled) lastKilled = id;
+            
+                setLastKilledRecordArr(id);
         endfunction
 
         
         typedef enum {
+                ___,
+        
             GenAddress,
             
             FlushFront,
@@ -392,7 +427,12 @@ package AbstractSim;
             
             Rename,
             
+                RobEnter,
+                RobFlush,
+                RobExit,
+            
             FlushOOO,
+                FlushExec,
                 // TODO: flush in every region? (ROB, subpipes, queues etc.)
             
             Wakeup,
@@ -440,15 +480,29 @@ package AbstractSim;
         InsRecord records[int];
 
             MilestoneTag lastRecordArr[16];
+            MilestoneTag lastKilledRecordArr[16];
             string lastRecordStr;
 
                 function automatic void setLastRecordArr(input InsId id);
-                    MilestoneTag def = '{Retire, -1};
+                    MilestoneTag def = '{___, -1};
                     InsRecord rec = records[id];
                     lastRecordArr = '{default: def};
                     
                     foreach(rec.tags[i])
                         lastRecordArr[i] = rec.tags[i];
+                endfunction
+
+                function automatic void setLastKilledRecordArr(input InsId id);
+                    MilestoneTag def = '{___, -1};
+                    InsRecord rec;
+   
+                        if (!records.exists(id)) return;
+                    
+                    rec = records[id];
+                    lastKilledRecordArr = '{default: def};
+                    
+                    foreach(rec.tags[i])
+                        lastKilledRecordArr[i] = rec.tags[i];
                 endfunction
 
          
@@ -469,6 +523,15 @@ package AbstractSim;
         function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
+        endfunction
+        
+        
+        function automatic void verifyMilestones(input int id);
+            MilestoneTag tagList[$] = records[id].tags;
+                
+                MilestoneTag found[$] = tagList.find_first with (item.kind == RobExit);
+                assert (found.size() > 0) else $error("Op %d: not seen exiting ROB!", id); 
+            
         endfunction
         
         
@@ -560,10 +623,14 @@ package AbstractSim;
         endfunction;
 
 
-        function automatic void reserve(input OpSlot op);
+        function automatic int reserve(input OpSlot op);
             setWriterR(op);
             reserveInt(op);
             reserveFloat(op);
+            
+            if (writesFloatReg(op)) return findDestFloat(op.id);
+            else if (writesIntReg(op)) return findDestInt(op.id);
+            else return -1;
         endfunction
 
         function automatic void commit(input OpSlot op);
@@ -763,17 +830,20 @@ package AbstractSim;
         endfunction
         
         
-        function automatic logic3 checkArgsReady(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
-            logic3 res;
-            foreach (deps.types[i])
-                case (deps.types[i])
-                    SRC_ZERO:  res[i] = 1;
-                    SRC_CONST: res[i] = 1;
-                    SRC_INT:   res[i] = intReady[deps.sources[i]];
-                    SRC_FLOAT: res[i] = floatReady[deps.sources[i]];
-                endcase      
-            return res;
-        endfunction
+//        function automatic logic3 checkArgsReady(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
+//            logic3 res;
+//                        $display("ch paket");
+
+            
+//            foreach (deps.types[i])
+//                case (deps.types[i])
+//                    SRC_ZERO:  res[i] = 1;
+//                    SRC_CONST: res[i] = 1;
+//                    SRC_INT:   res[i] = intReady[deps.sources[i]];
+//                    SRC_FLOAT: res[i] = floatReady[deps.sources[i]];
+//                endcase      
+//            return res;
+//        endfunction
         
         
         function automatic void setWriterR(input OpSlot op);
@@ -795,8 +865,41 @@ package AbstractSim;
 
 
 
-    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
+//    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
+//        int sources[3] = '{-1, -1, -1};
+//        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
+        
+//        AbstractInstruction abs = decodeAbstract(op.bits);
+//        string typeSpec = parsingMap[abs.fmt].typeSpec;
+        
+//        foreach (sources[i]) begin
+//            if (typeSpec[i + 2] == "i") begin
+//                sources[i] = mapInt[abs.sources[i]];
+//                types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+//            end
+//            else if (typeSpec[i + 2] == "f") begin
+//                sources[i] = mapFloat[abs.sources[i]];
+//                types[i] = SRC_FLOAT;
+//            end
+//            else if (typeSpec[i + 2] == "c") begin
+//                sources[i] = abs.sources[i];
+//                types[i] = SRC_CONST;
+//            end
+//            else if (typeSpec[i + 2] == "0") begin
+//                sources[i] = //abs.sources[i];
+//                            0;
+//                types[i] = SRC_ZERO;
+//            end
+//        end
+
+//        return '{sources, types, '{-1, -1, -1}};
+//    endfunction
+
+    function automatic InsDependencies getPhysicalArgs_N(input OpSlot op, input RegisterTracker regTracker);
+        int mapInt[32] = regTracker.intMapR;
+        int mapFloat[32] = regTracker.floatMapR;
         int sources[3] = '{-1, -1, -1};
+        InsId producers[3] = '{-1, -1, -1};
         SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
         
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -805,11 +908,13 @@ package AbstractSim;
         foreach (sources[i]) begin
             if (typeSpec[i + 2] == "i") begin
                 sources[i] = mapInt[abs.sources[i]];
-                types[i] = SRC_INT;
+                types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+                    producers[i] = regTracker.intInfo[sources[i]].owner;
             end
             else if (typeSpec[i + 2] == "f") begin
                 sources[i] = mapFloat[abs.sources[i]];
                 types[i] = SRC_FLOAT;
+                    producers[i] = regTracker.floatInfo[sources[i]].owner;
             end
             else if (typeSpec[i + 2] == "c") begin
                 sources[i] = abs.sources[i];
@@ -822,23 +927,23 @@ package AbstractSim;
             end
         end
 
-        return '{sources, types};
+        return '{sources, types, producers};
     endfunction
 
 
-    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-        Word res[3];
-        foreach (res[i]) begin
-            case (deps.types[i])
-                SRC_ZERO: res[i] = 0;
-                SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
-                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
-            endcase
-        end
+//    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+//        Word res[3];
+//        foreach (res[i]) begin
+//            case (deps.types[i])
+//                SRC_ZERO: res[i] = 0;
+//                SRC_CONST: res[i] = deps.sources[i];
+//                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
+//                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
+//            endcase
+//        end
 
-        return res;
-    endfunction
+//        return res;
+//    endfunction
 
 
     typedef struct {
@@ -954,6 +1059,10 @@ package AbstractSim;
    
     typedef struct {
         int oq;
+            int iqRegular;
+            int iqBranch;
+            int iqMem;
+            int iqSys;
         int oooq;
         //int bq;
         int rob;

@@ -135,6 +135,12 @@ package Emulation;
         
     endclass
 
+    
+    // Not including memory
+    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
+        return ins.def.o inside { O_floatMove };
+    endfunction    
+
 
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
@@ -160,9 +166,18 @@ package Emulation;
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW});
     endfunction
 
+    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+        return (ins.def.o inside {O_floatLoadW});
+    endfunction
+
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
     endfunction
+
+    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
+        return ins.def.o inside {O_floatStoreW};
+    endfunction
+    
 
     function automatic logic isStoreSysIns(input AbstractInstruction ins);
         return ins.def.o inside {O_sysStore};
