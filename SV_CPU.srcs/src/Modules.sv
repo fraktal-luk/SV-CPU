@@ -466,7 +466,14 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    assign issuedSt0 = theIssueQueues.ig;
+    //assign issuedSt0 = theIssueQueues.ig;
+    assign issuedSt0.regular = theIssueQueues.issuedRegular;
+    assign issuedSt0.float = theIssueQueues.issuedFloat;
+    assign issuedSt0.branch = theIssueQueues.issuedBranch[0];
+    assign issuedSt0.mem = theIssueQueues.issuedMem[0];
+    assign issuedSt0.sys = theIssueQueues.issuedSys[0];
+
+
 
     assign doneOpsRegular_E[0] = eff(doneOpsRegular[0]);
     assign doneOpsRegular_E[1] = eff(doneOpsRegular[1]);
@@ -791,17 +798,17 @@ module IssueQueueComplex(
     endfunction
 
 
-    IssueGroup ig;
+//    IssueGroup ig;
 
-    assign ig.regular = issuedRegular;
-    assign ig.float = issuedFloat;
-    assign ig.branch = issuedBranch[0];
-    assign ig.mem = issuedMem[0];
-    assign ig.sys = issuedSys[0];
+//    assign ig.regular = issuedRegular;
+//    assign ig.float = issuedFloat;
+//    assign ig.branch = issuedBranch[0];
+//    assign ig.mem = issuedMem[0];
+//    assign ig.sys = issuedSys[0];
 
-    assign    AbstractCore.oooLevels_N.iqRegular = regularQueue.num;
-    assign    AbstractCore.oooLevels_N.iqBranch = branchQueue.num;
-    assign    AbstractCore.oooLevels_N.iqMem = memQueue.num;
-    assign    AbstractCore.oooLevels_N.iqSys = sysQueue.num;
+//    assign    AbstractCore.oooLevels_N.iqRegular = regularQueue.num;
+//    assign    AbstractCore.oooLevels_N.iqBranch = branchQueue.num;
+//    assign    AbstractCore.oooLevels_N.iqMem = memQueue.num;
+//    assign    AbstractCore.oooLevels_N.iqSys = sysQueue.num;
 
 endmodule

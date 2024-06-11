@@ -27,37 +27,28 @@ module AbstractCore
     logic dummy = '1;
 
 
+    // DB
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
+    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
+    MemTracker memTracker = new();
+    
     int cycleCtr = 0;
 
     always @(posedge clk) cycleCtr++;
 
 
-    // Overall
-    int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
-    int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0;
+    int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
 
-    logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
+    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
 
-    AbstractInstruction eventIns;
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO,
-              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
-    BranchCheckpoint branchCP;
-
-    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
-    MemTracker memTracker = new();
+    logic cmp0, cmp1;
+    Word cmpw0, cmpw1, cmpw2, cmpw3;
 
 
-    Events evts;
-    BufferLevels oooLevels, oooLevels_N, oooAccepts;
-
-
-    // OOO
-    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
-        int currentSlot;
-
+    // DB queues
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
@@ -66,16 +57,41 @@ module AbstractCore
     RobEntry rob[$:ROB_SIZE];
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
+    //..............................
 
+
+    // Overall
+    logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
+
+    
+    int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
+
+    BufferLevels oooLevels, oooLevels_N, oooAccepts;
+
+    Events evts;
+
+    // OOO
+    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+     //    int currentSlot;
+    
+    // Exec
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
+
+
+    AbstractInstruction eventIns;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO,
+              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    BranchCheckpoint branchCP;
+
+    MemWriteInfo readInfo = EMPTY_WRITE_INFO; // Exec
+
 
     // Committed
     StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
     StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
 
-    MemWriteInfo writeInfo, // Committed
-                 readInfo = EMPTY_WRITE_INFO; // Exec
+    MemWriteInfo writeInfo; // Committed
 
     // Control
     Word sysRegs_N[32];  
@@ -104,14 +120,6 @@ module AbstractCore
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     ///////////////////////////////////////////
-
-
-    // DB
-    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
-
-    logic cmp0, cmp1;
-    Word cmpw0, cmpw1, cmpw2, cmpw3;
 
 
 
@@ -158,7 +166,15 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    
+
+    assign    oooLevels_N.iqRegular = theIssueQueues.regularQueue.num;
+    assign    oooLevels_N.iqFloat = theIssueQueues.floatQueue.num;
+    assign    oooLevels_N.iqBranch = theIssueQueues.branchQueue.num;
+    assign    oooLevels_N.iqMem = theIssueQueues.memQueue.num;
+    assign    oooLevels_N.iqSys = theIssueQueues.sysQueue.num;
+
+
+
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
         oooLevels <= getBufferLevels();
@@ -262,13 +278,11 @@ module AbstractCore
         if (anyActive(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
     
-        currentSlot = 0;
         foreach (ops[i]) begin
             if (ops[i].active) begin
-                renameOp(ops[i]);
+                renameOp(ops[i], i);
                 putMilestone(ops[i].id, InstructionMap::Rename);
             end
-            currentSlot++;
         end
     endtask
 
@@ -339,8 +353,8 @@ module AbstractCore
     function automatic BufferLevels getBufferAccepts(input BufferLevels levels, input BufferLevels levels_N);
         BufferLevels res;
         
-        res.oq = levels_N.oq <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
             res.iqRegular = levels_N.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+            res.iqFloat = levels_N.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
             res.iqBranch = levels_N.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
             res.iqMem = levels_N.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
             res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
@@ -356,6 +370,7 @@ module AbstractCore
     function automatic logic buffersAccept(input BufferLevels acc);
         return 1 //acc.oq
                 && acc.iqRegular
+                && acc.iqFloat
                 && acc.iqBranch
                 && acc.iqMem
                 && acc.iqSys
@@ -515,8 +530,21 @@ module AbstractCore
         branchCheckpointQueue.push_back(cp);
     endtask
     
-    
-    task automatic setupOnRename(input OpSlot op);
+
+    task automatic addToMemTracker(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
+        Word effAdr = calculateEffectiveAddress(ins, argVals);
+
+        if (isStoreMemIns(ins)) begin 
+            Word value = argVals[2];
+            memTracker.addStore(op, effAdr, value);
+        end
+        if (isLoadMemIns(ins)) begin
+            memTracker.addLoad(op, effAdr, 'x);
+        end
+    endtask
+        
+
+    task automatic renameOp(input OpSlot op, input int currentSlot);
         AbstractInstruction ins = decAbs(op);
         Word result, target;
         InsDependencies deps;
@@ -550,25 +578,7 @@ module AbstractCore
         
         insMap.setInds(op.id, renameInds);
             insMap.setSlot(op.id, currentSlot);
-        
-    endtask
 
-        task automatic addToMemTracker(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
-            Word effAdr = calculateEffectiveAddress(ins, argVals);
-
-            if (isStoreMemIns(ins)) begin 
-                Word value = argVals[2];
-                memTracker.addStore(op, effAdr, value);
-            end
-            if (isLoadMemIns(ins)) begin
-                memTracker.addLoad(op, effAdr, 'x);
-            end
-        endtask
-        
-
-    task automatic renameOp(input OpSlot op);
-        setupOnRename(op);
-       
         lastRenamed = op;
     endtask
 
@@ -702,13 +712,6 @@ module AbstractCore
 
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
-            
-//            if (op.id == 585) begin
-//                InstructionInfo ii = insMap.get(op.id);
-//                $display("585 writing: %d, %d", ii.result, ii.actualResult);
-//            end
-        
-        //insMap.setActualResult(op.id, value);
 
         putMilestone(op.id, InstructionMap::WriteResult);
 
@@ -777,11 +780,8 @@ module AbstractCore
     endfunction
 
 
-
     function automatic logic3 checkArgsReady(input InsDependencies deps);
         logic3 res;
-        
-       //     $display("ch core");
         
         foreach (deps.types[i])
             case (deps.types[i])
@@ -906,6 +906,4 @@ module AbstractCore
     endfunction;
 
 
-
 endmodule
-

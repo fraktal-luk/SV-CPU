@@ -1058,11 +1058,13 @@ package AbstractSim;
 
    
     typedef struct {
-        int oq;
-            int iqRegular;
-            int iqBranch;
-            int iqMem;
-            int iqSys;
+        //int oq;
+        int iqRegular;
+        int iqFloat;
+        int iqBranch;
+        int iqMem;
+        int iqSys;
+
         int oooq;
         //int bq;
         int rob;
