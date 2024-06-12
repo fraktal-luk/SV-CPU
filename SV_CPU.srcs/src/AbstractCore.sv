@@ -94,7 +94,7 @@ module AbstractCore
     MemWriteInfo writeInfo; // Committed
 
     // Control
-    Word sysRegs_N[32];  
+    Word sysRegs[32];
     Word retiredTarget = 0;
 
 
@@ -222,17 +222,17 @@ module AbstractCore
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
         if (lateEventInfoWaiting.op.active) begin
-            modifyStateSync(sysRegs_N, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
+            modifyStateSync(sysRegs, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
             retiredTarget <= getLateTarget(lateEventInfoWaiting.op);
             lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, getLateRedirect(lateEventInfoWaiting.op), getLateTarget(lateEventInfoWaiting.op)};
         end
         else if (lateEventInfoWaiting.reset) begin
-            saveStateAsync(sysRegs_N, retiredTarget);
+            saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_RESET;
             lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
         end
         else if (lateEventInfoWaiting.interrupt) begin
-            saveStateAsync(sysRegs_N, retiredTarget);
+            saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_INT;
             lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
         end
@@ -495,7 +495,7 @@ module AbstractCore
             memTracker.flushAll();
             
             if (lateEventInfo.reset) begin
-                sysRegs_N = SYS_REGS_INITIAL;
+                sysRegs = SYS_REGS_INITIAL;
                 renamedEmul.reset();
                 retiredEmul.reset();
             end
@@ -727,11 +727,11 @@ module AbstractCore
 
 
     function automatic Word getSysReg(input Word adr);
-        return sysRegs_N[adr];
+        return sysRegs[adr];
     endfunction
 
     function automatic void setSysReg(input Word adr, input Word val);
-        sysRegs_N[adr] = val;
+        sysRegs[adr] = val;
     endfunction
 
 
@@ -828,15 +828,31 @@ module AbstractCore
         return res;
     endfunction
 
-  
+
+    function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
+        return !(fe.id == -1) && fe.id === producer;
+    endfunction
+
+    function automatic Word useForwardedValue(input ForwardingElement fe, input int source, input InsId producer);
+        InstructionInfo ii = insMap.get(fe.id);
+        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", producer);
+        return ii.actualResult;
+    endfunction
+
+    function automatic logic useForwardingMatch(input ForwardingElement fe, input int source, input InsId producer);
+        InstructionInfo ii = insMap.get(fe.id);
+        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", producer);
+        return 1;
+    endfunction
+
+
     function automatic Word getForwardValueVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
         foreach (feVec[p]) begin
-            InstructionInfo ii;
-            if (feVec[p].id == -1) continue;
-            ii = insMap.get(feVec[p].id);
-            if (feVec[p].id === producer) begin
-                assert (feVec[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return ii.actualResult;
+            if (matchProducer(feVec[p], producer)) begin
+                //InstructionInfo ii = insMap.get(feVec[p].id);
+                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return //ii.actualResult;
+                       useForwardedValue(feVec[p], source, producer);
             end
         end
         return 'x;
@@ -844,22 +860,20 @@ module AbstractCore
 
     function automatic Word getForwardValueInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         foreach (feInt[p]) begin
-            InstructionInfo ii;
-            if (feInt[p].id == -1) continue;
-            ii = insMap.get(feInt[p].id);
-            if (feInt[p].id === producer) begin
-                assert (feInt[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return ii.actualResult;
+            if (matchProducer(feInt[p], producer)) begin
+                //InstructionInfo ii = insMap.get(feInt[p].id);
+                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return //ii.actualResult;
+                        useForwardedValue(feInt[p], source, producer);
             end
         end
         
         foreach (feMem[p]) begin
-            InstructionInfo ii;
-            if (feMem[p].id == -1) continue;
-            ii = insMap.get(feMem[p].id);
-            if (feMem[p].id === producer) begin
-                assert (feMem[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return ii.actualResult;
+            if (matchProducer(feMem[p], producer)) begin
+                //InstructionInfo ii = insMap.get(feMem[p].id);
+                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return //ii.actualResult;
+                        useForwardedValue(feMem[p], source, producer);
             end
         end
 
@@ -870,12 +884,11 @@ module AbstractCore
   
     function automatic logic checkForwardVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
         foreach (feVec[p]) begin
-            InstructionInfo ii;
-            if (feVec[p].id == -1) continue;
-            ii = insMap.get(feVec[p].id);
-            if (feVec[p].id === producer) begin
-                assert (feVec[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return 1;
+            if (matchProducer(feVec[p], producer)) begin
+                //InstructionInfo ii = insMap.get(feVec[p].id);
+                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return //1;
+                       useForwardingMatch(feVec[p], source, producer);
             end
         end
         return 0;
@@ -883,27 +896,24 @@ module AbstractCore
 
     function automatic logic checkForwardInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         foreach (feInt[p]) begin
-            InstructionInfo ii;
-            if (feInt[p].id == -1) continue;
-            ii = insMap.get(feInt[p].id);
-            if (feInt[p].id === producer) begin
-                assert (feInt[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return 1;
+            if (matchProducer(feInt[p], producer)) begin
+                //InstructionInfo ii = insMap.get(feInt[p].id);
+                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return //1;
+                        useForwardingMatch(feInt[p], source, producer);
             end
         end
         
         foreach (feMem[p]) begin
-            InstructionInfo ii;
-            if (feMem[p].id == -1) continue;
-            ii = insMap.get(feMem[p].id);
-            if (feMem[p].id === producer) begin
-                assert (feMem[p].id === producer && ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return 1;
+            if (matchProducer(feMem[p], producer)) begin
+                //InstructionInfo ii = insMap.get(feMem[p].id);
+               // assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
+                return //1;
+                        useForwardingMatch(feMem[p], source, producer);
             end
         end
 
         return 0;
     endfunction;
-
 
 endmodule
