@@ -405,7 +405,7 @@ module ExecBlock(ref InstructionMap insMap,
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, evt.target};
+        AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
     endtask
 
 

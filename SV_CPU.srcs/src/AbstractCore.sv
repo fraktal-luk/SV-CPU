@@ -136,27 +136,8 @@ module AbstractCore
         else
             runInOrderPartRe();
 
-
         // Complete + write regs
-        begin
-            foreach (theExecBlock.doneOpsRegular_E[i]) begin
-                completeOp(theExecBlock.doneOpsRegular_E[i]);
-                writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
-            end
-
-            foreach (theExecBlock.doneOpsFloat_E[i]) begin
-                completeOp(theExecBlock.doneOpsFloat_E[i]);
-                writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
-            end
-                        
-            completeOp(theExecBlock.doneOpBranch_E);
-            writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
-    
-            completeOp(theExecBlock.doneOpMem_E);
-            writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
-    
-            completeOp(theExecBlock.doneOpSys_E);
-        end
+        handleCompletion();
         
         updateBookkeeping();
     end
@@ -172,6 +153,25 @@ module AbstractCore
     assign    oooLevels_N.iqSys = theIssueQueues.sysQueue.num;
 
 
+    task automatic handleCompletion();
+        foreach (theExecBlock.doneOpsRegular_E[i]) begin
+            completeOp(theExecBlock.doneOpsRegular_E[i]);
+            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
+        end
+
+        foreach (theExecBlock.doneOpsFloat_E[i]) begin
+            completeOp(theExecBlock.doneOpsFloat_E[i]);
+            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
+        end
+                    
+        completeOp(theExecBlock.doneOpBranch_E);
+        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
+
+        completeOp(theExecBlock.doneOpMem_E);
+        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
+
+        completeOp(theExecBlock.doneOpSys_E);
+    endtask
 
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
@@ -196,43 +196,34 @@ module AbstractCore
         return getLateEvent(op, abs, sr2, sr3);
     endfunction
 
-    function automatic logic getLateRedirect(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word sr2 = getSysReg(2);
-        Word sr3 = getSysReg(3);
-        return getLateEvent(op, abs, sr2, sr3).redirect;
-    endfunction
-
-    function automatic Word getLateTarget(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word sr2 = getSysReg(2);
-        Word sr3 = getSysReg(3);
-        return getLateEvent(op, abs, sr2, sr3).target;
-    endfunction
-
-
 
     task automatic activateEvent();
+        LateEvent lateEvt;
+    
         lateEventInfo <= EMPTY_EVENT_INFO;
     
         if (!csqEmpty) return;    
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
+        if (!(lateEventInfoWaiting.op.active | lateEventInfoWaiting.reset | lateEventInfoWaiting.interrupt)) return;
+
+        lateEvt = getLateEvt(lateEventInfoWaiting.op);
+
         if (lateEventInfoWaiting.op.active) begin
             modifyStateSync(sysRegs, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
-            retiredTarget <= getLateTarget(lateEventInfoWaiting.op);
-            lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, getLateRedirect(lateEventInfoWaiting.op), getLateTarget(lateEventInfoWaiting.op)};
+            retiredTarget <= lateEvt.target;
+            lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, lateEvt.redirect, 0, 0, lateEvt.target};
         end
         else if (lateEventInfoWaiting.reset) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_RESET;
-            lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
+            lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_INT;
-            lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
+            lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
         end
     endtask
 
@@ -269,7 +260,6 @@ module AbstractCore
         
         storeHead <= csq_N[3];
     endtask
-
 
 
     task automatic renameGroup(input OpSlotA ops);
@@ -509,8 +499,8 @@ module AbstractCore
         end
         
     endtask
-    
-    
+
+
     task automatic markKilledFrontStage(ref Stage_N stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
@@ -527,20 +517,7 @@ module AbstractCore
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
     endtask
-    
 
-    task automatic addToMemTracker(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
-        Word effAdr = calculateEffectiveAddress(ins, argVals);
-
-        if (isStoreMemIns(ins)) begin 
-            Word value = argVals[2];
-            memTracker.addStore(op, effAdr, value);
-        end
-        if (isLoadMemIns(ins)) begin
-            memTracker.addLoad(op, effAdr, 'x);
-        end
-    endtask
-        
 
     task automatic renameOp(input OpSlot op, input int currentSlot);
         AbstractInstruction ins = decAbs(op);
@@ -561,7 +538,8 @@ module AbstractCore
         updateInds(renameInds, op); // Crucial state
 
         physDest = registerTracker.reserve(op);
-        if (isMemOp(op)) addToMemTracker(op, ins, argVals); // DB
+        if (isMemOp(op)) //addToMemTracker(op, ins, argVals); // DB
+                         memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -646,7 +624,7 @@ module AbstractCore
             AbstractInstruction abs = decAbs(op);
             if (abs.def.o == O_halt) $error("halt not implemented");
         
-        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
+        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, 0, 0, evt.target};
     endtask
 
     task automatic releaseQueues(input OpSlot op);
@@ -683,25 +661,22 @@ module AbstractCore
     task automatic execReset();
             insMap.cleanDescs();
     
-        lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, IP_RESET};
+        lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, IP_INT};
+        lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
         retiredEmul.interrupt();
     endtask
 
-
-    task automatic updateOOOQ(input OpSlot op);
-        putMilestone(op.id, InstructionMap::Complete); 
-    endtask
     
     task automatic completeOp(input OpSlot op);            
         if (!op.active) return;
-        
-        updateOOOQ(op);
+
+        putMilestone(op.id, InstructionMap::Complete); 
+
             lastCompleted = op;
             nCompleted++;
     endtask
@@ -730,6 +705,7 @@ module AbstractCore
     function automatic void setSysReg(input Word adr, input Word val);
         sysRegs[adr] = val;
     endfunction
+
 
 
     function automatic AbstractInstruction decAbs(input OpSlot op);
@@ -769,13 +745,6 @@ module AbstractCore
             foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
             $swrite(bqStr, "%p", ids);
         end
-
-
-//    function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
-//        Transaction tr[$] = memTracker.stores.find with (item.owner == id);
-//        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
-//    endfunction
-
 
 
     function automatic logic3 checkArgsReady(input InsDependencies deps);

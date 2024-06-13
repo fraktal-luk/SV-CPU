@@ -901,10 +901,12 @@ package AbstractSim;
         logic interrupt;
         logic reset;
         logic redirect;
+            logic sigOk;
+            logic sigWrong;
         Word target;
     } EventInfo;
     
-    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, 'x};
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
 
     
     typedef struct {
@@ -922,6 +924,19 @@ package AbstractSim;
 //            function automatic void reset();
 
 //            endfunction
+        
+        function automatic void add(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
+            Word effAdr = calculateEffectiveAddress(ins, argVals);
+    
+            if (isStoreMemIns(ins)) begin 
+                Word value = argVals[2];
+                addStore(op, effAdr, value);
+            end
+            if (isLoadMemIns(ins)) begin
+                addLoad(op, effAdr, 'x);
+            end
+        endfunction
+
         
         function automatic void addStore(input OpSlot op, input Word adr, input Word val);
             transactions.push_back('{op.id, adr, val});
