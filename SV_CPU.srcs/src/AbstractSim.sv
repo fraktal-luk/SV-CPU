@@ -1,9 +1,4 @@
 
-//import Base::*;
-//import InsDefs::*;
-//import Asm::*;
-//import Emulation::*;
-
 package AbstractSim;
     
     import Base::*;
@@ -483,27 +478,27 @@ package AbstractSim;
             MilestoneTag lastKilledRecordArr[16];
             string lastRecordStr;
 
-                function automatic void setLastRecordArr(input InsId id);
-                    MilestoneTag def = '{___, -1};
-                    InsRecord rec = records[id];
-                    lastRecordArr = '{default: def};
-                    
-                    foreach(rec.tags[i])
-                        lastRecordArr[i] = rec.tags[i];
-                endfunction
+            function automatic void setLastRecordArr(input InsId id);
+                MilestoneTag def = '{___, -1};
+                InsRecord rec = records[id];
+                lastRecordArr = '{default: def};
+                
+                foreach(rec.tags[i])
+                    lastRecordArr[i] = rec.tags[i];
+            endfunction
 
-                function automatic void setLastKilledRecordArr(input InsId id);
-                    MilestoneTag def = '{___, -1};
-                    InsRecord rec;
-   
-                        if (!records.exists(id)) return;
-                    
-                    rec = records[id];
-                    lastKilledRecordArr = '{default: def};
-                    
-                    foreach(rec.tags[i])
-                        lastKilledRecordArr[i] = rec.tags[i];
-                endfunction
+            function automatic void setLastKilledRecordArr(input InsId id);
+                MilestoneTag def = '{___, -1};
+                InsRecord rec;
+
+                if (!records.exists(id)) return;
+                
+                rec = records[id];
+                lastKilledRecordArr = '{default: def};
+                
+                foreach(rec.tags[i])
+                    lastKilledRecordArr[i] = rec.tags[i];
+            endfunction
 
          
         function automatic void registerIndex(input int id);
@@ -528,10 +523,8 @@ package AbstractSim;
         
         function automatic void verifyMilestones(input int id);
             MilestoneTag tagList[$] = records[id].tags;
-                
-                MilestoneTag found[$] = tagList.find_first with (item.kind == RobExit);
-                assert (found.size() > 0) else $error("Op %d: not seen exiting ROB!", id); 
-            
+            MilestoneTag found[$] = tagList.find_first with (item.kind == RobExit);
+            assert (found.size() > 0) else $error("Op %d: not seen exiting ROB!", id); 
         endfunction
         
         
@@ -553,7 +546,6 @@ package AbstractSim;
             this.floatWriters = floatWr;
             this.intMapR = intMapR;
             this.floatMapR = floatMapR;
-            //this.renameIndex = renameInd;
             this.inds = indexSet;
         endfunction
 
@@ -564,7 +556,6 @@ package AbstractSim;
         int floatWriters[32];
         int intMapR[32];
         int floatMapR[32];
-        //int renameIndex;
         IndexSet inds;
     endclass
 
@@ -771,21 +762,21 @@ package AbstractSim;
                 wrTracker.floatWritersR = floatWriters;
         endfunction
         
-            function automatic void restoreReset();
-                intMapR = intMapC;
-                floatMapR = floatMapC;
-            
-                wrTracker.intWritersR = '{default: -1};
-                wrTracker.floatWritersR = '{default: -1};
-            endfunction
+        function automatic void restoreReset();
+            intMapR = intMapC;
+            floatMapR = floatMapC;
         
-            function automatic void restoreStable();
-                intMapR = intMapC;
-                floatMapR = floatMapC;
-            
-                wrTracker.intWritersR = wrTracker.intWritersC;
-                wrTracker.floatWritersR = wrTracker.floatWritersC;
-            endfunction
+            wrTracker.intWritersR = '{default: -1};
+            wrTracker.floatWritersR = '{default: -1};
+        endfunction
+    
+        function automatic void restoreStable();
+            intMapR = intMapC;
+            floatMapR = floatMapC;
+        
+            wrTracker.intWritersR = wrTracker.intWritersC;
+            wrTracker.floatWritersR = wrTracker.floatWritersC;
+        endfunction
 
       
         function automatic void writeValueInt(input OpSlot op, input Word value);
@@ -829,23 +820,6 @@ package AbstractSim;
             return freeInds.size();
         endfunction
         
-        
-//        function automatic logic3 checkArgsReady(input InsDependencies deps);//, input logic readyInt[N_REGS_INT], input logic readyFloat[N_REGS_FLOAT]);
-//            logic3 res;
-//                        $display("ch paket");
-
-            
-//            foreach (deps.types[i])
-//                case (deps.types[i])
-//                    SRC_ZERO:  res[i] = 1;
-//                    SRC_CONST: res[i] = 1;
-//                    SRC_INT:   res[i] = intReady[deps.sources[i]];
-//                    SRC_FLOAT: res[i] = floatReady[deps.sources[i]];
-//                endcase      
-//            return res;
-//        endfunction
-        
-        
         function automatic void setWriterR(input OpSlot op);
             AbstractInstruction abs = decodeAbstract(op.bits);
             if (hasIntDest(abs)) wrTracker.intWritersR[abs.dest] = op.id;
@@ -860,40 +834,8 @@ package AbstractSim;
             wrTracker.intWritersC[0] = -1;
         endfunction
         
-        
     endclass
 
-
-
-//    function automatic InsDependencies getPhysicalArgs(input OpSlot op, input int mapInt[32], input int mapFloat[32]);
-//        int sources[3] = '{-1, -1, -1};
-//        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
-        
-//        AbstractInstruction abs = decodeAbstract(op.bits);
-//        string typeSpec = parsingMap[abs.fmt].typeSpec;
-        
-//        foreach (sources[i]) begin
-//            if (typeSpec[i + 2] == "i") begin
-//                sources[i] = mapInt[abs.sources[i]];
-//                types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-//            end
-//            else if (typeSpec[i + 2] == "f") begin
-//                sources[i] = mapFloat[abs.sources[i]];
-//                types[i] = SRC_FLOAT;
-//            end
-//            else if (typeSpec[i + 2] == "c") begin
-//                sources[i] = abs.sources[i];
-//                types[i] = SRC_CONST;
-//            end
-//            else if (typeSpec[i + 2] == "0") begin
-//                sources[i] = //abs.sources[i];
-//                            0;
-//                types[i] = SRC_ZERO;
-//            end
-//        end
-
-//        return '{sources, types, '{-1, -1, -1}};
-//    endfunction
 
     function automatic InsDependencies getPhysicalArgs_N(input OpSlot op, input RegisterTracker regTracker);
         int mapInt[32] = regTracker.intMapR;

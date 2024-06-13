@@ -63,7 +63,6 @@ module AbstractCore
     // Overall
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
 
-    
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
     BufferLevels oooLevels, oooLevels_N, oooAccepts;
@@ -72,8 +71,7 @@ module AbstractCore
 
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
-     //    int currentSlot;
-    
+
     // Exec
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
@@ -554,7 +552,6 @@ module AbstractCore
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
-        //deps = getPhysicalArgs(op, registerTracker.intMapR, registerTracker.floatMapR); // For insMap
         deps = getPhysicalArgs_N(op, registerTracker); // For insMap
 
         runInEmulator(renamedEmul, op);
@@ -646,8 +643,8 @@ module AbstractCore
 
     task automatic setLateEvent(input OpSlot op);    
         LateEvent evt = getLateEvt(op);
-        AbstractInstruction abs = decAbs(op);
-        if (abs.def.o == O_halt) $error("halt not implemented");
+            AbstractInstruction abs = decAbs(op);
+            if (abs.def.o == O_halt) $error("halt not implemented");
         
         lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, evt.target};
     endtask
@@ -765,7 +762,7 @@ module AbstractCore
     assign lastRenamedStr = disasm(lastRenamed.bits);
     assign lastCompletedStr = disasm(lastCompleted.bits);
     assign lastRetiredStr = disasm(lastRetired.bits);
-    
+
         string bqStr;
         always @(posedge clk) begin
             automatic int ids[$];
@@ -774,10 +771,11 @@ module AbstractCore
         end
 
 
-    function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
-        Transaction tr[$] = memTracker.stores.find with (item.owner == id);
-        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
-    endfunction
+//    function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
+//        Transaction tr[$] = memTracker.stores.find with (item.owner == id);
+//        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
+//    endfunction
+
 
 
     function automatic logic3 checkArgsReady(input InsDependencies deps);
@@ -793,24 +791,17 @@ module AbstractCore
         return res;
     endfunction
 
-
     function automatic logic3 checkForwardsReady(input InsDependencies deps, input int stage);
         logic3 res;
         foreach (deps.types[i])
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = 0;
-                SRC_INT:   begin
-                    res[i] = checkForwardInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                end
-                SRC_FLOAT: begin
-                    res[i] = checkForwardVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
-                end
+                SRC_INT:   res[i] = checkForwardInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
+                SRC_FLOAT: res[i] = checkForwardVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
             endcase      
         return res;
     endfunction
-
-
 
     function automatic Word3 getForwardedValues(input InsDependencies deps, input int stage);
         Word3 res;
@@ -818,12 +809,8 @@ module AbstractCore
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = 0;
-                SRC_INT:   begin
-                    res[i] = getForwardValueInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                end
-                SRC_FLOAT: begin
-                    res[i] = getForwardValueVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
-                end
+                SRC_INT:   res[i] = getForwardValueInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
+                SRC_FLOAT: res[i] = getForwardValueVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
             endcase      
         return res;
     endfunction
@@ -848,69 +835,38 @@ module AbstractCore
 
     function automatic Word getForwardValueVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
         foreach (feVec[p]) begin
-            if (matchProducer(feVec[p], producer)) begin
-                //InstructionInfo ii = insMap.get(feVec[p].id);
-                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return //ii.actualResult;
-                       useForwardedValue(feVec[p], source, producer);
-            end
+            if (matchProducer(feVec[p], producer)) return useForwardedValue(feVec[p], source, producer);
         end
         return 'x;
     endfunction;
 
     function automatic Word getForwardValueInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         foreach (feInt[p]) begin
-            if (matchProducer(feInt[p], producer)) begin
-                //InstructionInfo ii = insMap.get(feInt[p].id);
-                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return //ii.actualResult;
-                        useForwardedValue(feInt[p], source, producer);
-            end
+            if (matchProducer(feInt[p], producer)) return useForwardedValue(feInt[p], source, producer);
         end
         
         foreach (feMem[p]) begin
-            if (matchProducer(feMem[p], producer)) begin
-                //InstructionInfo ii = insMap.get(feMem[p].id);
-                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return //ii.actualResult;
-                        useForwardedValue(feMem[p], source, producer);
-            end
+            if (matchProducer(feMem[p], producer)) return useForwardedValue(feMem[p], source, producer);
         end
 
         return 'x;
     endfunction;
 
 
-  
     function automatic logic checkForwardVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
         foreach (feVec[p]) begin
-            if (matchProducer(feVec[p], producer)) begin
-                //InstructionInfo ii = insMap.get(feVec[p].id);
-                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return //1;
-                       useForwardingMatch(feVec[p], source, producer);
-            end
+            if (matchProducer(feVec[p], producer)) return useForwardingMatch(feVec[p], source, producer);
         end
         return 0;
     endfunction;
 
     function automatic logic checkForwardInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         foreach (feInt[p]) begin
-            if (matchProducer(feInt[p], producer)) begin
-                //InstructionInfo ii = insMap.get(feInt[p].id);
-                //assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return //1;
-                        useForwardingMatch(feInt[p], source, producer);
-            end
+            if (matchProducer(feInt[p], producer)) return useForwardingMatch(feInt[p], source, producer);
         end
         
         foreach (feMem[p]) begin
-            if (matchProducer(feMem[p], producer)) begin
-                //InstructionInfo ii = insMap.get(feMem[p].id);
-               // assert (ii.physDest === source) else $fatal(2, "Not exatc match, should be %p:", producer);
-                return //1;
-                        useForwardingMatch(feMem[p], source, producer);
-            end
+            if (matchProducer(feMem[p], producer)) return useForwardingMatch(feMem[p], source, producer);
         end
 
         return 0;
