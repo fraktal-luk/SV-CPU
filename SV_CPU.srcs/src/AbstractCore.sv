@@ -238,23 +238,7 @@ module AbstractCore
     endtask
 
     ////////////////
-    
 
-
-    task automatic advanceOOOQ();
-        // Don't commit anything more if event is being handled
-        if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
-
-        while (oooQueue.size() > 0 && oooQueue[0].id <= theRob.lastOut) begin
-            OpSlot op = takeFrontOp();
-            commitOp(op);
-            putMilestone(op.id, InstructionMap::Retire);
-            insMap.setRetired(op.id);
-            insMap.verifyMilestones(op.id);
-            
-            if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) break;
-        end
-    endtask
 
 
     task automatic drainWriteQueue();
@@ -587,13 +571,40 @@ module AbstractCore
 
 
     
-    function automatic OpSlot takeFrontOp();
+    function automatic OpSlot takeFrontOp(input OpSlot robOp);
         OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
         InstructionInfo insInfo = insMap.get(opSt.id);
         OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
         assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
+        
+            assert (robOp.id == opSt.id) else $error("no match: %p / %p", robOp, op);
         return op;
     endfunction
+
+    task automatic advanceOOOQ();
+        // Don't commit anything more if event is being handled
+        if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
+
+        
+        foreach (robOut[i]) begin
+            OpSlot opC = robOut[i];
+            if (!opC.active) continue;
+            
+        //end
+        
+        //while (oooQueue.size() > 0 && oooQueue[0].id <= theRob.lastOut) begin
+            begin
+                OpSlot op = takeFrontOp(//EMPTY_SLOT);//
+                                        opC);
+                commitOp(op);
+                putMilestone(op.id, InstructionMap::Retire);
+                insMap.setRetired(op.id);
+                insMap.verifyMilestones(op.id);
+                
+                if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) break;
+            end
+        end
+    endtask
 
 
 

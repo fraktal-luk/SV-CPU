@@ -39,6 +39,19 @@ module ReorderBuffer
 
     const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
+    function automatic OpSlotA makeOutGroup(input Row row);
+        OpSlotA res = '{default: EMPTY_SLOT};
+        foreach (row.records[i]) begin
+            if (row.records[i].id == -1) continue;
+            res[i].active = 1;
+            res[i].id = row.records[i].id;
+        end
+        
+        return res;
+    endfunction
+    
+    
+
     Row outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
@@ -115,6 +128,8 @@ module ReorderBuffer
     endtask
     
     
+    assign outGroup = makeOutGroup(outRow);
+    
     
     always @(posedge AbstractCore.clk) begin
 
@@ -122,7 +137,7 @@ module ReorderBuffer
             outRow <= EMPTY_ROW;
         else if (frontCompleted()) begin
             automatic Row row = array[startPointer % DEPTH];
-                lastOut = getLastOut(lastOut, array[startPointer % DEPTH].records);
+                lastOut <= getLastOut(lastOut, array[startPointer % DEPTH].records);
             
             foreach (row.records[i])
                 putMilestone(row.records[i].id, InstructionMap::RobExit);
