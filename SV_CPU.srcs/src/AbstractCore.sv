@@ -9,6 +9,7 @@ import AbstractSim::*;
 import ExecDefs::*;
 
 
+
 module AbstractCore
 #(
 )
@@ -26,48 +27,31 @@ module AbstractCore
     
     logic dummy = '1;
 
-
     // DB
+    CoreDB coreDB();
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
     
-    int cycleCtr = 0;
-
-    always @(posedge clk) cycleCtr++;
-
-
-    int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
-
-    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr, oooqStr;
-
-    logic cmp0, cmp1;
-    Word cmpw0, cmpw1, cmpw2, cmpw3;
-
-
-    // DB queues
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
-
-    OpStatus oooQueue[$:OOO_QUEUE_SIZE];
 
     RobEntry rob[$:ROB_SIZE];
     LoadQueueEntry loadQueue[$:LQ_SIZE];
     StoreQueueEntry storeQueue[$:SQ_SIZE];
     //..............................
+    
+    int cycleCtr = 0;
 
+    always @(posedge clk) cycleCtr++;
 
     // Overall
     logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
-
-    int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
-
     BufferLevels oooLevels, oooLevels_N, oooAccepts;
 
-    Events evts;
+    int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
@@ -77,18 +61,17 @@ module AbstractCore
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
-    //AbstractInstruction eventIns;
     EventInfo branchEventInfo = EMPTY_EVENT_INFO,
               lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    Events evts;
+
     BranchCheckpoint branchCP;
 
     MemWriteInfo readInfo = EMPTY_WRITE_INFO; // Exec
 
-
     // Committed
-    StoreQueueEntry csq_N[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+    StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
     StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
-
     MemWriteInfo writeInfo; // Committed
 
     // Control
@@ -120,7 +103,6 @@ module AbstractCore
     ///////////////////////////////////////////
 
 
-
     always @(posedge clk) begin
         activateEvent();
 
@@ -144,7 +126,6 @@ module AbstractCore
 
 
     assign insAdr = theFrontend.ipStage[0].adr;
-
 
     assign    oooLevels_N.iqRegular = theIssueQueues.regularQueue.num;
     assign    oooLevels_N.iqFloat = theIssueQueues.floatQueue.num;
@@ -184,8 +165,8 @@ module AbstractCore
         floatRegsReadyV <= registerTracker.floatReady;
 
         // Overall DB
-            insMapSize = insMap.size();
-            trSize = memTracker.transactions.size();
+            coreDB.insMapSize = insMap.size();
+            coreDB.trSize = memTracker.transactions.size();
     endtask
 
 
@@ -197,15 +178,6 @@ module AbstractCore
         Word sr3 = getSysReg(3);
         return getLateEvent(op, abs, sr2, sr3);
     endfunction
-
-
-        function automatic logic getWrongSignal(input AbstractInstruction ins);
-            return ins.def.o == O_undef;
-        endfunction
-
-        function automatic logic getSendSignal(input AbstractInstruction ins);
-            return ins.def.o == O_send;
-        endfunction
 
     task automatic activateEvent();
         LateEvent lateEvt;
@@ -239,26 +211,22 @@ module AbstractCore
 
     ////////////////
 
-
-
     task automatic drainWriteQueue();
-        StoreQueueEntry sqe;
+       StoreQueueEntry sqe;
        if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
-       sqe = csq_N.pop_front();
+       sqe = csq.pop_front();
        putMilestone(sqe.op.id, InstructionMap::Drain);
     endtask
 
     task automatic putWrite();            
-        if (csq_N.size() < 4) begin
-            csq_N.push_back('{EMPTY_SLOT, 'x, 'x});
+        if (csq.size() < 4) begin
+            csq.push_back('{EMPTY_SLOT, 'x, 'x});
             csqEmpty <= 1;
         end
         else csqEmpty <= 0;
         
-        storeHead <= csq_N[3];
+        storeHead <= csq[3];
     endtask
-
-
 
 
     task automatic renameGroup(input OpSlotA ops);
@@ -273,15 +241,11 @@ module AbstractCore
         end
     endtask
 
-    task automatic addToQueues(input OpSlot op);
-        oooQueue.push_back('{op.id, 0});   
-    
+    task automatic addToQueues(input OpSlot op);    
         rob.push_back('{op});      
         if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
         if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
-        
         if (isBranchIns(decAbs(op))) branchTargetQueue.push_back('{op.id, 'z});
-
     endtask
 
     // Frontend, rename and everything before getting to OOO queues
@@ -291,8 +255,7 @@ module AbstractCore
         
         foreach (stageRename1[i]) begin
             OpSlot op = stageRename1[i];
-            if (op.active)
-                addToQueues(op);
+            if (op.active) addToQueues(op);
         end 
     endtask
     
@@ -306,27 +269,15 @@ module AbstractCore
 
     assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
 
+    assign readReq[0] = readInfo.req;
+    assign readAdr[0] = readInfo.adr;
+
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;
     assign writeOut = writeInfo.value;
 
-   // assign eventIns = decAbs(lateEventInfo.op);
-    assign sig = //lateEventInfo.op.active && (eventIns.def.o == O_send);
-                 lateEventInfo.sigOk;
-    assign wrong = //lateEventInfo.op.active && (eventIns.def.o == O_undef);
-                lateEventInfo.sigWrong;
-                
-//        logic sig_C, wrong_C;
-//        assign sig_C = lateEventInfo.op.active && (eventIns.def.o == O_send);
-//        assign wrong_C = lateEventInfo.op.active && (eventIns.def.o == O_undef);
-    
-//        //assign cmpb2 = (sig_C === lateEventInfo.sigOk);
-//        assign cmp0 = (sig_C === lateEventInfo.sigOk);
-//        assign cmp1 = (wrong_C === lateEventInfo.sigWrong);
-    
-    
-    assign readReq[0] = readInfo.req;
-    assign readAdr[0] = readInfo.adr;
+    assign sig = lateEventInfo.sigOk;
+    assign wrong = lateEventInfo.sigWrong;
 
 
     // Helper (inline it?)
@@ -338,10 +289,9 @@ module AbstractCore
         return k <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
-
     function automatic BufferLevels getBufferLevels();
         BufferLevels res;
-        res.oooq = oooQueue.size();
+        res.oooq = 0;//oooQueue.size();
         res.rob = rob.size();
         res.lq = loadQueue.size();
         res.sq = storeQueue.size();
@@ -357,7 +307,7 @@ module AbstractCore
             res.iqMem = levels_N.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
             res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
         
-        res.oooq = levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.oooq = 1;//levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.rob = levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
         res.lq = levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
         res.sq = levels.sq <= SQ_SIZE - 3*FETCH_WIDTH;
@@ -372,7 +322,6 @@ module AbstractCore
                 && acc.iqBranch
                 && acc.iqMem
                 && acc.iqSys
-                     && acc.oooq //&& acc.bq 
                                   && acc.rob && acc.lq && acc.sq && acc.csq;
     endfunction
   
@@ -385,17 +334,11 @@ module AbstractCore
     // $$Bufs
     // write queue is not flushed!
     task automatic flushOooBuffersAll();        
-        flushOooQueueAll();
         flushBranchCheckpointQueueAll();
         flushBranchTargetQueueAll();
         flushRobAll();
         flushStoreQueueAll();
         flushLoadQueueAll();
-    endtask
-
-
-    task automatic flushOooQueueAll();
-        while (oooQueue.size() > 0) void'(oooQueue.pop_back());
     endtask
     
     task automatic flushBranchCheckpointQueueAll();
@@ -420,11 +363,6 @@ module AbstractCore
    
     task automatic flushStoreQueueAll();
         while (storeQueue.size() > 0) void'(storeQueue.pop_back());
-    endtask
-
-
-    task automatic flushOooQueuePartial(input OpSlot op);
-        while (oooQueue.size() > 0 && oooQueue[$].id > op.id) void'(oooQueue.pop_back());
     endtask
  
     task automatic flushBranchCheckpointQueuePartial(input OpSlot op);
@@ -453,7 +391,6 @@ module AbstractCore
 
 
     task automatic flushOooBuffersPartial(input OpSlot op);
-        flushOooQueuePartial(op);
         flushBranchCheckpointQueuePartial(op);
         flushBranchTargetQueuePartial(op);
         flushRobPartial(op);
@@ -550,8 +487,7 @@ module AbstractCore
         updateInds(renameInds, op); // Crucial state
 
         physDest = registerTracker.reserve(op);
-        if (isMemOp(op)) //addToMemTracker(op, ins, argVals); // DB
-                         memTracker.add(op, ins, argVals); // DB
+        if (isMemOp(op)) memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -566,46 +502,31 @@ module AbstractCore
         insMap.setInds(op.id, renameInds);
             insMap.setSlot(op.id, currentSlot);
 
-        lastRenamed = op;
+        coreDB.lastRenamed = op;
     endtask
 
-
-    
-    function automatic OpSlot takeFrontOp(input OpSlot robOp);
-        OpStatus opSt = oooQueue.pop_front(); // OOO buffer entry release
-        InstructionInfo insInfo = insMap.get(opSt.id);
-        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-        assert (op.id == opSt.id) else $error("wrong retirement: %p / %p", opSt, op);
-        
-            assert (robOp.id == opSt.id) else $error("no match: %p / %p", robOp, op);
-        return op;
-    endfunction
 
     task automatic advanceOOOQ();
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
-        
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
             if (!opC.active) continue;
             
-        //end
-        
-        //while (oooQueue.size() > 0 && oooQueue[0].id <= theRob.lastOut) begin
-            begin
-                OpSlot op = takeFrontOp(//EMPTY_SLOT);//
-                                        opC);
-                commitOp(op);
-                putMilestone(op.id, InstructionMap::Retire);
-                insMap.setRetired(op.id);
-                insMap.verifyMilestones(op.id);
-                
-                if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) break;
-            end
+            commitOp(opC);
+ 
+            if (isSysIns(decAbs(opC)) && !isStoreSysIns(decAbs(opC))) break;
         end
     endtask
 
+
+    function automatic OpSlot takeFrontOp(input OpSlot robOp);
+        InstructionInfo insInfo = insMap.get(robOp.id);
+        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+        assert (robOp.id == op.id) else $error("no match: %p / %p", robOp, op);
+        return op;
+    endfunction
 
 
     task automatic verifyOnCommit(input OpSlot op);
@@ -617,7 +538,6 @@ module AbstractCore
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
-
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
 
         if (writesIntReg(op) || writesFloatReg(op)) // DB
@@ -630,40 +550,33 @@ module AbstractCore
         if (isBranchIns(decAbs(op))) // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask
-    
 
-    task automatic commitOp(input OpSlot op);
+    task automatic commitOp(input OpSlot opC);
+        OpSlot op = takeFrontOp(opC);
+
         verifyOnCommit(op);
+        checkUnimplementedInstruction(decAbs(op));
 
         updateInds(commitInds, op); // Crucial
             commitInds.renameG = insMap.get(op.id).inds.renameG;
 
         registerTracker.commit(op);
-        
         if (isMemOp(op)) memTracker.remove(op); // DB?
-        
-        // Crucial state
-        if (isBranchIns(decAbs(op)))
-            retiredTarget <= branchTargetQueue[0].target;
-        else if (isSysIns(decAbs(op)))
-            retiredTarget <= 'x;
-        else
-            retiredTarget <= retiredTarget + 4;
-        
-        if (isStoreIns(decAbs(op))) csq_N.push_back(storeQueue[0]); // Crucial state
+
+        if (isStoreIns(decAbs(op))) csq.push_back(storeQueue[0]); // Crucial state
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
-        checkUnimplementedInstruction(decAbs(op));
+        // Crucial state
+        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
 
         releaseQueues(op); // Crucial state
 
-            lastRetired = op;
-            nRetired++;
-    endtask
-
-    
-    task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
-        if (ins.def.o == O_halt) $error("halt not implemented");
+            coreDB.lastRetired = op;
+            coreDB.nRetired++;
+            
+            putMilestone(op.id, InstructionMap::Retire);
+            insMap.setRetired(op.id);
+            insMap.verifyMilestones(op.id);
     endtask
 
 
@@ -721,12 +634,9 @@ module AbstractCore
 
         putMilestone(op.id, InstructionMap::Complete); 
 
-            lastCompleted = op;
-            nCompleted++;
+            coreDB.lastCompleted = op;
+            coreDB.nCompleted++;
     endtask
-
-
-
 
 
     function automatic Word getSysReg(input Word adr);
@@ -736,8 +646,6 @@ module AbstractCore
     function automatic void setSysReg(input Word adr, input Word val);
         sysRegs[adr] = val;
     endfunction
-
-
 
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
@@ -755,9 +663,6 @@ module AbstractCore
     endtask
 
 
-
-
-
     // General
     
     function automatic AbstractInstruction decAbs(input OpSlot op);
@@ -765,12 +670,9 @@ module AbstractCore
         return insMap.get(op.id).dec;
     endfunction
 
-
-
     function automatic void putMilestone(input int id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
-
 
     function automatic OpSlot tick(input OpSlot op);
         if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
@@ -785,22 +687,6 @@ module AbstractCore
             return EMPTY_SLOT;
         return op;
     endfunction
-
-
-    // DB
-
-    assign lastRenamedStr = disasm(lastRenamed.bits);
-    assign lastCompletedStr = disasm(lastCompleted.bits);
-    assign lastRetiredStr = disasm(lastRetired.bits);
-
-        string bqStr;
-        always @(posedge clk) begin
-            automatic int ids[$];
-            foreach (branchCheckpointQueue[i]) ids.push_back(branchCheckpointQueue[i].op.id);
-            $swrite(bqStr, "%p", ids);
-        end
-
-
 
 
     // Exec/(Issue) - arg handling

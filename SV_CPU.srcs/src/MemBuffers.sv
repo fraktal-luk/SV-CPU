@@ -62,7 +62,8 @@ module StoreQueue
     
     
     task automatic advance();
-        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.lastRetired.id) begin
+        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= //AbstractCore.coreDB.lastRetired.id) begin
+                                                                                           AbstractCore.theRob.lastOut) begin
             content[startPointer % SIZE] = EMPTY_ENTRY;
             startPointer = (startPointer+1) % (2*SIZE);
         end

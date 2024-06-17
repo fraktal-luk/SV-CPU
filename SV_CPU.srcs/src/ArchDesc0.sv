@@ -10,8 +10,8 @@ module ArchDesc0();
         logic dummy0, dummy1, dummy2, dummy3,dummy4;
             //assign dummy0 = core.sig_C;
             //assign dummy1 = core.wrong_C;
-            assign dummy2 = core.cmp0;
-            assign dummy3 = core.cmp1;
+            assign dummy2 = core.coreDB.cmp0;
+            assign dummy3 = core.coreDB.cmp1;
 
 
 

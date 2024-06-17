@@ -16,7 +16,7 @@ package AbstractSim;
     localparam int N_REGS_FLOAT = 128;
 
     localparam int OP_QUEUE_SIZE = 24;
-    localparam int OOO_QUEUE_SIZE = 120;
+    //localparam int OOO_QUEUE_SIZE = 120;
 
     localparam int ROB_SIZE = 128;
     
@@ -65,11 +65,11 @@ package AbstractSim;
 
 
 
-    typedef struct {
-        int id;
-        logic done;
-    }
-    OpStatus;
+//    typedef struct {
+//        int id;
+//        logic done;
+//    }
+//    OpStatus;
 
     typedef struct {
         int num;
@@ -1042,4 +1042,25 @@ package AbstractSim;
     } BranchTargetEntry;
 
 
+        function automatic logic getWrongSignal(input AbstractInstruction ins);
+            return ins.def.o == O_undef;
+        endfunction
+
+        function automatic logic getSendSignal(input AbstractInstruction ins);
+            return ins.def.o == O_send;
+        endfunction
+
+    task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
+        if (ins.def.o == O_halt) $error("halt not implemented");
+    endtask
+
+        function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed);
+            if (isBranchIns(ins))
+                return executed;
+            else if (isSysIns(ins))
+                return 'x;
+            else
+                return prev + 4;
+        endfunction;
+        
 endpackage

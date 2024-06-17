@@ -465,13 +465,12 @@ module ExecBlock(ref InstructionMap insMap,
     function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
         // TODO: develop adr overlap check?
         StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-        StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq_N.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+        StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
         StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
         return matchingStores;
     endfunction
 
 
-    //assign issuedSt0 = theIssueQueues.ig;
     assign issuedSt0.regular = theIssueQueues.issuedRegular;
     assign issuedSt0.float = theIssueQueues.issuedFloat;
     assign issuedSt0.branch = theIssueQueues.issuedBranch[0];
@@ -496,8 +495,6 @@ module ExecBlock(ref InstructionMap insMap,
         
         if (argsP !== argsM) begin
             insMap.setArgError(op.id);
-            //$display("Arg error at %d, %p for %p", op.id, argsP, argsM);
-            //$display("%p, %s // %p", op,  disasm(op.bits), deps);
         end
         
         return argsP;
@@ -802,18 +799,28 @@ module IssueQueueComplex(
         return res;
     endfunction
 
+endmodule
 
-//    IssueGroup ig;
 
-//    assign ig.regular = issuedRegular;
-//    assign ig.float = issuedFloat;
-//    assign ig.branch = issuedBranch[0];
-//    assign ig.mem = issuedMem[0];
-//    assign ig.sys = issuedSys[0];
+module CoreDB();
 
-//    assign    AbstractCore.oooLevels_N.iqRegular = regularQueue.num;
-//    assign    AbstractCore.oooLevels_N.iqBranch = branchQueue.num;
-//    assign    AbstractCore.oooLevels_N.iqMem = memQueue.num;
-//    assign    AbstractCore.oooLevels_N.iqSys = sysQueue.num;
+    int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
 
+    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr;
+
+    string bqStr;
+    always @(posedge AbstractCore.clk) begin
+        automatic int ids[$];
+        foreach (AbstractCore.branchCheckpointQueue[i]) ids.push_back(AbstractCore.branchCheckpointQueue[i].op.id);
+        $swrite(bqStr, "%p", ids);
+    end
+
+        assign lastRenamedStr = disasm(lastRenamed.bits);
+        assign lastCompletedStr = disasm(lastCompleted.bits);
+        assign lastRetiredStr = disasm(lastRetired.bits);
+
+    logic cmp0, cmp1;
+    Word cmpw0, cmpw1, cmpw2, cmpw3;
+   
 endmodule
