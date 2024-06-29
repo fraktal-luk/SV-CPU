@@ -77,7 +77,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         else if (branchEventInfo.redirect)  target = branchEventInfo.target;
         else $fatal(2, "Should never get here");
 
-        markKilledFrontStage(ipStage);
+        if (ipStage[0].id != -1) markKilledFrontStage(ipStage);
         ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;
@@ -105,10 +105,15 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchStage0 <= ipStageU;
         fetchStage0ua = setWords(fetchStage0, AbstractCore.insIn);
         
-        foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
-            insMap.add(fetchStage0ua[i]);
-            insMap.setEncoding(fetchStage0ua[i]);
-        end
+            foreach (ipStageU[i]) if (ipStageU[i].active) begin
+                insMap.add(ipStageU[i]);
+                //insMap.setEncoding(ipStageU[i]);
+            end
+
+            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
+//                insMap.add(fetchStage0ua[i]);
+                insMap.setEncoding(fetchStage0ua[i]);
+            end
 
         fetchStage1 <= fetchStage0ua;
         if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);

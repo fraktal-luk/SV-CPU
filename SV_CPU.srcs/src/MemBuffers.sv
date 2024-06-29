@@ -26,6 +26,11 @@ module StoreQueue
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
 
+    localparam InstructionMap::Milestone QUEUE_ENTER = IS_BRANCH_QUEUE ? InstructionMap::BqEnter : IS_LOAD_QUEUE ? InstructionMap::LqEnter : InstructionMap::SqEnter;
+    localparam InstructionMap::Milestone QUEUE_FLUSH = IS_BRANCH_QUEUE ? InstructionMap::BqFlush : IS_LOAD_QUEUE ? InstructionMap::LqFlush : InstructionMap::SqFlush;
+    localparam InstructionMap::Milestone QUEUE_EXIT = IS_BRANCH_QUEUE ? InstructionMap::BqExit : IS_LOAD_QUEUE ? InstructionMap::LqExit : InstructionMap::SqExit;
+
+
     typedef struct {
         InsId id;
     } QueueEntry;
@@ -50,8 +55,10 @@ module StoreQueue
         endPointer = startPointer;
         
         for (int i = 0; i < SIZE; i++) begin
-            if (content[p % SIZE].id > causingId)
-                content[p % SIZE] = EMPTY_ENTRY; 
+            if (content[p % SIZE].id > causingId) begin
+                    putMilestone(content[i % SIZE].id, QUEUE_FLUSH);
+                content[p % SIZE] = EMPTY_ENTRY;
+            end
             else if (content[p % SIZE].id == -1)
                 break;
             else
@@ -62,8 +69,9 @@ module StoreQueue
     
     
     task automatic advance();
-        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= //AbstractCore.coreDB.lastRetired.id) begin
-                                                                                           AbstractCore.theRob.lastOut) begin
+        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut) begin
+            
+                putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
             content[startPointer % SIZE] = EMPTY_ENTRY;
             startPointer = (startPointer+1) % (2*SIZE);
         end
@@ -74,6 +82,9 @@ module StoreQueue
         advance();
     
         if (lateEventInfo.redirect) begin
+            for (int i = 0; i < SIZE; i++)
+                if (content[i].id != -1) putMilestone(content[i % SIZE].id, QUEUE_FLUSH);
+
             content = '{default: EMPTY_ENTRY};
             endPointer = startPointer;
         end
@@ -90,6 +101,7 @@ module StoreQueue
             
                 if (applies) begin
                     content[endPointer % SIZE].id = inGroup[i].id;
+                        putMilestone(inGroup[i].id, QUEUE_ENTER);
                     endPointer = (endPointer+1) % (2*SIZE);
                 end
             end
@@ -98,7 +110,5 @@ module StoreQueue
     end
 
 endmodule
-
-
 
 

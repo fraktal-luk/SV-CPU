@@ -16,7 +16,6 @@ package AbstractSim;
     localparam int N_REGS_FLOAT = 128;
 
     localparam int OP_QUEUE_SIZE = 24;
-    //localparam int OOO_QUEUE_SIZE = 120;
 
     localparam int ROB_SIZE = 128;
     
@@ -63,13 +62,6 @@ package AbstractSim;
         Word val;
     } StoreQueueEntry;
 
-
-
-//    typedef struct {
-//        int id;
-//        logic done;
-//    }
-//    OpStatus;
 
     typedef struct {
         int num;
@@ -324,211 +316,6 @@ package AbstractSim;
 
         return res;
     endfunction
-
-
-    class InstructionMap;
-        int indexList[$];
-    
-        InstructionInfo content[int];
-            
-        InsId lastRenamed = -1;
-        InsId lastRetired = -1;
-        InsId lastKilled = -1;
-        
-        function automatic InstructionInfo get(input int id);
-                assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
-            return content[id];
-        endfunction
-        
-        function automatic int size();
-            return content.size();
-        endfunction
-        
-
-        function automatic void add(input OpSlot op);
-            assert (op.active) else $error("Inactive op added to base");
-            content[op.id] = makeInsInfo(op);
-        endfunction
-
-        // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 
-        function automatic void setEncoding(input OpSlot op);
-            AbstractInstruction ins;
-            assert (op.active) else $error("encoding set for inactive op");
-            content[op.id].bits = op.bits;
-            ins = decodeAbstract(op.bits);
-            content[op.id].dec = ins;
-        endfunction
-
-        function automatic void setTarget(input int id, input Word trg);
-            content[id].target = trg;
-        endfunction
-    
-        function automatic void setResult(input int id, input Word res);
-            content[id].result = res;
-        endfunction
- 
-        function automatic void setActualResult(input int id, input Word res);
-            content[id].actualResult = res;
-        endfunction
-
-        function automatic void setDeps(input int id, input InsDependencies deps);
-            content[id].deps = deps;
-        endfunction
-        
-        function automatic void setInds(input int id, input IndexSet indexSet);
-            content[id].inds = indexSet;
-        endfunction
-
-        function automatic void setSlot(input int id, input int slot);
-            content[id].slot = slot;
-        endfunction
-
-        function automatic void setPhysDest(input int id, input int dest);
-            content[id].physDest = dest;
-        endfunction
-      
-        function automatic void setArgValues(input int id, input Word vals[3]);
-            content[id].argValues = vals;
-        endfunction
-
-        function automatic void setArgError(input int id);
-            content[id].argError = 1;
-        endfunction
-
-       
-        function automatic void setRetired(input int id);
-            lastRetired = id;
-            
-                $swrite(lastRecordStr, "%p", records[id]);
-                
-                setLastRecordArr(id);
-        endfunction
-        
-        function automatic void setKilled(input int id);
-            if (id > lastKilled) lastKilled = id;
-            
-                setLastKilledRecordArr(id);
-        endfunction
-
-        
-        typedef enum {
-                ___,
-        
-            GenAddress,
-            
-            FlushFront,
-            
-            PutFQ,
-            
-            Rename,
-            
-                RobEnter,
-                RobFlush,
-                RobExit,
-            
-            FlushOOO,
-                FlushExec,
-                // TODO: flush in every region? (ROB, subpipes, queues etc.)
-            
-            Wakeup,
-            CancelWakeup,
-            Issue,
-            Pullback,
-            
-                ReadArg, // TODO: by source type
-                
-                ExecRedirect,            
-            
-            ReadMem,
-            ReadSysReg,
-            ReadSQ,
-            
-            WriteMemAddress,
-            WriteMemValue,
-            
-            // TODO: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
-            
-            
-            WriteResult,
-            Complete,
-            Retire,
-            
-            Drain
-        } Milestone;
-        
-        typedef struct {
-            InsId id;
-            Milestone kind;
-            int cycle;
-        } MilestoneDesc;
-        
-        typedef struct {
-            Milestone kind;
-            int cycle;
-        } MilestoneTag;
-                
-
-        class InsRecord;
-            MilestoneTag tags[$];
-        endclass
-    
-        InsRecord records[int];
-
-            MilestoneTag lastRecordArr[16];
-            MilestoneTag lastKilledRecordArr[16];
-            string lastRecordStr;
-
-            function automatic void setLastRecordArr(input InsId id);
-                MilestoneTag def = '{___, -1};
-                InsRecord rec = records[id];
-                lastRecordArr = '{default: def};
-                
-                foreach(rec.tags[i])
-                    lastRecordArr[i] = rec.tags[i];
-            endfunction
-
-            function automatic void setLastKilledRecordArr(input InsId id);
-                MilestoneTag def = '{___, -1};
-                InsRecord rec;
-
-                if (!records.exists(id)) return;
-                
-                rec = records[id];
-                lastKilledRecordArr = '{default: def};
-                
-                foreach(rec.tags[i])
-                    lastKilledRecordArr[i] = rec.tags[i];
-            endfunction
-
-         
-        function automatic void registerIndex(input int id);
-            indexList.push_back(id);
-            records[id] = new();
-        endfunction
-
-
-        function automatic void cleanDescs();       
-            while (indexList[0] < lastRetired - 10) begin
-                content.delete(indexList[0]);
-                records.delete(indexList[0]);
-                void'(indexList.pop_front());
-            end
-        endfunction
-        
-        function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
-            if (id == -1) return;
-            records[id].tags.push_back('{kind, cycle});
-        endfunction
-        
-        
-        function automatic void verifyMilestones(input int id);
-            MilestoneTag tagList[$] = records[id].tags;
-            MilestoneTag found[$] = tagList.find_first with (item.kind == RobExit);
-            assert (found.size() > 0) else $error("Op %d: not seen exiting ROB!", id); 
-        endfunction
-        
-        
-    endclass
 
 
 
@@ -863,29 +650,13 @@ package AbstractSim;
                 types[i] = SRC_CONST;
             end
             else if (typeSpec[i + 2] == "0") begin
-                sources[i] = //abs.sources[i];
-                            0;
+                sources[i] = 0;
                 types[i] = SRC_ZERO;
             end
         end
 
         return '{sources, types, producers};
     endfunction
-
-
-//    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-//        Word res[3];
-//        foreach (res[i]) begin
-//            case (deps.types[i])
-//                SRC_ZERO: res[i] = 0;
-//                SRC_CONST: res[i] = deps.sources[i];
-//                SRC_INT: res[i] = tracker.intRegs[deps.sources[i]];
-//                SRC_FLOAT: res[i] = tracker.floatRegs[deps.sources[i]];
-//            endcase
-//        end
-
-//        return res;
-//    endfunction
 
 
     typedef struct {

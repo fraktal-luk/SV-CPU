@@ -69,14 +69,17 @@ module AbstractCore
 
     MemWriteInfo readInfo = EMPTY_WRITE_INFO; // Exec
 
-    // Committed
-    StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-    StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
-    MemWriteInfo writeInfo; // Committed
-
-    // Control
-    Word sysRegs[32];
-    Word retiredTarget = 0;
+    
+    // Store interface
+        // Committed
+        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
+        MemWriteInfo writeInfo; // Committed
+    
+    // Event control
+        // Control
+        Word sysRegs[32];
+        Word retiredTarget = 0;
 
 
     OpSlotA robOut;
@@ -104,10 +107,12 @@ module AbstractCore
 
 
     always @(posedge clk) begin
+            insMap.endCycle();
+    
         activateEvent();
 
         drainWriteQueue();
-        advanceOOOQ();        
+        advanceCommit();        
         putWrite();
 
         if (reset) execReset();
@@ -415,7 +420,7 @@ module AbstractCore
 
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT};
-        markKilledFrontStage(stageRename1);
+        markKilledRenameStage(stageRename1);
 
         if (lateEventInfo.redirect) begin
             rollbackToStable(); // Rename stage
@@ -458,6 +463,13 @@ module AbstractCore
         end
     endtask
 
+    task automatic markKilledRenameStage(ref Stage_N stage);
+        foreach (stage[i]) begin
+            if (!stage[i].active) continue;
+            putMilestone(stage[i].id, InstructionMap::FlushOOO);
+            insMap.setKilled(stage[i].id);
+        end
+    endtask
 
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
@@ -506,27 +518,19 @@ module AbstractCore
     endtask
 
 
-    task automatic advanceOOOQ();
+    task automatic advanceCommit();
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
-            if (!opC.active) continue;
-            
-            commitOp(opC);
- 
+            if (opC.active) commitOp(opC);
+            else continue;
+
             if (isSysIns(decAbs(opC)) && !isStoreSysIns(decAbs(opC))) break;
         end
     endtask
 
-
-    function automatic OpSlot takeFrontOp(input OpSlot robOp);
-        InstructionInfo insInfo = insMap.get(robOp.id);
-        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-        assert (robOp.id == op.id) else $error("no match: %p / %p", robOp, op);
-        return op;
-    endfunction
 
 
     task automatic verifyOnCommit(input OpSlot op);
@@ -551,8 +555,13 @@ module AbstractCore
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask
 
+
     task automatic commitOp(input OpSlot opC);
-        OpSlot op = takeFrontOp(opC);
+        InstructionInfo insInfo = insMap.get(opC.id);
+        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+        //OpSlot op = takeFrontOp(opC);
+
+        assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
         verifyOnCommit(op);
         checkUnimplementedInstruction(decAbs(op));
