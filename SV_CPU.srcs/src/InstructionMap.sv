@@ -300,7 +300,7 @@
             return EC_KilledOOO;            
         endfunction
 
-        function automatic logic checkKilledFront(input MilestoneTag tags[$]);
+        function automatic logic checkKilledFront(input InsId id, input MilestoneTag tags[$]);
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == GenAddress) else $error("ddkld");
             tag = tags.pop_front();
@@ -311,12 +311,113 @@
             return 1;
         endfunction
 
-        function automatic logic checkKilledOOO(input MilestoneTag tags[$]);
-        
+
+        function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$]);
+            AbstractInstruction dec = get(id).dec;
+      
+            MilestoneTag tag = tags.pop_front();
+            assert (tag.kind == GenAddress) else $error("  k////");
+            tag = tags.pop_front();
+            assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
+            
+            // Has it entered the ROB or killed right after Rename?
+            if (!has(tags, RobEnter)) begin
+                tag = tags.pop_front();
+                assert (tag.kind == FlushOOO) else begin
+                    $error("ROB not entered but not FlushOOO!");
+                    return 0;
+                end
+                
+                assert (tags.size() == 0) else $error(" strange %d: %p", id, tags);
+                return 1;
+            end
+            
+            if (isStoreIns(dec)) assert (checkKilledStore(tags)) else $error("wrong kStore op");
+            if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
+            if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
+            
+                return 1;        
         endfunction
 
-        function automatic logic checkRetired(input MilestoneTag tags[$]);
+
+        function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$]);
+            AbstractInstruction dec = get(id).dec;
+
         
+            MilestoneTag tag = tags.pop_front();
+            assert (tag.kind == GenAddress) else $error("  ////");
+            tag = tags.pop_front();
+            assert (tag.kind == Rename) else $error(" where rename?:   %p", tag);
+            
+            
+            assert (has(tags, Retire)) else $error("No Retire");
+
+            assert (!has(tags, FlushFront)) else $error("eeee");
+            assert (!has(tags, FlushOOO)) else $error("22eeee");
+            assert (!has(tags, FlushExec)) else $error("333eeee");
+            
+            assert (has(tags, RobEnter)) else $error("4444eeee");
+            assert (!has(tags, RobFlush)) else $error("5544eeee");
+            assert (has(tags, RobExit)) else $error("6664eeee");
+            
+            if (isStoreIns(dec)) assert (checkRetiredStore(tags)) else $error("wrong Store op");
+            if (isLoadIns(dec)) assert (checkRetiredLoad(tags)) else $error("wrong load op");
+            if (isBranchIns(dec)) assert (checkRetiredBranch(tags)) else $error("wrong branch op: %d / %p", id, tags);
+            
+                return 1;
+            
+        endfunction
+
+        function automatic logic checkRetiredStore(input MilestoneTag tags[$]);
+            assert (has(tags, SqEnter)) else return 0;
+            assert (!has(tags, SqFlush)) else return 0;
+            assert (has(tags, SqExit)) else return 0;
+            
+            return 1;
+        endfunction
+
+        function automatic logic checkRetiredLoad(input MilestoneTag tags[$]);
+            assert (has(tags, LqEnter)) else return 0;
+            assert (!has(tags, LqFlush)) else return 0;
+            assert (has(tags, LqExit)) else return 0;
+            
+            return 1;
+        endfunction
+        
+        function automatic logic checkRetiredBranch(input MilestoneTag tags[$]);
+            assert (has(tags, BqEnter)) else return 0;
+            assert (!has(tags, BqFlush)) else return 0;
+            assert (has(tags, BqExit)) else return 0;
+            
+            return 1;
+        endfunction
+
+
+        function automatic logic checkKilledStore(input MilestoneTag tags[$]);
+            assert (has(tags, SqEnter)) else return 0;
+            assert (has(tags, SqFlush) ^ has(tags, SqExit)) else return 0;
+            
+            return 1;
+        endfunction
+
+        function automatic logic checkKilledLoad(input MilestoneTag tags[$]);
+            assert (has(tags, LqEnter)) else return 0;
+            assert (has(tags, LqFlush) ^ has(tags, LqExit)) else return 0;
+            
+            return 1;
+        endfunction
+        
+        function automatic logic checkKilledBranch(input MilestoneTag tags[$]);
+            assert (has(tags, BqEnter)) else return 0;
+            assert (has(tags, BqFlush) ^ has(tags, BqExit)) else return 0;
+            
+            return 1;
+        endfunction
+
+
+        static function automatic logic has(input MilestoneTag q[$], input Milestone m);
+            MilestoneTag found[$] = q.find_first with (item.kind == m);
+            return found.size() > 0;
         endfunction
         
 
@@ -324,9 +425,9 @@
             MilestoneTag tags[$] = records[id].tags;
             ExecClass eclass = determineClass(tags);
             
-            if (eclass == EC_KilledFront) return checkKilledFront(tags);
-            else if (eclass == EC_KilledOOO) return checkKilledOOO(tags);
-            else return checkRetired(tags);            
+            if (eclass == EC_KilledFront) return checkKilledFront(id, tags);
+            else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags);
+            else return checkRetired(id, tags);            
         endfunction
 
 //                ___,

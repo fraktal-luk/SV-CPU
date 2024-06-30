@@ -56,7 +56,7 @@ module StoreQueue
         
         for (int i = 0; i < SIZE; i++) begin
             if (content[p % SIZE].id > causingId) begin
-                    putMilestone(content[i % SIZE].id, QUEUE_FLUSH);
+                    putMilestone(content[p % SIZE].id, QUEUE_FLUSH);
                 content[p % SIZE] = EMPTY_ENTRY;
             end
             else if (content[p % SIZE].id == -1)
