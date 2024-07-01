@@ -459,7 +459,7 @@ module AbstractCore
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
             putMilestone(stage[i].id, InstructionMap::FlushFront);
-            insMap.setKilled(stage[i].id);
+            insMap.setKilled(stage[i].id,  1);
         end
     endtask
 
@@ -585,7 +585,7 @@ module AbstractCore
             
             putMilestone(op.id, InstructionMap::Retire);
             insMap.setRetired(op.id);
-            insMap.verifyMilestones(op.id);
+            //insMap.verifyMilestones(op.id);
     endtask
 
 

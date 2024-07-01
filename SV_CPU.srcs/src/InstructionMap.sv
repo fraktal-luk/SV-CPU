@@ -31,15 +31,20 @@
             FlushOOO,
                 FlushExec,
                 // TODO: flush in every region? (ROB, subpipes, queues etc.)
-            
-            Wakeup,
-            CancelWakeup,
-            Issue,
-            Pullback,
-            
-                ReadArg, // TODO: by source type
                 
-                ExecRedirect,            
+                IqEnter,
+                IqWakeup0,
+                IqWakeup1,
+                IqCancelWakeup0,
+                IqCancelWakeup1,
+                IqIssue,
+                IqPullback,
+                IqFlush,
+                IqExit,
+            
+              ReadArg, // TODO: by source type
+                
+              ExecRedirect,            
             
             ReadMem,
             ReadSysReg,
@@ -226,8 +231,10 @@
             lastRetiredStr = disasm(get(id).bits);
         endfunction
         
-        function automatic void setKilled(input int id);
+        function automatic void setKilled(input int id, input logic front = 0);
             assert (id != -1) else $fatal(2, "killed -1");
+        
+                if (front) return;
         
             killedArr.push_back(id);
             $swrite(killedArrStr, "%p", killedArr);
@@ -236,10 +243,11 @@
             lastKilled = id;
             if (content.exists(id))
                 lastKilledStr = disasm(get(id).bits);
-            else begin
-                lastKilledStr = "???";
-                $error("Killed not added: %d", id);
-            end
+            else 
+                begin
+                    lastKilledStr = "???";
+                    $error("Killed not added: %d", id);
+                end
         endfunction
 
 
@@ -273,15 +281,6 @@
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
         endfunction
-        
-        
-            function automatic void verifyMilestones(input int id);
-                MilestoneTag tagList[$] = records[id].tags;
-                MilestoneTag found[$] = tagList.find_first with (item.kind == RobExit);
-                assert (found.size() > 0) else $error("Op %d: not seen exiting ROB!", id); 
-            endfunction
-        
-
 
         // 3 main categories:
         // a. Killed in Front
@@ -332,6 +331,10 @@
                 return 1;
             end
             
+            
+            assert (checkKilledIq(tags)) else $error("wrong k iq");
+
+            
             if (isStoreIns(dec)) assert (checkKilledStore(tags)) else $error("wrong kStore op");
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
             if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
@@ -359,6 +362,8 @@
             assert (has(tags, RobEnter)) else $error("4444eeee");
             assert (!has(tags, RobFlush)) else $error("5544eeee");
             assert (has(tags, RobExit)) else $error("6664eeee");
+            
+            assert (checkRetiredIq(tags)) else $error("wrong iq");
             
             if (isStoreIns(dec)) assert (checkRetiredStore(tags)) else $error("wrong Store op");
             if (isLoadIns(dec)) assert (checkRetiredLoad(tags)) else $error("wrong load op");
@@ -393,6 +398,15 @@
         endfunction
 
 
+            function automatic logic checkRetiredIq(input MilestoneTag tags[$]);
+                assert (has(tags, IqEnter)) else return 0;
+                assert (!has(tags, IqFlush)) else return 0;
+                assert (has(tags, IqExit)) else return 0;
+                
+                return 1;
+            endfunction
+        
+
         function automatic logic checkKilledStore(input MilestoneTag tags[$]);
             assert (has(tags, SqEnter)) else return 0;
             assert (has(tags, SqFlush) ^ has(tags, SqExit)) else return 0;
@@ -414,6 +428,13 @@
             return 1;
         endfunction
 
+            function automatic logic checkKilledIq(input MilestoneTag tags[$]);
+                assert (has(tags, IqEnter)) else return 0;
+                assert (has(tags, IqFlush) ^ has(tags, IqExit)) else return 0;
+                
+                return 1;
+            endfunction
+
 
         static function automatic logic has(input MilestoneTag q[$], input Milestone m);
             MilestoneTag found[$] = q.find_first with (item.kind == m);
@@ -430,54 +451,6 @@
             else return checkRetired(id, tags);            
         endfunction
 
-//                ___,
-            
-//                GenAddress,  Must (all)
-//                FlushFront,  Final
-//                PutFQ,       UNUSED
-
-//                Rename,      Must OR FlushFront                
-//                RobEnter,    Must OR FlushFront
-//                    RobFlush,  
-//                    RobExit,   
-            
-//                SqEnter, SqFlush, SqExit,            
-//                LqEnter, LqFlush, LqExit,
-//                BqEnter, BqFlush, BqExit,
-                
-//                WqEnter, WqExit, // committed write queue
-                
-//                FlushOOO,
-//                    FlushExec,
-//                    // TODO: flush in every region? (ROB, subpipes, queues etc.)
-                
-//                Wakeup,
-//                CancelWakeup,
-//                Issue,
-//                Pullback,
-                
-//                    ReadArg, // TODO: by source type
-                    
-//                    ExecRedirect,            
-                
-//                ReadMem,
-//                ReadSysReg,
-//                ReadSQ,
-                
-//                WriteMemAddress,
-//                WriteMemValue,
-                
-//                // TODO: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
-                
-                
-//                WriteResult,
-//                Complete,
-                
-//                Retire,
-                
-//                Drain    
-
-        
         
     endclass
 

@@ -653,13 +653,15 @@ module IssueQueue
 
     task automatic flushOpQueueAll();
         while (content.size() > 0) begin
-            void'(content.pop_back());
+            OpSlot op = (content.pop_back());
+            putMilestone(op.id, InstructionMap::IqFlush);
         end
     endtask
 
     task automatic flushOpQueuePartial(input OpSlot op);
         while (content.size() > 0 && content[$].id > op.id) begin
-            void'(content.pop_back());
+            OpSlot op = (content.pop_back());
+            putMilestone(op.id, InstructionMap::IqFlush);
         end
     endtask
 
@@ -668,6 +670,7 @@ module IssueQueue
             OpSlot op = inGroup[i];
             if (op.active && inMask[i]) begin
                 content.push_back(op);
+                putMilestone(op.id, InstructionMap::IqEnter);
             end
         end
     endtask
@@ -700,9 +703,10 @@ module IssueQueue
     endtask
 
     function automatic void markOpIssued(input OpSlot op);
-        if (!op.active || op.id == -1) return;
+        //if (!op.active || op.id == -1) return;
         
-        putMilestone(op.id, InstructionMap::Issue);
+        putMilestone(op.id, InstructionMap::IqIssue);
+        putMilestone(op.id, InstructionMap::IqExit);
     endfunction
 
 endmodule
