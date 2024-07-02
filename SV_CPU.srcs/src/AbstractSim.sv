@@ -691,6 +691,7 @@ package AbstractSim;
         Transaction transactions[$];
         Transaction stores[$];
         Transaction loads[$];
+        Transaction committedStores[$];
         
 //            function automatic void reset();
 
@@ -706,6 +707,13 @@ package AbstractSim;
             if (isLoadMemIns(ins)) begin
                 addLoad(op, effAdr, 'x);
             end
+            if (isStoreSysIns(ins)) begin 
+                Word value = argVals[2];
+                addStoreSys(op, effAdr, value);
+            end
+            if (isLoadSysIns(ins)) begin
+                addLoadSys(op, effAdr, 'x);
+            end
         endfunction
 
         
@@ -719,15 +727,39 @@ package AbstractSim;
             loads.push_back('{op.id, adr, val});
         endfunction
 
+            function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
+                    return;
+                transactions.push_back('{op.id, 'x, val});
+                stores.push_back('{op.id, 'x, val});
+            endfunction
+    
+            function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
+                    return;
+                transactions.push_back('{op.id, 'x, val});
+                loads.push_back('{op.id, 'x, val});
+            endfunction
+
+
         function automatic void remove(input OpSlot op);
             assert (transactions[0].owner == op.id) begin
                 void'(transactions.pop_front());
-                if (stores.size() != 0 && stores[0].owner == op.id) void'(stores.pop_front());
+                if (stores.size() != 0 && stores[0].owner == op.id) begin
+                    Transaction store = (stores.pop_front());
+                    committedStores.push_back(store);
+                       // $display("MT commit store %d", op.id);
+                end
                 if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
             end
             else $error("Incorrect transaction commit");
         endfunction
-        
+
+            function automatic void drain(input OpSlot op);
+                assert (committedStores[0].owner == op.id) begin
+                    void'(committedStores.pop_front());
+                end
+                else $error("Incorrect transaction drain: %d but found %d", op.id, committedStores[0].owner);
+            endfunction
+
         function automatic void flushAll();
             transactions.delete();
             stores.delete();

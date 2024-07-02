@@ -218,8 +218,18 @@ module AbstractCore
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe;
-       if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
+       logic isSys = 0;
+       if (storeHead.op.active && isStoreSysOp(storeHead.op)) begin
+           setSysReg(storeHead.adr, storeHead.val);
+       end
        sqe = csq.pop_front();
+       
+            if (sqe.op.id == -1) return;
+       
+           // $display("Drain store: %d;  %d", sqe.op.id, storeHead.op.id);
+            
+       if (isStoreMemOp(sqe.op)) memTracker.drain(sqe.op);
+       
        putMilestone(sqe.op.id, InstructionMap::Drain);
     endtask
 
@@ -499,7 +509,7 @@ module AbstractCore
         updateInds(renameInds, op); // Crucial state
 
         physDest = registerTracker.reserve(op);
-        if (isMemOp(op)) memTracker.add(op, ins, argVals); // DB
+        if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -570,7 +580,7 @@ module AbstractCore
             commitInds.renameG = insMap.get(op.id).inds.renameG;
 
         registerTracker.commit(op);
-        if (isMemOp(op)) memTracker.remove(op); // DB?
+        if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.remove(op); // DB?
 
         if (isStoreIns(decAbs(op))) csq.push_back(storeQueue[0]); // Crucial state
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
@@ -619,6 +629,8 @@ module AbstractCore
         
         if (isStoreIns(decAbs(op))) begin // Br queue entry release
             StoreQueueEntry sqe = storeQueue.pop_front();
+                  // $display("ASQ commit store %d", sqe.op.id);
+
             assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
         end
     endtask
