@@ -436,12 +436,18 @@ module ExecBlock(ref InstructionMap insMap,
 
         Word adr = calculateEffectiveAddress(abs, args);
 
+          InsId writerId = AbstractCore.memTracker.checkWriter(op);
+
         StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
+            StoreQueueEntry matchingStoresNonCsq[$] = getMatchingStoresNonCsq(op, adr);
+        logic forwarded = (matchingStores.size() > 0) && isLoadMemIns(abs);
         // Get last (youngest) of the matching stores
-        Word memData = (matchingStores.size() != 0) ? matchingStores[$].val : AbstractCore.readIn[0];
+        Word memData = forwarded ? matchingStores[$].val : AbstractCore.readIn[0];
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
-    
-        if (matchingStores.size() != 0) begin
+
+        if (forwarded) begin
+            if (writerId == -1) $display("Forwarded but not in tracker: %d, %d", op.id, matchingStoresNonCsq.size());
+        
           //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
 
@@ -469,6 +475,14 @@ module ExecBlock(ref InstructionMap insMap,
         StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
         return matchingStores;
     endfunction
+
+        function automatic StoreQueueExtract getMatchingStoresNonCsq(input OpSlot op, input Word adr);  
+            // TODO: develop adr overlap check?
+            StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+            StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+            StoreQueueEntry matchingStores[$] = oooMatchingStores;
+            return matchingStores;
+        endfunction
 
 
     assign issuedSt0.regular = theIssueQueues.issuedRegular;
