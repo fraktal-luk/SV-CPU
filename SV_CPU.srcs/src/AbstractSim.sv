@@ -728,13 +728,13 @@ package AbstractSim;
         endfunction
 
             function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
-                    return;
+                    //return;
                 transactions.push_back('{op.id, 'x, val});
                 stores.push_back('{op.id, 'x, val});
             endfunction
     
             function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
-                    return;
+                   // return;
                 transactions.push_back('{op.id, 'x, val});
                 loads.push_back('{op.id, 'x, val});
             endfunction

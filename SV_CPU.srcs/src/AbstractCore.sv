@@ -228,7 +228,8 @@ module AbstractCore
        
            // $display("Drain store: %d;  %d", sqe.op.id, storeHead.op.id);
             
-       if (isStoreMemOp(sqe.op)) memTracker.drain(sqe.op);
+       //if (isStoreMemOp(sqe.op)) memTracker.drain(sqe.op);
+           if (isStoreOp(sqe.op)) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
        
        putMilestone(sqe.op.id, InstructionMap::Drain);
     endtask
@@ -509,7 +510,8 @@ module AbstractCore
         updateInds(renameInds, op); // Crucial state
 
         physDest = registerTracker.reserve(op);
-        if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.add(op, ins, argVals); // DB
+        //if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.add(op, ins, argVals); // DB
+            if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -580,7 +582,8 @@ module AbstractCore
             commitInds.renameG = insMap.get(op.id).inds.renameG;
 
         registerTracker.commit(op);
-        if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.remove(op); // DB?
+        //if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.remove(op); // DB?
+            if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
 
         if (isStoreIns(decAbs(op))) csq.push_back(storeQueue[0]); // Crucial state
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
