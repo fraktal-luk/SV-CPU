@@ -545,8 +545,8 @@ package AbstractSim;
             intMapR = intM;
             floatMapR = floatM;
             
-                wrTracker.intWritersR = intWriters;
-                wrTracker.floatWritersR = floatWriters;
+            wrTracker.intWritersR = intWriters;
+            wrTracker.floatWritersR = floatWriters;
         endfunction
         
         function automatic void restoreReset();
@@ -638,12 +638,12 @@ package AbstractSim;
             if (typeSpec[i + 2] == "i") begin
                 sources[i] = mapInt[abs.sources[i]];
                 types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-                    producers[i] = regTracker.intInfo[sources[i]].owner;
+                producers[i] = regTracker.intInfo[sources[i]].owner;
             end
             else if (typeSpec[i + 2] == "f") begin
                 sources[i] = mapFloat[abs.sources[i]];
                 types[i] = SRC_FLOAT;
-                    producers[i] = regTracker.floatInfo[sources[i]].owner;
+                producers[i] = regTracker.floatInfo[sources[i]].owner;
             end
             else if (typeSpec[i + 2] == "c") begin
                 sources[i] = abs.sources[i];
@@ -691,11 +691,7 @@ package AbstractSim;
         Transaction transactions[$];
         Transaction stores[$];
         Transaction loads[$];
-        Transaction committedStores[$];
-        
-//            function automatic void reset();
-
-//            endfunction
+        Transaction committedStores[$]; // Not included in transactions
         
         function automatic void add(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
             Word effAdr = calculateEffectiveAddress(ins, argVals);
@@ -727,17 +723,15 @@ package AbstractSim;
             loads.push_back('{op.id, adr, val});
         endfunction
 
-            function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
-                    //return;
-                transactions.push_back('{op.id, 'x, val});
-                stores.push_back('{op.id, 'x, val});
-            endfunction
-    
-            function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
-                   // return;
-                transactions.push_back('{op.id, 'x, val});
-                loads.push_back('{op.id, 'x, val});
-            endfunction
+        function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
+            transactions.push_back('{op.id, 'x, val});
+            stores.push_back('{op.id, 'x, val});
+        endfunction
+
+        function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
+            transactions.push_back('{op.id, 'x, val});
+            loads.push_back('{op.id, 'x, val});
+        endfunction
 
 
         function automatic void remove(input OpSlot op);
@@ -745,20 +739,19 @@ package AbstractSim;
                 void'(transactions.pop_front());
                 if (stores.size() != 0 && stores[0].owner == op.id) begin
                     Transaction store = (stores.pop_front());
-                    committedStores.push_back(store);
-                       // $display("MT commit store %d", op.id);
+                    committedStores.push_back(store);                       
                 end
                 if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
             end
             else $error("Incorrect transaction commit");
         endfunction
 
-            function automatic void drain(input OpSlot op);
-                assert (committedStores[0].owner == op.id) begin
-                    void'(committedStores.pop_front());
-                end
-                else $error("Incorrect transaction drain: %d but found %d", op.id, committedStores[0].owner);
-            endfunction
+        function automatic void drain(input OpSlot op);
+            assert (committedStores[0].owner == op.id) begin
+                void'(committedStores.pop_front());
+            end
+            else $error("Incorrect transaction drain: %d but found %d", op.id, committedStores[0].owner);
+        endfunction
 
         function automatic void flushAll();
             transactions.delete();
@@ -816,7 +809,6 @@ package AbstractSim;
     endfunction
 
 
-   
     typedef struct {
         //int oq;
         int iqRegular;
@@ -834,10 +826,10 @@ package AbstractSim;
     } BufferLevels;
 
 
-        typedef struct {
-            OpSlot late;
-            OpSlot exec;
-        } Events;
+    typedef struct {
+        OpSlot late;
+        OpSlot exec;
+    } Events;
 
     typedef struct {
         InsId id;
@@ -845,25 +837,25 @@ package AbstractSim;
     } BranchTargetEntry;
 
 
-        function automatic logic getWrongSignal(input AbstractInstruction ins);
-            return ins.def.o == O_undef;
-        endfunction
+    function automatic logic getWrongSignal(input AbstractInstruction ins);
+        return ins.def.o == O_undef;
+    endfunction
 
-        function automatic logic getSendSignal(input AbstractInstruction ins);
-            return ins.def.o == O_send;
-        endfunction
+    function automatic logic getSendSignal(input AbstractInstruction ins);
+        return ins.def.o == O_send;
+    endfunction
 
     task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
 
-        function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed);
-            if (isBranchIns(ins))
-                return executed;
-            else if (isSysIns(ins))
-                return 'x;
-            else
-                return prev + 4;
-        endfunction;
+    function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed);
+        if (isBranchIns(ins))
+            return executed;
+        else if (isSysIns(ins))
+            return 'x;
+        else
+            return prev + 4;
+    endfunction;
         
 endpackage
