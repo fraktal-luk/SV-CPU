@@ -437,17 +437,23 @@ module ExecBlock(ref InstructionMap insMap,
         Word adr = calculateEffectiveAddress(abs, args);
 
           InsId writerId = AbstractCore.memTracker.checkWriter(op);
+          InsId writerAllId = AbstractCore.memTracker.checkWriter_All(op);
 
         StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
             StoreQueueEntry matchingStoresNonCsq[$] = getMatchingStoresNonCsq(op, adr);
-        logic forwarded = (matchingStores.size() > 0) && isLoadMemIns(abs);
+        logic forwarded = //(matchingStores.size() > 0) && isLoadMemIns(abs);
+                          (writerAllId !== -1);
         // Get last (youngest) of the matching stores
-        Word memData = forwarded ? matchingStores[$].val : AbstractCore.readIn[0];
+            Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
+        //Word memData = forwarded ? matchingStores[$].val : AbstractCore.readIn[0];
+            Word memData = forwarded ? fwValue : AbstractCore.readIn[0];
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
         if (forwarded) begin
-            if (writerId == -1) $display("Forwarded but not in tracker: %d, %d", op.id, matchingStoresNonCsq.size());
-        
+//            if (writerId == -1) $display("Forwarded but not in tracker: %d, %d /// %d, %d", op.id, matchingStoresNonCsq.size(), matchingStores[$].op.id,  writerAllId);
+//            else begin
+//                assert (writerId == writerAllId) else $fatal(2, "nonmatching fwd!"); 
+//            end
           //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
         end
 
@@ -468,7 +474,7 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.storeQueue[ind[0]].val = val;
     endtask
 
-    function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);  
+    function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);
         // TODO: develop adr overlap check?
         StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
         StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
@@ -476,13 +482,21 @@ module ExecBlock(ref InstructionMap insMap,
         return matchingStores;
     endfunction
 
-        function automatic StoreQueueExtract getMatchingStoresNonCsq(input OpSlot op, input Word adr);  
+        function automatic StoreQueueExtract getMatchingStores_MT(input OpSlot op, input Word adr);
             // TODO: develop adr overlap check?
-            StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-            StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-            StoreQueueEntry matchingStores[$] = oooMatchingStores;
-            return matchingStores;
+//            StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+//            StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+//            StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
+            return {};//matchingStores;
         endfunction
+
+            function automatic StoreQueueExtract getMatchingStoresNonCsq(input OpSlot op, input Word adr);  
+                // TODO: develop adr overlap check?
+                StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+                StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
+                StoreQueueEntry matchingStores[$] = oooMatchingStores;
+                return matchingStores;
+            endfunction
 
 
     assign issuedSt0.regular = theIssueQueues.issuedRegular;

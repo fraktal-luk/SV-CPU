@@ -771,7 +771,20 @@ package AbstractSim;
             Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
             return (writers.size() == 0) ? -1 : writers[$].owner;
         endfunction
-        
+
+            function automatic InsId checkWriter_All(input OpSlot op);
+                Transaction allStores[$] = {committedStores, stores};
+            
+                Transaction read[$] = transactions.find_first with (item.owner == op.id); 
+                Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < op.id);
+                return (writers.size() == 0) ? -1 : writers[$].owner;
+            endfunction
+      
+            function automatic Word getStoreValue(input InsId id);
+                Transaction allStores[$] = {committedStores, stores};
+                Transaction writers[$] = allStores.find with (item.owner == id);
+                return writers[0].val;
+            endfunction
     endclass
     
 
