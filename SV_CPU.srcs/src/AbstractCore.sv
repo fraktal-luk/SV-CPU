@@ -90,14 +90,15 @@ module AbstractCore
 
     // Rename
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
+    OpSlotA sqOut, lqOut, bqOut;// = '{default: EMPTY_SLOT};
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
     StoreQueue#(.SIZE(SQ_SIZE))
-        theSq(insMap, branchEventInfo, lateEventInfo, stageRename1);
+        theSq(insMap, branchEventInfo, lateEventInfo, stageRename1, sqOut);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE))
-        theLq(insMap, branchEventInfo, lateEventInfo, stageRename1);
+        theLq(insMap, branchEventInfo, lateEventInfo, stageRename1, lqOut);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE))
-        theBq(insMap, branchEventInfo, lateEventInfo, stageRename1);
+        theBq(insMap, branchEventInfo, lateEventInfo, stageRename1, bqOut);
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
@@ -112,6 +113,7 @@ module AbstractCore
         activateEvent();
 
         drainWriteQueue();
+            TMP_WQ();        
         advanceCommit();        
         putWrite();
 
@@ -218,20 +220,18 @@ module AbstractCore
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe;
-       logic isSys = 0;
+       //logic isSys = 0;
        if (storeHead.op.active && isStoreSysOp(storeHead.op)) begin
            setSysReg(storeHead.adr, storeHead.val);
        end
        sqe = csq.pop_front();
-       
-            if (sqe.op.id == -1) return;
-       
-           // $display("Drain store: %d;  %d", sqe.op.id, storeHead.op.id);
-            
-       //if (isStoreMemOp(sqe.op)) memTracker.drain(sqe.op);
-           if (isStoreOp(sqe.op)) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
-       
+
+       if (sqe.op.id == -1) return;
+
+       if (isStoreOp(sqe.op)) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
+
        putMilestone(sqe.op.id, InstructionMap::Drain);
+       putMilestone(sqe.op.id, InstructionMap::WqExit);
     endtask
 
     task automatic putWrite();            
@@ -239,7 +239,9 @@ module AbstractCore
             csq.push_back('{EMPTY_SLOT, 'x, 'x});
             csqEmpty <= 1;
         end
-        else csqEmpty <= 0;
+        else begin
+            csqEmpty <= 0;
+        end
         
         storeHead <= csq[3];
     endtask
@@ -307,7 +309,7 @@ module AbstractCore
 
     function automatic BufferLevels getBufferLevels();
         BufferLevels res;
-        res.oooq = 0;//oooQueue.size();
+        res.oooq = 0;
         res.rob = rob.size();
         res.lq = loadQueue.size();
         res.sq = storeQueue.size();
@@ -316,13 +318,13 @@ module AbstractCore
 
     function automatic BufferLevels getBufferAccepts(input BufferLevels levels, input BufferLevels levels_N);
         BufferLevels res;
-        
-            res.iqRegular = levels_N.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqFloat = levels_N.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqBranch = levels_N.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqMem = levels_N.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        
+     
+        res.iqRegular = levels_N.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqFloat = levels_N.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqBranch = levels_N.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqMem = levels_N.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+
         res.oooq = 1;//levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.rob = levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
         res.lq = levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
@@ -338,7 +340,9 @@ module AbstractCore
                 && acc.iqBranch
                 && acc.iqMem
                 && acc.iqSys
-                                  && acc.rob && acc.lq && acc.sq && acc.csq;
+                                  && acc.rob
+                                  && acc.lq && acc.sq
+                                  && acc.csq;
     endfunction
   
     // Helper (inline it?)
@@ -510,8 +514,8 @@ module AbstractCore
         updateInds(renameInds, op); // Crucial state
 
         physDest = registerTracker.reserve(op);
-        //if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.add(op, ins, argVals); // DB
-            if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
+        
+        if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -524,10 +528,17 @@ module AbstractCore
         insMap.setArgValues(op.id, argVals);
         
         insMap.setInds(op.id, renameInds);
-            insMap.setSlot(op.id, currentSlot);
+        insMap.setSlot(op.id, currentSlot);
 
         coreDB.lastRenamed = op;
     endtask
+
+
+        task automatic TMP_WQ();
+            OpSlotA ops = theSq.outGroup;
+            
+            // TODO
+        endtask
 
 
     task automatic advanceCommit();
@@ -571,7 +582,6 @@ module AbstractCore
     task automatic commitOp(input OpSlot opC);
         InstructionInfo insInfo = insMap.get(opC.id);
         OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-        //OpSlot op = takeFrontOp(opC);
 
         assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
@@ -579,13 +589,16 @@ module AbstractCore
         checkUnimplementedInstruction(decAbs(op));
 
         updateInds(commitInds, op); // Crucial
-            commitInds.renameG = insMap.get(op.id).inds.renameG;
+        commitInds.renameG = insMap.get(op.id).inds.renameG;
 
         registerTracker.commit(op);
-        //if (isStoreMemOp(op) || isLoadMemOp(op)) memTracker.remove(op); // DB?
-            if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
+        
+        if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
 
-        if (isStoreIns(decAbs(op))) csq.push_back(storeQueue[0]); // Crucial state
+        if (isStoreIns(decAbs(op))) begin
+            csq.push_back(storeQueue[0]); // Crucial state
+            putMilestone(op.id, InstructionMap::WqEnter);
+        end
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
         // Crucial state
@@ -598,7 +611,6 @@ module AbstractCore
             
             putMilestone(op.id, InstructionMap::Retire);
             insMap.setRetired(op.id);
-            //insMap.verifyMilestones(op.id);
     endtask
 
 
@@ -632,8 +644,6 @@ module AbstractCore
         
         if (isStoreIns(decAbs(op))) begin // Br queue entry release
             StoreQueueEntry sqe = storeQueue.pop_front();
-                  // $display("ASQ commit store %d", sqe.op.id);
-
             assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
         end
     endtask

@@ -322,9 +322,9 @@ package AbstractSim;
     class BranchCheckpoint;
     
         function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
-                        input int intWr[32], input int floatWr[32],
-                        input int intMapR[32], input int floatMapR[32],
-                        input IndexSet indexSet);
+                    input int intWr[32], input int floatWr[32],
+                    input int intMapR[32], input int floatMapR[32],
+                    input IndexSet indexSet);
             this.op = op;
             this.state = state;
             this.mem = new();
@@ -672,8 +672,8 @@ package AbstractSim;
         logic interrupt;
         logic reset;
         logic redirect;
-            logic sigOk;
-            logic sigWrong;
+        logic sigOk;
+        logic sigWrong;
         Word target;
     } EventInfo;
     
@@ -763,28 +763,22 @@ package AbstractSim;
             while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
             while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
             while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
-        endfunction   
-        
-        // Find which op is the source of data
-        function automatic InsId checkWriter(input OpSlot op);
-            Transaction read[$] = transactions.find_first with (item.owner == op.id); 
-            Transaction writers[$] = stores.find with (item.adr == read[0].adr && item.owner < op.id);
-            return (writers.size() == 0) ? -1 : writers[$].owner;
         endfunction
 
-            function automatic InsId checkWriter_All(input OpSlot op);
-                Transaction allStores[$] = {committedStores, stores};
-            
-                Transaction read[$] = transactions.find_first with (item.owner == op.id); 
-                Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < op.id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
-      
-            function automatic Word getStoreValue(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
-                Transaction writers[$] = allStores.find with (item.owner == id);
-                return writers[0].val;
-            endfunction
+        function automatic InsId checkWriter(input OpSlot op);
+            Transaction allStores[$] = {committedStores, stores};
+        
+            Transaction read[$] = transactions.find_first with (item.owner == op.id); 
+            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < op.id);
+            return (writers.size() == 0) ? -1 : writers[$].owner;
+        endfunction
+  
+        function automatic Word getStoreValue(input InsId id);
+            Transaction allStores[$] = {committedStores, stores};
+            Transaction writers[$] = allStores.find with (item.owner == id);
+            return writers[0].val;
+        endfunction
+
     endclass
     
 

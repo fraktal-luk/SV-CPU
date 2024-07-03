@@ -388,9 +388,9 @@ module ExecBlock(ref InstructionMap insMap,
 
     task automatic runExecBranch(input OpSlot op);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-        if (op.active) begin
-            setBranchInCore(op);
-        end
+        if (!op.active) return;
+        setBranchInCore(op);
+        putMilestone(op.id, InstructionMap::ExecRedirect);
     endtask
 
     task automatic setBranchInCore(input OpSlot op);
@@ -434,27 +434,16 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractInstruction abs = decAbs(op);
         Word3 args = getAndVerifyArgs(op);
 
-        Word adr = calculateEffectiveAddress(abs, args);
+        InsId writerAllId = AbstractCore.memTracker.checkWriter(op);
 
-          InsId writerId = AbstractCore.memTracker.checkWriter(op);
-          InsId writerAllId = AbstractCore.memTracker.checkWriter_All(op);
-
-        StoreQueueEntry matchingStores[$] = getMatchingStores(op, adr);
-            StoreQueueEntry matchingStoresNonCsq[$] = getMatchingStoresNonCsq(op, adr);
-        logic forwarded = //(matchingStores.size() > 0) && isLoadMemIns(abs);
-                          (writerAllId !== -1);
-        // Get last (youngest) of the matching stores
-            Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        //Word memData = forwarded ? matchingStores[$].val : AbstractCore.readIn[0];
-            Word memData = forwarded ? fwValue : AbstractCore.readIn[0];
+        logic forwarded = (writerAllId !== -1);
+        Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
+        Word memData = forwarded ? fwValue : AbstractCore.readIn[0];
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
         if (forwarded) begin
-//            if (writerId == -1) $display("Forwarded but not in tracker: %d, %d /// %d, %d", op.id, matchingStoresNonCsq.size(), matchingStores[$].op.id,  writerAllId);
-//            else begin
-//                assert (writerId == writerAllId) else $fatal(2, "nonmatching fwd!"); 
-//            end
-          //  $display("SQ forwarding %d->%d", matchingStores[$].op.id, op.id);
+            putMilestone(writerAllId, InstructionMap::MemFwProduce);
+            putMilestone(op.id, InstructionMap::MemFwConsume);
         end
 
         insMap.setActualResult(op.id, data);
@@ -474,37 +463,12 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.storeQueue[ind[0]].val = val;
     endtask
 
-    function automatic StoreQueueExtract getMatchingStores(input OpSlot op, input Word adr);
-        // TODO: develop adr overlap check?
-        StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-        StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-        StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
-        return matchingStores;
-    endfunction
-
-        function automatic StoreQueueExtract getMatchingStores_MT(input OpSlot op, input Word adr);
-            // TODO: develop adr overlap check?
-//            StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-//            StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-//            StoreQueueEntry matchingStores[$] = {committedMatchingStores, oooMatchingStores};
-            return {};//matchingStores;
-        endfunction
-
-            function automatic StoreQueueExtract getMatchingStoresNonCsq(input OpSlot op, input Word adr);  
-                // TODO: develop adr overlap check?
-                StoreQueueEntry oooMatchingStores[$] = AbstractCore.storeQueue.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-                StoreQueueEntry committedMatchingStores[$] = AbstractCore.csq.find with (item.adr == adr && isStoreMemIns(decAbs(item.op)) && item.op.id < op.id);
-                StoreQueueEntry matchingStores[$] = oooMatchingStores;
-                return matchingStores;
-            endfunction
-
 
     assign issuedSt0.regular = theIssueQueues.issuedRegular;
     assign issuedSt0.float = theIssueQueues.issuedFloat;
     assign issuedSt0.branch = theIssueQueues.issuedBranch[0];
     assign issuedSt0.mem = theIssueQueues.issuedMem[0];
     assign issuedSt0.sys = theIssueQueues.issuedSys[0];
-
 
 
     assign doneOpsRegular_E[0] = eff(doneOpsRegular[0]);
@@ -518,18 +482,16 @@ module ExecBlock(ref InstructionMap insMap,
 
     function automatic Word3 getAndVerifyArgs(input OpSlot op);
         InsDependencies deps = insMap.get(op.id).deps;
-        Word3 argsP = getArgValues_F(AbstractCore.registerTracker, deps);
+        Word3 argsP = getArgValues(AbstractCore.registerTracker, deps);
         Word3 argsM = insMap.get(op.id).argValues;
         
-        if (argsP !== argsM) begin
-            insMap.setArgError(op.id);
-        end
+        if (argsP !== argsM) insMap.setArgError(op.id);
         
         return argsP;
     endfunction;
 
 
-    function automatic Word3 getArgValues_F(input RegisterTracker tracker, input InsDependencies deps);
+    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
         Word res[3];
         logic3 ready = checkArgsReady(deps);
         logic3 forw1 = checkForwardsReady(deps, 1);
@@ -579,7 +541,6 @@ endmodule
 
 
 
-
 module IssueQueue
 #(
     parameter int SIZE = OP_QUEUE_SIZE,
@@ -604,10 +565,8 @@ module IssueQueue
 
     OpSlot content[$:SIZE];
     ReadyVec readyVec, readyVec_A;
-    ReadyVec3   ready3Vec,
-                readyOrForward3Vec_N;
+    ReadyVec3   ready3Vec, readyOrForward3Vec;
     ReadyVec3   forwardingMatches[-3:1] = FORWARDING_ALL_Z;
-    
 
     OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
     OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
@@ -617,8 +576,7 @@ module IssueQueue
 
     assign outGroup = issued;
 
-
-    function automatic ReadyVec3 gatherReadyOrForwards_N(input ReadyVec3 ready, input ReadyVec3 forwards[-3:1]);
+    function automatic ReadyVec3 gatherReadyOrForwards(input ReadyVec3 ready, input ReadyVec3 forwards[-3:1]);
         ReadyVec3 res = '{default: dummy3};
         
         foreach (res[i]) begin
@@ -627,8 +585,7 @@ module IssueQueue
                 if ($isunknown(ready[i][a])) res[i][a] = 'z;
                 else begin
                     res[i][a] = ready[i][a];
-                    // CAREFUL: not using -3 here
-                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a];
+                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
                 end
             end
         end
@@ -650,14 +607,13 @@ module IssueQueue
 
         readyVec = makeReadyVec(ready3Vec);
 
-        readyOrForward3Vec_N = gatherReadyOrForwards_N(ready3Vec, forwardingMatches);
-        readyVec_A = makeReadyVec(readyOrForward3Vec_N);
+        readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forwardingMatches);
+        readyVec_A = makeReadyVec(readyOrForward3Vec);
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             flushIq();
-        else begin
+        else
             writeInput();
-        end
         
         issue();
         
@@ -668,10 +624,6 @@ module IssueQueue
 
     end
 
-     //   assign cmpb = (readyVec_A === readyVec_T);
-     //   assign cmpb0 = (readyOrForward3Vec_N === readyOrForward3Vec);
-     //  assign cmpb1 = (readyVec_C === readyVec_T);
-
 
     task automatic flushIq();
         if (lateEventInfo.redirect) flushOpQueueAll();
@@ -681,15 +633,15 @@ module IssueQueue
 
     task automatic flushOpQueueAll();
         while (content.size() > 0) begin
-            OpSlot op = (content.pop_back());
-            putMilestone(op.id, InstructionMap::IqFlush);
+            OpSlot qOp = (content.pop_back());
+            putMilestone(qOp.id, InstructionMap::IqFlush);
         end
     endtask
 
     task automatic flushOpQueuePartial(input OpSlot op);
         while (content.size() > 0 && content[$].id > op.id) begin
-            OpSlot op = (content.pop_back());
-            putMilestone(op.id, InstructionMap::IqFlush);
+            OpSlot qOp = (content.pop_back());
+            putMilestone(qOp.id, InstructionMap::IqFlush);
         end
     endtask
 
@@ -707,16 +659,12 @@ module IssueQueue
         OpSlot ops[$];
         int n = OUT_WIDTH > num ? num : OUT_WIDTH;
         if (content.size() < n) n = content.size();
-        
+
         issued <= '{default: EMPTY_SLOT};
-         
-        foreach (issued[i]) begin
-            OpSlot op;
-        
-            if (i < n && readyVec[i]) begin // TODO: switch to readyVec_A when ready
-                op = content[i];
-                ops.push_back(op);
-            end
+
+        foreach (issued[i]) begin        
+            if (i < n && readyVec[i]) // TODO: switch to readyVec_A when ready
+                ops.push_back( content[i]);
             else
                 break;
         end
@@ -730,9 +678,7 @@ module IssueQueue
         end
     endtask
 
-    function automatic void markOpIssued(input OpSlot op);
-        //if (!op.active || op.id == -1) return;
-        
+    function automatic void markOpIssued(input OpSlot op);        
         putMilestone(op.id, InstructionMap::IqIssue);
         putMilestone(op.id, InstructionMap::IqExit);
     endfunction
@@ -832,6 +778,7 @@ module IssueQueueComplex(
     endfunction
 
 endmodule
+
 
 
 module CoreDB();

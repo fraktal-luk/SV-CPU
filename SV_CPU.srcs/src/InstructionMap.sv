@@ -9,7 +9,7 @@ import AbstractSim::*;
 class InstructionMap;
     
     typedef enum {
-            ___,
+        ___,
     
         GenAddress,
         
@@ -21,30 +21,35 @@ class InstructionMap;
         
         RobEnter, RobFlush, RobExit,
     
+        BqEnter, BqFlush, BqExit,
+        
         SqEnter, SqFlush, SqExit,            
         LqEnter, LqFlush, LqExit,
-        BqEnter, BqFlush, BqExit,
+        
+        MemFwProduce, MemFwConsume,
+        
         
         WqEnter, WqExit, // committed write queue
         
         FlushOOO,
-            FlushExec,
-            // TODO: flush in every region? (ROB, subpipes, queues etc.)
-            
-            IqEnter,
-            IqWakeup0,
-            IqWakeup1,
-            IqCancelWakeup0,
-            IqCancelWakeup1,
-            IqIssue,
-            IqPullback,
-            IqFlush,
-            IqExit,
         
+        FlushExec,
+        // TODO: flush in every region? (ROB, subpipes, queues etc.)
+        
+        IqEnter,
+        IqWakeup0,
+        IqWakeup1,
+        IqCancelWakeup0,
+        IqCancelWakeup1,
+        IqIssue,
+        IqPullback,
+        IqFlush,
+        IqExit,
+
           ReadArg, // TODO: by source type
-            
+
           ExecRedirect,            
-        
+
         ReadMem,
         ReadSysReg,
         ReadSQ,
@@ -118,13 +123,15 @@ class InstructionMap;
 
     InsRecord records[int];
 
-    MilestoneTag lastRecordArr[16];
-        MilestoneTag lastRecordArrPre[16];
-        MilestoneTag lastRecordArrPrePre[16];
+    localparam int RECORD_ARRAY_SIZE = 24;
+
+    MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
+        MilestoneTag lastRecordArrPre[RECORD_ARRAY_SIZE];
+        MilestoneTag lastRecordArrPrePre[RECORD_ARRAY_SIZE];
     
-    MilestoneTag lastKilledRecordArr[16];
-        MilestoneTag lastKilledRecordArrPre[16];
-        MilestoneTag lastKilledRecordArrPrePre[16];
+    MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
+        MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
+        MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
         
         
 
@@ -252,7 +259,7 @@ class InstructionMap;
 
 
 
-    function automatic void setLastRecordArr(ref MilestoneTag arr[16], input InsId id);
+    function automatic void setLastRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
         MilestoneTag def = '{___, -1};
         InsRecord empty = new();
         InsRecord rec = id == -1 ? empty : records[id];
