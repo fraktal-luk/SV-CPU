@@ -80,8 +80,8 @@ module StoreQueue
             int nOut = 0;
             outGroup <= '{default: EMPTY_SLOT};
         while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut) begin
-                outGroup[nOut].id = content[startPointer % SIZE].id;
-                outGroup[nOut].active = 1;
+                outGroup[nOut].id <= content[startPointer % SIZE].id;
+                outGroup[nOut].active <= 1;
                 nOut++;
                 
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
@@ -120,6 +120,7 @@ module StoreQueue
         else
             writeInput(inGroup);
     end
+
 
 endmodule
 

@@ -684,6 +684,7 @@ package AbstractSim;
         InsId owner;
         Word adr;
         Word val;
+            Word adrAny; 
     } Transaction;
 
 
@@ -714,23 +715,23 @@ package AbstractSim;
 
         
         function automatic void addStore(input OpSlot op, input Word adr, input Word val);
-            transactions.push_back('{op.id, adr, val});
-            stores.push_back('{op.id, adr, val});
+            transactions.push_back('{op.id, adr, val, adr});
+            stores.push_back('{op.id, adr, val, adr});
         endfunction
 
         function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
-            transactions.push_back('{op.id, adr, val});
-            loads.push_back('{op.id, adr, val});
+            transactions.push_back('{op.id, adr, val, adr});
+            loads.push_back('{op.id, adr, val, adr});
         endfunction
 
         function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
-            transactions.push_back('{op.id, 'x, val});
-            stores.push_back('{op.id, 'x, val});
+            transactions.push_back('{op.id, 'x, val, adr});
+            stores.push_back('{op.id, 'x, val, adr});
         endfunction
 
         function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
-            transactions.push_back('{op.id, 'x, val});
-            loads.push_back('{op.id, 'x, val});
+            transactions.push_back('{op.id, 'x, val, adr});
+            loads.push_back('{op.id, 'x, val, adr});
         endfunction
 
 
@@ -778,6 +779,11 @@ package AbstractSim;
             Transaction writers[$] = allStores.find with (item.owner == id);
             return writers[0].val;
         endfunction
+
+            function automatic Transaction findStore(input InsId id);
+                Transaction writers[$] = stores.find with (item.owner == id);
+                return writers[0];
+            endfunction
 
     endclass
     

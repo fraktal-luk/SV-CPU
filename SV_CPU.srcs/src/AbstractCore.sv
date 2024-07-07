@@ -593,12 +593,19 @@ module AbstractCore
 
         registerTracker.commit(op);
         
-        if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
 
         if (isStoreIns(decAbs(op))) begin
+            Transaction tr = memTracker.findStore(op.id);
+            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};
+        
+            assert (sqe === storeQueue[0]) else $error("Wrong store commit. tr %p, sq %p", sqe, storeQueue[0]);
+        
             csq.push_back(storeQueue[0]); // Crucial state
             putMilestone(op.id, InstructionMap::WqEnter);
         end
+        
+        if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
+
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
         // Crucial state
