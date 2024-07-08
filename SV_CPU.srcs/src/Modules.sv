@@ -416,7 +416,7 @@ module ExecBlock(ref InstructionMap insMap,
 
         // TODO: compare adr with that in memTracker
         if (isStoreIns(decAbs(op))) begin
-            updateSQ(op.id, adr, args[2]);
+            //updateSQ(op.id, adr, args[2]);
             
             if (isStoreMemIns(decAbs(op))) begin
                 checkStoreValue(op.id, adr, args[2]);

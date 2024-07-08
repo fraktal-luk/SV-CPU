@@ -261,13 +261,13 @@ module AbstractCore
 
     task automatic addToQueues(input OpSlot op);    
         rob.push_back('{op});      
-        if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
-        if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
+        //if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
+        //if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
         if (isBranchIns(decAbs(op))) branchTargetQueue.push_back('{op.id, 'z});
     endtask
 
     // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPartRe();        
+    task automatic runInOrderPartRe();
         renameGroup(theFrontend.stageRename0);
         stageRename1 <= theFrontend.stageRename0;
         
@@ -598,9 +598,10 @@ module AbstractCore
             Transaction tr = memTracker.findStore(op.id);
             StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};
         
-            assert (sqe === storeQueue[0]) else $error("Wrong store commit. tr %p, sq %p", sqe, storeQueue[0]);
+            //assert (sqe === storeQueue[0]) else $error("Wrong store commit. tr %p, sq %p", sqe, storeQueue[0]);
         
-            csq.push_back(storeQueue[0]); // Crucial state
+            csq.push_back(//storeQueue[0]); // Crucial state
+                            sqe);
             putMilestone(op.id, InstructionMap::WqEnter);
         end
         
@@ -645,13 +646,13 @@ module AbstractCore
         end
         
         if (isLoadIns(decAbs(op))) begin
-            LoadQueueEntry lqe = loadQueue.pop_front();
-            assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
+            //LoadQueueEntry lqe = loadQueue.pop_front();
+            //assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
         end
         
         if (isStoreIns(decAbs(op))) begin // Br queue entry release
-            StoreQueueEntry sqe = storeQueue.pop_front();
-            assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
+            //StoreQueueEntry sqe = storeQueue.pop_front();
+            //assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
         end
     endtask
 
