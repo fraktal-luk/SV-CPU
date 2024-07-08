@@ -163,7 +163,7 @@ module AbstractCore
 
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
-        oooLevels <= getBufferLevels();
+        //oooLevels <= getBufferLevels();
         
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
@@ -260,7 +260,7 @@ module AbstractCore
     endtask
 
     task automatic addToQueues(input OpSlot op);    
-        rob.push_back('{op});      
+      //  rob.push_back('{op});      
         //if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
         //if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
         if (isBranchIns(decAbs(op))) branchTargetQueue.push_back('{op.id, 'z});
@@ -278,7 +278,8 @@ module AbstractCore
     endtask
     
     
-    assign oooAccepts = getBufferAccepts(oooLevels, oooLevels_N);
+    assign oooAccepts = getBufferAccepts(//oooLevels,
+                                         oooLevels_N);
     assign buffersAccepting = buffersAccept(oooAccepts);
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
@@ -316,7 +317,8 @@ module AbstractCore
         return res;
     endfunction
 
-    function automatic BufferLevels getBufferAccepts(input BufferLevels levels, input BufferLevels levels_N);
+    function automatic BufferLevels getBufferAccepts(//input BufferLevels levels, 
+                                                     input BufferLevels levels_N);
         BufferLevels res;
      
         res.iqRegular = levels_N.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
@@ -326,9 +328,9 @@ module AbstractCore
         res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
 
         res.oooq = 1;//levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.rob = levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
-        res.lq = levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
-        res.sq = levels.sq <= SQ_SIZE - 3*FETCH_WIDTH;
+        res.rob = 1;//levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
+        res.lq = 1;//levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
+        res.sq = 1;//levels.sq <= SQ_SIZE - 3*FETCH_WIDTH;
         res.csq = 1;
         return res;
     endfunction
@@ -635,8 +637,8 @@ module AbstractCore
     endtask
 
     task automatic releaseQueues(input OpSlot op);
-        RobEntry re = rob.pop_front();
-        assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
+       // RobEntry re = rob.pop_front();
+        //assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
         
         if (isBranchIns(decAbs(op))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
