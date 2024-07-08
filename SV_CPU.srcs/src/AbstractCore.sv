@@ -38,9 +38,6 @@ module AbstractCore
     BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
-    RobEntry rob[$:ROB_SIZE];
-    LoadQueueEntry loadQueue[$:LQ_SIZE];
-    StoreQueueEntry storeQueue[$:SQ_SIZE];
     //..............................
     
     int cycleCtr = 0;
@@ -48,9 +45,8 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
     // Overall
-    logic fetchAllow, renameAllow, buffersAccepting, csqEmpty = 0;
-    BufferLevels oooLevels, oooLevels_N, oooAccepts;
-
+    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
+    BufferLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
     // OOO
@@ -77,7 +73,6 @@ module AbstractCore
         MemWriteInfo writeInfo; // Committed
     
     // Event control
-        // Control
         Word sysRegs[32];
         Word retiredTarget = 0;
 
@@ -90,7 +85,7 @@ module AbstractCore
 
     // Rename
     OpSlotA stageRename1 = '{default: EMPTY_SLOT};
-    OpSlotA sqOut, lqOut, bqOut;// = '{default: EMPTY_SLOT};
+    OpSlotA sqOut, lqOut, bqOut;
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
     StoreQueue#(.SIZE(SQ_SIZE))
@@ -105,6 +100,8 @@ module AbstractCore
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     ///////////////////////////////////////////
+
+    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
 
 
     always @(posedge clk) begin
@@ -132,15 +129,6 @@ module AbstractCore
     end
 
 
-    assign insAdr = theFrontend.ipStage[0].adr;
-
-    assign    oooLevels_N.iqRegular = theIssueQueues.regularQueue.num;
-    assign    oooLevels_N.iqFloat = theIssueQueues.floatQueue.num;
-    assign    oooLevels_N.iqBranch = theIssueQueues.branchQueue.num;
-    assign    oooLevels_N.iqMem = theIssueQueues.memQueue.num;
-    assign    oooLevels_N.iqSys = theIssueQueues.sysQueue.num;
-
-
     task automatic handleCompletion();
         foreach (theExecBlock.doneOpsRegular_E[i]) begin
             completeOp(theExecBlock.doneOpsRegular_E[i]);
@@ -163,7 +151,6 @@ module AbstractCore
 
     task automatic updateBookkeeping();
         bcqSize <= branchCheckpointQueue.size();
-        //oooLevels <= getBufferLevels();
         
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
@@ -219,12 +206,9 @@ module AbstractCore
     ////////////////
 
     task automatic drainWriteQueue();
-       StoreQueueEntry sqe;
-       //logic isSys = 0;
-       if (storeHead.op.active && isStoreSysOp(storeHead.op)) begin
-           setSysReg(storeHead.adr, storeHead.val);
-       end
-       sqe = csq.pop_front();
+       StoreQueueEntry sqe = csq.pop_front();
+
+       if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
 
        if (sqe.op.id == -1) return;
 
@@ -260,9 +244,6 @@ module AbstractCore
     endtask
 
     task automatic addToQueues(input OpSlot op);    
-      //  rob.push_back('{op});      
-        //if (isLoadIns(decAbs(op))) loadQueue.push_back('{op});
-        //if (isStoreIns(decAbs(op))) storeQueue.push_back('{op, 'x, 'x});
         if (isBranchIns(decAbs(op))) branchTargetQueue.push_back('{op.id, 'z});
     endtask
 
@@ -276,91 +257,63 @@ module AbstractCore
             if (op.active) addToQueues(op);
         end 
     endtask
+
+
+    assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
+    assign oooLevels.iqFloat = theIssueQueues.floatQueue.num;
+    assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
+    assign oooLevels.iqMem = theIssueQueues.memQueue.num;
+    assign oooLevels.iqSys = theIssueQueues.sysQueue.num;
     
-    
-    assign oooAccepts = getBufferAccepts(//oooLevels,
-                                         oooLevels_N);
-    assign buffersAccepting = buffersAccept(oooAccepts);
+    assign oooAccepts = getBufferAccepts(oooLevels);
+    assign iqsAccepting = iqsAccept(oooAccepts);
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = buffersAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
+    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
                                                 && theRob.allow && theSq.allow && theLq.allow;;
 
-    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
+    function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
+        BufferLevels res;
+     
+        res.iqRegular = levels.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqFloat = levels.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqBranch = levels.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqMem = levels.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqSys = levels.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
 
-    assign readReq[0] = readInfo.req;
-    assign readAdr[0] = readInfo.adr;
+        return res;
+    endfunction
 
-    assign writeReq = writeInfo.req;
-    assign writeAdr = writeInfo.adr;
-    assign writeOut = writeInfo.value;
+    function automatic logic iqsAccept(input BufferLevels acc);
+        return 1
+                && acc.iqRegular
+                && acc.iqFloat
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqSys;
+    endfunction
 
-    assign sig = lateEventInfo.sigOk;
-    assign wrong = lateEventInfo.sigWrong;
 
+    // Helper (inline it?)
+    function logic regsAccept(input int nI, input int nF);
+        return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
+    endfunction
 
     // Helper (inline it?)
     function logic fetchQueueAccepts(input int k);
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
     endfunction
-    
+
     function logic bcQueueAccepts(input int k);
         return k <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
-    function automatic BufferLevels getBufferLevels();
-        BufferLevels res;
-        res.oooq = 0;
-        res.rob = rob.size();
-        res.lq = loadQueue.size();
-        res.sq = storeQueue.size();
-        return res;
-    endfunction
 
-    function automatic BufferLevels getBufferAccepts(//input BufferLevels levels, 
-                                                     input BufferLevels levels_N);
-        BufferLevels res;
-     
-        res.iqRegular = levels_N.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqFloat = levels_N.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqBranch = levels_N.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqMem = levels_N.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqSys = levels_N.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-
-        res.oooq = 1;//levels.oooq <= OOO_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.rob = 1;//levels.rob <= ROB_SIZE - 3*FETCH_WIDTH;
-        res.lq = 1;//levels.lq <= LQ_SIZE - 3*FETCH_WIDTH;
-        res.sq = 1;//levels.sq <= SQ_SIZE - 3*FETCH_WIDTH;
-        res.csq = 1;
-        return res;
-    endfunction
-
-    function automatic logic buffersAccept(input BufferLevels acc);
-        return 1 //acc.oq
-                && acc.iqRegular
-                && acc.iqFloat
-                && acc.iqBranch
-                && acc.iqMem
-                && acc.iqSys
-                                  && acc.rob
-                                  && acc.lq && acc.sq
-                                  && acc.csq;
-    endfunction
-  
-    // Helper (inline it?)
-    function logic regsAccept(input int nI, input int nF);
-        return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
-    endfunction
-    
-    
     // $$Bufs
     // write queue is not flushed!
     task automatic flushOooBuffersAll();        
         flushBranchCheckpointQueueAll();
         flushBranchTargetQueueAll();
-        flushRobAll();
-        flushStoreQueueAll();
-        flushLoadQueueAll();
     endtask
     
     task automatic flushBranchCheckpointQueueAll();
@@ -369,22 +322,6 @@ module AbstractCore
 
     task automatic flushBranchTargetQueueAll();
         while (branchTargetQueue.size() > 0) void'(branchTargetQueue.pop_back());
-    endtask
-
-    task automatic flushRobAll();
-        while (rob.size() > 0) begin
-            RobEntry entry = (rob.pop_back());
-            putMilestone(entry.op.id, InstructionMap::FlushOOO);
-            insMap.setKilled(entry.op.id);
-        end
-    endtask
- 
-    task automatic flushLoadQueueAll();
-        while (loadQueue.size() > 0) void'(loadQueue.pop_back());
-    endtask
-   
-    task automatic flushStoreQueueAll();
-        while (storeQueue.size() > 0) void'(storeQueue.pop_back());
     endtask
  
     task automatic flushBranchCheckpointQueuePartial(input OpSlot op);
@@ -395,31 +332,10 @@ module AbstractCore
         while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > op.id) void'(branchTargetQueue.pop_back());
     endtask
 
-    task automatic flushRobPartial(input OpSlot op);
-        while (rob.size() > 0 && rob[$].op.id > op.id) begin
-            RobEntry entry = (rob.pop_back());
-            putMilestone(entry.op.id, InstructionMap::FlushOOO);
-            insMap.setKilled(entry.op.id);
-        end
-    endtask
-
-    task automatic flushLoadQueuePartial(input OpSlot op);
-        while (loadQueue.size() > 0 && loadQueue[$].op.id > op.id) void'(loadQueue.pop_back());
-    endtask
-   
-    task automatic flushStoreQueuePartial(input OpSlot op);
-        while (storeQueue.size() > 0 && storeQueue[$].op.id > op.id) void'(storeQueue.pop_back());
-    endtask
-
-
     task automatic flushOooBuffersPartial(input OpSlot op);
         flushBranchCheckpointQueuePartial(op);
         flushBranchTargetQueuePartial(op);
-        flushRobPartial(op);
-        flushStoreQueuePartial(op);
-        flushLoadQueuePartial(op);
     endtask
-
 
     task automatic rollbackToCheckpoint();
         BranchCheckpoint single = branchCP;
@@ -427,7 +343,6 @@ module AbstractCore
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         renameInds = single.inds;
     endtask
-
 
     task automatic rollbackToStable();    
         renamedEmul.setLike(retiredEmul);
@@ -557,7 +472,6 @@ module AbstractCore
     endtask
 
 
-
     task automatic verifyOnCommit(input OpSlot op);
         InstructionInfo info = insMap.get(op.id);
 
@@ -595,20 +509,14 @@ module AbstractCore
 
         registerTracker.commit(op);
         
-
         if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
-            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};
-        
-            //assert (sqe === storeQueue[0]) else $error("Wrong store commit. tr %p, sq %p", sqe, storeQueue[0]);
-        
-            csq.push_back(//storeQueue[0]); // Crucial state
-                            sqe);
+            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};        
+            csq.push_back(sqe);
             putMilestone(op.id, InstructionMap::WqEnter);
         end
         
         if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
-
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
         // Crucial state
@@ -637,24 +545,11 @@ module AbstractCore
     endtask
 
     task automatic releaseQueues(input OpSlot op);
-       // RobEntry re = rob.pop_front();
-        //assert (re.op === op) else $error("Not matching op: %p / %p", re.op, op);
-        
         if (isBranchIns(decAbs(op))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             BranchTargetEntry bte = branchTargetQueue.pop_front();
             assert (bce.op === op) else $error("Not matching op: %p / %p", bce.op, op);
             assert (bte.id === op.id) else $error("Not matching op id: %p / %d", bte, op.id);
-        end
-        
-        if (isLoadIns(decAbs(op))) begin
-            //LoadQueueEntry lqe = loadQueue.pop_front();
-            //assert (lqe.op === op) else $error("Not matching op: %p / %p", lqe.op, op);
-        end
-        
-        if (isStoreIns(decAbs(op))) begin // Br queue entry release
-            //StoreQueueEntry sqe = storeQueue.pop_front();
-            //assert (sqe.op === op) else $error("Not matching op: %p / %p", sqe.op, op);
         end
     endtask
 
@@ -828,5 +723,18 @@ module AbstractCore
 
         return 0;
     endfunction;
+
+
+    assign insAdr = theFrontend.ipStage[0].adr;
+
+    assign readReq[0] = readInfo.req;
+    assign readAdr[0] = readInfo.adr;
+
+    assign writeReq = writeInfo.req;
+    assign writeAdr = writeInfo.adr;
+    assign writeOut = writeInfo.value;
+
+    assign sig = lateEventInfo.sigOk;
+    assign wrong = lateEventInfo.sigWrong;
 
 endmodule

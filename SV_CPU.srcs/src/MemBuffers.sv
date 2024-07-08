@@ -111,12 +111,10 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin
         advance();
     
-        if (lateEventInfo.redirect)// begin
+        if (lateEventInfo.redirect)
             flushAll();
-        //end
-        else if (branchEventInfo.redirect)// begin
+        else if (branchEventInfo.redirect)
            flushPartial(); 
-        //end
         else
             writeInput(inGroup);
     end

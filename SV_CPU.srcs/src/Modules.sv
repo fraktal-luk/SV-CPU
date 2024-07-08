@@ -415,9 +415,7 @@ module ExecBlock(ref InstructionMap insMap,
         Word adr = calculateEffectiveAddress(abs, args);
 
         // TODO: compare adr with that in memTracker
-        if (isStoreIns(decAbs(op))) begin
-            //updateSQ(op.id, adr, args[2]);
-            
+        if (isStoreIns(decAbs(op))) begin            
             if (isStoreMemIns(decAbs(op))) begin
                 checkStoreValue(op.id, adr, args[2]);
                 
@@ -456,12 +454,6 @@ module ExecBlock(ref InstructionMap insMap,
         Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == id);
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
     endfunction
-
-    task automatic updateSQ(input InsId id, input Word adr, input Word val);
-        int ind[$] = AbstractCore.storeQueue.find_first_index with (item.op.id == id);
-        AbstractCore.storeQueue[ind[0]].adr = adr;
-        AbstractCore.storeQueue[ind[0]].val = val;
-    endtask
 
 
     assign issuedSt0.regular = theIssueQueues.issuedRegular;
