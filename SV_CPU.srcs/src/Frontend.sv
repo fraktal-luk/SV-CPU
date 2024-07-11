@@ -14,11 +14,19 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fqSize = 0;
 
-    Stage_N ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
-    Stage_N fetchQueue[$:FETCH_QUEUE_SIZE];
+    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+    FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
     int fetchCtr = 0;
     OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+
+    task automatic markKilledFrontStage(ref FetchStage stage);
+        foreach (stage[i]) begin
+            if (!stage[i].active) continue;
+            putMilestone(stage[i].id, InstructionMap::FlushFront);
+            insMap.setKilled(stage[i].id,  1);
+        end
+    endtask
 
 
     task automatic registerNewTarget(input int fCtr, input Word target);
@@ -26,15 +34,15 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         Word baseAdr = target & ~(4*FETCH_WIDTH-1);
         for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
             Word adr = baseAdr + 4*i;
-            int index = fCtr + i;
+            InsId index = fCtr + i;
             insMap.registerIndex(index);
             putMilestone(index, InstructionMap::GenAddress);
         end
     endtask
 
 
-    function automatic Stage_N setActive(input Stage_N s, input logic on, input int ctr);
-        Stage_N res = s;
+    function automatic FetchStage setActive(input FetchStage s, input logic on, input int ctr);
+        FetchStage res = s;
         Word firstAdr = res[0].adr;
         Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
 
@@ -49,8 +57,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         return res;
     endfunction
 
-    function automatic Stage_N setWords(input Stage_N s, input FetchGroup fg);
-        Stage_N res = s;
+    function automatic FetchStage setWords(input FetchStage s, input FetchGroup fg);
+        FetchStage res = s;
         foreach (res[i])
             if (res[i].active) res[i].bits = fg[i];
         return res;
@@ -64,7 +72,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchStage1 <= EMPTY_STAGE;
 
         foreach (fetchQueue[i]) begin
-            Stage_N current = fetchQueue[i];
+            FetchStage current = fetchQueue[i];
             markKilledFrontStage(current);
         end
         fetchQueue.delete();
@@ -91,7 +99,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endtask
 
     task automatic fetchAndEnqueue();
-        Stage_N fetchStage0ua, ipStageU;
+        FetchStage fetchStage0ua, ipStageU;
         if (AbstractCore.fetchAllow) begin
             Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
             ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
@@ -105,18 +113,16 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchStage0 <= ipStageU;
         fetchStage0ua = setWords(fetchStage0, AbstractCore.insIn);
         
-            foreach (ipStageU[i]) if (ipStageU[i].active) begin
-                insMap.add(ipStageU[i]);
-                //insMap.setEncoding(ipStageU[i]);
-            end
+        foreach (ipStageU[i]) if (ipStageU[i].active) begin
+            insMap.add(ipStageU[i]);
+        end
 
-            foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
-//                insMap.add(fetchStage0ua[i]);
-                insMap.setEncoding(fetchStage0ua[i]);
-            end
+        foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
+            insMap.setEncoding(fetchStage0ua[i]);
+        end
 
         fetchStage1 <= fetchStage0ua;
-        if (anyActive(fetchStage1)) fetchQueue.push_back(fetchStage1);
+        if (anyActiveFetch(fetchStage1)) fetchQueue.push_back(fetchStage1);
     
         stageRename0 <= readFromFQ();
     endtask
@@ -126,7 +132,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
         // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
         if (fqSize > 0 && AbstractCore.renameAllow) begin
-            Stage_N fqOut_N = fetchQueue.pop_front();
+            FetchStage fqOut_N = fetchQueue.pop_front();
             foreach (fqOut_N[i]) res[i] = fqOut_N[i];
         end
         

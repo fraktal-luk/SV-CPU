@@ -387,15 +387,8 @@ module AbstractCore
 
     
     // Frontend/Rename
-    task automatic markKilledFrontStage(ref Stage_N stage);
-        foreach (stage[i]) begin
-            if (!stage[i].active) continue;
-            putMilestone(stage[i].id, InstructionMap::FlushFront);
-            insMap.setKilled(stage[i].id,  1);
-        end
-    endtask
 
-    task automatic markKilledRenameStage(ref Stage_N stage);
+    task automatic markKilledRenameStage(ref OpSlotA stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
             putMilestone(stage[i].id, InstructionMap::FlushOOO);
@@ -609,7 +602,7 @@ module AbstractCore
         return insMap.get(op.id).dec;
     endfunction
 
-    function automatic void putMilestone(input int id, input InstructionMap::Milestone kind);
+    function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 

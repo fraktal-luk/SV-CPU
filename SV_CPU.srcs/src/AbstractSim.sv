@@ -29,9 +29,11 @@ package AbstractSim;
     localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
 
+    typedef int InsId;
+
     typedef struct {
         logic active;
-        int id;
+        InsId id;
         Word adr;
         Word bits;
     } OpSlot;
@@ -41,11 +43,11 @@ package AbstractSim;
     typedef OpSlot OpSlot2[2];
     typedef OpSlot OpSlot4[4];
 
-    typedef OpSlot OpSlotA[FETCH_WIDTH];
+    typedef OpSlot OpSlotA[RENAME_WIDTH];
 
-    typedef OpSlot Stage_N[FETCH_WIDTH];
+    typedef OpSlot FetchStage[FETCH_WIDTH];
 
-    const Stage_N EMPTY_STAGE = '{default: EMPTY_SLOT};
+    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
 
    
     typedef struct {
@@ -265,8 +267,6 @@ package AbstractSim;
 
 
 
-    typedef int InsId;
-
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
     } SourceType;
     
@@ -287,7 +287,7 @@ package AbstractSim;
 
 
     typedef struct {
-        int id;
+        InsId id;
         Word adr;
         Word bits;
         Word target;
@@ -684,7 +684,7 @@ package AbstractSim;
         InsId owner;
         Word adr;
         Word val;
-            Word adrAny; 
+        Word adrAny; 
     } Transaction;
 
 
@@ -816,11 +816,15 @@ package AbstractSim;
     endfunction
 
 
-    function automatic logic anyActive(input Stage_N s);
+    function automatic logic anyActiveFetch(input FetchStage s);
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
 
+    function automatic logic anyActive(input OpSlotA s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
 
     typedef struct {
         //int oq;

@@ -67,73 +67,60 @@ class InstructionMap;
         
         Drain
     } Milestone;
-    
-    typedef struct {
-        InsId id;
-        Milestone kind;
-        int cycle;
-    } MilestoneDesc;
-    
+
+
     typedef struct {
         Milestone kind;
         int cycle;
     } MilestoneTag;
-            
 
     class InsRecord;
         MilestoneTag tags[$];
     endclass
-    
-    int indexList[$];
 
-    InstructionInfo content[int];
-    
+    InsId indexList[$];
+
+    InstructionInfo content[InsId];
+    InsRecord records[int];
+
+
     InsId retiredArr[$];
-    InsId killedArr[$];
-
     InsId retiredArrPre[$];
+
+    InsId killedArr[$];
     InsId killedArrPre[$];
 
 
     string retiredArrStr;
     string killedArrStr;
-    
-    
-    InsId lastRenamed = -1;
+
     InsId lastRetired = -1;
-    InsId lastKilled = -1;
-
-
     InsId lastRetiredPre = -1;
     InsId lastRetiredPrePre = -1;
 
+    InsId lastKilled = -1;
     InsId lastKilledPre = -1;
     InsId lastKilledPrePre = -1;
 
     string lastRetiredStr;
- 
     string lastRetiredStrPre;
     string lastRetiredStrPrePre;
 
     string lastKilledStr;
- 
     string lastKilledStrPre;
     string lastKilledStrPrePre;
 
 
-    InsRecord records[int];
-
     localparam int RECORD_ARRAY_SIZE = 24;
 
     MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
-        MilestoneTag lastRecordArrPre[RECORD_ARRAY_SIZE];
-        MilestoneTag lastRecordArrPrePre[RECORD_ARRAY_SIZE];
-    
+    MilestoneTag lastRecordArrPre[RECORD_ARRAY_SIZE];
+    MilestoneTag lastRecordArrPrePre[RECORD_ARRAY_SIZE];
+
     MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
-        MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
-        MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
-        
-        
+    MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
+    MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
+
 
     function automatic void endCycle();
         retiredArrPre = retiredArr;
@@ -156,22 +143,22 @@ class InstructionMap;
         lastKilledPre = lastKilled;
 
 
-        setLastRecordArr(lastRecordArr, lastRetired);
-        setLastRecordArr(lastRecordArrPre, lastRetiredPre);
-        setLastRecordArr(lastRecordArrPrePre, lastRetiredPrePre);
+        setRecordArr(lastRecordArr, lastRetired);
+        setRecordArr(lastRecordArrPre, lastRetiredPre);
+        setRecordArr(lastRecordArrPrePre, lastRetiredPrePre);
   
-        setLastRecordArr(lastKilledRecordArr, lastKilled);
-        setLastRecordArr(lastKilledRecordArrPre, lastKilledPre);
-        setLastRecordArr(lastKilledRecordArrPrePre, lastKilledPrePre);
+        setRecordArr(lastKilledRecordArr, lastKilled);
+        setRecordArr(lastKilledRecordArrPre, lastKilledPre);
+        setRecordArr(lastKilledRecordArrPrePre, lastKilledPrePre);
 
     endfunction
     
     
-    function automatic InstructionInfo get(input int id);
+    function automatic InstructionInfo get(input InsId id);
         assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
         return content[id];
     endfunction
-    
+
     function automatic int size();
         return content.size();
     endfunction
@@ -184,51 +171,49 @@ class InstructionMap;
 
     // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 
     function automatic void setEncoding(input OpSlot op);
-        AbstractInstruction ins;
         assert (op.active) else $error("encoding set for inactive op");
         content[op.id].bits = op.bits;
-        ins = decodeAbstract(op.bits);
-        content[op.id].dec = ins;
+        content[op.id].dec = decodeAbstract(op.bits);
     endfunction
 
-    function automatic void setTarget(input int id, input Word trg);
+    function automatic void setTarget(input InsId id, input Word trg);
         content[id].target = trg;
     endfunction
 
-    function automatic void setResult(input int id, input Word res);
+    function automatic void setResult(input InsId id, input Word res);
         content[id].result = res;
     endfunction
 
-    function automatic void setActualResult(input int id, input Word res);
+    function automatic void setActualResult(input InsId id, input Word res);
         content[id].actualResult = res;
     endfunction
 
-    function automatic void setDeps(input int id, input InsDependencies deps);
+    function automatic void setDeps(input InsId id, input InsDependencies deps);
         content[id].deps = deps;
     endfunction
     
-    function automatic void setInds(input int id, input IndexSet indexSet);
+    function automatic void setInds(input InsId id, input IndexSet indexSet);
         content[id].inds = indexSet;
     endfunction
 
-    function automatic void setSlot(input int id, input int slot);
+    function automatic void setSlot(input InsId id, input int slot);
         content[id].slot = slot;
     endfunction
 
-    function automatic void setPhysDest(input int id, input int dest);
+    function automatic void setPhysDest(input InsId id, input int dest);
         content[id].physDest = dest;
     endfunction
   
-    function automatic void setArgValues(input int id, input Word vals[3]);
+    function automatic void setArgValues(input InsId id, input Word vals[3]);
         content[id].argValues = vals;
     endfunction
 
-    function automatic void setArgError(input int id);
+    function automatic void setArgError(input InsId id);
         content[id].argError = 1;
     endfunction
 
    
-    function automatic void setRetired(input int id);
+    function automatic void setRetired(input InsId id);
         assert (id != -1) else $fatal(2, "retired -1");
 
         retiredArr.push_back(id);
@@ -238,7 +223,7 @@ class InstructionMap;
         lastRetiredStr = disasm(get(id).bits);
     endfunction
     
-    function automatic void setKilled(input int id, input logic front = 0);
+    function automatic void setKilled(input InsId id, input logic front = 0);
         assert (id != -1) else $fatal(2, "killed -1");
     
             if (front) return;
@@ -257,9 +242,7 @@ class InstructionMap;
     endfunction
 
 
-
-
-    function automatic void setLastRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
+    function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
         MilestoneTag def = '{___, -1};
         InsRecord empty = new();
         InsRecord rec = id == -1 ? empty : records[id];
@@ -269,7 +252,7 @@ class InstructionMap;
     endfunction
 
      
-    function automatic void registerIndex(input int id);
+    function automatic void registerIndex(input InsId id);
         indexList.push_back(id);
         records[id] = new();
     endfunction
@@ -283,7 +266,7 @@ class InstructionMap;
         end
     endfunction
     
-    function automatic void putMilestone(input int id, input Milestone kind, input int cycle);
+    function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
         if (id == -1) return;
         records[id].tags.push_back('{kind, cycle});
     endfunction
@@ -316,7 +299,6 @@ class InstructionMap;
         return 1;
     endfunction
 
-
     function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$]);
         AbstractInstruction dec = get(id).dec;
   
@@ -345,7 +327,6 @@ class InstructionMap;
         
         return 1;        
     endfunction
-
 
     function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$]);
         AbstractInstruction dec = get(id).dec;
@@ -390,7 +371,7 @@ class InstructionMap;
         
         return 1;
     endfunction
-    
+
     static function automatic logic checkRetiredBranch(input MilestoneTag tags[$]);
         assert (has(tags, BqEnter)) else return 0;
         assert (!has(tags, BqFlush)) else return 0;
@@ -406,7 +387,6 @@ class InstructionMap;
         
         return 1;
     endfunction
-    
 
     static function automatic logic checkKilledStore(input MilestoneTag tags[$]);
         assert (has(tags, SqEnter)) else return 0;
@@ -421,7 +401,7 @@ class InstructionMap;
         
         return 1;
     endfunction
-    
+
     static function automatic logic checkKilledBranch(input MilestoneTag tags[$]);
         assert (has(tags, BqEnter)) else return 0;
         assert (has(tags, BqFlush) ^ has(tags, BqExit)) else return 0;
@@ -440,7 +420,7 @@ class InstructionMap;
         MilestoneTag found[$] = q.find_first with (item.kind == m);
         return found.size() > 0;
     endfunction
-    
+
 
     function automatic logic checkOk(input InsId id);
         MilestoneTag tags[$] = records[id].tags;
@@ -451,8 +431,4 @@ class InstructionMap;
         else return checkRetired(id, tags);            
     endfunction
 
-    
 endclass
-
-
-
