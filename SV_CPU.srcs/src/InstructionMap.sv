@@ -166,7 +166,7 @@ class InstructionMap;
 
     function automatic void add(input OpSlot op);
         assert (op.active) else $error("Inactive op added to base");
-        content[op.id] = makeInsInfo(op);
+        content[op.id] = initInsInfo(op);
     endfunction
 
     // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 

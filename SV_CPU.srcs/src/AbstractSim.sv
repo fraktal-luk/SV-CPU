@@ -9,80 +9,6 @@ package AbstractSim;
     typedef Word Mword;
 
 
-    localparam int FETCH_QUEUE_SIZE = 8;
-    localparam int BC_QUEUE_SIZE = 64;
-
-    localparam int N_REGS_INT = 128;
-    localparam int N_REGS_FLOAT = 128;
-
-    localparam int OP_QUEUE_SIZE = 24;
-
-    localparam int ROB_SIZE = 128;
-    
-    localparam int LQ_SIZE = 80;
-    localparam int SQ_SIZE = 80;
-    localparam int BQ_SIZE = 32;
-    
-
-    localparam FETCH_WIDTH = 4;
-    localparam RENAME_WIDTH = 4;
-    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
-
-
-    typedef int InsId;
-
-    typedef struct {
-        logic active;
-        InsId id;
-        Word adr;
-        Word bits;
-    } OpSlot;
-
-    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
-
-    typedef OpSlot OpSlot2[2];
-    typedef OpSlot OpSlot4[4];
-
-    typedef OpSlot OpSlotA[RENAME_WIDTH];
-
-    typedef OpSlot FetchStage[FETCH_WIDTH];
-
-    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
-
-   
-    typedef struct {
-        OpSlot op;
-    } RobEntry;
-    
-    typedef struct {
-        OpSlot op;
-    } LoadQueueEntry;
-    
-    typedef struct {
-        OpSlot op;
-        Word adr;
-        Word val;
-    } StoreQueueEntry;
-
-
-    typedef struct {
-        int num;
-        OpSlot regular[2];
-        OpSlot float[2];
-        OpSlot branch;
-        OpSlot mem;
-        OpSlot sys;
-    } IssueGroup;
-    
-    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
-                                        regular: '{default: EMPTY_SLOT},
-                                        float: '{default: EMPTY_SLOT},
-                                        branch: EMPTY_SLOT,
-                                        mem: EMPTY_SLOT,
-                                        sys: EMPTY_SLOT};
-
-
-
     typedef Word Ptype[4096];
 
     Ptype simProgMem;
@@ -96,67 +22,88 @@ package AbstractSim;
     endfunction
 
 
+    typedef logic logic3[3];
+
+    typedef int InsId;
+
+    typedef struct {
+        logic active;
+        InsId id;
+        Word adr;
+        Word bits;
+    } OpSlot;
+
+    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+
+
     function automatic void runInEmulator(ref Emulator emul, input OpSlot op);
         AbstractInstruction ins = decodeAbstract(op.bits);
         ExecResult res = emul.processInstruction(op.adr, ins, emul.tmpDataMem);
     endfunction
 
-    typedef struct {
-        Mword target;
-        logic redirect;
-        logic sig;
-        logic wrong;
-    } LateEvent;
 
-    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
 
-    function automatic LateEvent getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword sr2, input Mword sr3);
-        LateEvent res = '{target: 'x, redirect: 0, sig: 0, wrong: 0};
-        case (abs.def.o)
-            O_sysStore: ;
-            O_undef: begin
-                res.target = IP_ERROR;
-                res.redirect = 1;
-                res.wrong = 1;
-            end
-            O_call: begin
-                res.target = IP_CALL;
-                res.redirect = 1;
-            end
-            O_retE: begin
-                res.target = sr2;
-                res.redirect = 1;
-            end 
-            O_retI: begin
-                res.target = sr3;
-                res.redirect = 1;
-            end 
-            O_sync: begin
-                res.target = op.adr + 4;
-                res.redirect = 1;
-            end
+
+
+    // Classes for simulation, not Core related
+
+    class ProgramMemory #(parameter WIDTH = 4);
+        typedef Word Line[4];
+        
+        Word content[4096];
+        
+        function void clear();
+            this.content = '{default: 'x};
+        endfunction
+        
+        function Line read(input Word adr);
+            Line res;
+            Word truncatedAdr = adr & ~(4*WIDTH-1);
             
-            O_replay: begin
-                res.target = op.adr;
-                res.redirect = 1;
-            end 
-            O_halt: begin                
-                res.target = op.adr + 4;
-                res.redirect = 1;
-            end
-            O_send: begin
-                res.target = op.adr + 4;
-                res.redirect = 1;
-                res.sig = 1;
-            end
-            default: ;                            
-        endcase
+            foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
+            return res;
+        endfunction
 
-        return res;
-    endfunction
-   
+    endclass
+    
+    
+    class DataMemory #(parameter WIDTH = 4);
+        typedef logic[7:0] Line[4];
+        
+        logic[7:0] content[4096];
+        
+        function void setContent(Word arr[]);
+            foreach (arr[i]) content[i] = arr[i];
+        endfunction
+        
+        function void clear();
+            content = '{default: '0};
+        endfunction;
+        
+        function automatic Word read(input Word adr);
+            Word res = 0;
+            
+            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
+            
+            return res;
+        endfunction
+
+        function automatic void write(input Word adr, input Word value);
+            Word data = value;
+            
+            for (int i = 0; i < 4; i++) begin
+                content[adr + i] = data[31:24];
+                data <<= 8;
+            end        
+        endfunction    
+        
+    endclass
+    ////////////////////////////////////////////////////////////////
 
 
+
+    // Op classiication
+    
     function automatic logic writesIntReg(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         return hasIntDest(abs);
@@ -210,63 +157,13 @@ package AbstractSim;
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isSysIns(abs);
     endfunction
+    /////////////////////////////////////////////////
 
 
 
-    class ProgramMemory #(parameter WIDTH = 4);
-        typedef Word Line[4];
-        
-        Word content[4096];
-        
-        function void clear();
-            this.content = '{default: 'x};
-        endfunction
-        
-        function Line read(input Word adr);
-            Line res;
-            Word truncatedAdr = adr & ~(4*WIDTH-1);
-            
-            foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
-            return res;
-        endfunction
-
-    endclass
+    /////////////////////
+    // Defs for tracking, insMap
     
-    
-    class DataMemory #(parameter WIDTH = 4);
-        typedef logic[7:0] Line[4];
-        
-        logic[7:0] content[4096];
-        
-        function void setContent(Word arr[]);
-            foreach (arr[i]) content[i] = arr[i];
-        endfunction
-        
-        function void clear();
-            content = '{default: '0};
-        endfunction;
-        
-        function automatic Word read(input Word adr);
-            Word res = 0;
-            
-            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
-            
-            return res;
-        endfunction
-
-        function automatic void write(input Word adr, input Word value);
-            Word data = value;
-            
-            for (int i = 0; i < 4; i++) begin
-                content[adr + i] = data[31:24];
-                data <<= 8;
-            end        
-        endfunction    
-        
-    endclass
-
-
-
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
     } SourceType;
     
@@ -304,7 +201,8 @@ package AbstractSim;
         
     } InstructionInfo;
 
-    function automatic InstructionInfo makeInsInfo(input OpSlot op);
+        // TODO: move to ins map?
+    function automatic InstructionInfo initInsInfo(input OpSlot op);
         InstructionInfo res;
         res.id = op.id;
         res.adr = op.adr;
@@ -316,6 +214,30 @@ package AbstractSim;
 
         return res;
     endfunction
+
+    ///////////////////////////////////////////////////////
+
+
+
+
+    localparam int FETCH_QUEUE_SIZE = 8;
+    localparam int BC_QUEUE_SIZE = 64;
+
+    localparam int N_REGS_INT = 128;
+    localparam int N_REGS_FLOAT = 128;
+
+    localparam int OP_QUEUE_SIZE = 24;
+
+    localparam int ROB_SIZE = 128;
+    
+    localparam int LQ_SIZE = 80;
+    localparam int SQ_SIZE = 80;
+    localparam int BQ_SIZE = 32;
+    
+
+    localparam FETCH_WIDTH = 4;
+    localparam RENAME_WIDTH = 4;
+    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
 
 
@@ -347,8 +269,6 @@ package AbstractSim;
     endclass
 
 
-    typedef logic logic3[3];
-
 
     typedef struct {
         InsId intWritersR[32] = '{default: -1};
@@ -356,7 +276,6 @@ package AbstractSim;
         InsId intWritersC[32] = '{default: -1};
         InsId floatWritersC[32] = '{default: -1};
     } WriterTracker;
-
 
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
@@ -620,64 +539,42 @@ package AbstractSim;
             if (hasFloatDest(abs)) wrTracker.floatWritersC[abs.dest] = op.id;
             wrTracker.intWritersC[0] = -1;
         endfunction
-        
+
+        function automatic InsDependencies getArgDeps(input OpSlot op);
+            int mapInt[32] = intMapR;
+            int mapFloat[32] = floatMapR;
+            int sources[3] = '{-1, -1, -1};
+            InsId producers[3] = '{-1, -1, -1};
+            SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
+            
+            AbstractInstruction abs = decodeAbstract(op.bits);
+            string typeSpec = parsingMap[abs.fmt].typeSpec;
+            
+            foreach (sources[i]) begin
+                if (typeSpec[i + 2] == "i") begin
+                    sources[i] = mapInt[abs.sources[i]];
+                    types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+                    producers[i] = intInfo[sources[i]].owner;
+                end
+                else if (typeSpec[i + 2] == "f") begin
+                    sources[i] = mapFloat[abs.sources[i]];
+                    types[i] = SRC_FLOAT;
+                    producers[i] = floatInfo[sources[i]].owner;
+                end
+                else if (typeSpec[i + 2] == "c") begin
+                    sources[i] = abs.sources[i];
+                    types[i] = SRC_CONST;
+                end
+                else if (typeSpec[i + 2] == "0") begin
+                    sources[i] = 0;
+                    types[i] = SRC_ZERO;
+                end
+            end
+    
+            return '{sources, types, producers};
+        endfunction
+
     endclass
-
-
-    function automatic InsDependencies getPhysicalArgs_N(input OpSlot op, input RegisterTracker regTracker);
-        int mapInt[32] = regTracker.intMapR;
-        int mapFloat[32] = regTracker.floatMapR;
-        int sources[3] = '{-1, -1, -1};
-        InsId producers[3] = '{-1, -1, -1};
-        SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
-        
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        string typeSpec = parsingMap[abs.fmt].typeSpec;
-        
-        foreach (sources[i]) begin
-            if (typeSpec[i + 2] == "i") begin
-                sources[i] = mapInt[abs.sources[i]];
-                types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-                producers[i] = regTracker.intInfo[sources[i]].owner;
-            end
-            else if (typeSpec[i + 2] == "f") begin
-                sources[i] = mapFloat[abs.sources[i]];
-                types[i] = SRC_FLOAT;
-                producers[i] = regTracker.floatInfo[sources[i]].owner;
-            end
-            else if (typeSpec[i + 2] == "c") begin
-                sources[i] = abs.sources[i];
-                types[i] = SRC_CONST;
-            end
-            else if (typeSpec[i + 2] == "0") begin
-                sources[i] = 0;
-                types[i] = SRC_ZERO;
-            end
-        end
-
-        return '{sources, types, producers};
-    endfunction
-
-
-    typedef struct {
-        logic req;
-        Word adr;
-        Word value;
-    } MemWriteInfo;
-    
-    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
-    
-    typedef struct {
-        OpSlot op;
-        logic interrupt;
-        logic reset;
-        logic redirect;
-        logic sigOk;
-        logic sigWrong;
-        Word target;
-    } EventInfo;
-    
-    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
 
     
     typedef struct {
@@ -780,14 +677,153 @@ package AbstractSim;
             return writers[0].val;
         endfunction
 
-            function automatic Transaction findStore(input InsId id);
-                Transaction writers[$] = stores.find with (item.owner == id);
-                return writers[0];
-            endfunction
+        function automatic Transaction findStore(input InsId id);
+            Transaction writers[$] = stores.find with (item.owner == id);
+            return writers[0];
+        endfunction
 
     endclass
-    
 
+
+
+
+    // Core structures
+
+    typedef OpSlot OpSlotA[RENAME_WIDTH];
+
+    typedef OpSlot FetchStage[FETCH_WIDTH];
+
+    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+
+   
+    typedef struct {
+        OpSlot op;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
+
+        // TODO: should be removed?
+        typedef struct {
+            int num;
+            OpSlot regular[2];
+            OpSlot float[2];
+            OpSlot branch;
+            OpSlot mem;
+            OpSlot sys;
+        } IssueGroup;
+
+        const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
+                                            regular: '{default: EMPTY_SLOT},
+                                            float: '{default: EMPTY_SLOT},
+                                            branch: EMPTY_SLOT,
+                                            mem: EMPTY_SLOT,
+                                            sys: EMPTY_SLOT};
+
+    typedef struct {
+        Mword target;
+        logic redirect;
+        logic sig;
+        logic wrong;
+    } LateEvent;
+
+    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
+
+
+    typedef struct {
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+    
+    typedef struct {
+        OpSlot op;
+        logic interrupt;
+        logic reset;
+        logic redirect;
+        logic sigOk;
+        logic sigWrong;
+        Word target;
+    } EventInfo;
+    
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
+
+    typedef struct {
+        //int oq;
+        int iqRegular;
+        int iqFloat;
+        int iqBranch;
+        int iqMem;
+        int iqSys;
+
+        int oooq;
+        //int bq;
+        int rob;
+        int lq;
+        int sq;
+        int csq;
+    } BufferLevels;
+
+
+    typedef struct {
+        OpSlot late;
+        OpSlot exec;
+    } Events;
+
+    typedef struct {
+        InsId id;
+        Word target;
+    } BranchTargetEntry;
+    //////////////////////////////////////
+
+    ////////////////////////////////////////////
+    // Core functions
+
+    function automatic LateEvent getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword sr2, input Mword sr3);
+        LateEvent res = '{target: 'x, redirect: 0, sig: 0, wrong: 0};
+        case (abs.def.o)
+            O_sysStore: ;
+            O_undef: begin
+                res.target = IP_ERROR;
+                res.redirect = 1;
+                res.wrong = 1;
+            end
+            O_call: begin
+                res.target = IP_CALL;
+                res.redirect = 1;
+            end
+            O_retE: begin
+                res.target = sr2;
+                res.redirect = 1;
+            end 
+            O_retI: begin
+                res.target = sr3;
+                res.redirect = 1;
+            end 
+            O_sync: begin
+                res.target = op.adr + 4;
+                res.redirect = 1;
+            end
+            
+            O_replay: begin
+                res.target = op.adr;
+                res.redirect = 1;
+            end 
+            O_halt: begin                
+                res.target = op.adr + 4;
+                res.redirect = 1;
+            end
+            O_send: begin
+                res.target = op.adr + 4;
+                res.redirect = 1;
+                res.sig = 1;
+            end
+            default: ;                            
+        endcase
+
+        return res;
+    endfunction
 
     function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
         case (abs.def.o)
@@ -826,33 +862,6 @@ package AbstractSim;
         return 0;
     endfunction
 
-    typedef struct {
-        //int oq;
-        int iqRegular;
-        int iqFloat;
-        int iqBranch;
-        int iqMem;
-        int iqSys;
-
-        int oooq;
-        //int bq;
-        int rob;
-        int lq;
-        int sq;
-        int csq;
-    } BufferLevels;
-
-
-    typedef struct {
-        OpSlot late;
-        OpSlot exec;
-    } Events;
-
-    typedef struct {
-        InsId id;
-        Word target;
-    } BranchTargetEntry;
-
 
     function automatic logic getWrongSignal(input AbstractInstruction ins);
         return ins.def.o == O_undef;
@@ -875,4 +884,86 @@ package AbstractSim;
             return prev + 4;
     endfunction;
         
+endpackage
+
+
+package ExecDefs;
+
+    import Base::*;
+    import InsDefs::*;
+    import Asm::*;
+    import Emulation::*;
+    
+    import AbstractSim::*;
+
+
+    localparam int N_INT_PORTS = 4;
+    localparam int N_MEM_PORTS = 4;
+    localparam int N_VEC_PORTS = 4;
+
+    typedef logic ReadyVec[OP_QUEUE_SIZE];
+    typedef logic ReadyVec3[OP_QUEUE_SIZE][3];
+
+    typedef struct {
+        InsId id;
+    } ForwardingElement;
+
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
+
+    typedef struct {
+        ForwardingElement pipesInt[N_INT_PORTS];
+        
+        ForwardingElement subpipe0[-3:1];
+        
+        InsId regular1;
+        InsId branch0;
+        InsId mem0;
+        
+        InsId float0;
+        InsId float1;
+    } Forwarding_0;
+
+    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
+    
+    typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
+    typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
+    typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
+
+
+    function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+        IntByStage res;
+        
+        foreach (imgs[p]) begin
+            ForwardingElement img[-3:1] = imgs[p];
+            foreach (img[s])
+                res[s][p] = img[s];
+        end
+        
+        return res;
+    endfunction
+
+    function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+        MemByStage res;
+        
+        foreach (imgs[p]) begin
+            ForwardingElement img[-3:1] = imgs[p];
+            foreach (img[s])
+                res[s][p] = img[s];
+        end
+        
+        return res;
+    endfunction
+
+    function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+        VecByStage res;
+        
+        foreach (imgs[p]) begin
+            ForwardingElement img[-3:1] = imgs[p];
+            foreach (img[s])
+                res[s][p] = img[s];
+        end
+        
+        return res;
+    endfunction
+
 endpackage

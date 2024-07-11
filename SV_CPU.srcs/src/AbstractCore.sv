@@ -139,7 +139,7 @@ module AbstractCore
             completeOp(theExecBlock.doneOpsFloat_E[i]);
             writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
         end
-                    
+
         completeOp(theExecBlock.doneOpBranch_E);
         writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
 
@@ -415,7 +415,7 @@ module AbstractCore
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
-        deps = getPhysicalArgs_N(op, registerTracker); // For insMap
+        deps = registerTracker.getArgDeps(op); // For insMap
 
         runInEmulator(renamedEmul, op);
         renamedEmul.drain();
