@@ -8,11 +8,11 @@ import AbstractSim::*;
     
 module ArchDesc0();
         logic dummy0, dummy1, dummy2, dummy3,dummy4;
-            assign dummy0 = core.theIssueQueues.regularQueue.cmpb0;
-            assign dummy1 = core.theIssueQueues.floatQueue.cmpb0;
-            assign dummy2 = core.theIssueQueues.memQueue.cmpb0;
-            assign dummy3 = core.theIssueQueues.branchQueue.cmpb0;
-            assign dummy4 = core.theIssueQueues.sysQueue.cmpb0;
+            //assign dummy0 = core.sig_C;
+            //assign dummy1 = core.wrong_C;
+            assign dummy2 = core.coreDB.cmp0;
+            assign dummy3 = core.coreDB.cmp1;
+
 
 
     localparam CYCLE = 10;
