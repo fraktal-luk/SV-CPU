@@ -910,6 +910,7 @@ package ExecDefs;
 
     localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
 
+    // NOT USED so far
     typedef struct {
         ForwardingElement pipesInt[N_INT_PORTS];
         
