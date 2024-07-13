@@ -1,3 +1,4 @@
+;
 $start
 	add_i r20, r0, 0
 	add_i r18, r0, 0

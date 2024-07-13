@@ -1,3 +1,4 @@
+; Check many branches of 1 word offset
 $start
     ja 4
 	ja 4
@@ -62,6 +63,3 @@ $L2
 	sys call			
 $error
     sys error
-
-
- 

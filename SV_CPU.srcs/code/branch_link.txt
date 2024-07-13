@@ -1,3 +1,4 @@
+; Check branch with link and values of stored addresses
 $start
 	jl r1, $L1
 $R1
