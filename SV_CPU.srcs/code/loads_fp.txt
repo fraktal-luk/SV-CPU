@@ -30,7 +30,6 @@ $start
 	jnz_i r11, $error
 	
 $check
-
 	sys call
 $error
     sys error

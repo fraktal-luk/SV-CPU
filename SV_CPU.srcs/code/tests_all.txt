@@ -19,6 +19,7 @@ sf_deps4
 sf_deps5
 sys_regs
 loads_fp
+mem_sys
 fp0
 use_lib0
 shifts
