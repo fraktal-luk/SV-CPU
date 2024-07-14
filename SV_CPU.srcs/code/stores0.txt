@@ -1,4 +1,4 @@
-
+; Store zeros
 $start
 	add_i r1, r0, 20
 	add_i r2, r0, 32

@@ -138,7 +138,7 @@ package Emulation;
     
     // Not including memory
     function automatic logic isFloatCalcIns(input AbstractInstruction ins);
-        return ins.def.o inside { O_floatMove };
+        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
     endfunction    
 
 
@@ -222,6 +222,7 @@ package Emulation;
     function automatic bit hasFloatDest(input AbstractInstruction ins);
         return ins.def.o inside {
             O_floatMove,
+            O_floatOr, O_floatAddInt,
             O_floatLoadW
         };
     endfunction
@@ -321,6 +322,9 @@ package Emulation;
             end
             
             O_floatMove: result = vals[0];
+
+            O_floatOr:   result = vals[0] | vals[1];
+            O_floatAddInt: result = vals[0] + vals[1];
 
             default: ;
         endcase

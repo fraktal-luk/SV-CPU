@@ -1,0 +1,28 @@
+; Checks direct store-{load, load}-add^4 dependence (last loads are from same address)
+$start
+    add_i r1, r0, 1
+    add_i r2, r0, 100
+    sti_i r1, r0, 32
+	sti_i r2, r0, 36
+	
+	and_r r6, r0, r0
+	and_r r7, r0, r0
+	and_r r8, r0, r0
+	sys sync
+	
+	sti_i r2, r0, 40	; store data waits
+	ldi_i r6, r0, 40	; matched store from r2, SQ data miss
+	ldi_i r16, r0, 40	; matched store from r2, SQ data miss
+    add_r r7, r16, r6	; dep on both loads; r7 should be 200
+
+	add_i r10, r7, 1	; Another level of dependency
+	add_i r11, r10, 1   ; Yet another
+	add_i r12, r11, 1   ; Yet another
+	sys sync
+
+$check
+	add_i r13, r12, -203
+	jnz_i r13, $error
+	sys call
+$error
+    sys error

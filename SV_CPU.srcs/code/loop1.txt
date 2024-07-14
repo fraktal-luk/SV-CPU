@@ -1,0 +1,33 @@
+; Perform loop with different forwardings
+$start
+	add_i r1, r0, 10
+	add_i r2, r0, 100
+	add_i r3, r0, 1000
+	add_i r10, r0, r0
+	
+$loop
+	add_r r11, r0, r10   ; x
+	add_i r12, r10, 1    ; x+1
+	add_r r13, r12, r11  ; 2x+1
+	add_r r14, r0, r13   ; 2x+1
+	
+	sub_r r15, r12, r11  ;
+	add_i r16, r15, -1
+	jnz_i r16, $error
+	add_r r17, r3, r13
+	
+	add_r r10, r0, r13
+	sub_r r18, r17, r3
+	add_i r1, r1, -1     ; repeat 10 times
+	jnz_i r1, $loop
+
+$out
+	sub_r r18, r18, r13
+	jnz_i r18, $error
+	add_i r5, r10, -1023
+	jnz_i r5, $error
+
+$check
+	sys call
+$error
+    sys error

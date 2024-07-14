@@ -1,3 +1,4 @@
+;
 $start
 	add_i r1, r0, 55 
 	sti_i r1, r0, 16
@@ -12,34 +13,14 @@ $start
 	ldf_i f5, r0, 20 ; forward from SQ
 
 	stf_i f5, r0, 24 ; using value bypassed from load before RF write	
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop
+	add_i r0, r0, 0 ; nop
+	add_i r0, r0, 0 ; nop
 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
-	add_i r0, r0, 0 ; nop 
+	add_i r0, r0, 0 ; nop
+	add_i r0, r0, 0 ; nop
+	add_i r0, r0, 0 ; nop
+	add_i r0, r0, 0 ; nop
 
 	; force completion of store and make a check
 	sys sync
@@ -49,10 +30,6 @@ $start
 	jnz_i r11, $error
 	
 $check
-
-	sys call			;
+	sys call
 $error
     sys error
-
-
- 

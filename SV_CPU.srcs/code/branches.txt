@@ -1,3 +1,4 @@
+; Check branches with different locations and targets within groups of 4
 $start
     ja $L1				; 0			0->1
 $L1
@@ -76,15 +77,8 @@ $L16
 	add_i r0, r0, 0
 	add_i r0, r0, 0
 	add_i r0, r0, 0
-
-	;ja $L7
 	
 $check
-    ;add_i r5, r2, -60
-    ;jnz_i  r5, $error
 	sys call			; 192
 $error
     sys error
-
-
- 

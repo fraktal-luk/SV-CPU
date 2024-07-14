@@ -1,3 +1,4 @@
+; Perform 3 nested loops
 $start
     add_i r1, r0, 1		; x0
     and_r r2, r0, r0 ; x4 - clear r2
@@ -14,7 +15,7 @@ $L3
 	
 	add_i r11, r11, -1 ; x32
 	jnz_i r11, $L2	   ; x36
-	
+
 	add_i r10, r10, -1 ; x40 - dec counter
 	jnz_i r10, $L1	   ; x44
 
@@ -24,6 +25,3 @@ $check
 	sys call
 $error
     sys error
-
-
- 

@@ -20,7 +20,7 @@ package Asm;
         Word4 vals;
         Word res;
 
-        if ( checkArgs(args[0:3], parsingMap[fmt]) != 1) $error("Incorrect args");
+        if ( checkArgs(args[0:3], parsingMap[fmt]) != 1) $fatal(2, "Incorrect args");
                     
         vals = parseArgs(args[0:3]);
        

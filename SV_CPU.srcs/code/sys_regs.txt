@@ -1,8 +1,9 @@
+;
 $start
 	add_i r1, r0, 59
-	sts   r1, r0, 2
-	sys sync
-	lds   r12, r0, 2
+	sts   r1, r0, 2     ; store value into sys reg
+	sys sync			; needed to guarantee the write
+	lds   r12, r0, 2	; load into GPR again, should be 59
 
 	add_i r3, r12, -59
 	jnz_i r3, $error
@@ -16,9 +17,6 @@ $start
 	
 $check
 
-	sys call	;
+	sys call
 $error
     sys error
-
-
- 

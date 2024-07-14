@@ -1,3 +1,4 @@
+; Load a range of mem previously stored and having waited for sync
 $start
 	add_i r1, r0, 1
 	add_i r2, r0, 2
@@ -54,22 +55,7 @@ $start
 	jnz_i r17, $error
 	jnz_i r18, $error
 	   
-	   ; force load to try get data from SQ when it's not yet ready
-       ;ldi_i r30, r0, 16 ; load 0 to r30
-       ;sti_i r30, r0, 0 ; use r30==0 as store data
-       ;ldi_i r31, r0, 0 ; load from 0 without waiting for store data
-       ;add_i r0, r0, 0
-	   
-	   ; value in r21 should be 33, and in r31 should be 0
-	   ;add_i r2, r21, -33
-	   ;jnz_i r2, $error
-	   ;jnz_i r31, $error 
-	   
 $check
-
-	sys call			;
+	sys call
 $error
     sys error
-
-
- 
