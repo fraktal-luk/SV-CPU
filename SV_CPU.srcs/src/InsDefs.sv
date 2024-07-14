@@ -69,7 +69,8 @@ package InsDefs;
             div_s, div_u,
             rem_s, rem_u,
             
-            mov_f, or_f,   // -- Float operations
+            mov_f,
+            or_f, addi_f,  // -- Float operations
             
             ldi_i, ldi_r, //-- int
             sti_i, sti_r,
@@ -158,6 +159,7 @@ package InsDefs;
          
         // P_floatOp
         S_floatMove  = 0 + 64*P_floatOp,
+        S_floatArith  = 1 + 64*P_floatOp,
          
         // P_intMem
         //S_intLoadW,
@@ -205,6 +207,10 @@ package InsDefs;
         T_intRemS = 11 + 32*S_intMul,
     
         T_floatMove = 0  + 32*S_floatMove,
+        
+        T_floatOr = 0  + 32*S_floatArith,
+        T_floatAddInt = 1  + 32*S_floatArith,
+      
       
         T_jumpRegZ = 0  + 32*S_jumpReg,
         T_jumpRegNZ = 1  + 32*S_jumpReg,
@@ -278,6 +284,9 @@ package InsDefs;
         O_intShiftLogical, O_intShiftArith, O_intRotate,
         
         O_floatMove,
+
+        O_floatOr,
+        O_floatAddInt,
         
         O_intLoadW, O_intLoadD,
         O_intStoreW, O_intStoreD,
@@ -321,7 +330,8 @@ package InsDefs;
         "rem_u":  '{P_intAlu, S_intMul, T_intRemU, O_intRemU},//int2R, 
         
         "mov_f":  '{P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
-//            "or_f": float2R,   // -- Float operations
+        "or_f":   '{P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
+        "addi_f": '{P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
         
         "ldi_i": '{P_intLoadW16,  S_none, T_none, O_intLoadW},//intImm16,
         "sti_i": '{P_intStoreW16, S_none, T_none, O_intStoreW},//intStore16,
@@ -384,6 +394,7 @@ package InsDefs;
         
         "mov_f": float1R,
         "or_f": float2R,   // -- Float operations
+        "addi_f": float2R,   // -- Float operations
         
         "ldi_i": intImm16,
         "sti_i": intStore16,
