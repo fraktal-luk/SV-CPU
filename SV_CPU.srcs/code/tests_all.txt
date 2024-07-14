@@ -4,6 +4,7 @@ branch_link
 branch_conditional
 branch_flush
 branch_register
+loop1
 loop2
 stores0
 stores1
