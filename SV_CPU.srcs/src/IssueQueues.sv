@@ -23,7 +23,7 @@ module IssueQueue
     output OpSlot outGroup[OUT_WIDTH]
 );
 
-    int num = 0;
+    localparam int HOLD_CYCLES = 3;
 
     localparam logic dummy3[3] = '{'z, 'z, 'z};
 
@@ -38,6 +38,9 @@ module IssueQueue
     OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
     OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
 
+    int num = 0, numUsed = 0, numActive = 0;
+
+
         logic cmpb, cmpb0, cmpb1;
 
     
@@ -48,15 +51,15 @@ module IssueQueue
         logic used;
         logic active;
         logic ready;
+            int issueCounter;
         InsId id;
 
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, ready: 0, id: -1};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, ready: 0, issueCounter: -1, id: -1};
+    localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
 
-    IqEntry array[SIZE + 8];
-
-
+    IqEntry array[SIZE + N_HOLD_MAX];
 
 
     assign outGroup = issued;
@@ -87,6 +90,8 @@ module IssueQueue
     
 
     always @(posedge AbstractCore.clk) begin
+        TMP_incIssueCounter();
+    
         ready3Vec = getReadyVec3(content);
         foreach (forwardingMatches[i]) forwardingMatches[i] = getForwardVec3(content, i);
 
@@ -105,7 +110,6 @@ module IssueQueue
         end
         
         issue();
-        TMP_issue();
         
         
         foreach (issued[i])
@@ -113,6 +117,8 @@ module IssueQueue
         
         num <= content.size();
 
+            numUsed <= TMP_getNumUsed();
+            numActive <= TMP_getNumActive();
     end
 
 
@@ -147,20 +153,16 @@ module IssueQueue
 
     task automatic issue();
         OpSlot ops[$];
-//        int n = OUT_WIDTH > num ? num : OUT_WIDTH;
-//        if (content.size() < n) n = content.size();
-
-//        issued <= '{default: EMPTY_SLOT};
-
-//        foreach (issued[i]) begin        
-//            if (i < n && readyVec[i]) // TODO: switch to readyVec_A when ready
-//                ops.push_back( content[i]);
-//            else
-//                break;
-//        end
-        
         ops = getOpsToIssue();
         
+        removeIssued(ops);
+        
+        TMP_removeIssuedFromArray();
+        
+        TMP_issueFromArray(ops);
+    endtask
+
+    task automatic removeIssued(input OpSlot ops[$]);
         foreach (ops[i]) begin
             OpSlot op = ops[i];
             issued[i] <= tick(op);
@@ -168,7 +170,8 @@ module IssueQueue
             
             void'(content.pop_front());
         end
-    endtask
+    endtask 
+
 
     function automatic OpSlotQueue getOpsToIssue();
         OpSlot ops[$];
@@ -228,20 +231,62 @@ module IssueQueue
         InputLocs locs = getInputLocs();
         int nInserted = 0;
         
-            return;
+           // return;
         
         foreach (inGroup[i]) begin
             OpSlot op = inGroup[i];
             if (op.active && inMask[i]) begin
-                array[locs[nInserted++]] = '{used: 1, active: 1, ready: 1, id: op.id};
+                array[locs[nInserted++]] = '{used: 1, active: 1, ready: 1, issueCounter: -1, id: op.id};
             end
         end
     endtask
 
-    task automatic TMP_issue();
-        
+
+    task automatic TMP_issueFromArray(input OpSlot ops[$]);
+        foreach (ops[i]) begin
+            OpSlot op = ops[i];
+            foreach (array[s]) begin
+                if (array[s].id == op.id) begin
+                    assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
+                    array[s].active = 0;
+                    array[s].issueCounter = 0;
+                        //array[s] = EMPTY_ENTRY;
+                    break;
+                end
+            end
+        end
     endtask
 
+
+    task automatic TMP_removeIssuedFromArray();
+        foreach (array[s]) begin
+            if (array[s].issueCounter == HOLD_CYCLES) begin
+                assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
+                array[s] = EMPTY_ENTRY;
+            end
+        end
+    endtask
+
+    task automatic TMP_incIssueCounter();
+        foreach (array[s]) begin
+            if (array[s].used == 1 && array[s].active == 0) begin
+                array[s].issueCounter++;
+            end
+        end
+    endtask
+
+    
+    function automatic int TMP_getNumUsed();
+        int res = 0;
+        foreach (array[s]) if (array[s].used) res++; 
+        return res; 
+    endfunction
+
+    function automatic int TMP_getNumActive();
+        int res = 0;
+        foreach (array[s]) if (array[s].active) res++; 
+        return res; 
+    endfunction
 
 endmodule
 
