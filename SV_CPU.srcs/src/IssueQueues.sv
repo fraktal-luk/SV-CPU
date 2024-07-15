@@ -40,6 +40,24 @@ module IssueQueue
 
         logic cmpb, cmpb0, cmpb1;
 
+    
+    typedef OpSlot OpSlotQueue[$];
+    typedef int InputLocs[$size(OpSlotA)];
+
+    typedef struct {
+        logic used;
+        logic active;
+        logic ready;
+        InsId id;
+
+    } IqEntry;
+
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, ready: 0, id: -1};
+
+    IqEntry array[SIZE + 8];
+
+
+
 
     assign outGroup = issued;
 
@@ -77,12 +95,18 @@ module IssueQueue
         readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forwardingMatches);
         readyVec_A = makeReadyVec(readyOrForward3Vec);
 
-        if (lateEventInfo.redirect || branchEventInfo.redirect)
+        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             flushIq();
-        else
+            TMP_flushIq();
+        end
+        else begin
             writeInput();
+            TMP_writeInput();
+        end
         
         issue();
+        TMP_issue();
+        
         
         foreach (issued[i])
             issued1[i] <= tick(issued[i]);
@@ -96,7 +120,6 @@ module IssueQueue
         if (lateEventInfo.redirect) flushOpQueueAll();
         else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
     endtask
-
 
     task automatic flushOpQueueAll();
         while (content.size() > 0) begin
@@ -124,6 +147,31 @@ module IssueQueue
 
     task automatic issue();
         OpSlot ops[$];
+//        int n = OUT_WIDTH > num ? num : OUT_WIDTH;
+//        if (content.size() < n) n = content.size();
+
+//        issued <= '{default: EMPTY_SLOT};
+
+//        foreach (issued[i]) begin        
+//            if (i < n && readyVec[i]) // TODO: switch to readyVec_A when ready
+//                ops.push_back( content[i]);
+//            else
+//                break;
+//        end
+        
+        ops = getOpsToIssue();
+        
+        foreach (ops[i]) begin
+            OpSlot op = ops[i];
+            issued[i] <= tick(op);
+            markOpIssued(op);
+            
+            void'(content.pop_front());
+        end
+    endtask
+
+    function automatic OpSlotQueue getOpsToIssue();
+        OpSlot ops[$];
         int n = OUT_WIDTH > num ? num : OUT_WIDTH;
         if (content.size() < n) n = content.size();
 
@@ -136,19 +184,64 @@ module IssueQueue
                 break;
         end
         
-        foreach (ops[i]) begin
-            OpSlot op = ops[i];
-            issued[i] <= tick(op);
-            markOpIssued(op);
-            
-            void'(content.pop_front());
-        end
-    endtask
+        return ops;
+    endfunction
+  
 
     function automatic void markOpIssued(input OpSlot op);        
         putMilestone(op.id, InstructionMap::IqIssue);
         putMilestone(op.id, InstructionMap::IqExit);
     endfunction
+
+////////////////////////////
+
+    task automatic TMP_flushIq();
+        if (lateEventInfo.redirect) TMP_flushOpQueueAll();
+        else if (branchEventInfo.redirect) TMP_flushOpQueuePartial(branchEventInfo.op);
+    endtask
+
+    task automatic TMP_flushOpQueueAll();
+        foreach (array[i]) begin
+            array[i] = EMPTY_ENTRY;
+        end
+    endtask
+
+    task automatic TMP_flushOpQueuePartial(input OpSlot op);
+        foreach (array[i]) begin
+            if (array[i].id > op.id) array[i] = EMPTY_ENTRY;
+        end
+    endtask
+
+    function automatic InputLocs getInputLocs();
+        InputLocs res = '{default: -1};
+        int nFound = 0;
+
+        foreach (array[i]) begin
+            if (!array[i].used) res[nFound++] = i;
+        end
+
+        return res;
+    endfunction
+
+
+    task automatic TMP_writeInput();
+        InputLocs locs = getInputLocs();
+        int nInserted = 0;
+        
+            return;
+        
+        foreach (inGroup[i]) begin
+            OpSlot op = inGroup[i];
+            if (op.active && inMask[i]) begin
+                array[locs[nInserted++]] = '{used: 1, active: 1, ready: 1, id: op.id};
+            end
+        end
+    endtask
+
+    task automatic TMP_issue();
+        
+    endtask
+
 
 endmodule
 
