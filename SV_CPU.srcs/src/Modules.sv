@@ -5,6 +5,7 @@ import Asm::*;
 import Emulation::*;
 
 import AbstractSim::*;
+import Insmap::*;
 import ExecDefs::*;
 
 
@@ -283,6 +284,8 @@ module ExecBlock(ref InstructionMap insMap,
     MemByStage memImagesTr;
     VecByStage floatImagesTr;
 
+        ForwardsByStage_0 allByStage;
+
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, default: EMPTY_IMAGE};
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, default: EMPTY_IMAGE};
@@ -290,6 +293,10 @@ module ExecBlock(ref InstructionMap insMap,
     assign intImagesTr = trsInt(intImages);
     assign memImagesTr = trsMem(memImages);
     assign floatImagesTr = trsVec(floatImages);
+
+        assign allByStage.ints = intImagesTr;
+        assign allByStage.mems = memImagesTr;
+        assign allByStage.vecs = floatImagesTr;
 
 
     function automatic Word calcRegularOp(input OpSlot op);
@@ -400,13 +407,14 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction;
 
 
+
     function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
         Word res[3];
-        logic3 ready = checkArgsReady(deps);
-        logic3 forw1 = checkForwardsReady(deps, 1);
-        logic3 forw0 = checkForwardsReady(deps, 0);
-        Word vals1[3] = getForwardedValues(deps, 1);
-        Word vals0[3] = getForwardedValues(deps, 0);
+        logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+        logic3 forw1 = checkForwardsReady(insMap, allByStage, deps, 1);
+        logic3 forw0 = checkForwardsReady(insMap, allByStage, deps, 0);
+        Word vals1[3] = getForwardedValues(insMap, allByStage, deps, 1);
+        Word vals0[3] = getForwardedValues(insMap, allByStage, deps, 0);
         
         foreach (res[i]) begin
             case (deps.types[i])

@@ -5,7 +5,7 @@ import Asm::*;
 import Emulation::*;
 
 import AbstractSim::*;
-
+import Insmap::*;
 import ExecDefs::*;
 
 
@@ -619,103 +619,6 @@ module AbstractCore
             return EMPTY_SLOT;
         return op;
     endfunction
-
-
-    // Exec/(Issue) - arg handling
-
-    function automatic logic3 checkArgsReady(input InsDependencies deps);
-        logic3 res;
-        
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 1;
-                SRC_CONST: res[i] = 1;
-                SRC_INT:   res[i] = intRegsReadyV[deps.sources[i]];
-                SRC_FLOAT: res[i] = floatRegsReadyV[deps.sources[i]];
-            endcase      
-        return res;
-    endfunction
-
-    function automatic logic3 checkForwardsReady(input InsDependencies deps, input int stage);
-        logic3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = checkForwardInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                SRC_FLOAT: res[i] = checkForwardVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
-            endcase      
-        return res;
-    endfunction
-
-    function automatic Word3 getForwardedValues(input InsDependencies deps, input int stage);
-        Word3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = getForwardValueInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                SRC_FLOAT: res[i] = getForwardValueVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
-            endcase      
-        return res;
-    endfunction
-
-
-    function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
-        return !(fe.id == -1) && fe.id === producer;
-    endfunction
-
-    function automatic Word useForwardedValue(input ForwardingElement fe, input int source, input InsId producer);
-        InstructionInfo ii = insMap.get(fe.id);
-        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", producer);
-        return ii.actualResult;
-    endfunction
-
-    function automatic logic useForwardingMatch(input ForwardingElement fe, input int source, input InsId producer);
-        InstructionInfo ii = insMap.get(fe.id);
-        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", producer);
-        return 1;
-    endfunction
-
-
-    function automatic Word getForwardValueVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
-        foreach (feVec[p]) begin
-            if (matchProducer(feVec[p], producer)) return useForwardedValue(feVec[p], source, producer);
-        end
-        return 'x;
-    endfunction;
-
-    function automatic Word getForwardValueInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        foreach (feInt[p]) begin
-            if (matchProducer(feInt[p], producer)) return useForwardedValue(feInt[p], source, producer);
-        end
-        
-        foreach (feMem[p]) begin
-            if (matchProducer(feMem[p], producer)) return useForwardedValue(feMem[p], source, producer);
-        end
-
-        return 'x;
-    endfunction;
-
-
-    function automatic logic checkForwardVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
-        foreach (feVec[p]) begin
-            if (matchProducer(feVec[p], producer)) return useForwardingMatch(feVec[p], source, producer);
-        end
-        return 0;
-    endfunction;
-
-    function automatic logic checkForwardInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        foreach (feInt[p]) begin
-            if (matchProducer(feInt[p], producer)) return useForwardingMatch(feInt[p], source, producer);
-        end
-        
-        foreach (feMem[p]) begin
-            if (matchProducer(feMem[p], producer)) return useForwardingMatch(feMem[p], source, producer);
-        end
-
-        return 0;
-    endfunction;
 
 
     assign insAdr = theFrontend.ipStage[0].adr;

@@ -5,6 +5,7 @@ import Asm::*;
 import Emulation::*;
 
 import AbstractSim::*;
+import Insmap::*;
 import ExecDefs::*;
 
 
@@ -24,11 +25,6 @@ module IssueQueue
 );
 
     localparam int HOLD_CYCLES = 3;
-
-    localparam logic dummy3[3] = '{'z, 'z, 'z};
-
-    localparam ReadyVec3 FORWARDING_VEC_ALL_Z = '{default: dummy3};
-    localparam ReadyVec3 FORWARDING_ALL_Z[-3:1] = '{default: FORWARDING_VEC_ALL_Z};
 
     OpSlot content[$:SIZE];
     ReadyVec readyVec, readyVec_A;
@@ -81,69 +77,15 @@ module IssueQueue
 
     assign outGroup = issued;
 
-    function automatic ReadyVec3 gatherReadyOrForwards(input ReadyVec3 ready, input ReadyVec3 forwards[-3:1]);
-        ReadyVec3 res = '{default: dummy3};
-        
-        foreach (res[i]) begin
-            logic slot[3] = res[i];
-            foreach (slot[a]) begin
-                if ($isunknown(ready[i][a])) res[i][a] = 'z;
-                else begin
-                    res[i][a] = ready[i][a];
-                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
-                end
-            end
-        end
-        
-        return res;    
-    endfunction
-
-
-    function automatic ReadyVec makeReadyVec(input ReadyVec3 argV);
-        ReadyVec res = '{default: 'z};
-        foreach (res[i]) 
-            res[i] = $isunknown(argV[i]) ? 'z : argV[i].and();
-        return res;
-    endfunction
-
-
-
-    function automatic ReadyQueue3 gatherReadyOrForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwards[-3:1]);
-        ReadyQueue3 res;// = '{default: dummy3};
-        
-        foreach (ready[i]) begin
-            logic slot[3] = ready[i];
-            res.push_back(slot);
-            foreach (slot[a]) begin
-                if ($isunknown(ready[i][a])) res[i][a] = 'z;
-                else begin
-                    res[i][a] = ready[i][a];
-                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
-                end
-            end
-        end
-        
-        return res;    
-    endfunction
-
-    function automatic ReadyQueue makeReadyQueue(input ReadyQueue3 argV);
-        ReadyQueue res;
-        foreach (argV[i]) 
-            res.push_back( $isunknown(argV[i]) ? 'z : argV[i].and() );
-        return res;
-    endfunction
-
-
 
     always @(posedge AbstractCore.clk) begin
         TMP_incIssueCounter();
     
-        ready3Vec = getReadyVec3(content);
-            rq = getReadyQueue3(getIdQueue(array));
+        ready3Vec = getReadyVec3(insMap, content);
+            rq = getReadyQueue3(insMap, getIdQueue(array));
         
-        foreach (forwardingMatches[i]) forwardingMatches[i] = getForwardVec3(content, i);
-            
-            foreach (fmq[i]) fmq[i] = getForwardQueue3(getIdQueue(array), i);
+        foreach (forwardingMatches[i]) forwardingMatches[i] = getForwardVec3(insMap, content, i);         
+             foreach (fmq[i]) fmq[i] = getForwardQueue3(insMap, getIdQueue(array), i);
 
         readyVec = makeReadyVec(ready3Vec);
 
@@ -172,10 +114,9 @@ module IssueQueue
 
             numUsed <= TMP_getNumUsed();
             numActive <= TMP_getNumActive();
-            
-            
-                idq = getIdQueue(array);
-                ida = q2a(idq);
+             
+            idq = getIdQueue(array);
+            ida = q2a(idq);
     end
 
 
@@ -307,7 +248,6 @@ module IssueQueue
                     assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
                     array[s].active = 0;
                     array[s].issueCounter = 0;
-                        //array[s] = EMPTY_ENTRY;
                     break;
                 end
             end
@@ -435,84 +375,52 @@ module IssueQueueComplex(
     endfunction
 
 
-    function automatic ReadyVec3 getReadyVec3(input OpSlot iq[$:ISSUE_QUEUE_SIZE]);
+    function automatic ReadyVec3 getReadyVec3(input InstructionMap insMap, input OpSlot iq[$:ISSUE_QUEUE_SIZE]);
         logic D3[3] = '{'z, 'z, 'z};
         ReadyVec3 res = '{default: D3};
         foreach (iq[i]) begin
             InsDependencies deps = insMap.get(iq[i].id).deps;
-            logic3 ra = checkArgsReady(deps);
+            logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
             res[i] = ra;
         end
         return res;
     endfunction
     
-    function automatic ReadyVec3 getForwardVec3(input OpSlot iq[$:ISSUE_QUEUE_SIZE], input int stage);
+    function automatic ReadyVec3 getForwardVec3(input InstructionMap imap, input OpSlot iq[$:ISSUE_QUEUE_SIZE], input int stage);
         logic D3[3] = '{'z, 'z, 'z};
         ReadyVec3 res = '{default: D3};
         foreach (iq[i]) begin
-            InsDependencies deps = insMap.get(iq[i].id).deps;
-            logic3 ra = checkForwardsReady(deps, stage);
+            InsDependencies deps = imap.get(iq[i].id).deps;
+            logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
             res[i] = ra;
         end
         return res;
     endfunction
 
 
-        function automatic ReadyVec3 getReadyVec3_I(input InsId ids[$:ISSUE_QUEUE_SIZE]);
-            logic D3[3] = '{'z, 'z, 'z};
-            ReadyVec3 res = '{default: D3};
-            foreach (ids[i])
-                if (ids[i] == -1) continue;
-                else
-                begin
-                    InsDependencies deps = insMap.get(ids[i]).deps;
-                    logic3 ra = checkArgsReady(deps);
-                    res[i] = ra;
-                end
-            return res;
-        endfunction
-        
-        function automatic ReadyVec3 getForwardVec3_I(input InsId ids[$:ISSUE_QUEUE_SIZE], input int stage);
-            logic D3[3] = '{'z, 'z, 'z};
-            ReadyVec3 res = '{default: D3};
-            foreach (ids[i]) 
-                if (ids[i] == -1) continue;
-                else
-                begin
-                    InsDependencies deps = insMap.get(ids[i]).deps;
-                    logic3 ra = checkForwardsReady(deps, stage);
-                    res[i] = ra;
-                end
-            return res;
-        endfunction
-
-
-        //typedef logic ReadyQueue3[$][3];
-
-
-        function automatic ReadyQueue3 getReadyQueue3(input InsId ids[$]);
+        function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
             logic D3[3] = '{'z, 'z, 'z};
             ReadyQueue3 res;
             foreach (ids[i])
                 if (ids[i] == -1) res.push_back(D3);
                 else
                 begin
-                    InsDependencies deps = insMap.get(ids[i]).deps;
-                    logic3 ra = checkArgsReady(deps);
+                    InsDependencies deps = imap.get(ids[i]).deps;
+                    logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                     res.push_back(ra);
                 end
             return res;
         endfunction
         
-        function automatic ReadyQueue3 getForwardQueue3(input InsId ids[$], input int stage);
+        function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
             logic D3[3] = '{'z, 'z, 'z};
             ReadyQueue3 res ;
             foreach (ids[i]) 
                 if (ids[i] == -1) res.push_back(D3);
                 else
                 begin
-                    InsDependencies deps = insMap.get(ids[i]).deps;
-                    logic3 ra = checkForwardsReady(deps, stage);
+                    InsDependencies deps = imap.get(ids[i]).deps;
+                    logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
                     res.push_back(ra);
                 end
             return res;

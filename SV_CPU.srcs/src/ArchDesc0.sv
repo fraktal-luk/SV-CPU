@@ -5,13 +5,14 @@ import InsDefs::*;
 import Asm::*;
 import Emulation::*;
 import AbstractSim::*;
-    
+import Insmap::*;
+
 module ArchDesc0();
-        logic dummy0, dummy1, dummy2, dummy3,dummy4;
+        logic dummy_0, dummy_1, dummy_2, dummy_3,dummy_4;
             //assign dummy0 = core.sig_C;
             //assign dummy1 = core.wrong_C;
-            assign dummy2 = core.coreDB.cmp0;
-            assign dummy3 = core.coreDB.cmp1;
+            assign dummy_2 = core.coreDB.cmp0;
+            assign dummy_3 = core.coreDB.cmp1;
 
 
 
