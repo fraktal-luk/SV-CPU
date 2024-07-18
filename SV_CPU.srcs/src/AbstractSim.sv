@@ -226,7 +226,7 @@ package AbstractSim;
     localparam int N_REGS_INT = 128;
     localparam int N_REGS_FLOAT = 128;
 
-    localparam int OP_QUEUE_SIZE = 24;
+    localparam int ISSUE_QUEUE_SIZE = 24;
 
     localparam int ROB_SIZE = 128;
     
@@ -901,8 +901,12 @@ package ExecDefs;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
 
-    typedef logic ReadyVec[OP_QUEUE_SIZE];
-    typedef logic ReadyVec3[OP_QUEUE_SIZE][3];
+    typedef logic ReadyVec[ISSUE_QUEUE_SIZE];
+    typedef logic ReadyVec3[ISSUE_QUEUE_SIZE][3];
+
+    typedef logic ReadyQueue[$];
+    typedef logic ReadyQueue3[$][3];
+
 
     typedef struct {
         InsId id;

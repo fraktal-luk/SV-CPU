@@ -275,11 +275,11 @@ module AbstractCore
     function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
         BufferLevels res;
      
-        res.iqRegular = levels.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqFloat = levels.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqBranch = levels.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqMem = levels.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqSys = levels.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqBranch = levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqMem = levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqSys = levels.iqSys <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
 
         return res;
     endfunction
