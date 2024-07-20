@@ -43,7 +43,7 @@ module IssueQueue
 
 
         logic cmpb, cmpb0, cmpb1;
-
+        logic cmpIss[4] = '{default: 0};
     
     typedef OpSlot OpSlotQueue[$];
     typedef int InputLocs[$size(OpSlotA)];
@@ -74,7 +74,10 @@ module IssueQueue
 
     typedef InsId IdQueue[$];
     typedef InsId IdArr[$size(array)];
+    typedef logic logicArr[TOTAL_SIZE];
 
+        logicArr readyTotal, readyTotalF;
+        
 
     IdQueue idq;
     IdArr ida;
@@ -85,6 +88,9 @@ module IssueQueue
 
         OutIds iss_old, iss_oldF;
         OutIds iss_new, iss_newF;
+
+        localparam logic cmpExp[4] =  '{1, 1, 'x, 'x};
+
 
 
     assign outGroup = issued;
@@ -107,6 +113,11 @@ module IssueQueue
 
             readyOrForwardQ3 = gatherReadyOrForwardsQ(rq3, fmq);
             rfq = makeReadyQueue(readyOrForwardQ3);
+            
+            //readyTotal = readyQueue[0:TOTAL_SIZE-1];
+            //readyTotalF = rfq[0:TOTAL_SIZE-1];
+
+
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             flushIq();
@@ -120,6 +131,15 @@ module IssueQueue
             TMP_writeInput();
         end
         
+        
+            cmpIss = '{
+                (iss_old == iss_new),
+                (iss_oldF == iss_newF),
+                'x,
+                'x
+            };
+                
+                assert (cmpIss === cmpExp) else $error("Unequal iss ");
         
         
         foreach (issued[i])
@@ -135,11 +155,24 @@ module IssueQueue
     end
 
 
+    function automatic OpSlotQueue getOpsFromIds(input OutIds outs);
+        OpSlotQueue res;
+        
+        foreach (outs[i])
+            if (outs[i] != -1) begin
+                InstructionInfo ii = insMap.get(outs[i]);
+                res.push_back('{1, ii.id, ii.adr, ii.bits});
+            end
+        return res;
+    endfunction
+
 
     task automatic issue();
         OpSlot ops[$] = getOpsToIssue();
         OutIds ov = getArrOpsToIssue();
-
+        OpSlot opsV[$] = getOpsFromIds(ov);
+        
+        assert (opsV === ops) else $fatal(2, "uneqal ops isuue");
 
         issued <= '{default: EMPTY_SLOT};
 
@@ -191,6 +224,7 @@ module IssueQueue
     endtask 
 
 
+
     function automatic OutIds getArrOpsToIssue();
         int nNoF = 0, nF = 0;
     
@@ -206,7 +240,20 @@ module IssueQueue
         
         iss_new = '{default: -1};
         iss_newF = '{default: -1};
-        
+
+        foreach (idsSorted[i]) begin
+            if (idsSorted[i] == -1) continue;
+            else begin
+                int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
+                //IqEntry entry = array[arrayLoc[0]]; 
+                logic ready = readyQueue[arrayLoc[0]]; 
+                logic readyF = rfq[arrayLoc[0]];
+                
+                readyTotal[i] = ready;
+                readyTotalF[i] = readyF;
+            end
+        end
+
         foreach (idsSorted[i]) begin
             if (idsSorted[i] == -1) continue;
             else begin
@@ -215,22 +262,46 @@ module IssueQueue
                 logic ready = readyQueue[arrayLoc[0]]; 
                 logic readyF = rfq[arrayLoc[0]];
                 
-                if (entry.used && entry.active && ready) begin
+                logic active = entry.used && entry.active;
+                
+                if (active && ready) begin
                     sortedReady[i] = idsSorted[i];
                     iss_new[nNoF++] = idsSorted[i];
                 end
-                else sortedReady[i] = -1;
+                else begin
+                    sortedReady[i] = -1;
+                    if (IN_ORDER && active) break;
+                end
+
+            end
+        end
+
+
+        foreach (idsSorted[i]) begin
+            if (idsSorted[i] == -1) continue;
+            else begin
+                int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
+                IqEntry entry = array[arrayLoc[0]]; 
+                logic ready = readyQueue[arrayLoc[0]]; 
+                logic readyF = rfq[arrayLoc[0]];
                 
-                if (entry.used && entry.active && readyF) begin
+                logic active = entry.used && entry.active;
+                
+                if (active && readyF) begin
                     sortedReadyF[i] = idsSorted[i];
                     iss_newF[nF++] = idsSorted[i];
                 end
-                else sortedReadyF[i] = -1;
+                else begin
+                    sortedReadyF[i] = -1;
+                    if (IN_ORDER && active) break;
+                end
             end
         end
         
         sortedReadyArr = sortedReady;
         sortedReadyArrF = sortedReadyF;
+        
+            res = iss_new;
         
         return res;
     endfunction

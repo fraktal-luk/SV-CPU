@@ -241,6 +241,10 @@ package AbstractSim;
 
 
 
+        localparam logic IN_ORDER = 1;
+
+
+
     class BranchCheckpoint;
     
         function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
