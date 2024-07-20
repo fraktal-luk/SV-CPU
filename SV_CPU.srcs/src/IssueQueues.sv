@@ -31,8 +31,8 @@ module IssueQueue
     ReadyVec3   ready3Vec, readyOrForward3Vec;
     ReadyVec3   forwardingMatches[-3:1] = FORWARDING_ALL_Z;
 
-    ReadyQueue  rfq;
-    ReadyQueue3 rq, readyOrForwardQ3;
+    ReadyQueue  readyQueue, rfq;
+    ReadyQueue3 rq3, readyOrForwardQ3;
     ReadyQueue3 fmq[-3:1];
 
 
@@ -47,6 +47,8 @@ module IssueQueue
     
     typedef OpSlot OpSlotQueue[$];
     typedef int InputLocs[$size(OpSlotA)];
+
+
 
     typedef struct {
         logic used;
@@ -66,13 +68,20 @@ module IssueQueue
     localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, ready: 0, issueCounter: -1, id: -1};
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
 
-    IqEntry array[SIZE + N_HOLD_MAX] = '{default: EMPTY_ENTRY};
+    localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
+
+    IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
 
     typedef InsId IdQueue[$];
     typedef InsId IdArr[$size(array)];
 
+
     IdQueue idq;
     IdArr ida;
+
+    IdArr sortedIds = '{default: -1}, sortedReadyArr = '{default: -1};
+
+    typedef InsId OutIds[OUT_WIDTH];
 
 
     assign outGroup = issued;
@@ -82,29 +91,32 @@ module IssueQueue
         TMP_incIssueCounter();
     
         ready3Vec = getReadyVec3(insMap, content);
-            rq = getReadyQueue3(insMap, getIdQueue(array));
+            rq3 = getReadyQueue3(insMap, getIdQueue(array));
         
         foreach (forwardingMatches[i]) forwardingMatches[i] = getForwardVec3(insMap, content, i);         
              foreach (fmq[i]) fmq[i] = getForwardQueue3(insMap, getIdQueue(array), i);
 
         readyVec = makeReadyVec(ready3Vec);
-
+            readyQueue = makeReadyQueue(rq3);
+            
         readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forwardingMatches);
         readyVec_A = makeReadyVec(readyOrForward3Vec);
 
-            readyOrForwardQ3 = gatherReadyOrForwardsQ(rq, fmq);
+            readyOrForwardQ3 = gatherReadyOrForwardsQ(rq3, fmq);
             rfq = makeReadyQueue(readyOrForwardQ3);
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             flushIq();
             TMP_flushIq();
         end
-        else begin
+        
+        issue();
+        
+        if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
             TMP_writeInput();
         end
         
-        issue();
         
         
         foreach (issued[i])
@@ -119,6 +131,81 @@ module IssueQueue
             ida = q2a(idq);
     end
 
+
+
+    task automatic issue();
+        OpSlot ops[$] = getOpsToIssue();
+        OutIds ov = getArrOpsToIssue();
+
+        issued <= '{default: EMPTY_SLOT};
+
+
+        removeIssued(ops);
+        
+        TMP_markIssuedInArray();
+        
+        TMP_issueFromArray(ops);
+    endtask
+
+
+    function automatic OpSlotQueue getOpsToIssue();
+        OpSlot ops[$];
+        int n = OUT_WIDTH > num ? num : OUT_WIDTH;
+        if (content.size() < n) n = content.size();
+
+
+        foreach (issued[i]) begin        
+            if (i < n && readyVec[i]) // TODO: switch to readyVec_A when ready
+                ops.push_back( content[i]);
+            else
+                break;
+        end
+        
+        return ops;
+    endfunction
+
+
+    task automatic removeIssued(input OpSlot ops[$]);
+        foreach (ops[i]) begin
+            OpSlot op = ops[i];
+            issued[i] <= tick(op);
+            markOpIssued(op);
+            
+            void'(content.pop_front());
+        end
+    endtask 
+
+
+    function automatic OutIds getArrOpsToIssue();
+        OutIds res = '{default: -1};
+        IdArr sortedReady = '{default: -1};
+    
+        IdQueue ids = getIdQueue(array);
+        IdQueue idsSorted = ids;
+        idsSorted.sort();
+        
+        sortedIds = idsSorted[0:TOTAL_SIZE-1];
+        
+        foreach (idsSorted[i]) begin
+            if (idsSorted[i] == -1) continue;
+            else begin
+                int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
+                IqEntry entry = array[arrayLoc[0]]; 
+                logic ready = readyQueue[arrayLoc[0]]; 
+                logic readyF = rfq[arrayLoc[0]];
+                
+                if (entry.used && entry.active) sortedReady[i] = idsSorted[i];
+                else sortedReady[i] = -1;
+            end
+        end
+        
+        sortedReadyArr = sortedReady;
+        
+        return res;
+    endfunction
+
+
+///////////////////////////////////////////////////////////
 
     task automatic flushIq();
         if (lateEventInfo.redirect) flushOpQueueAll();
@@ -148,45 +235,6 @@ module IssueQueue
             end
         end
     endtask
-
-    task automatic issue();
-        OpSlot ops[$];
-        ops = getOpsToIssue();
-        
-        removeIssued(ops);
-        
-        TMP_markIssuedInArray();
-        
-        TMP_issueFromArray(ops);
-    endtask
-
-    task automatic removeIssued(input OpSlot ops[$]);
-        foreach (ops[i]) begin
-            OpSlot op = ops[i];
-            issued[i] <= tick(op);
-            markOpIssued(op);
-            
-            void'(content.pop_front());
-        end
-    endtask 
-
-
-    function automatic OpSlotQueue getOpsToIssue();
-        OpSlot ops[$];
-        int n = OUT_WIDTH > num ? num : OUT_WIDTH;
-        if (content.size() < n) n = content.size();
-
-        issued <= '{default: EMPTY_SLOT};
-
-        foreach (issued[i]) begin        
-            if (i < n && readyVec[i]) // TODO: switch to readyVec_A when ready
-                ops.push_back( content[i]);
-            else
-                break;
-        end
-        
-        return ops;
-    endfunction
   
 
     function automatic void markOpIssued(input OpSlot op);        
