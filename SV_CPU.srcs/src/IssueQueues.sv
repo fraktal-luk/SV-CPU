@@ -79,9 +79,12 @@ module IssueQueue
     IdQueue idq;
     IdArr ida;
 
-    IdArr sortedIds = '{default: -1}, sortedReadyArr = '{default: -1};
+    IdArr sortedIds = '{default: -1}, sortedReadyArr = '{default: -1}, sortedReadyArrF = '{default: -1};
 
     typedef InsId OutIds[OUT_WIDTH];
+
+        OutIds iss_old, iss_oldF;
+        OutIds iss_new, iss_newF;
 
 
     assign outGroup = issued;
@@ -137,6 +140,7 @@ module IssueQueue
         OpSlot ops[$] = getOpsToIssue();
         OutIds ov = getArrOpsToIssue();
 
+
         issued <= '{default: EMPTY_SLOT};
 
 
@@ -153,14 +157,25 @@ module IssueQueue
         int n = OUT_WIDTH > num ? num : OUT_WIDTH;
         if (content.size() < n) n = content.size();
 
+        iss_old = '{default: -1};
+        iss_oldF = '{default: -1};
 
         foreach (issued[i]) begin        
-            if (i < n && readyVec[i]) // TODO: switch to readyVec_A when ready
+            if (i < n && readyVec[i]) begin// TODO: switch to readyVec_A when ready
                 ops.push_back( content[i]);
+                iss_old[i] = content[i].id;
+            end
             else
                 break;
         end
-        
+
+        foreach (issued[i]) begin        
+            if (i < n && readyVec_A[i]) // TODO: switch to readyVec_A when ready
+                iss_oldF[i] = content[i].id;
+            else
+                break;
+        end
+
         return ops;
     endfunction
 
@@ -177,14 +192,20 @@ module IssueQueue
 
 
     function automatic OutIds getArrOpsToIssue();
+        int nNoF = 0, nF = 0;
+    
         OutIds res = '{default: -1};
         IdArr sortedReady = '{default: -1};
+        IdArr sortedReadyF = '{default: -1};
     
         IdQueue ids = getIdQueue(array);
         IdQueue idsSorted = ids;
         idsSorted.sort();
         
         sortedIds = idsSorted[0:TOTAL_SIZE-1];
+        
+        iss_new = '{default: -1};
+        iss_newF = '{default: -1};
         
         foreach (idsSorted[i]) begin
             if (idsSorted[i] == -1) continue;
@@ -194,12 +215,22 @@ module IssueQueue
                 logic ready = readyQueue[arrayLoc[0]]; 
                 logic readyF = rfq[arrayLoc[0]];
                 
-                if (entry.used && entry.active) sortedReady[i] = idsSorted[i];
+                if (entry.used && entry.active && ready) begin
+                    sortedReady[i] = idsSorted[i];
+                    iss_new[nNoF++] = idsSorted[i];
+                end
                 else sortedReady[i] = -1;
+                
+                if (entry.used && entry.active && readyF) begin
+                    sortedReadyF[i] = idsSorted[i];
+                    iss_newF[nF++] = idsSorted[i];
+                end
+                else sortedReadyF[i] = -1;
             end
         end
         
         sortedReadyArr = sortedReady;
+        sortedReadyArrF = sortedReadyF;
         
         return res;
     endfunction
