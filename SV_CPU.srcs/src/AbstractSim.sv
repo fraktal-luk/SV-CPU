@@ -242,7 +242,7 @@ package AbstractSim;
 
 
         localparam logic IN_ORDER = 1;
-
+        localparam logic USE_FORWARDING = 0;
 
 
     class BranchCheckpoint;

@@ -26,28 +26,18 @@ module IssueQueue
 
     localparam int HOLD_CYCLES = 3;
 
-    OpSlot content[$:SIZE];
-    ReadyVec readyVec, readyVec_A;
-    ReadyVec3   ready3Vec, readyOrForward3Vec;
-    ReadyVec3   forwardingMatches[-3:1] = FORWARDING_ALL_Z;
-
     ReadyQueue  readyQueue, rfq;
     ReadyQueue3 rq3, readyOrForwardQ3;
-    ReadyQueue3 fmq[-3:1];
+    ReadyQueue3 fmq[-3:1] = FORWARDING_ALL_Z;
 
 
     OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
     OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
 
-    int num = 0, numUsed = 0, numActive = 0;
-
-
-        logic cmpb, cmpb0, cmpb1;
-        logic cmpIss[4] = '{default: 0};
+    int num = 0, numUsed = 0, numActive = 0, numVirtual = 0;
     
     typedef OpSlot OpSlotQueue[$];
     typedef int InputLocs[$size(OpSlotA)];
-
 
 
     typedef struct {
@@ -76,7 +66,7 @@ module IssueQueue
     typedef InsId IdArr[$size(array)];
     typedef logic logicArr[TOTAL_SIZE];
 
-        logicArr readyTotal, readyTotalF;
+    logicArr readyTotal, readyTotalF;
         
 
     IdQueue idq;
@@ -86,11 +76,9 @@ module IssueQueue
 
     typedef InsId OutIds[OUT_WIDTH];
 
-        OutIds iss_old, iss_oldF;
-        OutIds iss_new, iss_newF;
+    OutIds iss_new, iss_newF;
 
-        localparam logic cmpExp[4] =  '{1, 1, 'x, 'x};
-
+    logic cmpb, cmpb0, cmpb1;
 
 
     assign outGroup = issued;
@@ -99,54 +87,33 @@ module IssueQueue
     always @(posedge AbstractCore.clk) begin
         TMP_incIssueCounter();
     
-        ready3Vec = getReadyVec3(insMap, content);
-            rq3 = getReadyQueue3(insMap, getIdQueue(array));
+        rq3 = getReadyQueue3(insMap, getIdQueue(array));
+        readyQueue = makeReadyQueue(rq3);
+   
+        foreach (fmq[i]) fmq[i] = getForwardQueue3(insMap, getIdQueue(array), i);
         
-        foreach (forwardingMatches[i]) forwardingMatches[i] = getForwardVec3(insMap, content, i);         
-             foreach (fmq[i]) fmq[i] = getForwardQueue3(insMap, getIdQueue(array), i);
-
-        readyVec = makeReadyVec(ready3Vec);
-            readyQueue = makeReadyQueue(rq3);
-            
-        readyOrForward3Vec = gatherReadyOrForwards(ready3Vec, forwardingMatches);
-        readyVec_A = makeReadyVec(readyOrForward3Vec);
-
-            readyOrForwardQ3 = gatherReadyOrForwardsQ(rq3, fmq);
-            rfq = makeReadyQueue(readyOrForwardQ3);
-            
-            //readyTotal = readyQueue[0:TOTAL_SIZE-1];
-            //readyTotalF = rfq[0:TOTAL_SIZE-1];
-
+        readyOrForwardQ3 = gatherReadyOrForwardsQ(rq3, fmq);
+        rfq = makeReadyQueue(readyOrForwardQ3);
 
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-            flushIq();
             TMP_flushIq();
         end
         
         issue();
         
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
-            writeInput();
             TMP_writeInput();
         end
-        
-        
-            cmpIss = '{
-                (iss_old == iss_new),
-                (iss_oldF == iss_newF),
-                'x,
-                'x
-            };
-                
-                assert (cmpIss === cmpExp) else $error("Unequal iss ");
         
         
         foreach (issued[i])
             issued1[i] <= tick(issued[i]);
         
-        num <= content.size();
+        num <= TMP_getNumVirtual();
 
+            numVirtual <= TMP_getNumVirtual();
+                        
             numUsed <= TMP_getNumUsed();
             numActive <= TMP_getNumActive();
              
@@ -168,61 +135,29 @@ module IssueQueue
 
 
     task automatic issue();
-        OpSlot ops[$] = getOpsToIssue();
         OutIds ov = getArrOpsToIssue();
-        OpSlot opsV[$] = getOpsFromIds(ov);
+        OpSlot ops[$] = getOpsFromIds(ov);
         
-        assert (opsV === ops) else $fatal(2, "uneqal ops isuue");
-
         issued <= '{default: EMPTY_SLOT};
 
-
         removeIssued(ops);
-        
         TMP_markIssuedInArray();
         
         TMP_issueFromArray(ops);
     endtask
 
-
-    function automatic OpSlotQueue getOpsToIssue();
-        OpSlot ops[$];
-        int n = OUT_WIDTH > num ? num : OUT_WIDTH;
-        if (content.size() < n) n = content.size();
-
-        iss_old = '{default: -1};
-        iss_oldF = '{default: -1};
-
-        foreach (issued[i]) begin        
-            if (i < n && readyVec[i]) begin// TODO: switch to readyVec_A when ready
-                ops.push_back( content[i]);
-                iss_old[i] = content[i].id;
-            end
-            else
-                break;
-        end
-
-        foreach (issued[i]) begin        
-            if (i < n && readyVec_A[i]) // TODO: switch to readyVec_A when ready
-                iss_oldF[i] = content[i].id;
-            else
-                break;
-        end
-
-        return ops;
-    endfunction
-
-
     task automatic removeIssued(input OpSlot ops[$]);
         foreach (ops[i]) begin
             OpSlot op = ops[i];
             issued[i] <= tick(op);
-            markOpIssued(op);
-            
-            void'(content.pop_front());
+            markOpIssued(op);            
         end
-    endtask 
+    endtask
 
+    function automatic void markOpIssued(input OpSlot op);        
+        putMilestone(op.id, InstructionMap::IqIssue);
+        putMilestone(op.id, InstructionMap::IqExit);
+    endfunction
 
 
     function automatic OutIds getArrOpsToIssue();
@@ -245,7 +180,6 @@ module IssueQueue
             if (idsSorted[i] == -1) continue;
             else begin
                 int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
-                //IqEntry entry = array[arrayLoc[0]]; 
                 logic ready = readyQueue[arrayLoc[0]]; 
                 logic readyF = rfq[arrayLoc[0]];
                 
@@ -301,7 +235,7 @@ module IssueQueue
         sortedReadyArr = sortedReady;
         sortedReadyArrF = sortedReadyF;
         
-            res = iss_new;
+        res = USE_FORWARDING ? iss_newF : iss_new;
         
         return res;
     endfunction
@@ -309,40 +243,35 @@ module IssueQueue
 
 ///////////////////////////////////////////////////////////
 
-    task automatic flushIq();
-        if (lateEventInfo.redirect) flushOpQueueAll();
-        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
-    endtask
+//    task automatic flushIq();
+//        if (lateEventInfo.redirect) flushOpQueueAll();
+//        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
+//    endtask
 
-    task automatic flushOpQueueAll();
-        while (content.size() > 0) begin
-            OpSlot qOp = (content.pop_back());
-            putMilestone(qOp.id, InstructionMap::IqFlush);
-        end
-    endtask
+//    task automatic flushOpQueueAll();
+//        //while (content.size() > 0) begin
+//        //    OpSlot qOp = (content.pop_back());
+//        //    putMilestone(qOp.id, InstructionMap::IqFlush);
+//       // end
+//    endtask
 
-    task automatic flushOpQueuePartial(input OpSlot op);
-        while (content.size() > 0 && content[$].id > op.id) begin
-            OpSlot qOp = (content.pop_back());
-            putMilestone(qOp.id, InstructionMap::IqFlush);
-        end
-    endtask
+//    task automatic flushOpQueuePartial(input OpSlot op);
+//        //while (content.size() > 0 && content[$].id > op.id) begin
+//        //    OpSlot qOp = (content.pop_back());
+//        //    putMilestone(qOp.id, InstructionMap::IqFlush);
+//       // end
+//    endtask
 
-    task automatic writeInput();
-        foreach (inGroup[i]) begin
-            OpSlot op = inGroup[i];
-            if (op.active && inMask[i]) begin
-                content.push_back(op);
-                putMilestone(op.id, InstructionMap::IqEnter);
-            end
-        end
-    endtask
+//    task automatic writeInput();
+//        foreach (inGroup[i]) begin
+//            OpSlot op = inGroup[i];
+//            if (op.active && inMask[i]) begin
+//              //  content.push_back(op);
+//              //  putMilestone(op.id, InstructionMap::IqEnter);
+//            end
+//        end
+//    endtask
   
-
-    function automatic void markOpIssued(input OpSlot op);        
-        putMilestone(op.id, InstructionMap::IqIssue);
-        putMilestone(op.id, InstructionMap::IqExit);
-    endfunction
 
 ////////////////////////////
 
@@ -353,13 +282,17 @@ module IssueQueue
 
     task automatic TMP_flushOpQueueAll();
         foreach (array[i]) begin
+            if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
             array[i] = EMPTY_ENTRY;
         end
     endtask
 
     task automatic TMP_flushOpQueuePartial(input OpSlot op);
         foreach (array[i]) begin
-            if (array[i].id > op.id) array[i] = EMPTY_ENTRY;
+            if (array[i].id > op.id) begin
+                if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
+                array[i] = EMPTY_ENTRY;
+            end
         end
     endtask
 
@@ -378,13 +311,12 @@ module IssueQueue
     task automatic TMP_writeInput();
         InputLocs locs = getInputLocs();
         int nInserted = 0;
-        
-           // return;
-        
+                
         foreach (inGroup[i]) begin
             OpSlot op = inGroup[i];
             if (op.active && inMask[i]) begin
                 array[locs[nInserted++]] = '{used: 1, active: 1, ready: 1, issueCounter: -1, id: op.id};
+                putMilestone(op.id, InstructionMap::IqEnter);
             end
         end
     endtask
@@ -405,6 +337,7 @@ module IssueQueue
     endtask
 
 
+    // TODO: rename because it removes, not marks
     task automatic TMP_markIssuedInArray();
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
@@ -432,6 +365,12 @@ module IssueQueue
     function automatic int TMP_getNumActive();
         int res = 0;
         foreach (array[s]) if (array[s].active) res++; 
+        return res; 
+    endfunction
+
+    function automatic int TMP_getNumVirtual();
+        int res = 0;
+        foreach (array[s]) if (array[s].used && array[s].issueCounter == -1) res++; 
         return res; 
     endfunction
 
@@ -525,57 +464,57 @@ module IssueQueueComplex(
     endfunction
 
 
-    function automatic ReadyVec3 getReadyVec3(input InstructionMap insMap, input OpSlot iq[$:ISSUE_QUEUE_SIZE]);
+    function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
         logic D3[3] = '{'z, 'z, 'z};
-        ReadyVec3 res = '{default: D3};
-        foreach (iq[i]) begin
-            InsDependencies deps = insMap.get(iq[i].id).deps;
-            logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-            res[i] = ra;
-        end
+        ReadyQueue3 res;
+        foreach (ids[i])
+            if (ids[i] == -1) res.push_back(D3);
+            else
+            begin
+                InsDependencies deps = imap.get(ids[i]).deps;
+                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+                res.push_back(ra);
+            end
         return res;
     endfunction
     
-    function automatic ReadyVec3 getForwardVec3(input InstructionMap imap, input OpSlot iq[$:ISSUE_QUEUE_SIZE], input int stage);
+    function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
         logic D3[3] = '{'z, 'z, 'z};
-        ReadyVec3 res = '{default: D3};
-        foreach (iq[i]) begin
-            InsDependencies deps = imap.get(iq[i].id).deps;
-            logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
-            res[i] = ra;
-        end
+        ReadyQueue3 res ;
+        foreach (ids[i]) 
+            if (ids[i] == -1) res.push_back(D3);
+            else
+            begin
+                InsDependencies deps = imap.get(ids[i]).deps;
+                logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
+                res.push_back(ra);
+            end
         return res;
     endfunction
 
 
-        function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
-            logic D3[3] = '{'z, 'z, 'z};
-            ReadyQueue3 res;
-            foreach (ids[i])
-                if (ids[i] == -1) res.push_back(D3);
-                else
-                begin
-                    InsDependencies deps = imap.get(ids[i]).deps;
-                    logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-                    res.push_back(ra);
-                end
-            return res;
-        endfunction
-        
-        function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
-            logic D3[3] = '{'z, 'z, 'z};
-            ReadyQueue3 res ;
-            foreach (ids[i]) 
-                if (ids[i] == -1) res.push_back(D3);
-                else
-                begin
-                    InsDependencies deps = imap.get(ids[i]).deps;
-                    logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
-                    res.push_back(ra);
-                end
-            return res;
-        endfunction
 
+
+            function automatic ReadyVec3 getReadyVec3(input InstructionMap insMap, input OpSlot iq[$:ISSUE_QUEUE_SIZE]);
+                logic D3[3] = '{'z, 'z, 'z};
+                ReadyVec3 res = '{default: D3};
+                foreach (iq[i]) begin
+                    InsDependencies deps = insMap.get(iq[i].id).deps;
+                    logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+                    res[i] = ra;
+                end
+                return res;
+            endfunction
+            
+            function automatic ReadyVec3 getForwardVec3(input InstructionMap imap, input OpSlot iq[$:ISSUE_QUEUE_SIZE], input int stage);
+                logic D3[3] = '{'z, 'z, 'z};
+                ReadyVec3 res = '{default: D3};
+                foreach (iq[i]) begin
+                    InsDependencies deps = imap.get(iq[i].id).deps;
+                    logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
+                    res[i] = ra;
+                end
+                return res;
+            endfunction
 
 endmodule
-
