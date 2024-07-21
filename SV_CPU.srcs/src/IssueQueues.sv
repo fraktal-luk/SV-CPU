@@ -26,19 +26,12 @@ module IssueQueue
 
     localparam int HOLD_CYCLES = 3;
 
-    ReadyQueue  readyQueue, rfq;
-    ReadyQueue3 rq3, readyOrForwardQ3;
-    ReadyQueue3 fmq[-3:1] = FORWARDING_ALL_Z;
+    localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
+    localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
 
 
-    OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
-    OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
-
-    int num = 0, numUsed = 0, numActive = 0, numVirtual = 0;
-    
     typedef OpSlot OpSlotQueue[$];
     typedef int InputLocs[$size(OpSlotA)];
-
 
     typedef struct {
         logic used;
@@ -51,32 +44,38 @@ module IssueQueue
     typedef struct {
         InsId id;
         
+        logic ready;
+        logic readyArgs[3];
+        logic readyF;
+        logic readyArgsF[3];
+        
     } IqArgState;
 
-
-
     localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, ready: 0, issueCounter: -1, id: -1};
-    localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
 
-    localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
+    typedef InsId IdQueue[$];
+    typedef InsId IdArr[TOTAL_SIZE];
+    typedef logic logicArr[TOTAL_SIZE];
+
 
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
 
-    typedef InsId IdQueue[$];
-    typedef InsId IdArr[$size(array)];
-    typedef logic logicArr[TOTAL_SIZE];
-
     logicArr readyTotal, readyTotalF;
-        
+    ReadyQueue  readyQueue, rfq;
+    ReadyQueue3 rq3, readyOrForwardQ3;
+    ReadyQueue3 fmq[-3:1] = FORWARDING_ALL_Z;
 
-    IdQueue idq;
     IdArr ida;
-
     IdArr sortedIds = '{default: -1}, sortedReadyArr = '{default: -1}, sortedReadyArrF = '{default: -1};
 
     typedef InsId OutIds[OUT_WIDTH];
+    OutIds iss_new, iss_newF; // TMP
 
-    OutIds iss_new, iss_newF;
+    OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
+    OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
+
+    int num = 0, numUsed = 0;
+    
 
     logic cmpb, cmpb0, cmpb1;
 
@@ -97,28 +96,25 @@ module IssueQueue
 
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-            TMP_flushIq();
+           flushIq();
         end
         
         issue();
-        
+
+        removeIssuedFromArray();
+      
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
-            TMP_writeInput();
+            writeInput();
         end
         
         
         foreach (issued[i])
             issued1[i] <= tick(issued[i]);
         
-        num <= TMP_getNumVirtual();
-
-            numVirtual <= TMP_getNumVirtual();
-                        
-            numUsed <= TMP_getNumUsed();
-            numActive <= TMP_getNumActive();
+        num <= getNumVirtual();     
+        numUsed <= getNumUsed();
              
-            idq = getIdQueue(array);
-            ida = q2a(idq);
+        ida = q2a(getIdQueue(array));
     end
 
 
@@ -133,31 +129,43 @@ module IssueQueue
         return res;
     endfunction
 
-
     task automatic issue();
         OutIds ov = getArrOpsToIssue();
         OpSlot ops[$] = getOpsFromIds(ov);
         
-        issued <= '{default: EMPTY_SLOT};
-
-        removeIssued(ops);
-        TMP_markIssuedInArray();
-        
-        TMP_issueFromArray(ops);
+        issueFromArray(ops);
     endtask
 
-    task automatic removeIssued(input OpSlot ops[$]);
+
+    task automatic issueFromArray(input OpSlot ops[$]);
+        issued <= '{default: EMPTY_SLOT};
+
         foreach (ops[i]) begin
             OpSlot op = ops[i];
             issued[i] <= tick(op);
-            markOpIssued(op);            
+
+            putMilestone(op.id, InstructionMap::IqIssue);
+            putMilestone(op.id, InstructionMap::IqExit);
+        
+            foreach (array[s]) begin
+                if (array[s].id == op.id) begin
+                    assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
+                    array[s].active = 0;
+                    array[s].issueCounter = 0;
+                    break;
+                end
+            end
         end
     endtask
 
-    function automatic void markOpIssued(input OpSlot op);        
-        putMilestone(op.id, InstructionMap::IqIssue);
-        putMilestone(op.id, InstructionMap::IqExit);
-    endfunction
+    task automatic removeIssuedFromArray();
+        foreach (array[s]) begin
+            if (array[s].issueCounter == HOLD_CYCLES) begin
+                assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
+                array[s] = EMPTY_ENTRY;
+            end
+        end
+    endtask
 
 
     function automatic OutIds getArrOpsToIssue();
@@ -210,7 +218,6 @@ module IssueQueue
             end
         end
 
-
         foreach (idsSorted[i]) begin
             if (idsSorted[i] == -1) continue;
             else begin
@@ -231,7 +238,7 @@ module IssueQueue
                 end
             end
         end
-        
+                
         sortedReadyArr = sortedReady;
         sortedReadyArrF = sortedReadyF;
         
@@ -241,53 +248,19 @@ module IssueQueue
     endfunction
 
 
-///////////////////////////////////////////////////////////
-
-//    task automatic flushIq();
-//        if (lateEventInfo.redirect) flushOpQueueAll();
-//        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
-//    endtask
-
-//    task automatic flushOpQueueAll();
-//        //while (content.size() > 0) begin
-//        //    OpSlot qOp = (content.pop_back());
-//        //    putMilestone(qOp.id, InstructionMap::IqFlush);
-//       // end
-//    endtask
-
-//    task automatic flushOpQueuePartial(input OpSlot op);
-//        //while (content.size() > 0 && content[$].id > op.id) begin
-//        //    OpSlot qOp = (content.pop_back());
-//        //    putMilestone(qOp.id, InstructionMap::IqFlush);
-//       // end
-//    endtask
-
-//    task automatic writeInput();
-//        foreach (inGroup[i]) begin
-//            OpSlot op = inGroup[i];
-//            if (op.active && inMask[i]) begin
-//              //  content.push_back(op);
-//              //  putMilestone(op.id, InstructionMap::IqEnter);
-//            end
-//        end
-//    endtask
-  
-
-////////////////////////////
-
-    task automatic TMP_flushIq();
-        if (lateEventInfo.redirect) TMP_flushOpQueueAll();
-        else if (branchEventInfo.redirect) TMP_flushOpQueuePartial(branchEventInfo.op);
+    task automatic flushIq();
+        if (lateEventInfo.redirect) flushOpQueueAll();
+        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
     endtask
 
-    task automatic TMP_flushOpQueueAll();
+    task automatic flushOpQueueAll();
         foreach (array[i]) begin
             if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
             array[i] = EMPTY_ENTRY;
         end
     endtask
 
-    task automatic TMP_flushOpQueuePartial(input OpSlot op);
+    task automatic flushOpQueuePartial(input OpSlot op);
         foreach (array[i]) begin
             if (array[i].id > op.id) begin
                 if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
@@ -308,7 +281,7 @@ module IssueQueue
     endfunction
 
 
-    task automatic TMP_writeInput();
+    task automatic writeInput();
         InputLocs locs = getInputLocs();
         int nInserted = 0;
                 
@@ -322,31 +295,6 @@ module IssueQueue
     endtask
 
 
-    task automatic TMP_issueFromArray(input OpSlot ops[$]);
-        foreach (ops[i]) begin
-            OpSlot op = ops[i];
-            foreach (array[s]) begin
-                if (array[s].id == op.id) begin
-                    assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
-                    array[s].active = 0;
-                    array[s].issueCounter = 0;
-                    break;
-                end
-            end
-        end
-    endtask
-
-
-    // TODO: rename because it removes, not marks
-    task automatic TMP_markIssuedInArray();
-        foreach (array[s]) begin
-            if (array[s].issueCounter == HOLD_CYCLES) begin
-                assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
-                array[s] = EMPTY_ENTRY;
-            end
-        end
-    endtask
-
     task automatic TMP_incIssueCounter();
         foreach (array[s]) begin
             if (array[s].used == 1 && array[s].active == 0) begin
@@ -356,19 +304,13 @@ module IssueQueue
     endtask
 
     
-    function automatic int TMP_getNumUsed();
+    function automatic int getNumUsed();
         int res = 0;
         foreach (array[s]) if (array[s].used) res++; 
         return res; 
     endfunction
 
-    function automatic int TMP_getNumActive();
-        int res = 0;
-        foreach (array[s]) if (array[s].active) res++; 
-        return res; 
-    endfunction
-
-    function automatic int TMP_getNumVirtual();
+    function automatic int getNumVirtual();
         int res = 0;
         foreach (array[s]) if (array[s].used && array[s].issueCounter == -1) res++; 
         return res; 
@@ -492,29 +434,5 @@ module IssueQueueComplex(
         return res;
     endfunction
 
-
-
-
-            function automatic ReadyVec3 getReadyVec3(input InstructionMap insMap, input OpSlot iq[$:ISSUE_QUEUE_SIZE]);
-                logic D3[3] = '{'z, 'z, 'z};
-                ReadyVec3 res = '{default: D3};
-                foreach (iq[i]) begin
-                    InsDependencies deps = insMap.get(iq[i].id).deps;
-                    logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-                    res[i] = ra;
-                end
-                return res;
-            endfunction
-            
-            function automatic ReadyVec3 getForwardVec3(input InstructionMap imap, input OpSlot iq[$:ISSUE_QUEUE_SIZE], input int stage);
-                logic D3[3] = '{'z, 'z, 'z};
-                ReadyVec3 res = '{default: D3};
-                foreach (iq[i]) begin
-                    InsDependencies deps = imap.get(iq[i].id).deps;
-                    logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
-                    res[i] = ra;
-                end
-                return res;
-            endfunction
 
 endmodule

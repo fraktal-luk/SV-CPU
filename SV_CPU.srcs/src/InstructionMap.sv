@@ -705,4 +705,34 @@ package ExecDefs;
     endfunction
 
 
+
+//    function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
+//        logic D3[3] = '{'z, 'z, 'z};
+//        ReadyQueue3 res;
+//        foreach (ids[i])
+//            if (ids[i] == -1) res.push_back(D3);
+//            else
+//            begin
+//                InsDependencies deps = imap.get(ids[i]).deps;
+//                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+//                res.push_back(ra);
+//            end
+//        return res;
+//    endfunction
+    
+//    function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
+//        logic D3[3] = '{'z, 'z, 'z};
+//        ReadyQueue3 res ;
+//        foreach (ids[i]) 
+//            if (ids[i] == -1) res.push_back(D3);
+//            else
+//            begin
+//                InsDependencies deps = imap.get(ids[i]).deps;
+//                logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
+//                res.push_back(ra);
+//            end
+//        return res;
+//    endfunction
+
+
 endpackage
