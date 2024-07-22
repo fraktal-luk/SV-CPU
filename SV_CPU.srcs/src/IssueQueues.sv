@@ -214,6 +214,7 @@ module IssueQueue
                 logic active = entry.used && entry.active;
                 
                 if (active && ready) begin
+                        assert (entry.state.ready) else $error("Not marked ready!");
                     sortedReady[i] = idsSorted[i];
                     iss_new[nNoF++] = idsSorted[i];
                 end
@@ -232,10 +233,16 @@ module IssueQueue
                 IqEntry entry = array[arrayLoc[0]]; 
                 logic ready = readyQueue[arrayLoc[0]]; 
                 logic readyF = rfq[arrayLoc[0]];
-                
+
+                    logic ready_S = entry.state.ready; 
+                    logic readyF_S = entry.state.readyF;
+                        
                 logic active = entry.used && entry.active;
                 
+                     assert (ready_S == ready && readyF_S == readyF) else $error("differing ready bits");  
+
                 if (active && readyF) begin
+                        assert (entry.state.readyF) else $error("Not marked readyF!");
                     sortedReadyF[i] = idsSorted[i];
                     iss_newF[nF++] = idsSorted[i];
                 end
@@ -267,22 +274,27 @@ module IssueQueue
                 if (r3[a]) begin
                     logic prev = array[i].state.readyArgs[a];
                     array[i].state.readyArgs[a] = 1;
-                    if (a == 0 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup0);
-                    else if (a == 1 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup1);
+                    if (a == 0 && !prev && !USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup0);
+                    else if (a == 1 && !prev && !USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup1);
                 end
                 if (rf3[a]) begin
+                    logic prev = array[i].state.readyArgsF[a];
                     array[i].state.readyArgsF[a] = 1;
+                    if (a == 0 && !prev && USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup0);
+                    else if (a == 1 && !prev && USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup1);
                 end
             end
             
             if (readyQueue[i]) begin
                 logic prev = array[i].state.ready;
                 array[i].state.ready = 1;
-                if (!prev) putMilestone(array[i].id, InstructionMap::IqWakeupComplete);
+                if (!prev && !USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeupComplete);
             end
             
             if (rfq[i]) begin
+                logic prev = array[i].state.readyF;
                 array[i].state.readyF = 1;
+                if (!prev && USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeupComplete);
             end
         end
 
@@ -335,19 +347,18 @@ module IssueQueue
                 InsDependencies deps = insMap.get(op.id).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps, stages);
+                logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
 
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
-                
-                // TODO: handle forwards, consider every stage
                 
                 // TODO: make function of it
                 foreach (ra[a]) begin
                     if (ra[a]) begin
                         logic prev = (array[location].state.readyArgs[a]); // Always 0 because this is a new slot
                         array[location].state.readyArgs[a] = 1;
-                        if (a == 0 && !prev) putMilestone(array[location].id, InstructionMap::IqWakeup0);
-                        else if (a == 1 && !prev) putMilestone(array[location].id, InstructionMap::IqWakeup1);
+                        if (a == 0 && !prev && !USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup0);
+                        else if (a == 1 && !prev && !USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup1);
                     end
 
                 end
@@ -357,6 +368,24 @@ module IssueQueue
                     array[location].state.ready = 1;
                     if (!prev) putMilestone(array[location].id, InstructionMap::IqWakeupComplete);
                 end
+
+
+                foreach (raAll[a]) begin
+                    if (raAll[a]) begin
+                        logic prev = (array[location].state.readyArgsF[a]); // Always 0 because this is a new slot
+                        array[location].state.readyArgsF[a] = 1;
+                        if (a == 0 && !prev && USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup0);
+                        else if (a == 1 && !prev && USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup1);
+                    end
+
+                end
+                
+                if (raAll.and()) begin
+                    logic prev = array[location].state.readyF; // Always 0 because new slot
+                    array[location].state.readyF = 1;
+                    if (!prev) putMilestone(array[location].id, InstructionMap::IqWakeupComplete);
+                end
+                
                 
                 nInserted++;          
             end
@@ -503,7 +532,6 @@ module IssueQueueComplex(
         return res;
     endfunction
 
-
     function automatic ReadyQueue3 getForwardQueueAll3(input InstructionMap imap, input InsId ids[$]);
         logic D3[3] = '{'z, 'z, 'z};
         int stages[] = '{-3, -2, -1, 0, 1};
@@ -511,15 +539,7 @@ module IssueQueueComplex(
         foreach (ids[i]) 
             if (ids[i] == -1) res.push_back(D3);
             else
-            begin
-//                logic3 ra = '{0, 0, 0};
-//                InsDependencies deps = imap.get(ids[i]).deps;
-//                foreach (stages[s]) begin
-//                    logic3 rs = checkForwardsReadyAll(imap, AbstractCore.theExecBlock.allByStage, deps, stages);
-//                    ra |= rs;
-//                end
-//                res.push_back(ra);
-                
+            begin                
                 InsDependencies deps = imap.get(ids[i]).deps;
                 logic3 ra = checkForwardsReadyAll(imap, AbstractCore.theExecBlock.allByStage, deps, stages);
                 res.push_back(ra);
