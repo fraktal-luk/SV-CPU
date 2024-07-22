@@ -265,7 +265,7 @@ module IssueQueue
 
             foreach (r3[a]) begin
                 if (r3[a]) begin
-                    logic prev = array[i].state.readyArgs[i];
+                    logic prev = array[i].state.readyArgs[a];
                     array[i].state.readyArgs[a] = 1;
                     if (a == 0 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup0);
                     else if (a == 1 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup1);
@@ -331,11 +331,12 @@ module IssueQueue
         foreach (inGroup[i]) begin
             OpSlot op = inGroup[i];
             if (op.active && inMask[i]) begin
+                int location = locs[nInserted];
                 InsDependencies deps = insMap.get(op.id).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps, stages);
 
-                array[locs[nInserted++]] = '{used: 1, active: 1, state: ZERO_ARG_STATE, issueCounter: -1, id: op.id};
+                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
                 
                 // TODO: handle forwards, consider every stage
@@ -343,14 +344,21 @@ module IssueQueue
                 // TODO: make function of it
                 foreach (ra[a]) begin
                     if (ra[a]) begin
-                        logic prev = array[i].state.readyArgs[i];
-                        array[i].state.readyArgs[a] = 1;
-                        if (a == 0 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup0);
-                        else if (a == 1 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup1);
+                        logic prev = (array[location].state.readyArgs[a]); // Always 0 because this is a new slot
+                        array[location].state.readyArgs[a] = 1;
+                        if (a == 0 && !prev) putMilestone(array[location].id, InstructionMap::IqWakeup0);
+                        else if (a == 1 && !prev) putMilestone(array[location].id, InstructionMap::IqWakeup1);
                     end
 
                 end
-                             
+                
+                if (ra.and()) begin
+                    logic prev = array[location].state.ready; // Always 0 because new slot
+                    array[location].state.ready = 1;
+                    if (!prev) putMilestone(array[location].id, InstructionMap::IqWakeupComplete);
+                end
+                
+                nInserted++;          
             end
         end
     endtask
