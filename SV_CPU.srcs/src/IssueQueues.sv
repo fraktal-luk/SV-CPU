@@ -34,14 +34,6 @@ module IssueQueue
     typedef int InputLocs[$size(OpSlotA)];
 
     typedef struct {
-        logic used;
-        logic active;
-        logic ready;
-            int issueCounter;
-        InsId id;
-    } IqEntry;
-
-    typedef struct {
         InsId id;
         
         logic ready;
@@ -50,8 +42,20 @@ module IssueQueue
         logic readyArgsF[3];
         
     } IqArgState;
+    
+    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, readyF: '0, readyArgsF: '{'0, '0, '0}};
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, ready: 0, issueCounter: -1, id: -1};
+    typedef struct {
+        logic used;
+        logic active;
+        IqArgState state;
+            int issueCounter;
+        InsId id;
+    } IqEntry;
+
+
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, issueCounter: -1, id: -1};
 
     typedef InsId IdQueue[$];
     typedef InsId IdArr[TOTAL_SIZE];
@@ -99,6 +103,8 @@ module IssueQueue
            flushIq();
         end
         
+        updateWakeups();
+        
         issue();
 
         removeIssuedFromArray();
@@ -107,6 +113,8 @@ module IssueQueue
             writeInput();
         end
         
+        // TODO: check arg status of newly written ops, note wakeups if ready
+                
         
         foreach (issued[i])
             issued1[i] <= tick(issued[i]);
@@ -144,11 +152,9 @@ module IssueQueue
             OpSlot op = ops[i];
             issued[i] <= tick(op);
 
-            putMilestone(op.id, InstructionMap::IqIssue);
-            putMilestone(op.id, InstructionMap::IqExit);
-        
             foreach (array[s]) begin
                 if (array[s].id == op.id) begin
+                    putMilestone(op.id, InstructionMap::IqIssue);
                     assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
                     array[s].active = 0;
                     array[s].issueCounter = 0;
@@ -161,6 +167,7 @@ module IssueQueue
     task automatic removeIssuedFromArray();
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
+                putMilestone(array[s].id, InstructionMap::IqExit);
                 assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
                 array[s] = EMPTY_ENTRY;
             end
@@ -248,6 +255,40 @@ module IssueQueue
     endfunction
 
 
+    task automatic updateWakeups();
+
+        foreach (array[i]) begin
+            logic3 r3 = rq3[i];
+            logic3 rf3 = readyOrForwardQ3[i];
+
+            if (!array[i].used) continue;
+
+            foreach (r3[a]) begin
+                if (r3[a]) begin
+                    logic prev = array[i].state.readyArgs[i];
+                    array[i].state.readyArgs[a] = 1;
+                    if (a == 0 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup0);
+                    else if (a == 1 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup1);
+                end
+                if (rf3[a]) begin
+                    array[i].state.readyArgsF[a] = 1;
+                end
+            end
+            
+            if (readyQueue[i]) begin
+                logic prev = array[i].state.ready;
+                array[i].state.ready = 1;
+                if (!prev) putMilestone(array[i].id, InstructionMap::IqWakeupComplete);
+            end
+            
+            if (rfq[i]) begin
+                array[i].state.readyF = 1;
+            end
+        end
+
+    endtask
+
+
     task automatic flushIq();
         if (lateEventInfo.redirect) flushOpQueueAll();
         else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
@@ -284,12 +325,32 @@ module IssueQueue
     task automatic writeInput();
         InputLocs locs = getInputLocs();
         int nInserted = 0;
-                
+        
+        int stages[] = '{-3, -2, -1, 0, 1};
+        
         foreach (inGroup[i]) begin
             OpSlot op = inGroup[i];
             if (op.active && inMask[i]) begin
-                array[locs[nInserted++]] = '{used: 1, active: 1, ready: 1, issueCounter: -1, id: op.id};
+                InsDependencies deps = insMap.get(op.id).deps;
+                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+                logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps, stages);
+
+                array[locs[nInserted++]] = '{used: 1, active: 1, state: ZERO_ARG_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
+                
+                // TODO: handle forwards, consider every stage
+                
+                // TODO: make function of it
+                foreach (ra[a]) begin
+                    if (ra[a]) begin
+                        logic prev = array[i].state.readyArgs[i];
+                        array[i].state.readyArgs[a] = 1;
+                        if (a == 0 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup0);
+                        else if (a == 1 && !prev) putMilestone(array[i].id, InstructionMap::IqWakeup1);
+                    end
+
+                end
+                             
             end
         end
     endtask
@@ -429,6 +490,30 @@ module IssueQueueComplex(
             begin
                 InsDependencies deps = imap.get(ids[i]).deps;
                 logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
+                res.push_back(ra);
+            end
+        return res;
+    endfunction
+
+
+    function automatic ReadyQueue3 getForwardQueueAll3(input InstructionMap imap, input InsId ids[$]);
+        logic D3[3] = '{'z, 'z, 'z};
+        int stages[] = '{-3, -2, -1, 0, 1};
+        ReadyQueue3 res ;
+        foreach (ids[i]) 
+            if (ids[i] == -1) res.push_back(D3);
+            else
+            begin
+//                logic3 ra = '{0, 0, 0};
+//                InsDependencies deps = imap.get(ids[i]).deps;
+//                foreach (stages[s]) begin
+//                    logic3 rs = checkForwardsReadyAll(imap, AbstractCore.theExecBlock.allByStage, deps, stages);
+//                    ra |= rs;
+//                end
+//                res.push_back(ra);
+                
+                InsDependencies deps = imap.get(ids[i]).deps;
+                logic3 ra = checkForwardsReadyAll(imap, AbstractCore.theExecBlock.allByStage, deps, stages);
                 res.push_back(ra);
             end
         return res;

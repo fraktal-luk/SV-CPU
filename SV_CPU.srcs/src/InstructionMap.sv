@@ -41,6 +41,7 @@ package Insmap;
             IqEnter,
             IqWakeup0,
             IqWakeup1,
+            IqWakeupComplete,
             IqCancelWakeup0,
             IqCancelWakeup1,
             IqIssue,
@@ -644,6 +645,25 @@ package ExecDefs;
     endfunction
 
 
+    function automatic logic3 checkForwardsReadyAll(input InstructionMap imap,
+                                                 input ForwardsByStage_0 fws,
+                                                 input InsDependencies deps,
+                                                 //input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS],
+                                                 
+                                                 input int stages[]);
+        logic3 res = '{0, 0, 0};
+        foreach (deps.types[i])
+            foreach (stages[s])
+                case (deps.types[i])
+                    SRC_ZERO:  res[i] |= 0;
+                    SRC_CONST: res[i] |= 0;
+                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], //theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
+                                                                                                    fws.ints[stages[s]], fws.mems[stages[s]]);
+                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], //theExecBlock.floatImagesTr[stage]);
+                                                                                                    fws.vecs[stages[s]]);
+                endcase      
+        return res;
+    endfunction
 
 
 //////////////////////////////////
@@ -703,36 +723,5 @@ package ExecDefs;
             res.push_back( $isunknown(argV[i]) ? 'z : argV[i].and() );
         return res;
     endfunction
-
-
-
-//    function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
-//        logic D3[3] = '{'z, 'z, 'z};
-//        ReadyQueue3 res;
-//        foreach (ids[i])
-//            if (ids[i] == -1) res.push_back(D3);
-//            else
-//            begin
-//                InsDependencies deps = imap.get(ids[i]).deps;
-//                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-//                res.push_back(ra);
-//            end
-//        return res;
-//    endfunction
-    
-//    function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
-//        logic D3[3] = '{'z, 'z, 'z};
-//        ReadyQueue3 res ;
-//        foreach (ids[i]) 
-//            if (ids[i] == -1) res.push_back(D3);
-//            else
-//            begin
-//                InsDependencies deps = imap.get(ids[i]).deps;
-//                logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
-//                res.push_back(ra);
-//            end
-//        return res;
-//    endfunction
-
 
 endpackage
