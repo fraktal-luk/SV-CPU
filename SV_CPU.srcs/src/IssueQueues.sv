@@ -30,34 +30,34 @@ module IssueQueue
     localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
 
 
-    typedef OpSlot OpSlotQueue[$];
     typedef int InputLocs[$size(OpSlotA)];
 
-    typedef struct {
-        InsId id;
+//    typedef struct {
+//        InsId id;
         
-        logic ready;
-        logic readyArgs[3];
-        logic readyF;
-        logic readyArgsF[3];
+//        logic ready;
+//        logic readyArgs[3];
+//        logic readyF;
+//        logic readyArgsF[3];
         
-    } IqArgState;
+//    } IqArgState;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, readyF: '0, readyArgsF: '{'0, '0, '0}};
+//    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
+//    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, readyF: '0, readyArgsF: '{'0, '0, '0}};
 
-    typedef struct {
-        logic used;
-        logic active;
-        IqArgState state;
-            int issueCounter;
-        InsId id;
-    } IqEntry;
+//    typedef struct {
+//        logic used;
+//        logic active;
+//        IqArgState state;
+//            int issueCounter;
+//        InsId id;
+//    } IqEntry;
 
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, issueCounter: -1, id: -1};
+//    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, issueCounter: -1, id: -1};
 
-    typedef InsId IdQueue[$];
+    
+    
     typedef InsId IdArr[TOTAL_SIZE];
     typedef logic logicArr[TOTAL_SIZE];
 
@@ -234,15 +234,14 @@ module IssueQueue
                 logic ready = readyQueue[arrayLoc[0]]; 
                 logic readyF = rfq[arrayLoc[0]];
 
-                    logic ready_S = entry.state.ready; 
-                    logic readyF_S = entry.state.readyF;
-                        
+                logic ready_S = entry.state.ready; 
+                logic readyF_S = entry.state.readyF;
+
                 logic active = entry.used && entry.active;
                 
-                     assert (ready_S == ready && readyF_S == readyF) else $error("differing ready bits");  
+                assert (ready_S == ready && readyF_S == readyF) else $error("differing ready bits");  
 
                 if (active && readyF) begin
-                        assert (entry.state.readyF) else $error("Not marked readyF!");
                     sortedReadyF[i] = idsSorted[i];
                     iss_newF[nF++] = idsSorted[i];
                 end
@@ -252,10 +251,10 @@ module IssueQueue
                 end
             end
         end
-                
+
         sortedReadyArr = sortedReady;
         sortedReadyArrF = sortedReadyF;
-        
+
         res = USE_FORWARDING ? iss_newF : iss_new;
         
         return res;
@@ -263,41 +262,15 @@ module IssueQueue
 
 
     task automatic updateWakeups();
-
         foreach (array[i]) begin
             logic3 r3 = rq3[i];
             logic3 rf3 = readyOrForwardQ3[i];
 
             if (!array[i].used) continue;
-
-            foreach (r3[a]) begin
-                if (r3[a]) begin
-                    logic prev = array[i].state.readyArgs[a];
-                    array[i].state.readyArgs[a] = 1;
-                    if (a == 0 && !prev && !USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup0);
-                    else if (a == 1 && !prev && !USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup1);
-                end
-                if (rf3[a]) begin
-                    logic prev = array[i].state.readyArgsF[a];
-                    array[i].state.readyArgsF[a] = 1;
-                    if (a == 0 && !prev && USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup0);
-                    else if (a == 1 && !prev && USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeup1);
-                end
-            end
             
-            if (readyQueue[i]) begin
-                logic prev = array[i].state.ready;
-                array[i].state.ready = 1;
-                if (!prev && !USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeupComplete);
-            end
-            
-            if (rfq[i]) begin
-                logic prev = array[i].state.readyF;
-                array[i].state.readyF = 1;
-                if (!prev && USE_FORWARDING) putMilestone(array[i].id, InstructionMap::IqWakeupComplete);
-            end
+            updateReadyBits(array[i], r3);
+            updateReadyBitsF(array[i], rf3);
         end
-
     endtask
 
 
@@ -351,46 +324,52 @@ module IssueQueue
 
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
-                
-                // TODO: make function of it
-                foreach (ra[a]) begin
-                    if (ra[a]) begin
-                        logic prev = (array[location].state.readyArgs[a]); // Always 0 because this is a new slot
-                        array[location].state.readyArgs[a] = 1;
-                        if (a == 0 && !prev && !USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup0);
-                        else if (a == 1 && !prev && !USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup1);
-                    end
 
-                end
-                
-                if (ra.and()) begin
-                    logic prev = array[location].state.ready; // Always 0 because new slot
-                    array[location].state.ready = 1;
-                    if (!prev) putMilestone(array[location].id, InstructionMap::IqWakeupComplete);
-                end
-
-
-                foreach (raAll[a]) begin
-                    if (raAll[a]) begin
-                        logic prev = (array[location].state.readyArgsF[a]); // Always 0 because this is a new slot
-                        array[location].state.readyArgsF[a] = 1;
-                        if (a == 0 && !prev && USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup0);
-                        else if (a == 1 && !prev && USE_FORWARDING) putMilestone(array[location].id, InstructionMap::IqWakeup1);
-                    end
-
-                end
-                
-                if (raAll.and()) begin
-                    logic prev = array[location].state.readyF; // Always 0 because new slot
-                    array[location].state.readyF = 1;
-                    if (!prev) putMilestone(array[location].id, InstructionMap::IqWakeupComplete);
-                end
-                
-                
+                updateReadyBits(array[location], ra);
+                updateReadyBitsF(array[location], raAll);
+            
                 nInserted++;          
             end
         end
     endtask
+
+
+        function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3);
+            foreach (ready3[a]) begin
+                if (ready3[a]) begin
+                    logic prev = entry.state.readyArgs[a]; // Always 0 because this is a new slot
+                    entry.state.readyArgs[a] = 1;
+                    if (a == 0 && !prev && !USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeup0);
+                    else if (a == 1 && !prev && !USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeup1);
+                end
+
+            end
+            
+            if (entry.state.readyArgs.and()) begin
+                logic prev = entry.state.ready;
+                entry.state.ready = 1;
+                if (!prev && !USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
+            end
+        endfunction
+
+
+        function automatic void updateReadyBitsF(ref IqEntry entry, input logic3 ready3);
+            foreach (ready3[a]) begin
+                if (ready3[a]) begin
+                    logic prev = entry.state.readyArgsF[a]; // Always 0 because this is a new slot
+                    entry.state.readyArgsF[a] = 1;
+                    if (a == 0 && !prev && USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeup0);
+                    else if (a == 1 && !prev && USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeup1);
+                end
+
+            end
+            
+            if (entry.state.readyArgsF.and()) begin
+                logic prev = entry.state.readyF;
+                entry.state.readyF = 1;
+                if (!prev && USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
+            end
+        endfunction
 
 
     task automatic TMP_incIssueCounter();
@@ -546,6 +525,7 @@ module IssueQueueComplex(
             end
         return res;
     endfunction
+
 
 
 endmodule

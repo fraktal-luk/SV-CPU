@@ -26,6 +26,9 @@ package AbstractSim;
 
     typedef int InsId;
 
+    typedef InsId IdQueue[$];
+
+
     typedef struct {
         logic active;
         InsId id;
@@ -34,6 +37,8 @@ package AbstractSim;
     } OpSlot;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+
+    typedef OpSlot OpSlotQueue[$];
 
 
     function automatic void runInEmulator(ref Emulator emul, input OpSlot op);

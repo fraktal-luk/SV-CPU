@@ -724,4 +724,30 @@ package ExecDefs;
         return res;
     endfunction
 
+
+    typedef struct {
+        InsId id;
+        
+        logic ready;
+        logic readyArgs[3];
+        logic readyF;
+        logic readyArgsF[3];
+        
+    } IqArgState;
+    
+    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, readyF: '0, readyArgsF: '{'0, '0, '0}};
+
+    typedef struct {
+        logic used;
+        logic active;
+        IqArgState state;
+            int issueCounter;
+        InsId id;
+    } IqEntry;
+
+
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, issueCounter: -1, id: -1};
+
+
 endpackage
