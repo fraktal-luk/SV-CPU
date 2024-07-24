@@ -13,7 +13,8 @@ module RegularSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0
+    input OpSlot op0,
+    input OpPacket opP
 );
 
     OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
@@ -65,7 +66,8 @@ module BranchSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0
+    input OpSlot op0,
+    input OpPacket opP
 );
 
     OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
@@ -121,7 +123,8 @@ module MemSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0
+    input OpSlot op0,
+    input OpPacket opP
 );
 
     OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
@@ -208,7 +211,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.regular[0]
+        issuedSt0.regular[0],
+        AbstractCore.theIssueQueues.issuedRegularP[0]
     );
     
     // Int 1
@@ -216,7 +220,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.regular[1]
+        issuedSt0.regular[1],
+        AbstractCore.theIssueQueues.issuedRegularP[1]
     );
     
     // Int 2
@@ -224,7 +229,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.branch
+        issuedSt0.branch,
+        AbstractCore.theIssueQueues.issuedBranchP[0]
     );
     
     // Mem 0
@@ -232,7 +238,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.mem
+        issuedSt0.mem,
+        AbstractCore.theIssueQueues.issuedMemP[0]
     );
     
     // Vec 0
@@ -240,7 +247,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.float[0]
+        issuedSt0.float[0],
+        AbstractCore.theIssueQueues.issuedFloatP[0]
     );
     
     // Vec 1
@@ -248,7 +256,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.float[1]
+        issuedSt0.float[1],
+        AbstractCore.theIssueQueues.issuedFloatP[1]
     );
 
 

@@ -27,6 +27,7 @@ package ExecDefs;
 
     localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
 
+
     // NOT USED so far
     typedef struct {
         ForwardingElement pipesInt[N_INT_PORTS];
@@ -318,6 +319,22 @@ package ExecDefs;
 
 
     localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: -1};
+
+    typedef struct {
+        InsId producer;
+        int stage;
+        Poison poison;
+    } Wakeup;
+    
+    localparam Wakeup EMPTY_WAKEUP = '{-1, -999, DEFAULT_POISON};
+    
+    typedef struct {
+        InsId id;
+        
+        Poison poison;
+    } OpPacket;
+    
+    localparam OpPacket EMPTY_OP_PACKET = '{-1, DEFAULT_POISON};
 
 
 endpackage

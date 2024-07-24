@@ -21,7 +21,8 @@ module IssueQueue
     input OpSlotA inGroup,
     input logic inMask[$size(OpSlotA)],
     
-    output OpSlot outGroup[OUT_WIDTH]
+    output OpSlot outGroup[OUT_WIDTH],
+    output OpPacket outPackets[OUT_WIDTH]
 );
 
     localparam int HOLD_CYCLES = 3;
@@ -59,6 +60,7 @@ module IssueQueue
 
 
     assign outGroup = issued;
+    assign outPackets = '{default: EMPTY_OP_PACKET};
 
 
     always @(posedge AbstractCore.clk) begin
@@ -424,17 +426,23 @@ module IssueQueueComplex(
     OpSlot issuedSys[1];
     OpSlot issuedBranch[1];
     
+    OpPacket issuedRegularP[2];
+    OpPacket issuedFloatP[2];
+    OpPacket issuedMemP[1];
+    OpPacket issuedSysP[1];
+    OpPacket issuedBranchP[1];   
+    
     
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
-                                            issuedRegular);
+                                            issuedRegular, issuedRegularP);
     IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
-                                            issuedFloat);
+                                            issuedFloat, issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
-                                            issuedBranch);
+                                            issuedBranch, issuedBranchP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
-                                            issuedMem);
+                                            issuedMem, issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
-                                            issuedSys);
+                                            issuedSys, issuedSysP);
     
     typedef struct {
         logic regular[IN_WIDTH];
