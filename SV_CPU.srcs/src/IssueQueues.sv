@@ -29,34 +29,8 @@ module IssueQueue
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
     localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
 
-
     typedef int InputLocs[$size(OpSlotA)];
 
-//    typedef struct {
-//        InsId id;
-        
-//        logic ready;
-//        logic readyArgs[3];
-//        logic readyF;
-//        logic readyArgsF[3];
-        
-//    } IqArgState;
-    
-//    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
-//    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, readyF: '0, readyArgsF: '{'0, '0, '0}};
-
-//    typedef struct {
-//        logic used;
-//        logic active;
-//        IqArgState state;
-//            int issueCounter;
-//        InsId id;
-//    } IqEntry;
-
-
-//    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, issueCounter: -1, id: -1};
-
-    
     
     typedef InsId IdArr[TOTAL_SIZE];
     typedef logic logicArr[TOTAL_SIZE];
@@ -322,7 +296,7 @@ module IssueQueue
                 logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps, stages);
                 logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
 
-                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, issueCounter: -1, id: op.id};
+                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
 
                 updateReadyBits(array[location], ra);
@@ -354,12 +328,30 @@ module IssueQueue
 
 
         function automatic void updateReadyBitsF(ref IqEntry entry, input logic3 ready3);
+            InsDependencies deps = insMap.get(entry.id).deps;
+
             foreach (ready3[a]) begin
+            
                 if (ready3[a]) begin
+                    InsId producer = (deps.producers[a]);
+
                     logic prev = entry.state.readyArgsF[a]; // Always 0 because this is a new slot
                     entry.state.readyArgsF[a] = 1;
-                    if (a == 0 && !prev && USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeup0);
-                    else if (a == 1 && !prev && USE_FORWARDING) putMilestone(entry.id, InstructionMap::IqWakeup1);
+                    
+                    if (!prev && USE_FORWARDING) begin end
+                    else continue;
+                    
+                    if (a == 0) begin
+                        putMilestone(entry.id, InstructionMap::IqWakeup0);
+                    end
+                    else if (a == 1) begin
+                        putMilestone(entry.id, InstructionMap::IqWakeup1);
+                    end
+                    
+                    // Poisons:
+                    if (isLoadIns(insMap.get(producer).dec)) begin
+                        
+                    end
                 end
 
             end
@@ -499,8 +491,8 @@ module IssueQueueComplex(
     
     function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
         logic D3[3] = '{'z, 'z, 'z};
-        ReadyQueue3 res ;
-        foreach (ids[i]) 
+        ReadyQueue3 res;
+        foreach (ids[i])
             if (ids[i] == -1) res.push_back(D3);
             else
             begin
