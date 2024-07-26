@@ -93,7 +93,6 @@ package ExecDefs;
 
 
 
-    
         function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
             return !(fe.id == -1) && fe.id === producer;
         endfunction
@@ -151,6 +150,10 @@ package ExecDefs;
         endfunction;
 
 
+
+        
+
+
     // Exec/(Issue) - arg handling
     function automatic logic3 checkArgsReady(input InsDependencies deps, input logic intReadyV[N_REGS_INT], input logic floatReadyV[N_REGS_FLOAT]);
         logic3 res;
@@ -167,38 +170,30 @@ package ExecDefs;
 
     function automatic logic3 checkForwardsReady(input InstructionMap imap,
                                                  input ForwardsByStage_0 fws,
-                                                 input InsDependencies deps,
-                                                 //input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS],
-                                                 
+                                                 input InsDependencies deps,                                                 
                                                  input int stage);
         logic3 res;
         foreach (deps.types[i])
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = checkForwardInt(imap, deps.producers[i], deps.sources[i], //theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                                                                                                fws.ints[stage], fws.mems[stage]);
-                SRC_FLOAT: res[i] = checkForwardVec(imap, deps.producers[i], deps.sources[i], //theExecBlock.floatImagesTr[stage]);
-                                                                                                fws.vecs[stage]);
+                SRC_INT:   res[i] = checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
+                SRC_FLOAT: res[i] = checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
             endcase      
         return res;
     endfunction
 
     function automatic Word3 getForwardedValues(input InstructionMap imap,
                                                 input ForwardsByStage_0 fws,
-                                                input InsDependencies deps, 
-                                                //input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS],
-                                                
+                                                input InsDependencies deps,                                                 
                                                 input int stage);
         Word3 res;
         foreach (deps.types[i])
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = getForwardValueInt(imap, deps.producers[i], deps.sources[i], //theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                                                                                                   fws.ints[stage], fws.mems[stage]);
-                SRC_FLOAT: res[i] = getForwardValueVec(imap, deps.producers[i], deps.sources[i], //theExecBlock.floatImagesTr[stage]);
-                                                                                                   fws.vecs[stage]);
+                SRC_INT:   res[i] = getForwardValueInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
+                SRC_FLOAT: res[i] = getForwardValueVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
             endcase      
         return res;
     endfunction
@@ -206,9 +201,7 @@ package ExecDefs;
 
     function automatic logic3 checkForwardsReadyAll(input InstructionMap imap,
                                                  input ForwardsByStage_0 fws,
-                                                 input InsDependencies deps,
-                                                 //input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS],
-                                                 
+                                                 input InsDependencies deps,                                                 
                                                  input int stages[]);
         logic3 res = '{0, 0, 0};
         foreach (deps.types[i])
@@ -216,10 +209,8 @@ package ExecDefs;
                 case (deps.types[i])
                     SRC_ZERO:  res[i] |= 0;
                     SRC_CONST: res[i] |= 0;
-                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], //theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                                                                                                    fws.ints[stages[s]], fws.mems[stages[s]]);
-                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], //theExecBlock.floatImagesTr[stage]);
-                                                                                                    fws.vecs[stages[s]]);
+                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[stages[s]], fws.mems[stages[s]]);
+                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stages[s]]);
                 endcase      
         return res;
     endfunction
@@ -259,7 +250,7 @@ package ExecDefs;
     endfunction
 
     function automatic ReadyQueue3 gatherReadyOrForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwards[-3:1]);
-        ReadyQueue3 res;// = '{default: dummy3};
+        ReadyQueue3 res;
         
         foreach (ready[i]) begin
             logic slot[3] = ready[i];
@@ -317,24 +308,86 @@ package ExecDefs;
         InsId id;
     } IqEntry;
 
-
     localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: -1};
 
+    
+    typedef enum {
+        PG_NONE, PG_INT, PG_MEM, PG_VEC
+    } PipeGroup;
+    
+    
     typedef struct {
+        logic active;
         InsId producer;
+        PipeGroup group;
+        int port;
         int stage;
         Poison poison;
     } Wakeup;
     
-    localparam Wakeup EMPTY_WAKEUP = '{-1, -999, DEFAULT_POISON};
+    localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, DEFAULT_POISON};
     
     typedef struct {
+        logic active;
+    
         InsId id;
         
         Poison poison;
     } OpPacket;
     
-    localparam OpPacket EMPTY_OP_PACKET = '{-1, DEFAULT_POISON};
+    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, DEFAULT_POISON};
+
+
+        function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+            Wakeup res = EMPTY_WAKEUP;
+            if (producer == -1) return res;
+            foreach (fea[p]) begin
+                int found[$] = fea[p].find_index with (item.id == producer);
+                if (found.size() == 0) continue;
+                else if (found.size() > 1) $error("Repeated op id in same subpipe");
+                res.active = 1;
+                res.producer = producer;
+                res.group = PG_INT;
+                res.port = p;
+                res.stage = found[0];
+                return res;
+            end
+            return res;
+        endfunction;
+
+        function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            Wakeup res = EMPTY_WAKEUP;
+            if (producer == -1) return res;
+            foreach (fea[p]) begin
+                int found[$] = fea[p].find_index with (item.id == producer);
+                if (found.size() == 0) continue;
+                else if (found.size() > 1) $error("Repeated op id in same subpipe");
+                res.active = 1;
+                res.producer = producer;
+                res.group = PG_MEM;
+                res.port = p;
+                res.stage = found[0];
+                return res;
+            end
+            return res;
+        endfunction;
+
+        function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
+            Wakeup res = EMPTY_WAKEUP;
+            if (producer == -1) return res;
+            foreach (fea[p]) begin
+                int found[$] = fea[p].find_index with (item.id == producer);
+                if (found.size() == 0) continue;
+                else if (found.size() > 1) $error("Repeated op id in same subpipe");
+                res.active = 1;
+                res.producer = producer;
+                res.group = PG_VEC;
+                res.port = p;
+                res.stage = found[0];
+                return res;
+            end
+            return res;
+        endfunction;
 
 
 endpackage

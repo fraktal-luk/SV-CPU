@@ -56,11 +56,27 @@ module IssueQueue
     int num = 0, numUsed = 0;
     
 
+            Wakeup wakeups_TMP[TOTAL_SIZE][2];
+            
+            InputLocs newLocs;
+
     logic cmpb, cmpb0, cmpb1;
 
 
     assign outGroup = issued;
-    assign outPackets = '{default: EMPTY_OP_PACKET};
+    assign outPackets = convertOutput(issued);
+
+
+    typedef OpPacket OutGroupP[OUT_WIDTH];
+
+    function automatic OutGroupP convertOutput(input OpSlot outGroup[OUT_WIDTH]);
+        OutGroupP res;
+        
+        foreach (outGroup[i])
+            res[i] = outGroup[i].active ? '{1, outGroup[i].id, DEFAULT_POISON} : EMPTY_OP_PACKET;
+            
+        return res;
+    endfunction
 
 
     always @(posedge AbstractCore.clk) begin
@@ -79,14 +95,21 @@ module IssueQueue
            flushIq();
         end
         
+        
+            TMP_showWakeups();
+
         updateWakeups();
         
         issue();
 
         removeIssuedFromArray();
       
+      
+            newLocs = getInputLocs();
+      
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
+            //    TMP_showNewSlotWakeups();
         end
         
         // TODO: check arg status of newly written ops, note wakeups if ready
@@ -298,6 +321,8 @@ module IssueQueue
                 logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps, stages);
                 logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
 
+                        TMP_showSlotWakeup(location);
+
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
 
@@ -405,6 +430,36 @@ module IssueQueue
         return res;
     endfunction
     
+    
+    task automatic TMP_showSlotWakeup(input int i);
+            IqEntry entry = array[i];
+            
+            wakeups_TMP[i] = '{default: EMPTY_WAKEUP};
+            if (!array[i].used) return;
+            
+            foreach (entry.state.readyArgs[a]) begin
+                InsDependencies deps = insMap.get(entry.id).deps;
+                int prod = deps.producers[a];
+                int source = deps.sources[a];
+                
+                Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
+                    // TODO: mem, then handle FP
+                if (!wup.active) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
+                
+                    // If the arg was ready before, deactivate wakeup
+                    if (entry.state.readyArgsF[a]) wup.active = 0;
+                
+                wakeups_TMP[i][a] = wup;
+            end
+    endtask
+    
+    
+    task automatic TMP_showWakeups();
+        foreach (array[i]) begin
+            TMP_showSlotWakeup(i);
+        end
+    endtask
+ 
 endmodule
 
 
