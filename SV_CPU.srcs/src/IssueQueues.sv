@@ -73,7 +73,7 @@ module IssueQueue
         OutGroupP res;
         
         foreach (outGroup[i])
-            res[i] = outGroup[i].active ? '{1, outGroup[i].id, DEFAULT_POISON} : EMPTY_OP_PACKET;
+            res[i] = outGroup[i].active ? '{1, outGroup[i].id, DEFAULT_POISON, 'x} : EMPTY_OP_PACKET;
             
         return res;
     endfunction
@@ -443,7 +443,6 @@ module IssueQueue
                 int source = deps.sources[a];
                 
                 Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
-                    // TODO: mem, then handle FP
                 if (!wup.active) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
                 
                     // If the arg was ready before, deactivate wakeup

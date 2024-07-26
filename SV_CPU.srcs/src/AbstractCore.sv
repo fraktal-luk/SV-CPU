@@ -606,6 +606,7 @@ module AbstractCore
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 
+
     function automatic OpSlot tick(input OpSlot op);
         if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
             putMilestone(op.id, InstructionMap::FlushExec);
@@ -620,6 +621,20 @@ module AbstractCore
         return op;
     endfunction
 
+        function automatic OpPacket tickP(input OpPacket op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+                putMilestone(op.id, InstructionMap::FlushExec);
+                return EMPTY_OP_PACKET;
+            end
+            return op;
+        endfunction
+    
+        function automatic OpPacket effP(input OpPacket op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+                return EMPTY_OP_PACKET;
+            return op;
+        endfunction
+    
 
     assign insAdr = theFrontend.ipStage[0].adr;
 

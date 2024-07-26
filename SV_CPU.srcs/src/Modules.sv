@@ -17,10 +17,15 @@ module RegularSubpipe(
     input OpPacket opP
 );
 
-    OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
-    OpSlot doneOp = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;;
-    OpSlot doneOp_E, doneOpD0_E;
+    OpSlot op1 = EMPTY_SLOT, doneOp = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;
+    OpSlot op0_E, op_E, doneOp_E, doneOpD0_E;
     Word result = 'x;
+
+    OpPacket stage0, stage0_E;
+    
+    assign stage0 = makePacket(doneOp, result);
+    assign stage0_E = makePacket(doneOp_E, result);
+
 
     always @(posedge AbstractCore.clk) begin
         op1 <= tick(op0);
@@ -37,16 +42,6 @@ module RegularSubpipe(
     assign op_E = eff(op1);
     assign doneOp_E = eff(doneOp);
     assign doneOpD0_E = eff(doneOpD0);
-
-    function automatic OpSlot forward(input int stage);
-        case (stage)
-            -2: return op0_E;
-            -1: return op_E;
-            0:  return doneOp_E;
-            1:  return doneOpD0_E;
-            default: return EMPTY_SLOT;
-        endcase
-    endfunction 
 
 
     ForwardingElement image_E[-3:1];
@@ -70,10 +65,15 @@ module BranchSubpipe(
     input OpPacket opP
 );
 
-    OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
-    OpSlot doneOp = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;;
-    OpSlot doneOp_E, doneOpD0_E;
+    OpSlot op1 = EMPTY_SLOT, doneOp = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;;
+    OpSlot op0_E, op_E, doneOp_E, doneOpD0_E;
     Word result = 'x;
+
+    OpPacket stage0, stage0_E;
+    
+    assign stage0 = makePacket(doneOp, result);
+    assign stage0_E = makePacket(doneOp_E, result);
+
 
     always @(posedge AbstractCore.clk) begin
         op1 <= tick(op0);
@@ -96,15 +96,6 @@ module BranchSubpipe(
     assign doneOp_E = eff(doneOp);
     assign doneOpD0_E = eff(doneOpD0);
 
-    function automatic OpSlot forward(input int stage);
-        case (stage)
-            -2: return op0_E;
-            -1: return op_E;
-            0:  return doneOp_E;
-            1:  return doneOpD0_E;
-            default: return EMPTY_SLOT;
-        endcase
-    endfunction
     
     ForwardingElement image_E[-3:1];
     
@@ -127,10 +118,15 @@ module MemSubpipe(
     input OpPacket opP
 );
 
-    OpSlot op0_E, op1 = EMPTY_SLOT, op_E;
-    OpSlot doneOpE0 = EMPTY_SLOT, doneOpE1 = EMPTY_SLOT, doneOpE2 = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;
-    OpSlot doneOpE0_E, doneOpE1_E, doneOpE2_E, doneOpD0_E;
+    OpSlot op1 = EMPTY_SLOT, doneOpE0 = EMPTY_SLOT, doneOpE1 = EMPTY_SLOT, doneOpE2 = EMPTY_SLOT, doneOpD0 = EMPTY_SLOT;
+    OpSlot op0_E, op_E, doneOpE0_E, doneOpE1_E, doneOpE2_E, doneOpD0_E;
     Word result = 'x;
+
+    OpPacket stage0, stage0_E;
+    
+    assign stage0 = makePacket(doneOpE2, result);
+    assign stage0_E = makePacket(doneOpE2_E, result);
+
 
     always @(posedge AbstractCore.clk) begin
         op1 <= tick(op0);
@@ -160,17 +156,6 @@ module MemSubpipe(
     assign doneOpE2_E = eff(doneOpE2);
     assign doneOpD0_E = eff(doneOpD0);
 
-    function automatic OpSlot forward(input int stage);
-        case (stage)
-            -4: return op0_E;
-            -3: return op_E;
-            -2: return doneOpE0_E;
-            -1: return doneOpE1_E;
-            0:  return doneOpE2_E;
-            1:  return doneOpD0_E;
-            default: return EMPTY_SLOT;
-        endcase
-    endfunction
     
     ForwardingElement image_E[-3:1];
     
@@ -205,6 +190,30 @@ module ExecBlock(ref InstructionMap insMap,
     OpSlot doneOpsFloat_E[2];
     Word execResultsFloat[2];
     Word execResultLink, execResultMem;
+
+        OpPacket doneRegular0;
+        OpPacket doneRegular1;
+
+        OpPacket doneBranch;
+        OpPacket doneMem;
+        
+        OpPacket doneFloat0;
+        OpPacket doneFloat1; 
+        
+        OpPacket doneSys;
+        
+
+        OpPacket doneRegular0_E;
+        OpPacket doneRegular1_E;
+
+        OpPacket doneBranch_E;
+        OpPacket doneMem_E;
+        
+        OpPacket doneFloat0_E;
+        OpPacket doneFloat1_E; 
+        
+        OpPacket doneSys_E;
+
 
     // Int 0
     RegularSubpipe regular0(
@@ -264,6 +273,23 @@ module ExecBlock(ref InstructionMap insMap,
     always @(posedge AbstractCore.clk) begin
         doneOpSys <= tick(issuedSt0.sys);
     end
+
+        assign doneSys = makePacket(doneOpSys, 'x);
+        assign doneSys_E = makePacket(doneOpSys_E, 'x);
+    
+        assign doneRegular0 = regular0.stage0;
+        assign doneRegular1 = regular1.stage0;
+        assign doneBranch = branch0.stage0;
+        assign doneMem = mem0.stage0;
+        assign doneFloat0 = float0.stage0;
+        assign doneFloat1 = float1.stage0;
+    
+        assign doneRegular0_E = regular0.stage0_E;
+        assign doneRegular1_E = regular1.stage0_E;
+        assign doneBranch_E = branch0.stage0_E;
+        assign doneMem_E = mem0.stage0_E;
+        assign doneFloat0_E = float0.stage0_E;
+        assign doneFloat1_E = float1.stage0_E;
 
 
     assign doneOpsRegular[0] = regular0.doneOp;

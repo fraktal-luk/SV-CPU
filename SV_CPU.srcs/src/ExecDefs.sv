@@ -333,9 +333,11 @@ package ExecDefs;
         InsId id;
         
         Poison poison;
+        
+        Word result;
     } OpPacket;
     
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, DEFAULT_POISON};
+    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, DEFAULT_POISON, 'x};
 
 
         function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
@@ -388,6 +390,18 @@ package ExecDefs;
             end
             return res;
         endfunction;
+
+
+        function automatic OpPacket makePacket(input OpSlot slot, input Word result);
+            OpPacket res = EMPTY_OP_PACKET;
+            
+            res.active = slot.active;
+            res.id = slot.id;
+            
+            res.result = result;
+            
+            return res;
+        endfunction
 
 
 endpackage
