@@ -21,7 +21,7 @@ package Insmap;
             
             Rename,
             
-            RobEnter, RobFlush, RobExit,
+            RobEnter, RobComplete, RobFlush, RobExit,
         
             BqEnter, BqFlush, BqExit,
             
@@ -64,7 +64,7 @@ package Insmap;
             
             
             WriteResult,
-            Complete,
+            //Complete,
             
             Retire,
             
@@ -347,6 +347,7 @@ package Insmap;
             assert (!has(tags, FlushExec)) else $error("333eeee");
             
             assert (has(tags, RobEnter)) else $error("4444eeee");
+            assert (has(tags, RobComplete)) else $error("4444eeee");
             assert (!has(tags, RobFlush)) else $error("5544eeee");
             assert (has(tags, RobExit)) else $error("6664eeee");
             

@@ -53,6 +53,11 @@ module IssueQueue
     OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
     OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
 
+    OpPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
+    OpPacket pIssued1[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
+
+
+
     int num = 0, numUsed = 0;
     
 
@@ -64,16 +69,23 @@ module IssueQueue
 
 
     assign outGroup = issued;
-    assign outPackets = convertOutput(issued);
+    assign outPackets = convertOutputG(issued);
 
 
     typedef OpPacket OutGroupP[OUT_WIDTH];
 
-    function automatic OutGroupP convertOutput(input OpSlot outGroup[OUT_WIDTH]);
+    function automatic OutGroupP convertOutputG(input OpSlot outGroup[OUT_WIDTH]);
         OutGroupP res;
         
         foreach (outGroup[i])
             res[i] = outGroup[i].active ? '{1, outGroup[i].id, DEFAULT_POISON, 'x} : EMPTY_OP_PACKET;
+            
+        return res;
+    endfunction
+
+    function automatic OpPacket convertOutput(input OpSlot op);
+        OpPacket res;        
+        res = op.active ? '{1, op.id, DEFAULT_POISON, 'x} : EMPTY_OP_PACKET;
             
         return res;
     endfunction
@@ -117,7 +129,11 @@ module IssueQueue
         
         foreach (issued[i])
             issued1[i] <= tick(issued[i]);
-        
+
+        foreach (pIssued0[i])
+            pIssued1[i] <= tickP(pIssued0[i]);
+      
+      
         num <= getNumVirtual();     
         numUsed <= getNumUsed();
              
@@ -146,10 +162,12 @@ module IssueQueue
 
     task automatic issueFromArray(input OpSlot ops[$]);
         issued <= '{default: EMPTY_SLOT};
+        pIssued0 <= '{default: EMPTY_OP_PACKET};
 
         foreach (ops[i]) begin
             OpSlot op = ops[i];
             issued[i] <= tick(op);
+            pIssued0[i] <= tickP(convertOutput(op));
 
             foreach (array[s]) begin
                 if (array[s].id == op.id) begin

@@ -21,13 +21,24 @@ module RegularSubpipe(
     OpSlot op0_E, op_E, doneOp_E, doneOpD0_E;
     Word result = 'x;
 
+    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
+    OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+
     OpPacket stage0, stage0_E;
     
     assign stage0 = makePacket(doneOp, result);
     assign stage0_E = makePacket(doneOp_E, result);
 
 
+    assign p0 = opP;
+
     always @(posedge AbstractCore.clk) begin
+        p1 <= tickP(p0);
+        pE0 <= tickP(p1);
+        pD0 <= tickP(pE0);
+        pD1 <= tickP(pD0);
+    
+        //////
         op1 <= tick(op0);
 
         result <= 'x;
@@ -69,13 +80,25 @@ module BranchSubpipe(
     OpSlot op0_E, op_E, doneOp_E, doneOpD0_E;
     Word result = 'x;
 
+    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
+    OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+
+
     OpPacket stage0, stage0_E;
     
     assign stage0 = makePacket(doneOp, result);
     assign stage0_E = makePacket(doneOp_E, result);
 
 
+    assign p0 = opP;
+
     always @(posedge AbstractCore.clk) begin
+        p1 <= tickP(p0);
+        pE0 <= tickP(p1);
+        pD0 <= tickP(pE0);
+        pD1 <= tickP(pD0);
+    
+        //////
         op1 <= tick(op0);
 
         result <= 'x;
@@ -122,13 +145,26 @@ module MemSubpipe(
     OpSlot op0_E, op_E, doneOpE0_E, doneOpE1_E, doneOpE2_E, doneOpD0_E;
     Word result = 'x;
 
+    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
+    OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+
     OpPacket stage0, stage0_E;
     
     assign stage0 = makePacket(doneOpE2, result);
     assign stage0_E = makePacket(doneOpE2_E, result);
 
+    assign p0 = opP;
 
     always @(posedge AbstractCore.clk) begin
+        p1 <= tickP(p0);
+        pE0 <= tickP(p1);
+        pE1 <= tickP(pE0);
+        pE2 <= tickP(pE1);
+        pD0 <= tickP(pE2);
+        pD1 <= tickP(pD0);
+    
+        //////
+    
         op1 <= tick(op0);
 
         result <= 'x;
@@ -156,6 +192,14 @@ module MemSubpipe(
     assign doneOpE2_E = eff(doneOpE2);
     assign doneOpD0_E = eff(doneOpD0);
 
+    assign p0_E = effP(p0);
+    assign p1_E = effP(p1);
+    assign pE0_E = effP(pE0);
+    assign pE1_E = effP(pE1);
+    assign pE2_E = effP(pE2);
+    assign pD0_E = effP(pD0);
+    assign pD1_E = effP(pD1);
+
     
     ForwardingElement image_E[-3:1];
     
@@ -179,40 +223,32 @@ module ExecBlock(ref InstructionMap insMap,
 
     IssueGroup issuedSt0;
     
-    OpSlot doneOpBranch, doneOpMem, doneOpSys = EMPTY_SLOT;
-    OpSlot doneOpBranch_E, doneOpMem_E, doneOpSys_E;
+    OpSlot doneOpSys = EMPTY_SLOT;
+    OpSlot doneOpSys_E;
 
-    OpSlot doneOpsRegular[2];
-    OpSlot doneOpsRegular_E[2];
-    Word execResultsRegular[2];
 
-    OpSlot doneOpsFloat[2];
-    OpSlot doneOpsFloat_E[2];
-    Word execResultsFloat[2];
-    Word execResultLink, execResultMem;
+    OpPacket doneRegular0;
+    OpPacket doneRegular1;
 
-        OpPacket doneRegular0;
-        OpPacket doneRegular1;
+    OpPacket doneBranch;
+    OpPacket doneMem;
+    
+    OpPacket doneFloat0;
+    OpPacket doneFloat1; 
+    
+    OpPacket doneSys;
+    
 
-        OpPacket doneBranch;
-        OpPacket doneMem;
-        
-        OpPacket doneFloat0;
-        OpPacket doneFloat1; 
-        
-        OpPacket doneSys;
-        
+    OpPacket doneRegular0_E;
+    OpPacket doneRegular1_E;
 
-        OpPacket doneRegular0_E;
-        OpPacket doneRegular1_E;
-
-        OpPacket doneBranch_E;
-        OpPacket doneMem_E;
-        
-        OpPacket doneFloat0_E;
-        OpPacket doneFloat1_E; 
-        
-        OpPacket doneSys_E;
+    OpPacket doneBranch_E;
+    OpPacket doneMem_E;
+    
+    OpPacket doneFloat0_E;
+    OpPacket doneFloat1_E; 
+    
+    OpPacket doneSys_E;
 
 
     // Int 0
@@ -274,41 +310,22 @@ module ExecBlock(ref InstructionMap insMap,
         doneOpSys <= tick(issuedSt0.sys);
     end
 
-        assign doneSys = makePacket(doneOpSys, 'x);
-        assign doneSys_E = makePacket(doneOpSys_E, 'x);
-    
-        assign doneRegular0 = regular0.stage0;
-        assign doneRegular1 = regular1.stage0;
-        assign doneBranch = branch0.stage0;
-        assign doneMem = mem0.stage0;
-        assign doneFloat0 = float0.stage0;
-        assign doneFloat1 = float1.stage0;
-    
-        assign doneRegular0_E = regular0.stage0_E;
-        assign doneRegular1_E = regular1.stage0_E;
-        assign doneBranch_E = branch0.stage0_E;
-        assign doneMem_E = mem0.stage0_E;
-        assign doneFloat0_E = float0.stage0_E;
-        assign doneFloat1_E = float1.stage0_E;
+    assign doneSys = makePacket(doneOpSys, 'x);
+    assign doneSys_E = makePacket(doneOpSys_E, 'x);
 
+    assign doneRegular0 = regular0.stage0;
+    assign doneRegular1 = regular1.stage0;
+    assign doneBranch = branch0.stage0;
+    assign doneMem = mem0.stage0;
+    assign doneFloat0 = float0.stage0;
+    assign doneFloat1 = float1.stage0;
 
-    assign doneOpsRegular[0] = regular0.doneOp;
-    assign doneOpsRegular[1] = regular1.doneOp;
-    
-    assign doneOpsFloat[0] = float0.doneOp;
-    assign doneOpsFloat[1] = float1.doneOp;
-
-    assign doneOpBranch = branch0.doneOp;
-    assign doneOpMem = mem0.doneOpE2;
-
-    assign execResultsRegular[0] = regular0.result;
-    assign execResultsRegular[1] = regular1.result;
-    
-    assign execResultsFloat[0] = float0.result;
-    assign execResultsFloat[1] = float1.result;
-    
-    assign execResultLink = branch0.result;
-    assign execResultMem = mem0.result;
+    assign doneRegular0_E = regular0.stage0_E;
+    assign doneRegular1_E = regular1.stage0_E;
+    assign doneBranch_E = branch0.stage0_E;
+    assign doneMem_E = mem0.stage0_E;
+    assign doneFloat0_E = float0.stage0_E;
+    assign doneFloat1_E = float1.stage0_E;
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
@@ -319,7 +336,7 @@ module ExecBlock(ref InstructionMap insMap,
     MemByStage memImagesTr;
     VecByStage floatImagesTr;
 
-        ForwardsByStage_0 allByStage;
+    ForwardsByStage_0 allByStage;
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, default: EMPTY_IMAGE};
@@ -329,9 +346,9 @@ module ExecBlock(ref InstructionMap insMap,
     assign memImagesTr = trsMem(memImages);
     assign floatImagesTr = trsVec(floatImages);
 
-        assign allByStage.ints = intImagesTr;
-        assign allByStage.mems = memImagesTr;
-        assign allByStage.vecs = floatImagesTr;
+    assign allByStage.ints = intImagesTr;
+    assign allByStage.mems = memImagesTr;
+    assign allByStage.vecs = floatImagesTr;
 
 
     function automatic Word calcRegularOp(input OpSlot op);
@@ -421,13 +438,6 @@ module ExecBlock(ref InstructionMap insMap,
     assign issuedSt0.mem = theIssueQueues.issuedMem[0];
     assign issuedSt0.sys = theIssueQueues.issuedSys[0];
 
-
-    assign doneOpsRegular_E[0] = eff(doneOpsRegular[0]);
-    assign doneOpsRegular_E[1] = eff(doneOpsRegular[1]);
-    assign doneOpsFloat_E[0] = eff(doneOpsFloat[0]);
-    assign doneOpsFloat_E[1] = eff(doneOpsFloat[1]);
-    assign doneOpBranch_E = eff(doneOpBranch);
-    assign doneOpMem_E = eff(doneOpMem);
     assign doneOpSys_E = eff(doneOpSys);
 
 

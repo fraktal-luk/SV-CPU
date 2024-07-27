@@ -130,23 +130,32 @@ module AbstractCore
 
 
     task automatic handleCompletion();
-        foreach (theExecBlock.doneOpsRegular_E[i]) begin
-            completeOp(theExecBlock.doneOpsRegular_E[i]);
-            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
-        end
+//        foreach (theExecBlock.doneOpsRegular_E[i]) begin
+//            completeOp(theExecBlock.doneOpsRegular_E[i]);
+//            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
+//        end
 
-        foreach (theExecBlock.doneOpsFloat_E[i]) begin
-            completeOp(theExecBlock.doneOpsFloat_E[i]);
-            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
-        end
+//        foreach (theExecBlock.doneOpsFloat_E[i]) begin
+//            completeOp(theExecBlock.doneOpsFloat_E[i]);
+//            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
+//        end
 
-        completeOp(theExecBlock.doneOpBranch_E);
-        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
+//        completeOp(theExecBlock.doneOpBranch_E);
+//        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
 
-        completeOp(theExecBlock.doneOpMem_E);
-        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
+//        completeOp(theExecBlock.doneOpMem_E);
+//        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
 
-        completeOp(theExecBlock.doneOpSys_E);
+//        completeOp(theExecBlock.doneOpSys_E);
+        
+        
+                completePacket(theExecBlock.doneRegular0);
+                completePacket(theExecBlock.doneRegular1);
+                completePacket(theExecBlock.doneFloat0);
+                completePacket(theExecBlock.doneFloat1);
+                completePacket(theExecBlock.doneBranch);
+                completePacket(theExecBlock.doneMem);
+                completePacket(theExecBlock.doneSys);
     endtask
 
     task automatic updateBookkeeping();
@@ -561,14 +570,41 @@ module AbstractCore
     endtask
 
     
-    task automatic completeOp(input OpSlot op);            
-        if (!op.active) return;
-
-        putMilestone(op.id, InstructionMap::Complete); 
-
-            coreDB.lastCompleted = op;
+    
+    task automatic completePacket(input OpPacket p);
+        if (!p.active) return;
+        else begin
+            OpSlot os = getOpSlotFromPacket(p);
+            //completeOp(os);
+            writeResult(os, p.result);
+            
+            coreDB.lastCompleted = os;
             coreDB.nCompleted++;
+        end
     endtask
+    
+    
+    function automatic OpSlot getOpSlotFromPacket(input OpPacket p);
+        OpSlot res;
+        InstructionInfo ii = insMap.get(p.id);
+        
+        res.active = p.active;
+        res.id = p.id;
+        res.adr = ii.adr;
+        res.bits = ii.bits;
+        
+        return res;
+    endfunction;
+    
+    
+//    task automatic completeOp(input OpSlot op);            
+//        if (!op.active) return;
+
+//        //putMilestone(op.id, InstructionMap::Complete); 
+
+//            coreDB.lastCompleted = op;
+//            coreDB.nCompleted++;
+//    endtask
 
 
     function automatic Word getSysReg(input Word adr);

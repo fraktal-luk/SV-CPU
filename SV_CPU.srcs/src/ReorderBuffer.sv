@@ -100,32 +100,30 @@ module ReorderBuffer
     endtask
     
     
-    task automatic markOpCompleted(input OpSlot op); 
-        InsId id = op.id;
-        
-        if (!op.active) return;
+    task automatic markPacketCompleted(input OpPacket p);         
+        if (!p.active) return;
         
         for (int r = 0; r < DEPTH; r++)
             for (int c = 0; c < WIDTH; c++) begin
-                if (array[r].records[c].id == id)
+                if (array[r].records[c].id == p.id) begin
                     array[r].records[c].completed = 1;
+                    putMilestone(p.id, InstructionMap::RobComplete);
+                end
             end
         
     endtask
     
-    
-    task automatic markCompleted();        
-        foreach (theExecBlock.doneOpsRegular_E[i]) begin
-            markOpCompleted(theExecBlock.doneOpsRegular_E[i]);
-        end
 
-        foreach (theExecBlock.doneOpsFloat_E[i]) begin
-            markOpCompleted(theExecBlock.doneOpsFloat_E[i]);
-        end
-                
-        markOpCompleted(theExecBlock.doneOpBranch_E);
-        markOpCompleted(theExecBlock.doneOpMem_E);
-        markOpCompleted(theExecBlock.doneOpSys_E);
+    task automatic markCompleted();        
+        markPacketCompleted(theExecBlock.doneRegular0_E);
+        markPacketCompleted(theExecBlock.doneRegular1_E);
+    
+        markPacketCompleted(theExecBlock.doneFloat0_E);
+        markPacketCompleted(theExecBlock.doneFloat1_E);
+    
+        markPacketCompleted(theExecBlock.doneBranch_E);
+        markPacketCompleted(theExecBlock.doneMem_E);
+        markPacketCompleted(theExecBlock.doneSys_E);
     endtask
     
     
