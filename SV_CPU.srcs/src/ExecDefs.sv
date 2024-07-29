@@ -222,10 +222,10 @@ package ExecDefs;
     localparam ReadyVec3 FORWARDING_VEC_ALL_Z = '{default: dummy3};
     localparam ReadyVec3 FORWARDING_ALL_Z[-3:1] = '{default: FORWARDING_VEC_ALL_Z};
 
-
-
     function automatic ReadyVec3 gatherReadyOrForwards(input ReadyVec3 ready, input ReadyVec3 forwards[-3:1]);
         ReadyVec3 res = '{default: dummy3};
+        
+
         
         foreach (res[i]) begin
             logic slot[3] = res[i];
@@ -233,7 +233,7 @@ package ExecDefs;
                 if ($isunknown(ready[i][a])) res[i][a] = 'z;
                 else begin
                     res[i][a] = ready[i][a];
-                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
+                    for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
                 end
             end
         end
@@ -259,7 +259,7 @@ package ExecDefs;
                 if ($isunknown(ready[i][a])) res[i][a] = 'z;
                 else begin
                     res[i][a] = ready[i][a];
-                    for (int s = -3 + 1; s <= 1; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
+                    for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
                 end
             end
         end

@@ -469,11 +469,11 @@ module ExecBlock(ref InstructionMap insMap,
                     if (ready[i])
                         res[i] = tracker.intRegs[deps.sources[i]];
                     else if (forw1[i]) begin
-                        $display("....get(1) a %d = %d", i, vals1[i]);
+                        //$display("....get(1) a %d = %d", i, vals1[i]);
                         res[i] = vals1[i];
                     end
                     else if (forw0[i]) begin
-                        $display("....get(0) a %d = %d", i, vals0[i]);
+                        //$display("....get(0) a %d = %d", i, vals0[i]);
                         res[i] = vals0[i];
                     end
                     else
@@ -483,11 +483,11 @@ module ExecBlock(ref InstructionMap insMap,
                     if (ready[i])
                         res[i] = tracker.floatRegs[deps.sources[i]];
                     else if (forw1[i]) begin
-                        $display(".......");
+                        //$display(".......");
                         res[i] = vals1[i];
                     end
                     else if (forw0[i]) begin
-                        $display(".......");
+                        //$display(".......");
                         res[i] = vals0[i];
                     end
                     else

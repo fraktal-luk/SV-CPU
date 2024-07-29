@@ -333,7 +333,7 @@ module IssueQueue
         InputLocs locs = getInputLocs();
         int nInserted = 0;
         
-        int stages[] = '{-3, -2, -1, 0, 1};
+        int stages[] = '{-2, -1, 0, 1};
         
         foreach (inGroup[i]) begin
             OpSlot op = inGroup[i];
@@ -399,9 +399,9 @@ module IssueQueue
                     end
                     
                     // Poisons:
-                    if (isLoadIns(insMap.get(producer).dec)) begin
+//                    if (isLoadIns(insMap.get(producer).dec)) begin
                         
-                    end
+//                    end
                 end
 
             end
