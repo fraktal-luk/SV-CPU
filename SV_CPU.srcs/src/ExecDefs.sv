@@ -298,6 +298,22 @@ package ExecDefs;
     
     localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: DEFAULT_POISON}};
     
+    
+    function automatic Poison mergePoisons(input IqPoisonState ps);
+        Poison res = DEFAULT_POISON;
+        int n = 0;
+        
+        foreach (ps.poisoned[a]) begin
+            Poison pa = ps.poisoned[a];
+            foreach (pa[i]) begin
+                if (pa[i] == -1) continue;
+                res[n++] = pa[i];
+            end
+        end
+        
+        return res;
+    endfunction
+    
 
     typedef struct {
         logic used;

@@ -166,18 +166,23 @@ module IssueQueue
 
         foreach (ops[i]) begin
             OpSlot op = ops[i];
+            
+            int found[$] = array.find_first_index with (item.id == op.id);
+            int s = found[0];
+            
             issued[i] <= tick(op);
             pIssued0[i] <= tickP(convertOutput(op));
+               pIssued0[i].poison = mergePoisons(array[s].poisons);
 
-            foreach (array[s]) begin
-                if (array[s].id == op.id) begin
-                    putMilestone(op.id, InstructionMap::IqIssue);
-                    assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
-                    array[s].active = 0;
-                    array[s].issueCounter = 0;
-                    break;
-                end
-            end
+            //foreach (array[s]) begin
+                //if (array[s].id == op.id) begin
+            putMilestone(op.id, InstructionMap::IqIssue);
+            assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
+            array[s].active = 0;
+            array[s].issueCounter = 0;
+                    //break;
+                //end
+            //end
         end
     endtask
 
