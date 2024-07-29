@@ -346,8 +346,8 @@ module AbstractCore
         flushBranchTargetQueuePartial(op);
     endtask
 
-    task automatic rollbackToCheckpoint();
-        BranchCheckpoint single = branchCP;
+    task automatic rollbackToCheckpoint(input BranchCheckpoint single);
+        //BranchCheckpoint single = branchCP;
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         renameInds = single.inds;
@@ -383,11 +383,14 @@ module AbstractCore
             end
         end
         else if (branchEventInfo.redirect) begin
-            rollbackToCheckpoint(); // Rename stage
+            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == branchEventInfo.op.id);
+            BranchCheckpoint causingCP = foundCP[0];
+        
+            rollbackToCheckpoint(causingCP); // Rename stage
         
             flushOooBuffersPartial(branchEventInfo.op);  
             
-            registerTracker.restoreCP(branchCP.intMapR, branchCP.floatMapR, branchCP.intWriters, branchCP.floatWriters);
+            registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
             registerTracker.flush(branchEventInfo.op);
             memTracker.flush(branchEventInfo.op);
         end
