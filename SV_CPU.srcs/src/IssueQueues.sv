@@ -261,7 +261,7 @@ module IssueQueue
 
                 logic active = entry.used && entry.active;
                 
-                assert (ready_S == ready && readyF_S == readyF) else $error("differing ready bits");  
+                assert (ready_S == ready && readyF_S == readyF) else $fatal(2, "differing ready bits");  
 
                 if (active && readyF) begin
                     sortedReadyF[i] = idsSorted[i];
@@ -591,7 +591,8 @@ module IssueQueueComplex(
     function automatic ReadyQueue3 getForwardQueueAll3(input InstructionMap imap, input InsId ids[$]);
         logic D3[3] = '{'z, 'z, 'z};
         int stages[] = '{-3, -2, -1, 0, 1};
-        ReadyQueue3 res ;
+                       //'{-3:1};
+        ReadyQueue3 res;
         foreach (ids[i]) 
             if (ids[i] == -1) res.push_back(D3);
             else

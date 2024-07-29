@@ -249,7 +249,7 @@ package AbstractSim;
         localparam logic IN_ORDER = 0;//1;
         localparam logic USE_FORWARDING = 1;//0;
 
-        localparam int FW_FIRST = -2;
+        localparam int FW_FIRST = -2 + 2;
         localparam int FW_LAST = 1;
 
 

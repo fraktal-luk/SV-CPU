@@ -205,13 +205,17 @@ package ExecDefs;
                                                  input int stages[]);
         logic3 res = '{0, 0, 0};
         foreach (deps.types[i])
-            foreach (stages[s])
+            //foreach (stages[s])
+            for (int s = FW_FIRST; s <= FW_LAST; s++)
                 case (deps.types[i])
                     SRC_ZERO:  res[i] |= 0;
                     SRC_CONST: res[i] |= 0;
-                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[stages[s]], fws.mems[stages[s]]);
-                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stages[s]]);
+                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], //fws.ints[stages[s]], fws.mems[stages[s]]);
+                                                                                                   fws.ints[s], fws.mems[s]);
+                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], //fws.vecs[stages[s]]);
+                                                                                                   fws.vecs[s]);
                 endcase      
+                
         return res;
     endfunction
 
@@ -363,6 +367,8 @@ package ExecDefs;
                 int found[$] = fea[p].find_index with (item.id == producer);
                 if (found.size() == 0) continue;
                 else if (found.size() > 1) $error("Repeated op id in same subpipe");
+                else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+
                 res.active = 1;
                 res.producer = producer;
                 res.group = PG_INT;
@@ -380,6 +386,8 @@ package ExecDefs;
                 int found[$] = fea[p].find_index with (item.id == producer);
                 if (found.size() == 0) continue;
                 else if (found.size() > 1) $error("Repeated op id in same subpipe");
+                else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+
                 res.active = 1;
                 res.producer = producer;
                 res.group = PG_MEM;
@@ -397,6 +405,8 @@ package ExecDefs;
                 int found[$] = fea[p].find_index with (item.id == producer);
                 if (found.size() == 0) continue;
                 else if (found.size() > 1) $error("Repeated op id in same subpipe");
+                else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+
                 res.active = 1;
                 res.producer = producer;
                 res.group = PG_VEC;
