@@ -26,6 +26,9 @@ package AbstractSim;
 
     typedef int InsId;
 
+    typedef InsId IdQueue[$];
+
+
     typedef struct {
         logic active;
         InsId id;
@@ -34,6 +37,8 @@ package AbstractSim;
     } OpSlot;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+
+    typedef OpSlot OpSlotQueue[$];
 
 
     function automatic void runInEmulator(ref Emulator emul, input OpSlot op);
@@ -226,7 +231,7 @@ package AbstractSim;
     localparam int N_REGS_INT = 128;
     localparam int N_REGS_FLOAT = 128;
 
-    localparam int OP_QUEUE_SIZE = 24;
+    localparam int ISSUE_QUEUE_SIZE = 24;
 
     localparam int ROB_SIZE = 128;
     
@@ -239,6 +244,13 @@ package AbstractSim;
     localparam RENAME_WIDTH = 4;
     localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
+
+
+        localparam logic IN_ORDER = 0;//1;
+        localparam logic USE_FORWARDING = 1;//0;
+
+        localparam int FW_FIRST = -2 + 2;
+        localparam int FW_LAST = 1;
 
 
     class BranchCheckpoint;
@@ -886,85 +898,3 @@ package AbstractSim;
         
 endpackage
 
-
-package ExecDefs;
-
-    import Base::*;
-    import InsDefs::*;
-    import Asm::*;
-    import Emulation::*;
-    
-    import AbstractSim::*;
-
-
-    localparam int N_INT_PORTS = 4;
-    localparam int N_MEM_PORTS = 4;
-    localparam int N_VEC_PORTS = 4;
-
-    typedef logic ReadyVec[OP_QUEUE_SIZE];
-    typedef logic ReadyVec3[OP_QUEUE_SIZE][3];
-
-    typedef struct {
-        InsId id;
-    } ForwardingElement;
-
-    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
-
-    // NOT USED so far
-    typedef struct {
-        ForwardingElement pipesInt[N_INT_PORTS];
-        
-        ForwardingElement subpipe0[-3:1];
-        
-        InsId regular1;
-        InsId branch0;
-        InsId mem0;
-        
-        InsId float0;
-        InsId float1;
-    } Forwarding_0;
-
-    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
-    
-    typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
-    typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
-    typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
-
-
-    function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
-        IntByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-    function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
-        MemByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-    function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
-        VecByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-endpackage

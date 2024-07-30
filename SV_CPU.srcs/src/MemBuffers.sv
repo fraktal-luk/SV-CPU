@@ -5,7 +5,7 @@ import Asm::*;
 import Emulation::*;
 
 import AbstractSim::*;
-
+import Insmap::*;
 
 
 module StoreQueue

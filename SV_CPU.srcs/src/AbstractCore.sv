@@ -5,7 +5,7 @@ import Asm::*;
 import Emulation::*;
 
 import AbstractSim::*;
-
+import Insmap::*;
 import ExecDefs::*;
 
 
@@ -130,23 +130,32 @@ module AbstractCore
 
 
     task automatic handleCompletion();
-        foreach (theExecBlock.doneOpsRegular_E[i]) begin
-            completeOp(theExecBlock.doneOpsRegular_E[i]);
-            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
-        end
+//        foreach (theExecBlock.doneOpsRegular_E[i]) begin
+//            completeOp(theExecBlock.doneOpsRegular_E[i]);
+//            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
+//        end
 
-        foreach (theExecBlock.doneOpsFloat_E[i]) begin
-            completeOp(theExecBlock.doneOpsFloat_E[i]);
-            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
-        end
+//        foreach (theExecBlock.doneOpsFloat_E[i]) begin
+//            completeOp(theExecBlock.doneOpsFloat_E[i]);
+//            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
+//        end
 
-        completeOp(theExecBlock.doneOpBranch_E);
-        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
+//        completeOp(theExecBlock.doneOpBranch_E);
+//        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
 
-        completeOp(theExecBlock.doneOpMem_E);
-        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
+//        completeOp(theExecBlock.doneOpMem_E);
+//        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
 
-        completeOp(theExecBlock.doneOpSys_E);
+//        completeOp(theExecBlock.doneOpSys_E);
+        
+        
+                completePacket(theExecBlock.doneRegular0);
+                completePacket(theExecBlock.doneRegular1);
+                completePacket(theExecBlock.doneFloat0);
+                completePacket(theExecBlock.doneFloat1);
+                completePacket(theExecBlock.doneBranch);
+                completePacket(theExecBlock.doneMem);
+                completePacket(theExecBlock.doneSys);
     endtask
 
     task automatic updateBookkeeping();
@@ -275,11 +284,11 @@ module AbstractCore
     function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
         BufferLevels res;
      
-        res.iqRegular = levels.iqRegular <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqFloat = levels.iqFloat <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqBranch = levels.iqBranch <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqMem = levels.iqMem <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
-        res.iqSys = levels.iqSys <= OP_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqBranch = levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqMem = levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+        res.iqSys = levels.iqSys <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
 
         return res;
     endfunction
@@ -337,8 +346,8 @@ module AbstractCore
         flushBranchTargetQueuePartial(op);
     endtask
 
-    task automatic rollbackToCheckpoint();
-        BranchCheckpoint single = branchCP;
+    task automatic rollbackToCheckpoint(input BranchCheckpoint single);
+        //BranchCheckpoint single = branchCP;
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         renameInds = single.inds;
@@ -374,11 +383,14 @@ module AbstractCore
             end
         end
         else if (branchEventInfo.redirect) begin
-            rollbackToCheckpoint(); // Rename stage
+            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == branchEventInfo.op.id);
+            BranchCheckpoint causingCP = foundCP[0];
+        
+            rollbackToCheckpoint(causingCP); // Rename stage
         
             flushOooBuffersPartial(branchEventInfo.op);  
             
-            registerTracker.restoreCP(branchCP.intMapR, branchCP.floatMapR, branchCP.intWriters, branchCP.floatWriters);
+            registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
             registerTracker.flush(branchEventInfo.op);
             memTracker.flush(branchEventInfo.op);
         end
@@ -561,14 +573,41 @@ module AbstractCore
     endtask
 
     
-    task automatic completeOp(input OpSlot op);            
-        if (!op.active) return;
-
-        putMilestone(op.id, InstructionMap::Complete); 
-
-            coreDB.lastCompleted = op;
+    
+    task automatic completePacket(input OpPacket p);
+        if (!p.active) return;
+        else begin
+            OpSlot os = getOpSlotFromPacket(p);
+            //completeOp(os);
+            writeResult(os, p.result);
+            
+            coreDB.lastCompleted = os;
             coreDB.nCompleted++;
+        end
     endtask
+    
+    
+    function automatic OpSlot getOpSlotFromPacket(input OpPacket p);
+        OpSlot res;
+        InstructionInfo ii = insMap.get(p.id);
+        
+        res.active = p.active;
+        res.id = p.id;
+        res.adr = ii.adr;
+        res.bits = ii.bits;
+        
+        return res;
+    endfunction;
+    
+    
+//    task automatic completeOp(input OpSlot op);            
+//        if (!op.active) return;
+
+//        //putMilestone(op.id, InstructionMap::Complete); 
+
+//            coreDB.lastCompleted = op;
+//            coreDB.nCompleted++;
+//    endtask
 
 
     function automatic Word getSysReg(input Word adr);
@@ -606,6 +645,7 @@ module AbstractCore
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 
+
     function automatic OpSlot tick(input OpSlot op);
         if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
             putMilestone(op.id, InstructionMap::FlushExec);
@@ -620,103 +660,20 @@ module AbstractCore
         return op;
     endfunction
 
-
-    // Exec/(Issue) - arg handling
-
-    function automatic logic3 checkArgsReady(input InsDependencies deps);
-        logic3 res;
-        
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 1;
-                SRC_CONST: res[i] = 1;
-                SRC_INT:   res[i] = intRegsReadyV[deps.sources[i]];
-                SRC_FLOAT: res[i] = floatRegsReadyV[deps.sources[i]];
-            endcase      
-        return res;
-    endfunction
-
-    function automatic logic3 checkForwardsReady(input InsDependencies deps, input int stage);
-        logic3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = checkForwardInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                SRC_FLOAT: res[i] = checkForwardVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
-            endcase      
-        return res;
-    endfunction
-
-    function automatic Word3 getForwardedValues(input InsDependencies deps, input int stage);
-        Word3 res;
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = getForwardValueInt(deps.producers[i], deps.sources[i], theExecBlock.intImagesTr[stage], theExecBlock.memImagesTr[stage]);
-                SRC_FLOAT: res[i] = getForwardValueVec(deps.producers[i], deps.sources[i], theExecBlock.floatImagesTr[stage]);
-            endcase      
-        return res;
-    endfunction
-
-
-    function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
-        return !(fe.id == -1) && fe.id === producer;
-    endfunction
-
-    function automatic Word useForwardedValue(input ForwardingElement fe, input int source, input InsId producer);
-        InstructionInfo ii = insMap.get(fe.id);
-        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", producer);
-        return ii.actualResult;
-    endfunction
-
-    function automatic logic useForwardingMatch(input ForwardingElement fe, input int source, input InsId producer);
-        InstructionInfo ii = insMap.get(fe.id);
-        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", producer);
-        return 1;
-    endfunction
-
-
-    function automatic Word getForwardValueVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
-        foreach (feVec[p]) begin
-            if (matchProducer(feVec[p], producer)) return useForwardedValue(feVec[p], source, producer);
-        end
-        return 'x;
-    endfunction;
-
-    function automatic Word getForwardValueInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        foreach (feInt[p]) begin
-            if (matchProducer(feInt[p], producer)) return useForwardedValue(feInt[p], source, producer);
-        end
-        
-        foreach (feMem[p]) begin
-            if (matchProducer(feMem[p], producer)) return useForwardedValue(feMem[p], source, producer);
-        end
-
-        return 'x;
-    endfunction;
-
-
-    function automatic logic checkForwardVec(input InsId producer, input int source, input ForwardingElement feVec[N_VEC_PORTS]);
-        foreach (feVec[p]) begin
-            if (matchProducer(feVec[p], producer)) return useForwardingMatch(feVec[p], source, producer);
-        end
-        return 0;
-    endfunction;
-
-    function automatic logic checkForwardInt(input InsId producer, input int source, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        foreach (feInt[p]) begin
-            if (matchProducer(feInt[p], producer)) return useForwardingMatch(feInt[p], source, producer);
-        end
-        
-        foreach (feMem[p]) begin
-            if (matchProducer(feMem[p], producer)) return useForwardingMatch(feMem[p], source, producer);
-        end
-
-        return 0;
-    endfunction;
-
+        function automatic OpPacket tickP(input OpPacket op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+                putMilestone(op.id, InstructionMap::FlushExec);
+                return EMPTY_OP_PACKET;
+            end
+            return op;
+        endfunction
+    
+        function automatic OpPacket effP(input OpPacket op);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+                return EMPTY_OP_PACKET;
+            return op;
+        endfunction
+    
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
