@@ -7,75 +7,12 @@ package AbstractSim;
     import Emulation::*;
 
 
-// Arch specific
+    // Arch specific
     typedef Word Mword;
 
-////////////////////////
-// Sim outside core
+    // Sim outside core
     typedef Word Ptype[4096];
 
-    Ptype simProgMem;
-
-    function static Ptype TMP_getP();
-        return simProgMem;
-    endfunction
-
-    function static void TMP_setP(input Word p[4096]);
-        simProgMem = p;
-    endfunction
-////////////////////
-
-    // Classes for simulation, not Core related
-
-    class ProgramMemory #(parameter WIDTH = 4);
-        typedef Word Line[4];
-        
-        Word content[4096];
-        
-        function void clear();
-            this.content = '{default: 'x};
-        endfunction
-        
-        function Line read(input Word adr);
-            Line res;
-            Word truncatedAdr = adr & ~(4*WIDTH-1);
-            
-            foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
-            return res;
-        endfunction
-
-    endclass
-    
-    
-    class DataMemory #(parameter WIDTH = 4);
-        typedef logic[7:0] Line[4];
-        
-        logic[7:0] content[4096];
-        
-        function void setContent(Word arr[]);
-            foreach (arr[i]) content[i] = arr[i];
-        endfunction
-        
-        function void clear();
-            content = '{default: '0};
-        endfunction;
-        
-        function automatic Word read(input Word adr);
-            Word res = 0;
-            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
-            return res;
-        endfunction
-
-        function automatic void write(input Word adr, input Word value);
-            Word data = value;            
-            for (int i = 0; i < 4; i++) begin
-                content[adr + i] = data[31:24];
-                data <<= 8;
-            end        
-        endfunction    
-        
-    endclass
-    ////////////////////////////////////////////////////////////////
 
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
@@ -116,11 +53,9 @@ package AbstractSim;
     } OpSlot;
 
     const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
-
+    
     typedef OpSlot OpSlotQueue[$];
-
     typedef OpSlot OpSlotA[RENAME_WIDTH];
-
     typedef OpSlot FetchStage[FETCH_WIDTH];
 
     const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
@@ -187,11 +122,9 @@ package AbstractSim;
         int iqMem;
         int iqSys;
 
-        //int oooq;
         int rob;
         int lq;
         int sq;
-        //int csq;
     } BufferLevels;
 
     typedef struct {
@@ -205,72 +138,6 @@ package AbstractSim;
     } BranchTargetEntry;
     //////////////////////////////////////
 
-
-//////////////////
-// General
-    function automatic logic anyActiveFetch(input FetchStage s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-    function automatic logic anyActive(input OpSlotA s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-    // Op classiication
-    
-    function automatic logic writesIntReg(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return hasIntDest(abs);
-    endfunction
-
-    function automatic logic writesFloatReg(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return hasFloatDest(abs);
-    endfunction
-
-
-    function automatic logic isBranchOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isBranchIns(abs);
-    endfunction
-
-    function automatic logic isStoreMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreMemIns(abs);
-    endfunction
-
-    function automatic logic isStoreSysOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreSysIns(abs);
-    endfunction
-
-    function automatic logic isLoadMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isLoadMemIns(abs);
-    endfunction
-
-    function automatic logic isLoadOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isLoadIns(abs);
-    endfunction
-
-    function automatic logic isStoreOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreIns(abs);
-    endfunction
-
-    function automatic logic isMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isMemIns(abs);
-    endfunction
-
-    function automatic logic isSysOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isSysIns(abs);
-    endfunction
-    /////////////////////////////////////////////////
 
 
     /////////////////////
@@ -773,6 +640,76 @@ package AbstractSim;
     endclass
 
 
+
+
+
+//////////////////
+// General
+    function automatic logic anyActiveFetch(input FetchStage s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+    function automatic logic anyActive(input OpSlotA s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+    // Op classiication
+    
+    function automatic logic writesIntReg(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return hasIntDest(abs);
+    endfunction
+
+    function automatic logic writesFloatReg(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return hasFloatDest(abs);
+    endfunction
+
+
+    function automatic logic isBranchOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isBranchIns(abs);
+    endfunction
+
+    function automatic logic isStoreMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreMemIns(abs);
+    endfunction
+
+    function automatic logic isStoreSysOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreSysIns(abs);
+    endfunction
+
+    function automatic logic isLoadMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isLoadMemIns(abs);
+    endfunction
+
+    function automatic logic isLoadOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isLoadIns(abs);
+    endfunction
+
+    function automatic logic isStoreOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreIns(abs);
+    endfunction
+
+    function automatic logic isMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isMemIns(abs);
+    endfunction
+
+    function automatic logic isSysOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isSysIns(abs);
+    endfunction
+    /////////////////////////////////////////////////
+
+
     ////////////////////////////////////////////
     // Core functions
 
@@ -847,7 +784,7 @@ package AbstractSim;
         sysRegs[1] |= 2; // TODO: handle state register correctly
     endfunction
 
-    
+
     function automatic logic getWrongSignal(input AbstractInstruction ins);
         return ins.def.o == O_undef;
     endfunction
@@ -869,5 +806,5 @@ package AbstractSim;
         else
             return prev + 4;
     endfunction;
-        
+
 endpackage
