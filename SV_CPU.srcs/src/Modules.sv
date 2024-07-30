@@ -54,14 +54,23 @@ module RegularSubpipe(
     assign doneOp_E = eff(doneOp);
     assign doneOpD0_E = eff(doneOpD0);
 
+    assign p0_E = effP(p0);
+    assign p1_E = effP(p1);
+    assign pE0_E = effP(pE0);
+    assign pD0_E = effP(pD0);
+
 
     ForwardingElement image_E[-3:1];
     
     assign image_E = '{
-        -2: '{id: op0_E.id},
-        -1: '{id: op_E.id},
-        0: '{id:  doneOp_E.id},
-        1: '{id:  doneOpD0_E.id},
+        -2: //'{id: op0_E.id},
+            p0_E,
+        -1: //'{id: op_E.id},
+            p1_E,
+        0: //'{id:  doneOp_E.id},
+            pE0_E,
+        1: //'{id:  doneOpD0_E.id},
+            pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
 
@@ -119,15 +128,24 @@ module BranchSubpipe(
     assign doneOp_E = eff(doneOp);
     assign doneOpD0_E = eff(doneOpD0);
 
-    
+    assign p0_E = effP(p0);
+    assign p1_E = effP(p1);
+    assign pE0_E = effP(pE0);
+    assign pD0_E = effP(pD0);
+
+
     ForwardingElement image_E[-3:1];
     
     // Copied from RegularSubpipe
     assign image_E = '{
-        -2: '{id: op0_E.id},
-        -1: '{id: op_E.id},
-        0: '{id:  doneOp_E.id},
-        1: '{id:  doneOpD0_E.id},
+        -2: //'{id: op0_E.id},
+            p0_E,
+        -1: //'{id: op_E.id},
+            p1_E,
+        0: //'{id:  doneOp_E.id},
+            pE0_E,
+        1: //'{id:  doneOpD0_E.id},
+            pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
 endmodule
@@ -204,11 +222,16 @@ module MemSubpipe(
     ForwardingElement image_E[-3:1];
     
     assign image_E = '{
-        -3: '{id: op_E.id},
-        -2: '{id: doneOpE0_E.id},
-        -1: '{id: doneOpE1_E.id},
-        0: '{id:  doneOpE2_E.id},
-        1: '{id:  doneOpD0_E.id},
+        -3: //'{id: op_E.id},
+            p1_E,
+        -2: //'{id: doneOpE0_E.id},
+            pE0_E,
+        -1: //'{id: doneOpE1_E.id},
+            pE1_E,
+        0: //'{id:  doneOpE2_E.id},
+            pE2_E,
+        1: //'{id:  doneOpD0_E.id},
+            pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
 endmodule

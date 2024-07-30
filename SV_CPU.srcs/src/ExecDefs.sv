@@ -21,11 +21,34 @@ package ExecDefs;
     typedef logic ReadyQueue3[$][3];
 
 
-    typedef struct {
-        InsId id;
-    } ForwardingElement;
 
-    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = '{id: -1}; 
+    
+    typedef InsId Poison[4];
+    localparam Poison DEFAULT_POISON = '{default: -1};
+    
+
+    typedef struct {
+        logic active;
+    
+        InsId id;
+        
+        Poison poison;
+        
+        Word result;
+    } OpPacket;
+    
+    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, DEFAULT_POISON, 'x};
+
+
+
+//    typedef struct {
+//        InsId id;
+//    } ForwardingElement;
+
+         typedef OpPacket ForwardingElement;
+
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = //'{id: -1};
+                                                            EMPTY_OP_PACKET;
 
 
     // NOT USED so far
@@ -292,10 +315,7 @@ package ExecDefs;
     localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
     localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, readyF: '0, readyArgsF: '{'0, '0, '0}};
 
-    
-    typedef InsId Poison[4];
-    localparam Poison DEFAULT_POISON = '{default: -1};
-    
+
     typedef struct {
         Poison poisoned[3];
     } IqPoisonState;
@@ -347,17 +367,12 @@ package ExecDefs;
     
     localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, DEFAULT_POISON};
     
-    typedef struct {
-        logic active;
-    
-        InsId id;
-        
-        Poison poison;
-        
-        Word result;
-    } OpPacket;
-    
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, DEFAULT_POISON, 'x};
+    function automatic Poison poisonAppend(input Poison p, input InsId id);
+        Poison res = p;
+        int found[$] = p.find_first_index with (item == -1); 
+        res[found[0]] = id;
+        return res;
+    endfunction;
 
 
         function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
@@ -374,6 +389,7 @@ package ExecDefs;
                 res.group = PG_INT;
                 res.port = p;
                 res.stage = found[0];
+                    res.poison = fea[p][found[0]].poison;
                 return res;
             end
             return res;
@@ -393,6 +409,7 @@ package ExecDefs;
                 res.group = PG_MEM;
                 res.port = p;
                 res.stage = found[0];
+                    res.poison = poisonAppend(fea[p][found[0]].poison, producer);
                 return res;
             end
             return res;
@@ -412,6 +429,7 @@ package ExecDefs;
                 res.group = PG_VEC;
                 res.port = p;
                 res.stage = found[0];
+                
                 return res;
             end
             return res;
