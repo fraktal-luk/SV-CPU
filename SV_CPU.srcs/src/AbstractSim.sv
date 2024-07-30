@@ -6,9 +6,12 @@ package AbstractSim;
     import Asm::*;
     import Emulation::*;
 
+
+// Arch specific
     typedef Word Mword;
 
-
+////////////////////////
+// Sim outside core
     typedef Word Ptype[4096];
 
     Ptype simProgMem;
@@ -20,35 +23,7 @@ package AbstractSim;
     function static void TMP_setP(input Word p[4096]);
         simProgMem = p;
     endfunction
-
-
-    typedef logic logic3[3];
-
-    typedef int InsId;
-
-    typedef InsId IdQueue[$];
-
-
-    typedef struct {
-        logic active;
-        InsId id;
-        Word adr;
-        Word bits;
-    } OpSlot;
-
-    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
-
-    typedef OpSlot OpSlotQueue[$];
-
-
-    function automatic void runInEmulator(ref Emulator emul, input OpSlot op);
-        AbstractInstruction ins = decodeAbstract(op.bits);
-        ExecResult res = emul.processInstruction(op.adr, ins, emul.tmpDataMem);
-    endfunction
-
-
-
-
+////////////////////
 
     // Classes for simulation, not Core related
 
@@ -87,15 +62,12 @@ package AbstractSim;
         
         function automatic Word read(input Word adr);
             Word res = 0;
-            
             for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
-            
             return res;
         endfunction
 
         function automatic void write(input Word adr, input Word value);
-            Word data = value;
-            
+            Word data = value;            
             for (int i = 0; i < 4; i++) begin
                 content[adr + i] = data[31:24];
                 data <<= 8;
@@ -105,7 +77,146 @@ package AbstractSim;
     endclass
     ////////////////////////////////////////////////////////////////
 
+    localparam int FETCH_QUEUE_SIZE = 8;
+    localparam int BC_QUEUE_SIZE = 64;
 
+    localparam int N_REGS_INT = 128;
+    localparam int N_REGS_FLOAT = 128;
+
+    localparam int ISSUE_QUEUE_SIZE = 24;
+
+    localparam int ROB_SIZE = 128;
+    
+    localparam int LQ_SIZE = 80;
+    localparam int SQ_SIZE = 80;
+    localparam int BQ_SIZE = 32;
+
+    localparam FETCH_WIDTH = 4;
+    localparam RENAME_WIDTH = 4;
+    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
+
+    localparam logic IN_ORDER = 0;//1;
+    localparam logic USE_FORWARDING = 1;//0;
+
+    localparam int FW_FIRST = -2 + 2;
+    localparam int FW_LAST = 1;
+
+
+////////////////////////////
+    // Core structures
+
+    typedef int InsId;  // Implem detail
+    typedef InsId IdQueue[$]; // Implet detail
+
+    typedef struct {
+        logic active;
+        InsId id;
+        Word adr;
+        Word bits;
+    } OpSlot;
+
+    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+
+    typedef OpSlot OpSlotQueue[$];
+
+    typedef OpSlot OpSlotA[RENAME_WIDTH];
+
+    typedef OpSlot FetchStage[FETCH_WIDTH];
+
+    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+
+   
+    typedef struct {
+        OpSlot op;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
+
+    // TODO: should be removed?
+    typedef struct {
+        int num;
+        OpSlot regular[2];
+        OpSlot float[2];
+        OpSlot branch;
+        OpSlot mem;
+        OpSlot sys;
+    } IssueGroup;
+
+    const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
+                                            regular: '{default: EMPTY_SLOT},
+                                            float: '{default: EMPTY_SLOT},
+                                            branch: EMPTY_SLOT,
+                                            mem: EMPTY_SLOT,
+                                            sys: EMPTY_SLOT};
+
+    typedef struct {
+        Mword target;
+        logic redirect;
+        logic sig;
+        logic wrong;
+    } LateEvent;
+
+    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
+
+
+    typedef struct {
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+
+
+    typedef struct {
+        OpSlot op;
+        logic interrupt;
+        logic reset;
+        logic redirect;
+        logic sigOk;
+        logic sigWrong;
+        Word target;
+    } EventInfo;
+    
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
+
+    typedef struct {
+        int iqRegular;
+        int iqFloat;
+        int iqBranch;
+        int iqMem;
+        int iqSys;
+
+        //int oooq;
+        int rob;
+        int lq;
+        int sq;
+        //int csq;
+    } BufferLevels;
+
+    typedef struct {
+        OpSlot late;
+        OpSlot exec;
+    } Events;
+
+    typedef struct {
+        InsId id;
+        Word target;
+    } BranchTargetEntry;
+    //////////////////////////////////////
+
+
+//////////////////
+// General
+    function automatic logic anyActiveFetch(input FetchStage s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+    function automatic logic anyActive(input OpSlotA s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
 
     // Op classiication
     
@@ -113,7 +224,6 @@ package AbstractSim;
         AbstractInstruction abs = decodeAbstract(op.bits);
         return hasIntDest(abs);
     endfunction
-
 
     function automatic logic writesFloatReg(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -126,7 +236,6 @@ package AbstractSim;
         return isBranchIns(abs);
     endfunction
 
-
     function automatic logic isStoreMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isStoreMemIns(abs);
@@ -136,7 +245,6 @@ package AbstractSim;
         AbstractInstruction abs = decodeAbstract(op.bits);
         return isStoreSysIns(abs);
     endfunction
-
 
     function automatic logic isLoadMemOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -165,7 +273,6 @@ package AbstractSim;
     /////////////////////////////////////////////////
 
 
-
     /////////////////////
     // Defs for tracking, insMap
     
@@ -178,7 +285,6 @@ package AbstractSim;
         InsId producers[3];
     } InsDependencies;
 
-
     typedef struct {
         int rename;
         int renameG;
@@ -187,7 +293,7 @@ package AbstractSim;
         int sq;
     } IndexSet;
 
-
+    // TODO: move to Insmap?
     typedef struct {
         InsId id;
         Word adr;
@@ -221,36 +327,6 @@ package AbstractSim;
     endfunction
 
     ///////////////////////////////////////////////////////
-
-
-
-
-    localparam int FETCH_QUEUE_SIZE = 8;
-    localparam int BC_QUEUE_SIZE = 64;
-
-    localparam int N_REGS_INT = 128;
-    localparam int N_REGS_FLOAT = 128;
-
-    localparam int ISSUE_QUEUE_SIZE = 24;
-
-    localparam int ROB_SIZE = 128;
-    
-    localparam int LQ_SIZE = 80;
-    localparam int SQ_SIZE = 80;
-    localparam int BQ_SIZE = 32;
-    
-
-    localparam FETCH_WIDTH = 4;
-    localparam RENAME_WIDTH = 4;
-    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
-
-
-
-        localparam logic IN_ORDER = 0;//1;
-        localparam logic USE_FORWARDING = 1;//0;
-
-        localparam int FW_FIRST = -2 + 2;
-        localparam int FW_LAST = 1;
 
 
     class BranchCheckpoint;
@@ -697,98 +773,6 @@ package AbstractSim;
     endclass
 
 
-
-
-    // Core structures
-
-    typedef OpSlot OpSlotA[RENAME_WIDTH];
-
-    typedef OpSlot FetchStage[FETCH_WIDTH];
-
-    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
-
-   
-    typedef struct {
-        OpSlot op;
-        Word adr;
-        Word val;
-    } StoreQueueEntry;
-
-        // TODO: should be removed?
-        typedef struct {
-            int num;
-            OpSlot regular[2];
-            OpSlot float[2];
-            OpSlot branch;
-            OpSlot mem;
-            OpSlot sys;
-        } IssueGroup;
-
-        const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
-                                            regular: '{default: EMPTY_SLOT},
-                                            float: '{default: EMPTY_SLOT},
-                                            branch: EMPTY_SLOT,
-                                            mem: EMPTY_SLOT,
-                                            sys: EMPTY_SLOT};
-
-    typedef struct {
-        Mword target;
-        logic redirect;
-        logic sig;
-        logic wrong;
-    } LateEvent;
-
-    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
-
-
-    typedef struct {
-        logic req;
-        Word adr;
-        Word value;
-    } MemWriteInfo;
-    
-    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
-    
-    typedef struct {
-        OpSlot op;
-        logic interrupt;
-        logic reset;
-        logic redirect;
-        logic sigOk;
-        logic sigWrong;
-        Word target;
-    } EventInfo;
-    
-    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
-
-    typedef struct {
-        //int oq;
-        int iqRegular;
-        int iqFloat;
-        int iqBranch;
-        int iqMem;
-        int iqSys;
-
-        int oooq;
-        //int bq;
-        int rob;
-        int lq;
-        int sq;
-        int csq;
-    } BufferLevels;
-
-
-    typedef struct {
-        OpSlot late;
-        OpSlot exec;
-    } Events;
-
-    typedef struct {
-        InsId id;
-        Word target;
-    } BranchTargetEntry;
-    //////////////////////////////////////
-
     ////////////////////////////////////////////
     // Core functions
 
@@ -863,18 +847,7 @@ package AbstractSim;
         sysRegs[1] |= 2; // TODO: handle state register correctly
     endfunction
 
-
-    function automatic logic anyActiveFetch(input FetchStage s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-    function automatic logic anyActive(input OpSlotA s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-
+    
     function automatic logic getWrongSignal(input AbstractInstruction ins);
         return ins.def.o == O_undef;
     endfunction
@@ -887,6 +860,7 @@ package AbstractSim;
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
 
+    // core logic
     function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed);
         if (isBranchIns(ins))
             return executed;
@@ -897,4 +871,3 @@ package AbstractSim;
     endfunction;
         
 endpackage
-

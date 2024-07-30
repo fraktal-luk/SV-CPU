@@ -429,7 +429,7 @@ module AbstractCore
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
         deps = registerTracker.getArgDeps(op); // For insMap
 
-        runInEmulator(renamedEmul, op);
+        runInEmulator(renamedEmul, op.adr, op.bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
@@ -491,7 +491,7 @@ module AbstractCore
         if (writesIntReg(op) || writesFloatReg(op)) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
 
-        runInEmulator(retiredEmul, op);
+        runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
         nextTrg = retiredEmul.coreState.target; // DB
 
