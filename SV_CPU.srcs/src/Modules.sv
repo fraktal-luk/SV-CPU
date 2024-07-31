@@ -242,9 +242,9 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    typedef StoreQueueEntry StoreQueueExtract[$];
+    //typedef StoreQueueEntry StoreQueueExtract[$];
 
-    IssueGroup issuedSt0;
+    //IssueGroup issuedSt0;
     
     OpSlot doneOpSys = EMPTY_SLOT;
     OpSlot doneOpSys_E;
@@ -279,7 +279,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.regular[0],
+        //issuedSt0.regular[0],
+        theIssueQueues.issuedRegular[0],
         AbstractCore.theIssueQueues.issuedRegularP[0]
     );
     
@@ -288,7 +289,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.regular[1],
+        //issuedSt0.regular[1],
+        theIssueQueues.issuedRegular[1],
         AbstractCore.theIssueQueues.issuedRegularP[1]
     );
     
@@ -297,7 +299,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.branch,
+        //issuedSt0.branch,
+        theIssueQueues.issuedBranch[0],
         AbstractCore.theIssueQueues.issuedBranchP[0]
     );
     
@@ -306,7 +309,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.mem,
+        //issuedSt0.mem,
+        theIssueQueues.issuedMem[0],
         AbstractCore.theIssueQueues.issuedMemP[0]
     );
     
@@ -315,7 +319,8 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.float[0],
+        //issuedSt0.float[0],
+        theIssueQueues.issuedFloat[0],
         AbstractCore.theIssueQueues.issuedFloatP[0]
     );
     
@@ -324,13 +329,22 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        issuedSt0.float[1],
+        //issuedSt0.float[1],
+        theIssueQueues.issuedFloat[1],
         AbstractCore.theIssueQueues.issuedFloatP[1]
     );
 
+//    assign issuedSt0.regular = theIssueQueues.issuedRegular;
+//    assign issuedSt0.float = theIssueQueues.issuedFloat;
+//    assign issuedSt0.branch = theIssueQueues.issuedBranch[0];
+//    assign issuedSt0.mem = theIssueQueues.issuedMem[0];
+//    assign issuedSt0.sys = theIssueQueues.issuedSys[0];
+
+
 
     always @(posedge AbstractCore.clk) begin
-        doneOpSys <= tick(issuedSt0.sys);
+        doneOpSys <= tick(//issuedSt0.sys);
+                          theIssueQueues.issuedSys[0]);
     end
 
     assign doneSys = makePacket(doneOpSys, 'x);
@@ -454,12 +468,6 @@ module ExecBlock(ref InstructionMap insMap,
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
     endfunction
 
-
-    assign issuedSt0.regular = theIssueQueues.issuedRegular;
-    assign issuedSt0.float = theIssueQueues.issuedFloat;
-    assign issuedSt0.branch = theIssueQueues.issuedBranch[0];
-    assign issuedSt0.mem = theIssueQueues.issuedMem[0];
-    assign issuedSt0.sys = theIssueQueues.issuedSys[0];
 
     assign doneOpSys_E = eff(doneOpSys);
 

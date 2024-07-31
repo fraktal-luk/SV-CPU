@@ -46,7 +46,7 @@ module AbstractCore
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
-    BufferLevels oooLevels, oooAccepts;
+    IqLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
     // OOO
@@ -281,8 +281,8 @@ module AbstractCore
     assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
                                                 && theRob.allow && theSq.allow && theLq.allow;;
 
-    function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
-        BufferLevels res;
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res;
      
         res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
@@ -293,7 +293,7 @@ module AbstractCore
         return res;
     endfunction
 
-    function automatic logic iqsAccept(input BufferLevels acc);
+    function automatic logic iqsAccept(input IqLevels acc);
         return 1
                 && acc.iqRegular
                 && acc.iqFloat

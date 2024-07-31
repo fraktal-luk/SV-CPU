@@ -8,8 +8,43 @@ package Insmap;
     import AbstractSim::*;
     
 
-    class InstructionMap;
+
+    // TODO: move to Insmap?
+    typedef struct {
+        InsId id;
+        Word adr;
+        Word bits;
+        Word target;
+        AbstractInstruction dec;
+        Word result;
+        Word actualResult;
+        IndexSet inds;
+        int slot;
+        InsDependencies deps;
+        int physDest;
         
+        Word argValues[3];
+        logic argError;
+        
+    } InstructionInfo;
+
+        // TODO: move to ins map?
+    function automatic InstructionInfo initInsInfo(input OpSlot op);
+        InstructionInfo res;
+        res.id = op.id;
+        res.adr = op.adr;
+        res.bits = op.bits;
+
+        res.physDest = -1;
+
+        res.argError = 0;
+
+        return res;
+    endfunction
+
+
+    class InstructionMap;
+   
         typedef enum {
             ___,
         
