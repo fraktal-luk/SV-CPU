@@ -130,32 +130,13 @@ module AbstractCore
 
 
     task automatic handleCompletion();
-//        foreach (theExecBlock.doneOpsRegular_E[i]) begin
-//            completeOp(theExecBlock.doneOpsRegular_E[i]);
-//            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
-//        end
-
-//        foreach (theExecBlock.doneOpsFloat_E[i]) begin
-//            completeOp(theExecBlock.doneOpsFloat_E[i]);
-//            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
-//        end
-
-//        completeOp(theExecBlock.doneOpBranch_E);
-//        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
-
-//        completeOp(theExecBlock.doneOpMem_E);
-//        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
-
-//        completeOp(theExecBlock.doneOpSys_E);
-        
-        
-                completePacket(theExecBlock.doneRegular0);
-                completePacket(theExecBlock.doneRegular1);
-                completePacket(theExecBlock.doneFloat0);
-                completePacket(theExecBlock.doneFloat1);
-                completePacket(theExecBlock.doneBranch);
-                completePacket(theExecBlock.doneMem);
-                completePacket(theExecBlock.doneSys);
+        completePacket(theExecBlock.doneRegular0);
+        completePacket(theExecBlock.doneRegular1);
+        completePacket(theExecBlock.doneFloat0);
+        completePacket(theExecBlock.doneFloat1);
+        completePacket(theExecBlock.doneBranch);
+        completePacket(theExecBlock.doneMem);
+        completePacket(theExecBlock.doneSys);
     endtask
 
     task automatic updateBookkeeping();
@@ -164,7 +145,7 @@ module AbstractCore
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
         
-        intRegsReadyV <= registerTracker.intReady;
+        intRegsReadyV <= registerTracker.ints_ready;
         floatRegsReadyV <= registerTracker.floatReady;
 
         // Overall DB
@@ -347,7 +328,6 @@ module AbstractCore
     endtask
 
     task automatic rollbackToCheckpoint(input BranchCheckpoint single);
-        //BranchCheckpoint single = branchCP;
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         renameInds = single.inds;
@@ -411,7 +391,7 @@ module AbstractCore
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
                                     registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
-                                    registerTracker.intMapR, registerTracker.floatMapR,
+                                    registerTracker.ints_MapR, registerTracker.floatMapR,
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
     endtask
@@ -578,7 +558,6 @@ module AbstractCore
         if (!p.active) return;
         else begin
             OpSlot os = getOpSlotFromPacket(p);
-            //completeOp(os);
             writeResult(os, p.result);
             
             coreDB.lastCompleted = os;
@@ -598,16 +577,6 @@ module AbstractCore
         
         return res;
     endfunction;
-    
-    
-//    task automatic completeOp(input OpSlot op);            
-//        if (!op.active) return;
-
-//        //putMilestone(op.id, InstructionMap::Complete); 
-
-//            coreDB.lastCompleted = op;
-//            coreDB.nCompleted++;
-//    endtask
 
 
     function automatic Word getSysReg(input Word adr);
@@ -620,17 +589,8 @@ module AbstractCore
 
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
-
         putMilestone(op.id, InstructionMap::WriteResult);
-
-        if (writesIntReg(op)) begin
-            registerTracker.setReadyInt(op.id);
-            registerTracker.writeValueInt(op, value);
-        end
-        if (writesFloatReg(op)) begin
-            registerTracker.setReadyFloat(op.id);
-            registerTracker.writeValueFloat(op, value);
-        end
+        registerTracker.writeValue(op, value);
     endtask
 
 
