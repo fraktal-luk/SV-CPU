@@ -196,26 +196,111 @@ package AbstractSim;
         localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
         localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
 
-        typedef struct {
+        class IntRegisterDomain;
             PhysRegInfo info[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
             Word regs[N_REGS_INT] = '{0: 0, default: 'x};
             logic ready[N_REGS_INT] = '{0: 1, default: '0};
             
             int MapR[32] = '{default: 0};
             int MapC[32] = '{default: 0};
-        } IntRegisterDomain;
+            
+            InsId writersR[32] = '{default: -1};
+            InsId writersC[32] = '{default: -1};
+            
+            function automatic logic ignoreV(input int vReg);
+                return (vReg == 0);
+            endfunction
+            
+            function automatic int reserve(input AbstractInstruction ins, input InsId id);
+                int vDest = ins.dest;
+                int pDest = findFree();
+                
+                if (!ignoreV(vDest)) begin
+                    writersR[vDest] = id;
+                    info[pDest] = '{SPECULATIVE, id};
+                    MapR[vDest] = pDest;
+                end
+                
+                return findDest(id);
+            endfunction
+    
+            function automatic void commit(input AbstractInstruction ins, InsId id);
+                int vDest = ins.dest;
+                int ind[$] = info.find_first_index with (item.owner == id);
+                int pDest = ind[0];
+                int pDestPrev = MapC[vDest];
+                            
+                if (ignoreV(vDest)) return;
+                
+                writersC[vDest] = id;
+    
+                info[pDest] = '{STABLE, -1};
+                MapC[vDest] = pDest;
 
-        IntRegisterDomain ints;
+                if (pDestPrev == 0) return; 
+                info[pDestPrev] = REG_INFO_FREE;
+                ready[pDestPrev] = 0;
+                regs[pDestPrev] = 'x;
+            endfunction
 
-        PhysRegInfo ints_info[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
-        Word ints_regs[N_REGS_INT] = '{0: 0, default: 'x};
-        logic ints_ready[N_REGS_INT] = '{0: 1, default: '0};
+            function automatic void setReady(input InsId id);
+                int pDest = findDest(id);
+                ready[pDest] = 1;
+            endfunction;
+    
+            function automatic void writeValue(input AbstractInstruction ins, input InsId id, input Word value);
+                int pDest = findDest(id);
+                if (ignoreV(ins.dest)) return;
+                regs[pDest] = value;
+            endfunction            
+ 
+            function automatic int findFree();
+                int res[$] = info.find_first_index with (item.state == FREE);
+                return res[0];
+            endfunction
+    
+            function automatic int findDest(input InsId id);
+                int inds[$] = info.find_first_index with (item.owner == id);
+                return inds.size() > 0 ? inds[0] : -1;
+            endfunction;
 
-        int ints_MapR[32] = '{default: 0};
-        int ints_MapC[32] = '{default: 0};
+
+            function automatic void flush(input OpSlot op);
+                int inds[$] = info.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+
+                foreach (inds[i]) begin
+                    int pDest = inds[i];
+                    info[pDest] = REG_INFO_FREE;
+                    ready[pDest] = 0;
+                    regs[pDest] = 'x;
+                end
+
+                // Restoring map is separate
+            endfunction
+
+            function automatic void flushAll();
+                int inds[$] = info.find_index with (item.state == SPECULATIVE);
+
+                foreach (inds[i]) begin
+                    int pDest = inds[i];
+                    info[pDest] = REG_INFO_FREE;
+                    ready[pDest] = 0;
+                    regs[pDest] = 'x;
+                end
+                
+                // Restoring map is separate
+            endfunction
+            
+        endclass
+
         
         
 
+
+        IntRegisterDomain ints = new();
+
+        
+        // TODO: change to float params!
         PhysRegInfo floatInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
         Word floatRegs[N_REGS_INT] = '{0: 0, default: 'x};
         logic floatReady[N_REGS_INT] = '{0: 1, default: '0};
@@ -232,7 +317,7 @@ package AbstractSim;
             AbstractInstruction abs = decodeAbstract(op.bits);
 
             if (hasIntDest(abs))
-                return reserveInt(abs, op.id);
+                return ints.reserve(abs, op.id);
 
             if (hasFloatDest(abs)) begin
                 wrTracker.floatWritersR[abs.dest] = op.id;
@@ -243,25 +328,11 @@ package AbstractSim;
             return -1;
         endfunction
 
-        function automatic int reserveInt(input AbstractInstruction ins, input InsId id);
-            int vDest = ins.dest;
-            int pDest = findFreeInt();
-            
-            if (vDest != 0) begin
-                wrTracker.intWritersR[vDest] = id;
-
-                ints_info[pDest] = '{SPECULATIVE, id};
-                ints_MapR[vDest] = pDest;
-            end
-            
-            return findDestInt(id);
-        endfunction
-
 
         function automatic void commit(input OpSlot op);
             AbstractInstruction abs = decodeAbstract(op.bits);
             if (hasIntDest(abs))
-                commitInt(abs, op.id);
+                ints.commit(abs, op.id);
             
             if (hasFloatDest(abs)) begin
                 wrTracker.floatWritersC[abs.dest] = op.id;
@@ -269,31 +340,12 @@ package AbstractSim;
             end
         endfunction
 
-        function automatic void commitInt(input AbstractInstruction ins, InsId id);
-            int vDest = ins.dest;
-            int ind[$] = ints_info.find_first_index with (item.owner == id);
-            int pDest = ind[0];
-            int pDestPrev = ints_MapC[vDest];
-                        
-            if (vDest == 0) return;
-            
-            wrTracker.intWritersC[vDest] = id;
-
-            ints_info[pDest] = '{STABLE, -1};
-            ints_MapC[vDest] = pDest;
-            if (pDestPrev == 0) return; 
-            ints_info[pDestPrev] = REG_INFO_FREE;
-            ints_ready[pDestPrev] = 0;
-            ints_regs[pDestPrev] = 'x;
-        endfunction
-
-
         function automatic void writeValue(input OpSlot op, input Word value);
             AbstractInstruction ins = decodeAbstract(op.bits);
 
             if (writesIntReg(op)) begin
-                setReadyInt(op.id);
-                writeValueInt(ins, op.id, value);
+                ints.setReady(op.id);
+                ints.writeValue(ins, op.id, value);
             end
             if (writesFloatReg(op)) begin
                 setReadyFloat(op.id);
@@ -301,36 +353,7 @@ package AbstractSim;
             end
         endfunction
 
-
-        function automatic void setReadyInt(input InsId id);
-            int pDest = findDestInt(id);
-            ints_ready[pDest] = 1;
-        endfunction;
-
-        function automatic void writeValueInt(//input OpSlot op, 
-                                              input AbstractInstruction ins, input InsId id, input Word value);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
-            int pDest = findDestInt(id);
-            if (//!writesIntReg(op) || 
-                ins.dest == 0) return;
-            
-            ints_regs[pDest] = value;
-        endfunction
-        
-
-        
-        function automatic int findFreeInt();
-            int res[$] = ints_info.find_first_index with (item.state == FREE);
-            return res[0];
-        endfunction
-
-        function automatic int findDestInt(input InsId id);
-            int inds[$] = ints_info.find_first_index with (item.owner == id);
-            return inds.size() > 0 ? inds[0] : -1;
-        endfunction;
-
-
-
+ 
             function automatic void reserveFloat(input OpSlot op);
                 AbstractInstruction ins = decodeAbstract(op.bits);
                 int vDest = ins.dest;
@@ -378,8 +401,10 @@ package AbstractSim;
             endfunction;
 
 
+
+
         function automatic InsDependencies getArgDeps(input OpSlot op);
-            int mapInt[32] = ints_MapR;
+            int mapInt[32] = ints.MapR;
             int mapFloat[32] = floatMapR;
             int sources[3] = '{-1, -1, -1};
             InsId producers[3] = '{-1, -1, -1};
@@ -392,7 +417,7 @@ package AbstractSim;
                 if (typeSpec[i + 2] == "i") begin
                     sources[i] = mapInt[abs.sources[i]];
                     types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-                    producers[i] = ints_info[sources[i]].owner;
+                    producers[i] = ints.info[sources[i]].owner;
                 end
                 else if (typeSpec[i + 2] == "f") begin
                     sources[i] = mapFloat[abs.sources[i]];
@@ -411,19 +436,21 @@ package AbstractSim;
     
             return '{sources, types, producers};
         endfunction
-         
         
+ 
+ 
         function automatic void flush(input OpSlot op);
-            int indsInt[$] = ints_info.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+            //int indsInt[$] = ints.info.find_index with (item.state == SPECULATIVE && item.owner > op.id);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
 
-            foreach (indsInt[i]) begin
-                int pDest = indsInt[i];
-                ints_info[pDest] = REG_INFO_FREE;
-                ints_ready[pDest] = 0;
-                ints_regs[pDest] = 'x;
-            end
-
+//            foreach (indsInt[i]) begin
+//                int pDest = indsInt[i];
+//                ints.info[pDest] = REG_INFO_FREE;
+//                ints.ready[pDest] = 0;
+//                ints.regs[pDest] = 'x;
+//            end
+                ints.flush(op);
+                
             foreach (indsFloat[i]) begin
                 int pDest = indsFloat[i];
                 floatInfo[pDest] = REG_INFO_FREE;
@@ -435,15 +462,16 @@ package AbstractSim;
         endfunction
         
         function automatic void flushAll();
-            int indsInt[$] = ints_info.find_index with (item.state == SPECULATIVE);
+            //int indsInt[$] = ints.info.find_index with (item.state == SPECULATIVE);
             int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE);
 
-            foreach (indsInt[i]) begin
-                int pDest = indsInt[i];
-                ints_info[pDest] = REG_INFO_FREE;
-                ints_ready[pDest] = 0;
-                ints_regs[pDest] = 'x;
-            end
+//            foreach (indsInt[i]) begin
+//                int pDest = indsInt[i];
+//                ints.info[pDest] = REG_INFO_FREE;
+//                ints.ready[pDest] = 0;
+//                ints.regs[pDest] = 'x;
+//            end
+                ints.flushAll();
              
             foreach (indsFloat[i]) begin
                 int pDest = indsFloat[i];
@@ -455,35 +483,47 @@ package AbstractSim;
             // Restoring map is separate
         endfunction
  
+ 
         function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
-            ints_MapR = intM;
+            ints.MapR = intM;
+            ints.writersR = intWriters;
+
             floatMapR = floatM;
             
+            
             wrTracker.intWritersR = intWriters;
+            
             wrTracker.floatWritersR = floatWriters;
         endfunction
     
         function automatic void restoreStable();
-            ints_MapR = ints_MapC;
+            ints.MapR = ints.MapC;
+            ints.writersR = ints.writersC;
+
             floatMapR = floatMapC;
         
             wrTracker.intWritersR = wrTracker.intWritersC;
+
             wrTracker.floatWritersR = wrTracker.floatWritersC;
         endfunction
 
         function automatic void restoreReset();
-            ints_MapR = ints_MapC;
+            ints.MapR = ints.MapC;
+            ints.writersR = '{default: -1};
+
+
             floatMapR = floatMapC;
         
             wrTracker.intWritersR = '{default: -1};
+            
             wrTracker.floatWritersR = '{default: -1};
         endfunction
 
 
         function automatic int getNumFreeInt();
-            int freeInds[$] = ints_info.find_index with (item.state == FREE);
-            int specInds[$] = ints_info.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = ints_info.find_index with (item.state == STABLE);            
+            int freeInds[$] = ints.info.find_index with (item.state == FREE);
+            int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = ints.info.find_index with (item.state == STABLE);            
             return freeInds.size();
         endfunction
         
@@ -498,13 +538,13 @@ package AbstractSim;
 
             // UNUSED
             function automatic int getNumSpecInt();
-                int specInds[$] = ints_info.find_index with (item.state == SPECULATIVE);            
+                int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);            
                 return specInds.size();
             endfunction 
             
             // UNUSED
             function automatic int getNumStabInt();
-                int stabInds[$] = ints_info.find_index with (item.state == STABLE);            
+                int stabInds[$] = ints.info.find_index with (item.state == STABLE);            
                 return stabInds.size();
             endfunction
 

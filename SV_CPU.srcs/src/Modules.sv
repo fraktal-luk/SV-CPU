@@ -498,7 +498,7 @@ module ExecBlock(ref InstructionMap insMap,
                 SRC_CONST: res[i] = deps.sources[i];
                 SRC_INT: begin
                     if (ready[i])
-                        res[i] = tracker.ints_regs[deps.sources[i]];
+                        res[i] = tracker.ints.regs[deps.sources[i]];
                     else if (forw1[i]) begin
                         //$display("....get(1) a %d = %d", i, vals1[i]);
                         res[i] = vals1[i];

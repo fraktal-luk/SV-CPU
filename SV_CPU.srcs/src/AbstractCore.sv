@@ -145,7 +145,7 @@ module AbstractCore
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
         
-        intRegsReadyV <= registerTracker.ints_ready;
+        intRegsReadyV <= registerTracker.ints.ready;
         floatRegsReadyV <= registerTracker.floatReady;
 
         // Overall DB
@@ -390,8 +390,9 @@ module AbstractCore
 
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
-                                    registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
-                                    registerTracker.ints_MapR, registerTracker.floatMapR,
+                                    //registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
+                                    registerTracker.ints.writersR, registerTracker.wrTracker.floatWritersR,
+                                    registerTracker.ints.MapR, registerTracker.floatMapR,
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
     endtask
