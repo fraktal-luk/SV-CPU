@@ -146,7 +146,7 @@ module AbstractCore
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
         
         intRegsReadyV <= registerTracker.ints.ready;
-        floatRegsReadyV <= registerTracker.floatReady;
+        floatRegsReadyV <= registerTracker.floats.ready;
 
         // Overall DB
             coreDB.insMapSize = insMap.size();
@@ -391,8 +391,8 @@ module AbstractCore
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
                                     //registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
-                                    registerTracker.ints.writersR, registerTracker.wrTracker.floatWritersR,
-                                    registerTracker.ints.MapR, registerTracker.floatMapR,
+                                    registerTracker.ints.writersR, registerTracker.floats.writersR,
+                                    registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
     endtask

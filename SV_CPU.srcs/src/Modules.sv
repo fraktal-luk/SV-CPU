@@ -512,7 +512,7 @@ module ExecBlock(ref InstructionMap insMap,
                 end
                 SRC_FLOAT: begin
                     if (ready[i])
-                        res[i] = tracker.floatRegs[deps.sources[i]];
+                        res[i] = tracker.floats.regs[deps.sources[i]];
                     else if (forw1[i]) begin
                         //$display(".......");
                         res[i] = vals1[i];
