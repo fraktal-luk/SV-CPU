@@ -32,8 +32,7 @@ package AbstractSim;
     localparam RENAME_WIDTH = 4;
     localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
-    localparam logic IN_ORDER = 0;//1;
-    localparam logic USE_FORWARDING = 1;//0;
+    localparam logic IN_ORDER = 0;
 
     localparam int FW_FIRST = -2 + 2;
     localparam int FW_LAST = 1;
@@ -408,13 +407,13 @@ package AbstractSim;
         endfunction
 
 
+
         function automatic int getNumFreeInt();
             int freeInds[$] = ints.info.find_index with (item.state == FREE);
             int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
             int stabInds[$] = ints.info.find_index with (item.state == STABLE);    
             return freeInds.size();
-        endfunction
-        
+        endfunction        
         
         function automatic int getNumFreeFloat();
             int freeInds[$] = floats.info.find_index with (item.state == FREE);
@@ -422,19 +421,6 @@ package AbstractSim;
             int stabInds[$] = floats.info.find_index with (item.state == STABLE);            
             return freeInds.size();
         endfunction
-
-
-            // UNUSED
-            function automatic int getNumSpecInt();
-                int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);            
-                return specInds.size();
-            endfunction 
-            
-            // UNUSED
-            function automatic int getNumStabInt();
-                int stabInds[$] = ints.info.find_index with (item.state == STABLE);            
-                return stabInds.size();
-            endfunction
 
     endclass
 
@@ -548,8 +534,6 @@ package AbstractSim;
 
 
 
-
-
 //////////////////
 // General
     function automatic logic anyActiveFetch(input FetchStage s);
@@ -562,7 +546,7 @@ package AbstractSim;
         return 0;
     endfunction
 
-    // Op classiication
+    // Op classiication - not all are used!
     
     function automatic logic writesIntReg(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
