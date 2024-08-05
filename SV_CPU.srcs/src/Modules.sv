@@ -44,7 +44,7 @@ module RegularSubpipe(
         result <= 'x;
     
         if (op_E.active)
-            result <= calcRegularOp(op_E);
+            result <= calcRegularOp(op_E.id);
         doneOp <= tick(op1);
         doneOpD0 <= tick(doneOp);
     end
@@ -110,18 +110,21 @@ module BranchSubpipe(
         //////
         op1 <= tick(op0);
 
-        result <= 'x;
+        //result <= 'x;
     
-        runExecBranch(op_E);
-        
+        runExecBranch(op_E.active, op_E.id);
+
         if (op_E.active) begin
-            insMap.setActualResult(op_E.id, op_E.adr + 4);
-            result <= op_E.adr + 4;
+            //insMap.setActualResult(op_E.id, getBranchResult(op_E.active, op_E.id));
+            //result <= op_E.adr + 4;
         end
+        
+        result <= getBranchResult(op_E.active, op_E.id);
         
         doneOp <= tick(op1);
         doneOpD0 <= tick(doneOp);
     end
+
 
     assign op0_E = eff(op0);
     assign op_E = eff(op1);
@@ -189,14 +192,14 @@ module MemSubpipe(
     
         AbstractCore.readInfo <= EMPTY_WRITE_INFO;
 
-        if (op_E.active) performMemFirst(op_E);
+        if (op_E.active) performMemFirst(op_E.id);
 
         doneOpE0 <= tick(op1);
         
         doneOpE1 <= tick(doneOpE0);
         
         if (doneOpE1_E.active) begin
-            result <= calcMemLater(doneOpE1_E); 
+            result <= calcMemLater(doneOpE1_E.id); 
         end
         
         doneOpE2 <= tick(doneOpE1);
@@ -388,64 +391,79 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.vecs = floatImagesTr;
 
 
-    function automatic Word calcRegularOp(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
-        Word result = calculateResult(abs, args, op.adr); // !!!!
+    // TOPLEVEL
+    function automatic Word calcRegularOp(input InsId id);
+        AbstractInstruction abs = decId(id);
+                                
+        Word3 args = getAndVerifyArgs(id);
+        Word adr = getAdr(id);
+        Word result = calculateResult(abs, args, adr);
         
-        insMap.setActualResult(op.id, result);
+        insMap.setActualResult(id, result);
         
         return result;
     endfunction
 
-
-    task automatic runExecBranch(input OpSlot op);
+    // TOPLEVEL
+    task automatic runExecBranch(input logic active, input InsId id);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-        if (!op.active) return;
-        setBranchInCore(op);
-        putMilestone(op.id, InstructionMap::ExecRedirect);
+        if (!active) return;
+           insMap.setActualResult(id, getBranchResult(1, id));
+
+        setBranchInCore(id);
+        putMilestone(id, InstructionMap::ExecRedirect);
     endtask
 
-    task automatic setBranchInCore(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
+    function automatic Word getBranchResult(input logic active, input InsId id);
+        if (!active) return 'x;
+        else begin
+            Word adr = getAdr(id);
+            return adr + 4;
+        end
+    endfunction
 
-        ExecEvent evt = resolveBranch(abs, op.adr, args);
-        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == op.id);
+    task automatic setBranchInCore(input InsId id);
+        OpSlot wholeOp = getOpSlotFromId(id);
+        AbstractInstruction abs = decId(id);
+        Word3 args = getAndVerifyArgs(id);
+        Word adr = getAdr(id);
+
+        ExecEvent evt = resolveBranch(abs, adr, args);
+        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == id);
         
-        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == op.id);
-        Word trg = evt.redirect ? evt.target : op.adr + 4;
+        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);
+        Word trg = evt.redirect ? evt.target : adr + 4;
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{op, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
+        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
     endtask
 
-
-    task automatic performMemFirst(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
+    // TOPLEVEL
+    task automatic performMemFirst(input InsId id);
+        AbstractInstruction abs = decId(id);
+        Word3 args = getAndVerifyArgs(id);
         Word adr = calculateEffectiveAddress(abs, args);
 
         // TODO: compare adr with that in memTracker
-        if (isStoreIns(decAbs(op))) begin            
-            if (isStoreMemIns(decAbs(op))) begin
-                checkStoreValue(op.id, adr, args[2]);
+        if (isStoreIns(abs)) begin            
+            if (isStoreMemIns(abs)) begin
+                checkStoreValue(id, adr, args[2]);
                 
-                putMilestone(op.id, InstructionMap::WriteMemAddress);
-                putMilestone(op.id, InstructionMap::WriteMemValue);
+                putMilestone(id, InstructionMap::WriteMemAddress);
+                putMilestone(id, InstructionMap::WriteMemValue);
             end
         end
 
         AbstractCore.readInfo <= '{1, adr, 'x};
     endtask
 
+    // TOPLEVEL
+    function automatic Word calcMemLater(input InsId id);
+        AbstractInstruction abs = decId(id);
+        Word3 args = getAndVerifyArgs(id);
 
-    function automatic Word calcMemLater(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word3 args = getAndVerifyArgs(op);
-
-        InsId writerAllId = AbstractCore.memTracker.checkWriter(op);
+        InsId writerAllId = AbstractCore.memTracker.checkWriter(id);
 
         logic forwarded = (writerAllId !== -1);
         Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
@@ -454,10 +472,10 @@ module ExecBlock(ref InstructionMap insMap,
 
         if (forwarded) begin
             putMilestone(writerAllId, InstructionMap::MemFwProduce);
-            putMilestone(op.id, InstructionMap::MemFwConsume);
+            putMilestone(id, InstructionMap::MemFwConsume);
         end
 
-        insMap.setActualResult(op.id, data);
+        insMap.setActualResult(id, data);
 
         return data;
     endfunction
@@ -472,12 +490,12 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneOpSys_E = eff(doneOpSys);
 
 
-    function automatic Word3 getAndVerifyArgs(input OpSlot op);
-        InsDependencies deps = insMap.get(op.id).deps;
+    function automatic Word3 getAndVerifyArgs(input InsId id);
+        InsDependencies deps = insMap.get(id).deps;
         Word3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        Word3 argsM = insMap.get(op.id).argValues;
+        Word3 argsM = insMap.get(id).argValues;
         
-        if (argsP !== argsM) insMap.setArgError(op.id);
+        if (argsP !== argsM) insMap.setArgError(id);
         
         return argsP;
     endfunction;

@@ -408,7 +408,7 @@ module AbstractCore
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
-        deps = registerTracker.getArgDeps(op); // For insMap
+        deps = registerTracker.getArgDeps(ins); // For insMap
 
         runInEmulator(renamedEmul, op.adr, op.bits);
         renamedEmul.drain();
@@ -416,7 +416,7 @@ module AbstractCore
 
         updateInds(renameInds, op); // Crucial state
 
-        physDest = registerTracker.reserve(op);
+        physDest = registerTracker.reserve(ins, op.id);
         
         if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
 
@@ -493,7 +493,7 @@ module AbstractCore
         updateInds(commitInds, op); // Crucial
         commitInds.renameG = insMap.get(op.id).inds.renameG;
 
-        registerTracker.commit(op);
+        registerTracker.commit(insInfo.dec, op.id);
         
         if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
@@ -566,7 +566,19 @@ module AbstractCore
         end
     endtask
     
-    
+
+    function automatic OpSlot getOpSlotFromId(input InsId id);
+        OpSlot res;
+        InstructionInfo ii = insMap.get(id);
+        
+        res.active = 1;
+        res.id = id;
+        res.adr = ii.adr;
+        res.bits = ii.bits;
+        
+        return res;
+    endfunction;
+
     function automatic OpSlot getOpSlotFromPacket(input OpPacket p);
         OpSlot res;
         InstructionInfo ii = insMap.get(p.id);
@@ -591,7 +603,7 @@ module AbstractCore
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
         putMilestone(op.id, InstructionMap::WriteResult);
-        registerTracker.writeValue(op, value);
+        registerTracker.writeValue(decAbs(op), op.id, value);
     endtask
 
 
@@ -601,6 +613,17 @@ module AbstractCore
         if (!op.active || op.id == -1) return DEFAULT_ABS_INS;     
         return insMap.get(op.id).dec;
     endfunction
+
+    function automatic AbstractInstruction decId(input InsId id);
+        if (id == -1) return DEFAULT_ABS_INS;     
+        return insMap.get(id).dec;
+    endfunction
+
+    function automatic Word getAdr(input InsId id);
+        if (id == -1) return 'x;     
+        return insMap.get(id).adr;
+    endfunction
+ 
 
     function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);

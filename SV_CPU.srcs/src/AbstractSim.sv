@@ -310,48 +310,49 @@ package AbstractSim;
         RegisterDomain#(N_REGS_INT, 0) floats = new();
 
           
-        function automatic int reserve(input OpSlot op);
-            AbstractInstruction abs = decodeAbstract(op.bits);
+        function automatic int reserve(/*input OpSlot op,*/ input AbstractInstruction abs, input InsId id);
+            //AbstractInstruction abs = decodeAbstract(op.bits);
 
             if (hasIntDest(abs))
-                return ints.reserve(abs, op.id);
+                return ints.reserve(abs, id);
 
             if (hasFloatDest(abs))
-                  return  floats.reserve(abs, op.id);
+                  return  floats.reserve(abs, id);
                   
             return -1;
         endfunction
 
 
-        function automatic void commit(input OpSlot op);
-            AbstractInstruction abs = decodeAbstract(op.bits);
+        function automatic void commit(/*input OpSlot op,*/ input AbstractInstruction abs, input InsId id);
+            //AbstractInstruction abs = decodeAbstract(op.bits);
             
-            if (hasIntDest(abs)) ints.commit(abs, op.id);      
-            if (hasFloatDest(abs)) floats.commit(abs, op.id);
+            if (hasIntDest(abs)) ints.commit(abs, id);      
+            if (hasFloatDest(abs)) floats.commit(abs, id);
         endfunction
 
-        function automatic void writeValue(input OpSlot op, input Word value);
-            AbstractInstruction ins = decodeAbstract(op.bits);
+        function automatic void writeValue(/*input OpSlot op,*/ input AbstractInstruction abs, input InsId id, input Word value);
+            //AbstractInstruction ins = decodeAbstract(op.bits);
 
-            if (writesIntReg(op)) begin
-                ints.setReady(op.id);
-                ints.writeValue(ins, op.id, value);
+            //if (writesIntReg(op)) begin
+            if (hasIntDest(abs)) begin
+                ints.setReady(id);
+                ints.writeValue(abs, id, value);
             end
-            if (writesFloatReg(op)) begin
-                floats.setReady(op.id);
-                floats.writeValue(ins, op.id, value);
+            if (hasFloatDest(abs)) begin
+                floats.setReady(id);
+                floats.writeValue(abs, id, value);
             end
         endfunction
 
 
-        function automatic InsDependencies getArgDeps(input OpSlot op);
+        function automatic InsDependencies getArgDeps(/*input OpSlot op,*/ input AbstractInstruction abs);
             int mapInt[32] = ints.MapR;
             int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
             InsId producers[3] = '{-1, -1, -1};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
             
-            AbstractInstruction abs = decodeAbstract(op.bits);
+            //AbstractInstruction abs = decodeAbstract(op.bits);
             string typeSpec = parsingMap[abs.fmt].typeSpec;
             
             foreach (sources[i]) begin
@@ -511,11 +512,11 @@ package AbstractSim;
             while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
         endfunction
 
-        function automatic InsId checkWriter(input OpSlot op);
+        function automatic InsId checkWriter(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
         
-            Transaction read[$] = transactions.find_first with (item.owner == op.id); 
-            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < op.id);
+            Transaction read[$] = transactions.find_first with (item.owner == id); 
+            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < id);
             return (writers.size() == 0) ? -1 : writers[$].owner;
         endfunction
   
