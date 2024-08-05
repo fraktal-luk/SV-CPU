@@ -399,5 +399,12 @@ package ExecDefs;
             return res;
         endfunction
 
+        function automatic OpPacket makePacketP(input OpPacket p, input Word result);
+            OpPacket res = p;            
+            res.result = result;
+            
+            return res;
+        endfunction
+
 
 endpackage
