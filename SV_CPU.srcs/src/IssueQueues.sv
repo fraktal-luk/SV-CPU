@@ -63,8 +63,13 @@ module IssueQueue
     logic cmpb, cmpb0, cmpb1;
 
 
-    assign outGroup = issued;
-    assign outPackets = convertOutputG(issued);
+    //assign outGroup = issued;
+    assign outPackets = //convertOutputG(issued);
+                        pIssued0;
+
+
+        assign cmpb0 = (outPackets[0] === pIssued0[0]);
+        assign cmpb  = (outPackets === pIssued0);
 
 
     function automatic OutGroupP convertOutputG(input OpSlot outGroup[OUT_WIDTH]);
@@ -189,7 +194,7 @@ module IssueQueue
             
             issued[i] <= tick(op);
             pIssued0[i] <= tickP(convertOutput(op, theId));
-               pIssued0[i].poison = mergePoisons(array[s].poisons);
+              // pIssued0[i].poison = mergePoisons(array[s].poisons);
 
             putMilestone(theId, InstructionMap::IqIssue);
             assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
@@ -414,11 +419,18 @@ module IssueQueueComplex(
 
 
     logic regularMask[IN_WIDTH];
+
     OpSlot issuedRegular[2];
     OpSlot issuedFloat[2];
     OpSlot issuedMem[1];
     OpSlot issuedSys[1];
     OpSlot issuedBranch[1];
+
+        OpSlot issuedRegular_D[2];
+        OpSlot issuedFloat_D[2];
+        OpSlot issuedMem_D[1];
+        OpSlot issuedSys_D[1];
+        OpSlot issuedBranch_D[1];
     
     OpPacket issuedRegularP[2];
     OpPacket issuedFloatP[2];
@@ -428,15 +440,15 @@ module IssueQueueComplex(
     
     
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
-                                            issuedRegular, issuedRegularP);
+                                            issuedRegular_D, issuedRegularP);
     IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
-                                            issuedFloat, issuedFloatP);
+                                            issuedFloat_D, issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
-                                            issuedBranch, issuedBranchP);
+                                            issuedBranch_D, issuedBranchP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
-                                            issuedMem, issuedMemP);
+                                            issuedMem_D, issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
-                                            issuedSys, issuedSysP);
+                                            issuedSys_D, issuedSysP);
     
     typedef struct {
         logic regular[IN_WIDTH];

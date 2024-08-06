@@ -178,7 +178,7 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket doneFloat0;
     OpPacket doneFloat1; 
     
-    OpPacket doneSys;
+    OpPacket doneSys = EMPTY_OP_PACKET;
     
 
     OpPacket doneRegular0_E;
@@ -249,11 +249,13 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     always @(posedge AbstractCore.clk) begin
-        doneOpSys <= tick(theIssueQueues.issuedSys[0]);
+        //doneOpSys <= tick(theIssueQueues.issuedSys[0]);
+            doneSys <= tickP(theIssueQueues.issuedSysP[0]);
     end
 
-    assign doneSys = makePacket(doneOpSys, 'x);
-    assign doneSys_E = makePacket(doneOpSys_E, 'x);
+    //assign doneSys = makePacket(doneOpSys, 'x);
+    assign doneSys_E = //makePacket(doneOpSys_E, 'x);
+                       effP(doneSys);
 
     assign doneRegular0 = regular0.stage0;
     assign doneRegular1 = regular1.stage0;
