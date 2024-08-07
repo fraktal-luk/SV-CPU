@@ -13,7 +13,6 @@ module RegularSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0,
     input OpPacket opP
 );
     Word result = 'x;
@@ -23,8 +22,8 @@ module RegularSubpipe(
 
     OpPacket stage0, stage0_E;
 
-    assign stage0 = makePacketP(pE0, result);
-    assign stage0_E = makePacketP(pE0_E, result);
+    assign stage0 = setResult(pE0, result);
+    assign stage0_E = setResult(pE0_E, result);
 
     assign p0 = opP;
 
@@ -61,7 +60,6 @@ module BranchSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0,
     input OpPacket opP
 );
     Word result = 'x;
@@ -71,8 +69,8 @@ module BranchSubpipe(
 
     OpPacket stage0, stage0_E;
     
-    assign stage0 = makePacketP(pE0, result);
-    assign stage0_E = makePacketP(pE0_E, result);
+    assign stage0 = setResult(pE0, result);
+    assign stage0_E = setResult(pE0_E, result);
 
     assign p0 = opP;
 
@@ -108,7 +106,6 @@ module MemSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlot op0,
     input OpPacket opP
 );
     Word result = 'x;
@@ -117,8 +114,8 @@ module MemSubpipe(
 
     OpPacket stage0, stage0_E;
 
-    assign stage0 = makePacketP(pE2, result);
-    assign stage0_E = makePacketP(pE2_E, result);
+    assign stage0 = setResult(pE2, result);
+    assign stage0_E = setResult(pE2_E, result);
 
     assign p0 = opP;
 
@@ -165,10 +162,6 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    OpSlot doneOpSys = EMPTY_SLOT;
-    OpSlot doneOpSys_E;
-
-
     OpPacket doneRegular0;
     OpPacket doneRegular1;
 
@@ -198,8 +191,7 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedRegular[0],
-        AbstractCore.theIssueQueues.issuedRegularP[0]
+        theIssueQueues.issuedRegularP[0]
     );
     
     // Int 1
@@ -207,8 +199,7 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedRegular[1],
-        AbstractCore.theIssueQueues.issuedRegularP[1]
+        theIssueQueues.issuedRegularP[1]
     );
     
     // Int 2
@@ -216,8 +207,7 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedBranch[0],
-        AbstractCore.theIssueQueues.issuedBranchP[0]
+        theIssueQueues.issuedBranchP[0]
     );
     
     // Mem 0
@@ -225,8 +215,7 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedMem[0],
-        AbstractCore.theIssueQueues.issuedMemP[0]
+        theIssueQueues.issuedMemP[0]
     );
     
     // Vec 0
@@ -234,8 +223,7 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedFloat[0],
-        AbstractCore.theIssueQueues.issuedFloatP[0]
+        theIssueQueues.issuedFloatP[0]
     );
     
     // Vec 1
@@ -243,19 +231,15 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedFloat[1],
-        AbstractCore.theIssueQueues.issuedFloatP[1]
+        theIssueQueues.issuedFloatP[1]
     );
 
-
     always @(posedge AbstractCore.clk) begin
-        //doneOpSys <= tick(theIssueQueues.issuedSys[0]);
-            doneSys <= tickP(theIssueQueues.issuedSysP[0]);
+       doneSys <= tickP(theIssueQueues.issuedSysP[0]);
     end
 
-    //assign doneSys = makePacket(doneOpSys, 'x);
-    assign doneSys_E = //makePacket(doneOpSys_E, 'x);
-                       effP(doneSys);
+    assign doneSys_E = effP(doneSys);
+
 
     assign doneRegular0 = regular0.stage0;
     assign doneRegular1 = regular1.stage0;
@@ -384,16 +368,14 @@ module ExecBlock(ref InstructionMap insMap,
         return data;
     endfunction
 
-
+    // Used once by Mem subpipes
     function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
         Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == id);
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
     endfunction
 
 
-    assign doneOpSys_E = eff(doneOpSys);
-
-
+    // Used before Exec0 to get final values
     function automatic Word3 getAndVerifyArgs(input InsId id);
         InsDependencies deps = insMap.get(id).deps;
         Word3 argsP = getArgValues(AbstractCore.registerTracker, deps);
@@ -405,7 +387,7 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction;
 
 
-
+    // Used once
     function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
         Word res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);

@@ -256,16 +256,12 @@ package ExecDefs;
 
     typedef struct {
         InsId id;
-        
-        //logic ready;
-        //logic readyArgs[3];
         logic readyF;
         logic readyArgsF[3];
-        
     } IqArgState;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, /*ready: 'z, readyArgs: '{'z, 'z, 'z},*/ readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, /*ready: '0, readyArgs: '{'0, '0, '0},*/ readyF: '0, readyArgsF: '{'0, '0, '0}};
+    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, readyF: 'z, readyArgsF: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, readyF: '0, readyArgsF: '{'0, '0, '0}};
 
 
     typedef struct {
@@ -387,7 +383,7 @@ package ExecDefs;
             return res;
         endfunction;
 
-
+        // UNUSED
         function automatic OpPacket makePacket(input OpSlot slot, input Word result);
             OpPacket res = EMPTY_OP_PACKET;
             
@@ -399,7 +395,7 @@ package ExecDefs;
             return res;
         endfunction
 
-        function automatic OpPacket makePacketP(input OpPacket p, input Word result);
+        function automatic OpPacket setResult(input OpPacket p, input Word result);
             OpPacket res = p;            
             res.result = result;
             

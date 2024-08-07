@@ -19,9 +19,7 @@ module IssueQueue
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input OpSlotA inGroup,
-    input logic inMask[$size(OpSlotA)],
-    
-    output OpSlot outGroup[OUT_WIDTH],
+    input logic inMask[$size(OpSlotA)],    
     output OpPacket outPackets[OUT_WIDTH]
 );
 
@@ -36,8 +34,6 @@ module IssueQueue
 
     typedef OpPacket OutGroupP[OUT_WIDTH];
  
-    //typedef logic logicArr[TOTAL_SIZE];
-
 
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
 
@@ -47,8 +43,6 @@ module IssueQueue
 
     IdArr ida;
 
-    OpSlot issued[OUT_WIDTH] = '{default: EMPTY_SLOT};
-    OpSlot issued1[OUT_WIDTH] = '{default: EMPTY_SLOT};
 
     OpPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
     OpPacket pIssued1[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
@@ -63,26 +57,7 @@ module IssueQueue
     logic cmpb, cmpb0, cmpb1;
 
 
-    //assign outGroup = issued;
-    assign outPackets = //convertOutputG(issued);
-                        pIssued0;
-
-
-        assign cmpb0 = (outPackets[0] === pIssued0[0]);
-        assign cmpb  = (outPackets === pIssued0);
-
-
-    function automatic OutGroupP convertOutputG(input OpSlot outGroup[OUT_WIDTH]);
-        OutGroupP res;
-        
-        foreach (outGroup[i])
-            res[i] = outGroup[i].active ? '{1, outGroup[i].id, DEFAULT_POISON, 'x} : EMPTY_OP_PACKET;
-            
-        return res;
-    endfunction
-
-
-
+    assign outPackets = pIssued0;
 
     always @(posedge AbstractCore.clk) begin
         TMP_incIssueCounter();
@@ -99,8 +74,7 @@ module IssueQueue
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flushIq();
         end
-        
-        
+
             TMP_showWakeups();
 
         updateWakeups();
@@ -115,12 +89,9 @@ module IssueQueue
             writeInput();
         end                
         
-        foreach (issued[i])
-            issued1[i] <= tick(issued[i]);
-
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
-      
+
       
         num <= getNumVirtual();     
         numUsed <= getNumUsed();
@@ -129,26 +100,7 @@ module IssueQueue
     end
 
 
-    function automatic OpSlot getOpFromId(input InsId id);
-        OpSlot res;
-        //if (id != -1) begin
-            InstructionInfo ii = insMap.get(id);
-            res = '{1, ii.id, ii.adr, ii.bits};
-        //end
-        return res;
-    endfunction
-    
 
-//    function automatic OpSlotQueue getOpsFromIds(input OutIds outs);
-//        OpSlotQueue res;
-        
-//        foreach (outs[i])
-//            if (outs[i] != -1) begin
-//                InstructionInfo ii = insMap.get(outs[i]);
-//                res.push_back('{1, ii.id, ii.adr, ii.bits});
-//            end
-//        return res;
-//    endfunction
 
     function automatic IdQueue getValidIds(input OutIds outs);
         IdQueue res;
@@ -159,42 +111,31 @@ module IssueQueue
 
     task automatic issue();
         OutIds ov = getArrOpsToIssue();
-        IdQueue validIds = getValidIds(ov);
-        //OpSlot ops[$] = getOpsFromIds(ov);
-        
-        issueFromArray(/*ops,*/ validIds);
+        IdQueue validIds = getValidIds(ov);        
+        issueFromArray(validIds);
     endtask
 
 
-    function automatic OpPacket convertOutput(input OpSlot op, input InsId id);
+
+    function automatic OpPacket convertOutput(/*input OpSlot op,*/ input InsId id);
         OpPacket res;        
-        res = //op.active ? 
-                '{1, op.id, DEFAULT_POISON, 'x};// : EMPTY_OP_PACKET;
-            
+        res = '{1, id, DEFAULT_POISON, 'x};  
         return res;
     endfunction
 
 
-    task automatic issueFromArray(//input OpSlot ops[$], 
-                                    input IdQueue ids);
-        issued <= '{default: EMPTY_SLOT};
+    task automatic issueFromArray(input IdQueue ids);
         pIssued0 <= '{default: EMPTY_OP_PACKET};
 
         foreach (ids[i]) begin
             InsId theId = ids[i];
-
-            OpSlot op = //ops[i];
-                        getOpFromId(theId);
             
             int found[$] = array.find_first_index with (item.id == theId);
             int s = found[0];
             
             assert (ids[i] != -1) else $error("Wrong id for issue");
-            assert (op.id == ids[i]) else $error("differin id for issue");
             
-            issued[i] <= tick(op);
-            pIssued0[i] <= tickP(convertOutput(op, theId));
-              // pIssued0[i].poison = mergePoisons(array[s].poisons);
+            pIssued0[i] <= tickP(convertOutput(theId));
 
             putMilestone(theId, InstructionMap::IqIssue);
             assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
@@ -419,18 +360,6 @@ module IssueQueueComplex(
 
 
     logic regularMask[IN_WIDTH];
-
-    OpSlot issuedRegular[2];
-    OpSlot issuedFloat[2];
-    OpSlot issuedMem[1];
-    OpSlot issuedSys[1];
-    OpSlot issuedBranch[1];
-
-        OpSlot issuedRegular_D[2];
-        OpSlot issuedFloat_D[2];
-        OpSlot issuedMem_D[1];
-        OpSlot issuedSys_D[1];
-        OpSlot issuedBranch_D[1];
     
     OpPacket issuedRegularP[2];
     OpPacket issuedFloatP[2];
@@ -440,15 +369,15 @@ module IssueQueueComplex(
     
     
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
-                                            issuedRegular_D, issuedRegularP);
+                                            issuedRegularP);
     IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
-                                            issuedFloat_D, issuedFloatP);
+                                            issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
-                                            issuedBranch_D, issuedBranchP);
+                                            issuedBranchP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
-                                            issuedMem_D, issuedMemP);
+                                            issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
-                                            issuedSys_D, issuedSysP);
+                                            issuedSysP);
     
     typedef struct {
         logic regular[IN_WIDTH];
