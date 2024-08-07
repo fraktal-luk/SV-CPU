@@ -57,6 +57,14 @@ module IssueQueue
     logic cmpb, cmpb0, cmpb1;
 
 
+    typedef Wakeup Wakeup3[3];
+    typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
+
+    WakeupMatrix wMatrix, wMatrixU;
+
+
+
+
     assign outPackets = pIssued0;
 
     always @(posedge AbstractCore.clk) begin
@@ -79,6 +87,8 @@ module IssueQueue
 
         updateWakeups();
         
+            wMatrix = getForwards();
+        
         issue();
 
         removeIssuedFromArray();
@@ -88,6 +98,9 @@ module IssueQueue
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
         end                
+        
+            wMatrixU = updateForwards(newLocs, wMatrix);
+
         
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
@@ -344,7 +357,55 @@ module IssueQueue
             TMP_showSlotWakeup(i);
         end
     endtask
- 
+
+////////////////////////////////////////////////
+
+    function automatic Wakeup3 getForwardsForOp(input IqEntry entry);
+        Wakeup3 res = '{default: EMPTY_WAKEUP};
+        if (entry.id == -1) return res;
+        
+        foreach (entry.state.readyArgsF[a]) begin
+            InsDependencies deps = insMap.get(entry.id).deps;
+            int prod = deps.producers[a];
+            int source = deps.sources[a];
+            
+            Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
+            if (!wup.active) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
+            
+            if (wup.active) res[a]= wup;
+        end
+        return res;
+    endfunction
+
+    function automatic WakeupMatrix getForwards();
+        WakeupMatrix res;
+    
+        foreach (array[i]) begin
+            IqEntry entry = array[i];
+            Wakeup3 w3 = getForwardsForOp(entry);
+            res[i] = w3;
+        end
+        
+        return res;
+    endfunction
+
+    function automatic WakeupMatrix updateForwards(input int inLocs[$size(OpSlotA)], input WakeupMatrix wm);
+        WakeupMatrix res = wm;
+    
+        foreach (inLocs[i]) begin
+            int ind = inLocs[i];
+            IqEntry entry = array[ind];
+            Wakeup3 w3 = getForwardsForOp(entry);
+            if (ind == -1) continue;
+            res[i] = w3;
+        end
+        
+        return res;
+    endfunction
+    
+
+
+
 endmodule
 
 
