@@ -60,12 +60,16 @@ module IssueQueue
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
 
-    WakeupMatrix wMatrix, wMatrixU;
+    WakeupMatrix wMatrix, wMatrixU, wMatrixA;
 
 
 
 
     assign outPackets = pIssued0;
+
+    
+    always_comb wMatrixA = getForwards(array);
+
 
     always @(posedge AbstractCore.clk) begin
         TMP_incIssueCounter();
@@ -87,7 +91,9 @@ module IssueQueue
 
         updateWakeups();
         
-            wMatrix = getForwards();
+            // CAREFUL! This shows 1 cycle after the wakeup is combinationally generated.
+            //          At the same cycle this signal is set, resulting issue of op is done - in such case wakeup is shown here as op is already marked 'issued' 
+            wMatrix = getForwards(array);
         
         issue();
 
@@ -99,7 +105,7 @@ module IssueQueue
             writeInput();
         end                
         
-            wMatrixU = updateForwards(newLocs, wMatrix);
+           // wMatrixU = updateForwards(newLocs, wMatrix);
 
         
         foreach (pIssued0[i])
@@ -377,11 +383,11 @@ module IssueQueue
         return res;
     endfunction
 
-    function automatic WakeupMatrix getForwards();
+    function automatic WakeupMatrix getForwards(IqEntry arr[TOTAL_SIZE]);
         WakeupMatrix res;
     
-        foreach (array[i]) begin
-            IqEntry entry = array[i];
+        foreach (arr[i]) begin
+            IqEntry entry = arr[i];
             Wakeup3 w3 = getForwardsForOp(entry);
             res[i] = w3;
         end
