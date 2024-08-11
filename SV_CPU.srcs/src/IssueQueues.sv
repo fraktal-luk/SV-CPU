@@ -38,94 +38,49 @@ module IssueQueue
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
 
     ReadyQueue  rfq_perSlot;
-    ReadyQueue3 rq_perArg, fq_perArg, rfq_perArg_A;
-    //ReadyQueue3 fmq[-3:1] = FORWARDING_ALL_Z;
-    ReadyQueue3 fmq_A, fmq_B, fmq_C;// = FORWARDING_ALL_Z;
+    ReadyQueue3 forwardStates, rq_perArg, fq_perArg, rfq_perArg;
     
 
     IdArr ida;
 
-
     OpPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
     OpPacket pIssued1[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
 
-
-    int num = 0, numUsed = 0;
-    
-        Wakeup wakeups_TMP[TOTAL_SIZE][2];
+    int num = 0, numUsed = 0;    
         
-        InputLocs newLocs;
-
-    logic cmpb, cmpb0, cmpb1;
+    //InputLocs newLocs;
 
 
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
 
-    WakeupMatrix wMatrix, wMatrixU, wMatrixA;
+    WakeupMatrix wMatrix;
 
 
+    logic cmpb, cmpb0, cmpb1;
 
+    
+    always_comb wMatrix = getForwards(array);
+    always_comb forwardStates = fwFromWups(wMatrix, getIdQueue(array));
 
     assign outPackets = pIssued0;
 
 
-    function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input InsId ids[$]);
-        ReadyQueue3 res;
-        foreach (wm[i]) begin
-            Wakeup3 w3 = wm[i];
-            logic3 r3;
-            
-            if (ids[i] == -1) begin
-                res.push_back('{'z, 'z, 'z});
-                continue;
-            end
-            
-            foreach (w3[a]) begin
-                r3[a] = w3[a].active;
-            end
-            res.push_back(r3);
-        end
-        
-        return res;
-    endfunction
-    
-    
-    
-    always_comb wMatrixA = getForwards(array);
-    always_comb fmq_B = getForwardQueueAll3(insMap, getIdQueue(array));
-    always_comb fmq_C = fwFromWups(wMatrixA, getIdQueue(array));
-
-
-            //assign cmpb = (fmq_A === fq_perArg);
-            assign cmpb0 = (fmq_C === fmq_B);
-            //assign cmpb = (fmq_A === fmq_C);
-            
 
     always @(posedge AbstractCore.clk) begin
-                cmpb1 = cmpb0;
-                if (!cmpb0) $fatal(2, "Not match: %p /// %p", fmq_B, fmq_C);
-    
+
         TMP_incIssueCounter();
-    
-    
+
         rq_perArg = getReadyQueue3(insMap, getIdQueue(array));
                
-        fq_perArg = getForwardQueueAll3(insMap, getIdQueue(array));
-            assert (fmq_B === fq_perArg) else $error(" :(((((((((((((((((((((((( ");
-            assert (fmq_C === fq_perArg) else $fatal(2, " baaad ");
-            
-
-        rfq_perArg_A  = unifyReadyAndForwardsQ(rq_perArg, fq_perArg);
-
-        rfq_perSlot = makeReadyQueue(rfq_perArg_A);
+        fq_perArg = forwardStates;
+        rfq_perArg  = unifyReadyAndForwardsQ(rq_perArg, fq_perArg);
+        rfq_perSlot = makeReadyQueue(rfq_perArg);
 
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flushIq();
         end
-
-            TMP_showWakeups();
 
         updateWakeups();
         
@@ -134,7 +89,7 @@ module IssueQueue
 
         removeIssuedFromArray();
       
-            newLocs = getInputLocs();
+        //    newLocs = getInputLocs();
       
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
@@ -168,7 +123,28 @@ module IssueQueue
     endtask
 
 
+    function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input InsId ids[$]);
+        ReadyQueue3 res;
+        foreach (wm[i]) begin
+            Wakeup3 w3 = wm[i];
+            logic3 r3;
+            
+            if (ids[i] == -1) begin
+                res.push_back('{'z, 'z, 'z});
+                continue;
+            end
+            
+            foreach (w3[a]) begin
+                r3[a] = w3[a].active;
+            end
+            res.push_back(r3);
+        end
+        
+        return res;
+    endfunction
 
+
+    // ONCE
     function automatic OpPacket convertOutput(/*input OpSlot op,*/ input InsId id);
         OpPacket res;        
         res = '{1, id, DEFAULT_POISON, 'x};  
@@ -238,7 +214,7 @@ module IssueQueue
 
     task automatic updateWakeups();
         foreach (array[i]) begin
-            logic3 rf3 = rfq_perArg_A[i];
+            logic3 rf3 = rfq_perArg[i];
             if (array[i].used) updateReadyBitsF(array[i], rf3);
         end
     endtask
@@ -289,8 +265,6 @@ module IssueQueue
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps);//, stages);
                 logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
-
-                    TMP_showSlotWakeup(location);
 
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
@@ -368,36 +342,6 @@ module IssueQueue
     endfunction
     
     
-        // CAREFUL: only for int
-        task automatic TMP_showSlotWakeup(input int i);
-            IqEntry entry = array[i];
-            
-            wakeups_TMP[i] = '{default: EMPTY_WAKEUP};
-            if (!entry.used) return;
-            
-            foreach (entry.state.readyArgsF[a]) begin
-                InsDependencies deps = insMap.get(entry.id).deps;
-                int prod = deps.producers[a];
-                int source = deps.sources[a];
-                
-                Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
-                if (!wup.active) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
-                
-                // If the arg was ready before, deactivate wakeup
-                if (entry.state.readyArgsF[a]) wup.active = 0;
-            
-                wakeups_TMP[i][a] = wup;
-            end
-        endtask
-    
-    
-    task automatic TMP_showWakeups();
-        foreach (array[i]) begin
-            TMP_showSlotWakeup(i);
-        end
-    endtask
-
-////////////////////////////////////////////////
 
     function automatic Wakeup3 getForwardsForOp(input IqEntry entry);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
@@ -430,22 +374,6 @@ module IssueQueue
         
         return res;
     endfunction
-
-    function automatic WakeupMatrix updateForwards(input int inLocs[$size(OpSlotA)], input WakeupMatrix wm);
-        WakeupMatrix res = wm;
-    
-        foreach (inLocs[i]) begin
-            int ind = inLocs[i];
-            IqEntry entry = array[ind];
-            Wakeup3 w3 = getForwardsForOp(entry);
-            if (ind == -1) continue;
-            res[i] = w3;
-        end
-        
-        return res;
-    endfunction
-    
-
 
 
 endmodule
@@ -530,34 +458,6 @@ module IssueQueueComplex(
             begin
                 InsDependencies deps = imap.get(ids[i]).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-                res.push_back(ra);
-            end
-        return res;
-    endfunction
-    
-    function automatic ReadyQueue3 getForwardQueue3(input InstructionMap imap, input InsId ids[$], input int stage);
-        logic D3[3] = '{'z, 'z, 'z};
-        ReadyQueue3 res;
-        foreach (ids[i])
-            if (ids[i] == -1) res.push_back(D3);
-            else
-            begin
-                InsDependencies deps = imap.get(ids[i]).deps;
-                logic3 ra = checkForwardsReady(imap, AbstractCore.theExecBlock.allByStage, deps, stage);
-                res.push_back(ra);
-            end
-        return res;
-    endfunction
-
-    function automatic ReadyQueue3 getForwardQueueAll3(input InstructionMap imap, input InsId ids[$]);
-        logic D3[3] = '{'z, 'z, 'z};
-        ReadyQueue3 res;
-        foreach (ids[i]) 
-            if (ids[i] == -1) res.push_back(D3);
-            else
-            begin                
-                InsDependencies deps = imap.get(ids[i]).deps;
-                logic3 ra = checkForwardsReadyAll(imap, AbstractCore.theExecBlock.allByStage, deps);//, stages);
                 res.push_back(ra);
             end
         return res;

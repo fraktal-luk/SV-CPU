@@ -14,8 +14,8 @@ package ExecDefs;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
 
-    typedef logic ReadyVec[ISSUE_QUEUE_SIZE];
-    typedef logic ReadyVec3[ISSUE_QUEUE_SIZE][3];
+    typedef logic ReadyVec[ISSUE_QUEUE_SIZE];       // UNUSED in practice
+    typedef logic ReadyVec3[ISSUE_QUEUE_SIZE][3];   // UNUSED in practive
 
     typedef logic ReadyQueue[$];
     typedef logic ReadyQueue3[$][3];
@@ -199,26 +199,11 @@ package ExecDefs;
     // IQ logic
     localparam logic dummy3[3] = '{'z, 'z, 'z};
 
-    localparam ReadyVec3 FORWARDING_VEC_ALL_Z = '{default: dummy3};
-    localparam ReadyVec3 FORWARDING_ALL_Z[-3:1] = '{default: FORWARDING_VEC_ALL_Z};
+    //localparam ReadyVec3 FORWARDING_VEC_ALL_Z = '{default: dummy3};
+    //localparam ReadyVec3 FORWARDING_ALL_Z[-3:1] = '{default: FORWARDING_VEC_ALL_Z};
 
-    function automatic ReadyVec3 gatherReadyOrForwards(input ReadyVec3 ready, input ReadyVec3 forwards[-3:1]);
-        ReadyVec3 res = '{default: dummy3};
-        
-        foreach (res[i]) begin
-            logic slot[3] = res[i];
-            foreach (slot[a]) begin
-                if ($isunknown(ready[i][a])) res[i][a] = 'z;
-                else begin
-                    res[i][a] = ready[i][a];
-                    for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
-                end
-            end
-        end
-        
-        return res;    
-    endfunction
 
+    // UNUSED
     function automatic ReadyVec makeReadyVec(input ReadyVec3 argV);
         ReadyVec res = '{default: 'z};
         foreach (res[i]) 
@@ -226,23 +211,6 @@ package ExecDefs;
         return res;
     endfunction
 
-    function automatic ReadyQueue3 gatherReadyOrForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwards[-3:1]);
-        ReadyQueue3 res;
-        
-        foreach (ready[i]) begin
-            logic slot[3] = ready[i];
-            res.push_back(slot);
-            foreach (slot[a]) begin
-                if ($isunknown(ready[i][a])) res[i][a] = 'z;
-                else begin
-                    res[i][a] = ready[i][a];
-                    for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
-                end
-            end
-        end
-        
-        return res;    
-    endfunction
 
         function automatic ReadyQueue3 unifyReadyAndForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwarded);
             ReadyQueue3 res;
@@ -263,25 +231,6 @@ package ExecDefs;
         endfunction
 
 
-        function automatic ReadyQueue3 gatherForwardsQ(input ReadyQueue3 forwards[-3:1]);
-            ReadyQueue3 res;//
-            ReadyQueue3 q0 = forwards[0];
-            
-            
-            foreach (q0[i]) begin
-                logic slot[3] = '{0, 0, 0};
-                res.push_back(slot);
-                foreach (slot[a]) begin
-                    if ($isunknown(q0[i][a])) res[i][a] = 'z;
-                    else begin
-                        res[i][a] = q0[i][a];
-                        for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
-                    end
-                end
-            end
-            
-            return res;    
-        endfunction
 
     function automatic ReadyQueue makeReadyQueue(input ReadyQueue3 argV);
         ReadyQueue res;
