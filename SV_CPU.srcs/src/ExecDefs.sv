@@ -244,6 +244,45 @@ package ExecDefs;
         return res;    
     endfunction
 
+        function automatic ReadyQueue3 unifyReadyAndForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwarded);
+            ReadyQueue3 res;
+            
+            foreach (ready[i]) begin
+                logic slot[3] = ready[i];
+                res.push_back(slot);
+                foreach (slot[a]) begin
+                    if ($isunknown(ready[i][a])) res[i][a] = 'z;
+                    else begin
+                        res[i][a] = ready[i][a] | forwarded[i][a];
+                        //for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
+                    end
+                end
+            end
+            
+            return res;    
+        endfunction
+
+
+        function automatic ReadyQueue3 gatherForwardsQ(input ReadyQueue3 forwards[-3:1]);
+            ReadyQueue3 res;//
+            ReadyQueue3 q0 = forwards[0];
+            
+            
+            foreach (q0[i]) begin
+                logic slot[3] = '{0, 0, 0};
+                res.push_back(slot);
+                foreach (slot[a]) begin
+                    if ($isunknown(q0[i][a])) res[i][a] = 'z;
+                    else begin
+                        res[i][a] = q0[i][a];
+                        for (int s = FW_FIRST; s <= FW_LAST; s++) res[i][a] |= forwards[s][i][a]; // CAREFUL: not using -3 here
+                    end
+                end
+            end
+            
+            return res;    
+        endfunction
+
     function automatic ReadyQueue makeReadyQueue(input ReadyQueue3 argV);
         ReadyQueue res;
         foreach (argV[i]) 

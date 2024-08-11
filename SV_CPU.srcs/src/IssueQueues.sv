@@ -37,9 +37,11 @@ module IssueQueue
 
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
 
-    ReadyQueue  readyQueue, rfq;
-    ReadyQueue3 rq3, readyOrForwardQ3;
-    ReadyQueue3 fmq[-3:1] = FORWARDING_ALL_Z;
+    ReadyQueue  rfq_perSlot;
+    ReadyQueue3 rq_perArg, fq_perArg, rfq_perArg_A;
+    //ReadyQueue3 fmq[-3:1] = FORWARDING_ALL_Z;
+    ReadyQueue3 fmq_A, fmq_B, fmq_C;// = FORWARDING_ALL_Z;
+    
 
     IdArr ida;
 
@@ -67,20 +69,56 @@ module IssueQueue
 
     assign outPackets = pIssued0;
 
+
+    function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input InsId ids[$]);
+        ReadyQueue3 res;
+        foreach (wm[i]) begin
+            Wakeup3 w3 = wm[i];
+            logic3 r3;
+            
+            if (ids[i] == -1) begin
+                res.push_back('{'z, 'z, 'z});
+                continue;
+            end
+            
+            foreach (w3[a]) begin
+                r3[a] = w3[a].active;
+            end
+            res.push_back(r3);
+        end
+        
+        return res;
+    endfunction
+    
+    
     
     always_comb wMatrixA = getForwards(array);
+    always_comb fmq_B = getForwardQueueAll3(insMap, getIdQueue(array));
+    always_comb fmq_C = fwFromWups(wMatrixA, getIdQueue(array));
 
+
+            //assign cmpb = (fmq_A === fq_perArg);
+            assign cmpb0 = (fmq_C === fmq_B);
+            //assign cmpb = (fmq_A === fmq_C);
+            
 
     always @(posedge AbstractCore.clk) begin
+                cmpb1 = cmpb0;
+                if (!cmpb0) $fatal(2, "Not match: %p /// %p", fmq_B, fmq_C);
+    
         TMP_incIssueCounter();
     
-        rq3 = getReadyQueue3(insMap, getIdQueue(array));
-        readyQueue = makeReadyQueue(rq3);
-   
-        foreach (fmq[i]) fmq[i] = getForwardQueue3(insMap, getIdQueue(array), i);
-        
-        readyOrForwardQ3 = gatherReadyOrForwardsQ(rq3, fmq);
-        rfq = makeReadyQueue(readyOrForwardQ3);
+    
+        rq_perArg = getReadyQueue3(insMap, getIdQueue(array));
+               
+        fq_perArg = getForwardQueueAll3(insMap, getIdQueue(array));
+            assert (fmq_B === fq_perArg) else $error(" :(((((((((((((((((((((((( ");
+            assert (fmq_C === fq_perArg) else $fatal(2, " baaad ");
+            
+
+        rfq_perArg_A  = unifyReadyAndForwardsQ(rq_perArg, fq_perArg);
+
+        rfq_perSlot = makeReadyQueue(rfq_perArg_A);
 
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
@@ -91,10 +129,7 @@ module IssueQueue
 
         updateWakeups();
         
-            // CAREFUL! This shows 1 cycle after the wakeup is combinationally generated.
-            //          At the same cycle this signal is set, resulting issue of op is done - in such case wakeup is shown here as op is already marked 'issued' 
-            wMatrix = getForwards(array);
-        
+
         issue();
 
         removeIssuedFromArray();
@@ -105,8 +140,6 @@ module IssueQueue
             writeInput();
         end                
         
-           // wMatrixU = updateForwards(newLocs, wMatrix);
-
         
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
@@ -187,7 +220,7 @@ module IssueQueue
             else begin
                 int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
                 IqEntry entry = array[arrayLoc[0]]; 
-                logic readyF = rfq[arrayLoc[0]];
+                logic readyF = rfq_perSlot[arrayLoc[0]];
                 logic readyF_S = entry.state.readyF;
 
                 logic active = entry.used && entry.active;
@@ -205,7 +238,7 @@ module IssueQueue
 
     task automatic updateWakeups();
         foreach (array[i]) begin
-            logic3 rf3 = readyOrForwardQ3[i];
+            logic3 rf3 = rfq_perArg_A[i];
             if (array[i].used) updateReadyBitsF(array[i], rf3);
         end
     endtask
@@ -372,13 +405,16 @@ module IssueQueue
         
         foreach (entry.state.readyArgsF[a]) begin
             InsDependencies deps = insMap.get(entry.id).deps;
+            SourceType argType = deps.types[a];
             int prod = deps.producers[a];
             int source = deps.sources[a];
             
             Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
-            if (!wup.active) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
+            if (!wup.active) wup = checkForwardSourceVec(insMap, prod, source, AbstractCore.theExecBlock.floatImages);
+            // CAREFUL: Not using mem pipe forwarding for FP to simplify things
+            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
             
-            if (wup.active) res[a]= wup;
+            if (wup.active) res[a] = wup;
         end
         return res;
     endfunction
