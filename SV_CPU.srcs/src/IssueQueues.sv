@@ -22,6 +22,7 @@ module IssueQueue
     input logic inMask[$size(OpSlotA)],    
     output OpPacket outPackets[OUT_WIDTH]
 );
+    localparam int IN_SIZE = $size(OpSlotA);
 
     localparam int HOLD_CYCLES = 3;
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
@@ -39,7 +40,10 @@ module IssueQueue
 
     ReadyQueue  rfq_perSlot;
     ReadyQueue3 forwardStates, rq_perArg, fq_perArg, rfq_perArg;
-    
+    logic forwardInitialStates[IN_SIZE][3], forwardInitialStates_D[IN_SIZE][3];
+
+        logic TMP_initialFw[IN_SIZE][3];
+
 
     IdArr ida;
 
@@ -52,22 +56,31 @@ module IssueQueue
 
 
     typedef Wakeup Wakeup3[3];
+    typedef Wakeup WakeupInitial[IN_SIZE][3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
 
+    WakeupInitial wInitial;
     WakeupMatrix wMatrix;
 
 
     logic cmpb, cmpb0, cmpb1;
 
     
+    always_comb wInitial = getInitialForwards(inGroup, inMask);
+    always_comb forwardInitialStates = fwFromInitialWups(wInitial, inMask);
+    
     always_comb wMatrix = getForwards(array);
     always_comb forwardStates = fwFromWups(wMatrix, getIdQueue(array));
 
     assign outPackets = pIssued0;
 
-
+         always_comb cmpb = (TMP_initialFw === forwardInitialStates);
+            
 
     always @(posedge AbstractCore.clk) begin
+            cmpb1 = cmpb;
+
+                forwardInitialStates_D = forwardInitialStates;
 
         TMP_incIssueCounter();
 
@@ -89,7 +102,8 @@ module IssueQueue
 
         removeIssuedFromArray();
       
-        //    newLocs = getInputLocs();
+      
+            TMP_initialFw = '{default: dummy3};
       
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
@@ -130,6 +144,26 @@ module IssueQueue
             logic3 r3;
             
             if (ids[i] == -1) begin
+                res.push_back('{'z, 'z, 'z});
+                continue;
+            end
+            
+            foreach (w3[a]) begin
+                r3[a] = w3[a].active;
+            end
+            res.push_back(r3);
+        end
+        
+        return res;
+    endfunction
+
+    function automatic ReadyQueue3 fwFromInitialWups(input WakeupInitial wi, input logic im[$size(OpSlotA)]);
+        ReadyQueue3 res;
+        foreach (wi[i]) begin
+            Wakeup3 w3 = wi[i];
+            logic3 r3;
+            
+            if (!im[i]) begin
                 res.push_back('{'z, 'z, 'z});
                 continue;
             end
@@ -266,10 +300,12 @@ module IssueQueue
                 logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps);//, stages);
                 logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
 
+                    TMP_initialFw[i] = raf;
+
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
 
-                updateReadyBitsF(array[location], raAll);
+                //updateReadyBitsF(array[location], raAll);
 
                 nInserted++;          
             end
@@ -363,12 +399,25 @@ module IssueQueue
         return res;
     endfunction
 
-    function automatic WakeupMatrix getForwards(IqEntry arr[TOTAL_SIZE]);
+    function automatic WakeupMatrix getForwards(input IqEntry arr[TOTAL_SIZE]);
         WakeupMatrix res;
     
         foreach (arr[i]) begin
             IqEntry entry = arr[i];
             Wakeup3 w3 = getForwardsForOp(entry);
+            res[i] = w3;
+        end
+        
+        return res;
+    endfunction
+
+    function automatic WakeupInitial getInitialForwards(input OpSlotA arr, input logic im[$size(OpSlotA)]);
+        WakeupInitial res;
+    
+        foreach (arr[i]) begin
+            IqEntry entry = '{used: arr[i].active, active: arr[i].active, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: arr[i].id};
+            Wakeup3 w3 = '{default: EMPTY_WAKEUP};
+            if (arr[i].active && im[i]) w3 = getForwardsForOp(entry);
             res[i] = w3;
         end
         
