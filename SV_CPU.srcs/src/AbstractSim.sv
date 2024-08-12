@@ -187,9 +187,6 @@ package AbstractSim;
             parameter int N_REGS = N_REGS_INT,
             parameter logic IGNORE_R0 = 1
         );
-        
-
-    
             localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
             localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
     
@@ -307,33 +304,22 @@ package AbstractSim;
 
 
         RegisterDomain#(N_REGS_INT, 1) ints = new();
-        RegisterDomain#(N_REGS_INT, 0) floats = new();
+        RegisterDomain#(N_REGS_INT, 0) floats = new(); // TODO: change to FP reg num
 
           
-        function automatic int reserve(/*input OpSlot op,*/ input AbstractInstruction abs, input InsId id);
-            //AbstractInstruction abs = decodeAbstract(op.bits);
-
-            if (hasIntDest(abs))
-                return ints.reserve(abs, id);
-
-            if (hasFloatDest(abs))
-                  return  floats.reserve(abs, id);
-                  
+        function automatic int reserve(input AbstractInstruction abs, input InsId id);
+            if (hasIntDest(abs)) return ints.reserve(abs, id);
+            if (hasFloatDest(abs)) return  floats.reserve(abs, id);  
             return -1;
         endfunction
 
 
-        function automatic void commit(/*input OpSlot op,*/ input AbstractInstruction abs, input InsId id);
-            //AbstractInstruction abs = decodeAbstract(op.bits);
-            
+        function automatic void commit(input AbstractInstruction abs, input InsId id);            
             if (hasIntDest(abs)) ints.commit(abs, id);      
             if (hasFloatDest(abs)) floats.commit(abs, id);
         endfunction
 
-        function automatic void writeValue(/*input OpSlot op,*/ input AbstractInstruction abs, input InsId id, input Word value);
-            //AbstractInstruction ins = decodeAbstract(op.bits);
-
-            //if (writesIntReg(op)) begin
+        function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Word value);
             if (hasIntDest(abs)) begin
                 ints.setReady(id);
                 ints.writeValue(abs, id, value);
@@ -345,14 +331,13 @@ package AbstractSim;
         endfunction
 
 
-        function automatic InsDependencies getArgDeps(/*input OpSlot op,*/ input AbstractInstruction abs);
+        function automatic InsDependencies getArgDeps(input AbstractInstruction abs);
             int mapInt[32] = ints.MapR;
             int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
             InsId producers[3] = '{-1, -1, -1};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
             
-            //AbstractInstruction abs = decodeAbstract(op.bits);
             string typeSpec = parsingMap[abs.fmt].typeSpec;
             
             foreach (sources[i]) begin

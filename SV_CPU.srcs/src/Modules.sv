@@ -375,6 +375,7 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
+
     // Used before Exec0 to get final values
     function automatic Word3 getAndVerifyArgs(input InsId id);
         InsDependencies deps = insMap.get(id).deps;
@@ -387,124 +388,24 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction;
 
 
-
-
-
-    //////////////////////////////////////
-
-//        function automatic logic3 checkForwardsReady(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps, input int stage);
-//            logic3 res = '{0, 0, 0};
-//            logic3 ready;
-//            foreach (deps.types[i])
-//                case (deps.types[i])
-//                    SRC_ZERO:  ready[i] = 0;
-//                    SRC_CONST: ready[i] = 0;
-//                    SRC_INT:   ready[i] = checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
-//                    SRC_FLOAT: ready[i] = checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
-//                endcase
-//            res = ready;
-//            return res;
-//        endfunction
-
-//    function automatic Word3 getForwardedValues(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps, input int stage);
-//        Word3 res = '{0, 0, 0};
-//        Word3 tv;
-//        foreach (deps.types[i])
-//            case (deps.types[i])
-//                SRC_ZERO:  tv[i] = 0;
-//                SRC_CONST: tv[i] = 0;
-//                SRC_INT:   tv[i] = getForwardValueInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
-//                SRC_FLOAT: tv[i] = getForwardValueVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
-//            endcase
-            
-//        res = tv;
-//        return res;
-//    endfunction
-
-
     // Used once
     function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
         ForwardsByStage_0 fws = allByStage;
         Word res[3];
-        logic3 forw0, forw1;
-        Word tv[3], vals0[3], vals1[3];
-        
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-        
-            logic3 tr;
-            
-            foreach (deps.types[i])
-                case (deps.types[i])
-                    SRC_ZERO:  tr[i] = 0;
-                    SRC_CONST: tr[i] = 0;
-                    SRC_INT:   tr[i] = checkForwardInt(insMap, deps.producers[i], deps.sources[i], fws.ints[1], fws.mems[1]);
-                    SRC_FLOAT: tr[i] = checkForwardVec(insMap, deps.producers[i], deps.sources[i], fws.vecs[1]);
-                endcase
-            forw1 = tr;
-
-            foreach (deps.types[i])
-                case (deps.types[i])
-                    SRC_ZERO:  tr[i] = 0;
-                    SRC_CONST: tr[i] = 0;
-                    SRC_INT:   tr[i] = checkForwardInt(insMap, deps.producers[i], deps.sources[i], fws.ints[0], fws.mems[0]);
-                    SRC_FLOAT: tr[i] = checkForwardVec(insMap, deps.producers[i], deps.sources[i], fws.vecs[0]);
-                endcase
-            forw0 = tr;
-            
-            foreach (deps.types[i])
-                case (deps.types[i])
-                    SRC_ZERO:  tv[i] = 0;
-                    SRC_CONST: tv[i] = 0;
-                    SRC_INT:   tv[i] = getForwardValueInt(insMap, deps.producers[i], deps.sources[i], fws.ints[1], fws.mems[1]);
-                    SRC_FLOAT: tv[i] = getForwardValueVec(insMap, deps.producers[i], deps.sources[i], fws.vecs[1]);
-                endcase
-                
-            vals1 = tv;          
-
-            foreach (deps.types[i])
-                case (deps.types[i])
-                    SRC_ZERO:  tv[i] = 0;
-                    SRC_CONST: tv[i] = 0;
-                    SRC_INT:   tv[i] = getForwardValueInt(insMap, deps.producers[i], deps.sources[i], fws.ints[0], fws.mems[0]);
-                    SRC_FLOAT: tv[i] = getForwardValueVec(insMap, deps.producers[i], deps.sources[i], fws.vecs[0]);
-                endcase
-                
-            vals0 = tv;
-
-  
-        foreach (res[i]) begin
+                    
+        foreach (deps.types[i]) begin
             case (deps.types[i])
-                SRC_ZERO: res[i] = 0;
+                SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT: begin
-                    if (ready[i])
-                        res[i] = tracker.ints.regs[deps.sources[i]];
-                    else if (forw1[i]) begin
-                        res[i] = vals1[i];
-                    end
-                    else if (forw0[i]) begin
-                        res[i] = vals0[i];
-                    end
-                    else
-                        $fatal(2, "oh no");
-                end
-                SRC_FLOAT: begin
-                    if (ready[i])
-                        res[i] = tracker.floats.regs[deps.sources[i]];
-                    else if (forw1[i]) begin
-                        res[i] = vals1[i];
-                    end
-                    else if (forw0[i]) begin
-                        res[i] = vals0[i];
-                    end
-                    else
-                        $fatal(2, "oh no");
-                end
+                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], fws, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], fws, ready[i]);
             endcase
         end
 
         return res;
     endfunction
+
 
 endmodule
 
