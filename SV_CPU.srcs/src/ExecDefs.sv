@@ -155,43 +155,56 @@ package ExecDefs;
         return res;
     endfunction
 
-    function automatic logic3 checkForwardsReady(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps, input int stage);
-        logic3 res = '{0, 0, 0};
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
-                SRC_FLOAT: res[i] = checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
-            endcase
-        return res;
-    endfunction
+//        function automatic Word getOneArg(input InstructionMap imap, input ForwardsByStage_0 fws, input logic intReadyV[N_REGS_INT], input logic floatReadyV[N_REGS_FLOAT],
+//                                          input SourceType t, input int src, input InsId producer);
+//            Word res;
+//            case (t)
+//                SRC_ZERO:  res = 0;
+//                SRC_CONST: res = 0;
+//                SRC_INT:   res = checkForwardInt(imap, producer, src, fws.ints[stage], fws.mems[stage]);
+//                SRC_FLOAT: res = checkForwardVec(imap, producer, src, fws.vecs[stage]);
+//            endcase
+//            return 'x;
+//        endfunction
+        
 
-    function automatic Word3 getForwardedValues(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps, input int stage);
-        Word3 res = '{0, 0, 0};
-        foreach (deps.types[i])
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = 0;
-                SRC_INT:   res[i] = getForwardValueInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
-                SRC_FLOAT: res[i] = getForwardValueVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
-            endcase
-        return res;
-    endfunction
+//        function automatic logic3 checkForwardsReady(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps, input int stage);
+//            logic3 res = '{0, 0, 0};
+//            foreach (deps.types[i])
+//                case (deps.types[i])
+//                    SRC_ZERO:  res[i] = 0;
+//                    SRC_CONST: res[i] = 0;
+//                    SRC_INT:   res[i] = checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
+//                    SRC_FLOAT: res[i] = checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
+//                endcase
+//            return res;
+//        endfunction
+
+//    function automatic Word3 getForwardedValues(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps, input int stage);
+//        Word3 res = '{0, 0, 0};
+//        foreach (deps.types[i])
+//            case (deps.types[i])
+//                SRC_ZERO:  res[i] = 0;
+//                SRC_CONST: res[i] = 0;
+//                SRC_INT:   res[i] = getForwardValueInt(imap, deps.producers[i], deps.sources[i], fws.ints[stage], fws.mems[stage]);
+//                SRC_FLOAT: res[i] = getForwardValueVec(imap, deps.producers[i], deps.sources[i], fws.vecs[stage]);
+//            endcase
+//        return res;
+//    endfunction
 
 
-    function automatic logic3 checkForwardsReadyAll(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps);//, input int stages[]);
-        logic3 res = '{0, 0, 0};
-        foreach (deps.types[i])
-            for (int s = FW_FIRST; s <= FW_LAST; s++)
-                case (deps.types[i])
-                    SRC_ZERO:  res[i] |= 0;
-                    SRC_CONST: res[i] |= 0;
-                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[s], fws.mems[s]);
-                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[s]);
-                endcase        
-        return res;
-    endfunction
+//    function automatic logic3 checkForwardsReadyAll(input InstructionMap imap, input ForwardsByStage_0 fws, input InsDependencies deps);//, input int stages[]);
+//        logic3 res = '{0, 0, 0};
+//        foreach (deps.types[i])
+//            for (int s = FW_FIRST; s <= FW_LAST; s++)
+//                case (deps.types[i])
+//                    SRC_ZERO:  res[i] |= 0;
+//                    SRC_CONST: res[i] |= 0;
+//                    SRC_INT:   res[i] |= checkForwardInt(imap, deps.producers[i], deps.sources[i], fws.ints[s], fws.mems[s]);
+//                    SRC_FLOAT: res[i] |= checkForwardVec(imap, deps.producers[i], deps.sources[i], fws.vecs[s]);
+//                endcase        
+//        return res;
+//    endfunction
     ///////////////////////////////////////////////
     
 

@@ -295,12 +295,12 @@ module IssueQueue
             OpSlot op = inGroup[i];
             if (op.active && inMask[i]) begin
                 int location = locs[nInserted];
-                InsDependencies deps = insMap.get(op.id).deps;
-                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-                logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps);//, stages);
-                logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
+                //InsDependencies deps = insMap.get(op.id).deps;
+//                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+//                logic3 raf = checkForwardsReadyAll(insMap, AbstractCore.theExecBlock.allByStage, deps);//, stages);
+//                logic3 raAll = '{ ra[0] | raf[0], ra[1] | raf[1], ra[2] | raf[2] } ;
 
-                    TMP_initialFw[i] = raf;
+//                    TMP_initialFw[i] = raf;
 
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
                 putMilestone(op.id, InstructionMap::IqEnter);
