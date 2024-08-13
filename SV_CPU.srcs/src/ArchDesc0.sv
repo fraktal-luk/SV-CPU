@@ -16,6 +16,63 @@ module ArchDesc0();
 
 
 
+
+////////////////////
+
+    // Classes for simulation, not Core related
+
+    class ProgramMemory #(parameter WIDTH = 4);
+        typedef Word Line[4];
+        
+        Word content[4096];
+        
+        function void clear();
+            this.content = '{default: 'x};
+        endfunction
+        
+        function Line read(input Word adr);
+            Line res;
+            Word truncatedAdr = adr & ~(4*WIDTH-1);
+            
+            foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
+            return res;
+        endfunction
+
+    endclass
+    
+    
+    class DataMemory #(parameter WIDTH = 4);
+        typedef logic[7:0] Line[4];
+        
+        logic[7:0] content[4096];
+        
+        function void setContent(Word arr[]);
+            foreach (arr[i]) content[i] = arr[i];
+        endfunction
+        
+        function void clear();
+            content = '{default: '0};
+        endfunction;
+        
+        function automatic Word read(input Word adr);
+            Word res = 0;
+            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
+            return res;
+        endfunction
+
+        function automatic void write(input Word adr, input Word value);
+            Word data = value;            
+            for (int i = 0; i < 4; i++) begin
+                content[adr + i] = data[31:24];
+                data <<= 8;
+            end        
+        endfunction    
+        
+    endclass
+    ////////////////////////////////////////////////////////////////
+
+
+
     localparam CYCLE = 10;
 
     logic clk = 1;
@@ -184,8 +241,6 @@ module ArchDesc0();
         
     endtask
 
-
-
     // Core sim
     generate
         typedef ProgramMemory#(4) ProgMem;
@@ -296,4 +351,17 @@ module ArchDesc0();
 
     endgenerate  
 
+
+    // TODO: move to top module and refer by qualified name?
+    Ptype simProgMem;
+
+    function static Ptype TMP_getP();
+        return simProgMem;
+    endfunction
+
+    function static void TMP_setP(input Word p[4096]);
+        simProgMem = p;
+    endfunction
+
+    
 endmodule

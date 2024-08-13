@@ -8,8 +8,28 @@ package Insmap;
     import AbstractSim::*;
     
 
-    class InstructionMap;
+
+    typedef struct {
+        InsId id;
+        Word adr;
+        Word bits;
+        Word target;
+        AbstractInstruction dec;
+        Word result;
+        Word actualResult;
+        IndexSet inds;
+        int slot;
+        InsDependencies deps;
+        int physDest;
         
+        Word argValues[3];
+        logic argError;
+        
+    } InstructionInfo;
+
+
+    class InstructionMap;
+   
         typedef enum {
             ___,
         
@@ -124,7 +144,21 @@ package Insmap;
         MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
         MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
     
+        // ins info
+        static function automatic InstructionInfo initInsInfo(input OpSlot op);
+            InstructionInfo res;
+            res.id = op.id;
+            res.adr = op.adr;
+            res.bits = op.bits;
     
+            res.physDest = -1;
+    
+            res.argError = 0;
+    
+            return res;
+        endfunction
+
+        // all
         function automatic void endCycle();
             retiredArrPre = retiredArr;
             killedArrPre = killedArr;
@@ -156,17 +190,19 @@ package Insmap;
     
         endfunction
         
-        
+        // ins info
         function automatic InstructionInfo get(input InsId id);
             assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
             return content[id];
         endfunction
     
+        // ins info
         function automatic int size();
             return content.size();
         endfunction
         
-    
+        
+        /////// insinfo
         function automatic void add(input OpSlot op);
             assert (op.active) else $error("Inactive op added to base");
             content[op.id] = initInsInfo(op);
@@ -214,8 +250,10 @@ package Insmap;
         function automatic void setArgError(input InsId id);
             content[id].argError = 1;
         endfunction
+        ////////////
     
-       
+    
+        // all
         function automatic void setRetired(input InsId id);
             assert (id != -1) else $fatal(2, "retired -1");
     
@@ -226,6 +264,7 @@ package Insmap;
             lastRetiredStr = disasm(get(id).bits);
         endfunction
         
+        // all
         function automatic void setKilled(input InsId id, input logic front = 0);
             assert (id != -1) else $fatal(2, "killed -1");
         
@@ -244,7 +283,7 @@ package Insmap;
             end
         endfunction
     
-    
+        // milestones
         function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
             MilestoneTag def = '{___, -1};
             InsRecord empty = new();
@@ -253,14 +292,14 @@ package Insmap;
             
             foreach(rec.tags[i]) arr[i] = rec.tags[i];
         endfunction
-    
-         
+
+        // insinfo
         function automatic void registerIndex(input InsId id);
             indexList.push_back(id);
             records[id] = new();
         endfunction
-    
-    
+
+        // all
         function automatic void cleanDescs();       
             while (indexList[0] < lastRetired - 10) begin
                 content.delete(indexList[0]);
@@ -268,12 +307,16 @@ package Insmap;
                 void'(indexList.pop_front());
             end
         endfunction
-        
+
+        // milestones
         function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
         endfunction
-    
+
+
+        // Different area: checking
+
         // 3 main categories:
         // a. Killed in Front
         // b. Killed in OOO

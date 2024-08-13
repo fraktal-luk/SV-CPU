@@ -6,223 +6,12 @@ package AbstractSim;
     import Asm::*;
     import Emulation::*;
 
+
+    // Arch specific
     typedef Word Mword;
 
-
+    // Sim outside core
     typedef Word Ptype[4096];
-
-    Ptype simProgMem;
-
-    function static Ptype TMP_getP();
-        return simProgMem;
-    endfunction
-
-    function static void TMP_setP(input Word p[4096]);
-        simProgMem = p;
-    endfunction
-
-
-    typedef logic logic3[3];
-
-    typedef int InsId;
-
-    typedef InsId IdQueue[$];
-
-
-    typedef struct {
-        logic active;
-        InsId id;
-        Word adr;
-        Word bits;
-    } OpSlot;
-
-    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
-
-    typedef OpSlot OpSlotQueue[$];
-
-
-    function automatic void runInEmulator(ref Emulator emul, input OpSlot op);
-        AbstractInstruction ins = decodeAbstract(op.bits);
-        ExecResult res = emul.processInstruction(op.adr, ins, emul.tmpDataMem);
-    endfunction
-
-
-
-
-
-    // Classes for simulation, not Core related
-
-    class ProgramMemory #(parameter WIDTH = 4);
-        typedef Word Line[4];
-        
-        Word content[4096];
-        
-        function void clear();
-            this.content = '{default: 'x};
-        endfunction
-        
-        function Line read(input Word adr);
-            Line res;
-            Word truncatedAdr = adr & ~(4*WIDTH-1);
-            
-            foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
-            return res;
-        endfunction
-
-    endclass
-    
-    
-    class DataMemory #(parameter WIDTH = 4);
-        typedef logic[7:0] Line[4];
-        
-        logic[7:0] content[4096];
-        
-        function void setContent(Word arr[]);
-            foreach (arr[i]) content[i] = arr[i];
-        endfunction
-        
-        function void clear();
-            content = '{default: '0};
-        endfunction;
-        
-        function automatic Word read(input Word adr);
-            Word res = 0;
-            
-            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
-            
-            return res;
-        endfunction
-
-        function automatic void write(input Word adr, input Word value);
-            Word data = value;
-            
-            for (int i = 0; i < 4; i++) begin
-                content[adr + i] = data[31:24];
-                data <<= 8;
-            end        
-        endfunction    
-        
-    endclass
-    ////////////////////////////////////////////////////////////////
-
-
-
-    // Op classiication
-    
-    function automatic logic writesIntReg(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return hasIntDest(abs);
-    endfunction
-
-
-    function automatic logic writesFloatReg(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return hasFloatDest(abs);
-    endfunction
-
-
-    function automatic logic isBranchOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isBranchIns(abs);
-    endfunction
-
-
-    function automatic logic isStoreMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreMemIns(abs);
-    endfunction
-
-    function automatic logic isStoreSysOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreSysIns(abs);
-    endfunction
-
-
-    function automatic logic isLoadMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isLoadMemIns(abs);
-    endfunction
-
-    function automatic logic isLoadOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isLoadIns(abs);
-    endfunction
-
-    function automatic logic isStoreOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreIns(abs);
-    endfunction
-
-    function automatic logic isMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isMemIns(abs);
-    endfunction
-
-    function automatic logic isSysOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isSysIns(abs);
-    endfunction
-    /////////////////////////////////////////////////
-
-
-
-    /////////////////////
-    // Defs for tracking, insMap
-    
-    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
-    } SourceType;
-    
-    typedef struct {
-        int sources[3];
-        SourceType types[3];
-        InsId producers[3];
-    } InsDependencies;
-
-
-    typedef struct {
-        int rename;
-        int renameG;
-        int bq;
-        int lq;
-        int sq;
-    } IndexSet;
-
-
-    typedef struct {
-        InsId id;
-        Word adr;
-        Word bits;
-        Word target;
-        AbstractInstruction dec;
-        Word result;
-        Word actualResult;
-        IndexSet inds;
-        int slot;
-        InsDependencies deps;
-        int physDest;
-        
-        Word argValues[3];
-        logic argError;
-        
-    } InstructionInfo;
-
-        // TODO: move to ins map?
-    function automatic InstructionInfo initInsInfo(input OpSlot op);
-        InstructionInfo res;
-        res.id = op.id;
-        res.adr = op.adr;
-        res.bits = op.bits;
-
-        res.physDest = -1;
-
-        res.argError = 0;
-
-        return res;
-    endfunction
-
-    ///////////////////////////////////////////////////////
-
-
 
 
     localparam int FETCH_QUEUE_SIZE = 8;
@@ -238,19 +27,119 @@ package AbstractSim;
     localparam int LQ_SIZE = 80;
     localparam int SQ_SIZE = 80;
     localparam int BQ_SIZE = 32;
-    
 
     localparam FETCH_WIDTH = 4;
     localparam RENAME_WIDTH = 4;
     localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
 
+    localparam logic IN_ORDER = 0;
+
+    localparam int FW_FIRST = -2 + 2;
+    localparam int FW_LAST = 1;
 
 
-        localparam logic IN_ORDER = 0;//1;
-        localparam logic USE_FORWARDING = 1;//0;
+////////////////////////////
+    // Core structures
 
-        localparam int FW_FIRST = -2 + 2;
-        localparam int FW_LAST = 1;
+    typedef int InsId;  // Implem detail
+    typedef InsId IdQueue[$]; // Implet detail
+
+    typedef struct {
+        logic active;
+        InsId id;
+        Word adr;
+        Word bits;
+    } OpSlot;
+
+    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+    
+    typedef OpSlot OpSlotQueue[$];
+    typedef OpSlot OpSlotA[RENAME_WIDTH];
+    typedef OpSlot FetchStage[FETCH_WIDTH];
+
+    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+
+   
+    // Write buffer
+    typedef struct {
+        OpSlot op;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
+
+
+    typedef struct {
+        Mword target;
+        logic redirect;
+        logic sig;
+        logic wrong;
+    } LateEvent;
+
+    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
+
+
+    typedef struct {
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+
+
+    typedef struct {
+        OpSlot op;
+        logic interrupt;
+        logic reset;
+        logic redirect;
+        logic sigOk;
+        logic sigWrong;
+        Word target;
+    } EventInfo;
+    
+    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
+
+    typedef struct {
+        int iqRegular;
+        int iqFloat;
+        int iqBranch;
+        int iqMem;
+        int iqSys;
+    } IqLevels;
+
+    // not really used yet
+    typedef struct {
+        OpSlot late;
+        OpSlot exec;
+    } Events;
+
+    typedef struct {
+        InsId id;
+        Word target;
+    } BranchTargetEntry;
+
+    typedef struct {
+        int rename;
+        int renameG;
+        int bq;
+        int lq;
+        int sq;
+    } IndexSet;
+
+    //////////////////////////////////////
+
+
+
+    // Defs for tracking, insMap
+    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
+    } SourceType;
+    
+    typedef struct {
+        int sources[3];
+        SourceType types[3];
+        InsId producers[3];
+    } InsDependencies;
+
 
 
     class BranchCheckpoint;
@@ -281,297 +170,186 @@ package AbstractSim;
     endclass
 
 
-
-    typedef struct {
-        InsId intWritersR[32] = '{default: -1};
-        InsId floatWritersR[32] = '{default: -1};
-        InsId intWritersC[32] = '{default: -1};
-        InsId floatWritersC[32] = '{default: -1};
-    } WriterTracker;
-
-
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
-        typedef enum {FREE, SPECULATIVE, STABLE
-        } PhysRegState;
-        
-        typedef struct {
-            PhysRegState state;
-            InsId owner;
-        } PhysRegInfo;
 
-        const PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
-        const PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
-
-        PhysRegInfo intInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
-        Word intRegs[N_REGS_INT] = '{0: 0, default: 'x};
-        logic intReady[N_REGS_INT] = '{0: 1, default: '0};
-        
-        PhysRegInfo floatInfo[N_REGS_INT] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
-        Word floatRegs[N_REGS_INT] = '{0: 0, default: 'x};
-        logic floatReady[N_REGS_INT] = '{0: 1, default: '0};
-        
-        
-        int intMapR[32] = '{default: 0};
-        int intMapC[32] = '{default: 0};
-        
-        int floatMapR[32] = '{default: 0};
-        int floatMapC[32] = '{default: 0};
- 
-       
-        WriterTracker wrTracker;
-        
-       
-        function automatic int findDestInt(input InsId id);
-            int inds[$] = intInfo.find_first_index with (item.owner == id);
-            return inds.size() > 0 ? inds[0] : -1;
-        endfunction;
-
-        function automatic void setReadyInt(input InsId id);
-            int pDest = findDestInt(id);
-            intReady[pDest] = 1;
-        endfunction;
-
-
-        function automatic int reserve(input OpSlot op);
-            setWriterR(op);
-            reserveInt(op);
-            reserveFloat(op);
             
-            if (writesFloatReg(op)) return findDestFloat(op.id);
-            else if (writesIntReg(op)) return findDestInt(op.id);
-            else return -1;
-        endfunction
-
-        function automatic void commit(input OpSlot op);
-            setWriterC(op);
-            commitInt(op);
-            commitFloat(op);
-        endfunction
-
-
-        function automatic void reserveInt(input OpSlot op);
-            AbstractInstruction ins = decodeAbstract(op.bits);
-            int vDest = ins.dest;
-            int pDest = findFreeInt();
+            // TODO: move to RegisterDomain after moving functiona for num free etc.
+            typedef enum {FREE, SPECULATIVE, STABLE
+            } PhysRegState;
             
-            if (!writesIntReg(op) || vDest == 0) return;
+            typedef struct {
+                PhysRegState state;
+                InsId owner;
+            } PhysRegInfo;
             
-            intInfo[pDest] = '{SPECULATIVE, op.id};
-            intMapR[vDest] = pDest;
-        endfunction
 
-
-        function automatic int findDestFloat(input InsId id);
-            int inds[$] = floatInfo.find_first_index with (item.owner == id);
-            return inds.size() > 0 ? inds[0] : -1;
-        endfunction;
-
-        function automatic void setReadyFloat(input InsId id);
-            int pDest = findDestFloat(id);
-            floatReady[pDest] = 1;
-        endfunction;
-
-        function automatic void reserveFloat(input OpSlot op);
-            AbstractInstruction ins = decodeAbstract(op.bits);
-            int vDest = ins.dest;
-            int pDest = findFreeFloat();
-            
-            if (!writesFloatReg(op)) return;
-            
-            floatInfo[pDest] = '{SPECULATIVE, op.id};
-            floatMapR[vDest] = pDest;
-        endfunction
-
-        
-        function automatic void commitInt(input OpSlot op);
-            AbstractInstruction ins = decodeAbstract(op.bits);
-            int vDest = ins.dest;
-            int ind[$] = intInfo.find_first_index with (item.owner == op.id);
-            int pDest = ind[0];
-            int pDestPrev = intMapC[vDest];
-            
-            if (!writesIntReg(op) || vDest == 0) return;
-            
-            intInfo[pDest] = '{STABLE, -1};
-            intMapC[vDest] = pDest;
-            if (pDestPrev == 0) return; 
-            intInfo[pDestPrev] = REG_INFO_FREE;
-            intReady[pDestPrev] = 0;
-            intRegs[pDestPrev] = 'x;
-        endfunction
-        
-        function automatic int findFreeInt();
-            int res[$] = intInfo.find_first_index with (item.state == FREE);
-            return res[0];
-        endfunction
-        
-        
-        function automatic void commitFloat(input OpSlot op);
-            AbstractInstruction ins = decodeAbstract(op.bits);
-            int vDest = ins.dest;
-            int ind[$] = floatInfo.find_first_index with (item.owner == op.id);
-            int pDest = ind[0];
-            int pDestPrev = floatMapC[vDest];
-            
-            if (!writesFloatReg(op)) return;
-            
-            floatInfo[pDest] = '{STABLE, -1};
-            floatMapC[vDest] = pDest;
-            if (pDestPrev == 0) return;
-            floatInfo[pDestPrev] = REG_INFO_FREE;
-            floatReady[pDestPrev] = 0;
-            floatRegs[pDestPrev] = 'x;
-        endfunction
-        
-        
-        function automatic int findFreeFloat();
-            int res[$] = floatInfo.find_first_index with (item.state == FREE);
-            return res[0];
-        endfunction
-        
-        
-        function automatic void flush(input OpSlot op);
-            int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
-            int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE && item.owner > op.id);
-
-            foreach (indsInt[i]) begin
-                int pDest = indsInt[i];
-                intInfo[pDest] = REG_INFO_FREE;
-                intReady[pDest] = 0;
-                intRegs[pDest] = 'x;
-            end
-
-            foreach (indsFloat[i]) begin
-                int pDest = indsFloat[i];
-                floatInfo[pDest] = REG_INFO_FREE;
-                floatReady[pDest] = 0;
-                floatRegs[pDest] = 'x;
-            end          
-            
-            // Restoring map is separate
-        endfunction
-        
-        function automatic void flushAll();
-            int indsInt[$] = intInfo.find_index with (item.state == SPECULATIVE);
-            int indsFloat[$] = floatInfo.find_index with (item.state == SPECULATIVE);
-
-            foreach (indsInt[i]) begin
-                int pDest = indsInt[i];
-                intInfo[pDest] = REG_INFO_FREE;
-                intReady[pDest] = 0;
-                intRegs[pDest] = 'x;
-            end
-             
-            foreach (indsFloat[i]) begin
-                int pDest = indsFloat[i];
-                floatInfo[pDest] = REG_INFO_FREE;
-                floatReady[pDest] = 0;
-                floatRegs[pDest] = 'x;
-            end
-            
-            // Restoring map is separate
-        endfunction
- 
-        function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
-            intMapR = intM;
-            floatMapR = floatM;
-            
-            wrTracker.intWritersR = intWriters;
-            wrTracker.floatWritersR = floatWriters;
-        endfunction
-        
-        function automatic void restoreReset();
-            intMapR = intMapC;
-            floatMapR = floatMapC;
-        
-            wrTracker.intWritersR = '{default: -1};
-            wrTracker.floatWritersR = '{default: -1};
-        endfunction
+        class RegisterDomain#(
+            parameter int N_REGS = N_REGS_INT,
+            parameter logic IGNORE_R0 = 1
+        );
+            localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
+            localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
     
-        function automatic void restoreStable();
-            intMapR = intMapC;
-            floatMapR = floatMapC;
         
-            wrTracker.intWritersR = wrTracker.intWritersC;
-            wrTracker.floatWritersR = wrTracker.floatWritersC;
-        endfunction
-
-      
-        function automatic void writeValueInt(input OpSlot op, input Word value);
-            AbstractInstruction ins = decodeAbstract(op.bits);
-            int pDest = findDestInt(op.id);
-            if (!writesIntReg(op) || ins.dest == 0) return;
+            PhysRegInfo info[N_REGS] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
+            Word regs[N_REGS] = '{0: 0, default: 'x};
+            logic ready[N_REGS] = '{0: 1, default: '0};
             
-            intRegs[pDest] = value;
-        endfunction
-        
-        function automatic void writeValueFloat(input OpSlot op, input Word value);
-            int pDest = findDestFloat(op.id);
-            if (!writesFloatReg(op)) return;
+            int MapR[32] = '{default: 0};
+            int MapC[32] = '{default: 0};
             
-            floatRegs[pDest] = value;
-        endfunction     
-        
-        
-        function automatic int getNumFreeInt();
-            int freeInds[$] = intInfo.find_index with (item.state == FREE);
-            int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = intInfo.find_index with (item.state == STABLE);            
-            return freeInds.size();
-        endfunction 
-        
-        function automatic int getNumSpecInt();
-            int specInds[$] = intInfo.find_index with (item.state == SPECULATIVE);            
-            return specInds.size();
-        endfunction 
-
-        function automatic int getNumStabInt();
-            int stabInds[$] = intInfo.find_index with (item.state == STABLE);            
-            return stabInds.size();
-        endfunction
-        
-        
-        function automatic int getNumFreeFloat();
-            int freeInds[$] = floatInfo.find_index with (item.state == FREE);
-            int specInds[$] = floatInfo.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = floatInfo.find_index with (item.state == STABLE);            
-            return freeInds.size();
-        endfunction
-        
-        function automatic void setWriterR(input OpSlot op);
-            AbstractInstruction abs = decodeAbstract(op.bits);
-            if (hasIntDest(abs)) wrTracker.intWritersR[abs.dest] = op.id;
-            if (hasFloatDest(abs)) wrTracker.floatWritersR[abs.dest] = op.id;
-            wrTracker.intWritersR[0] = -1;
-        endfunction
+            InsId writersR[32] = '{default: -1};
+            InsId writersC[32] = '{default: -1};
+            
+            function automatic logic ignoreV(input int vReg);
+                return (vReg == 0) && IGNORE_R0;
+            endfunction
+            
+            function automatic int reserve(input AbstractInstruction ins, input InsId id);
+                int vDest = ins.dest;
+                int pDest = findFree();
+                
+                if (!ignoreV(vDest)) begin
+                    writersR[vDest] = id;
+                    info[pDest] = '{SPECULATIVE, id};
+                    MapR[vDest] = pDest;
+                end
+                
+                return findDest(id);
+            endfunction
     
-        function automatic void setWriterC(input OpSlot op);  
-            AbstractInstruction abs = decodeAbstract(op.bits);
-            if (hasIntDest(abs)) wrTracker.intWritersC[abs.dest] = op.id;
-            if (hasFloatDest(abs)) wrTracker.floatWritersC[abs.dest] = op.id;
-            wrTracker.intWritersC[0] = -1;
+            function automatic void commit(input AbstractInstruction ins, InsId id);
+                int vDest = ins.dest;
+                int ind[$] = info.find_first_index with (item.owner == id);
+                int pDest = ind[0];
+                int pDestPrev = MapC[vDest];
+                            
+                if (ignoreV(vDest)) return;
+                
+                writersC[vDest] = id;
+    
+                info[pDest] = '{STABLE, -1};
+                MapC[vDest] = pDest;
+
+                if (pDestPrev == 0) return; 
+                info[pDestPrev] = REG_INFO_FREE;
+                ready[pDestPrev] = 0;
+                regs[pDestPrev] = 'x;
+            endfunction
+
+            function automatic void setReady(input InsId id);
+                int pDest = findDest(id);
+                ready[pDest] = 1;
+            endfunction;
+    
+            function automatic void writeValue(input AbstractInstruction ins, input InsId id, input Word value);
+                int pDest = findDest(id);
+                if (ignoreV(ins.dest)) return;
+                regs[pDest] = value;
+            endfunction            
+ 
+            function automatic int findFree();
+                int res[$] = info.find_first_index with (item.state == FREE);
+                return res[0];
+            endfunction
+    
+            function automatic int findDest(input InsId id);
+                int inds[$] = info.find_first_index with (item.owner == id);
+                return inds.size() > 0 ? inds[0] : -1;
+            endfunction;
+
+
+            function automatic void flush(input OpSlot op);
+                int inds[$] = info.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+
+                foreach (inds[i]) begin
+                    int pDest = inds[i];
+                    info[pDest] = REG_INFO_FREE;
+                    ready[pDest] = 0;
+                    regs[pDest] = 'x;
+                end
+
+                // Restoring map is separate
+            endfunction
+
+            function automatic void flushAll();
+                int inds[$] = info.find_index with (item.state == SPECULATIVE);
+
+                foreach (inds[i]) begin
+                    int pDest = inds[i];
+                    info[pDest] = REG_INFO_FREE;
+                    ready[pDest] = 0;
+                    regs[pDest] = 'x;
+                end
+                
+                // Restoring map is separate
+            endfunction
+
+
+            function automatic void restoreCP(input int intM[32], input InsId intWriters[32]);
+                MapR = intM;
+                writersR = intWriters;
+            endfunction
+        
+            function automatic void restoreStable();
+                MapR = MapC;
+                writersR = writersC;
+            endfunction
+    
+            function automatic void restoreReset();
+                MapR = MapC;
+                writersR = '{default: -1};
+            endfunction           
+        endclass
+
+
+        RegisterDomain#(N_REGS_INT, 1) ints = new();
+        RegisterDomain#(N_REGS_INT, 0) floats = new(); // TODO: change to FP reg num
+
+          
+        function automatic int reserve(input AbstractInstruction abs, input InsId id);
+            if (hasIntDest(abs)) return ints.reserve(abs, id);
+            if (hasFloatDest(abs)) return  floats.reserve(abs, id);  
+            return -1;
         endfunction
 
-        function automatic InsDependencies getArgDeps(input OpSlot op);
-            int mapInt[32] = intMapR;
-            int mapFloat[32] = floatMapR;
+
+        function automatic void commit(input AbstractInstruction abs, input InsId id);            
+            if (hasIntDest(abs)) ints.commit(abs, id);      
+            if (hasFloatDest(abs)) floats.commit(abs, id);
+        endfunction
+
+        function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Word value);
+            if (hasIntDest(abs)) begin
+                ints.setReady(id);
+                ints.writeValue(abs, id, value);
+            end
+            if (hasFloatDest(abs)) begin
+                floats.setReady(id);
+                floats.writeValue(abs, id, value);
+            end
+        endfunction
+
+
+        function automatic InsDependencies getArgDeps(input AbstractInstruction abs);
+            int mapInt[32] = ints.MapR;
+            int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
             InsId producers[3] = '{-1, -1, -1};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
             
-            AbstractInstruction abs = decodeAbstract(op.bits);
             string typeSpec = parsingMap[abs.fmt].typeSpec;
             
             foreach (sources[i]) begin
                 if (typeSpec[i + 2] == "i") begin
                     sources[i] = mapInt[abs.sources[i]];
                     types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-                    producers[i] = intInfo[sources[i]].owner;
+                    producers[i] = ints.info[sources[i]].owner;
                 end
                 else if (typeSpec[i + 2] == "f") begin
                     sources[i] = mapFloat[abs.sources[i]];
                     types[i] = SRC_FLOAT;
-                    producers[i] = floatInfo[sources[i]].owner;
+                    producers[i] = floats.info[sources[i]].owner;
                 end
                 else if (typeSpec[i + 2] == "c") begin
                     sources[i] = abs.sources[i];
@@ -584,6 +362,50 @@ package AbstractSim;
             end
     
             return '{sources, types, producers};
+        endfunction
+        
+ 
+ 
+        function automatic void flush(input OpSlot op);
+            ints.flush(op);
+            floats.flush(op);
+        endfunction
+        
+        function automatic void flushAll();
+            ints.flushAll();
+            floats.flushAll();
+        endfunction
+ 
+ 
+        function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
+            ints.restoreCP(intM, intWriters);
+            floats.restoreCP(floatM, floatWriters);
+        endfunction
+    
+        function automatic void restoreStable();
+            ints.restoreStable();
+            floats.restoreStable();
+        endfunction
+
+        function automatic void restoreReset();
+            ints.restoreReset();
+            floats.restoreReset();
+        endfunction
+
+
+
+        function automatic int getNumFreeInt();
+            int freeInds[$] = ints.info.find_index with (item.state == FREE);
+            int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = ints.info.find_index with (item.state == STABLE);    
+            return freeInds.size();
+        endfunction        
+        
+        function automatic int getNumFreeFloat();
+            int freeInds[$] = floats.info.find_index with (item.state == FREE);
+            int specInds[$] = floats.info.find_index with (item.state == SPECULATIVE);
+            int stabInds[$] = floats.info.find_index with (item.state == STABLE);            
+            return freeInds.size();
         endfunction
 
     endclass
@@ -675,11 +497,11 @@ package AbstractSim;
             while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
         endfunction
 
-        function automatic InsId checkWriter(input OpSlot op);
+        function automatic InsId checkWriter(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
         
-            Transaction read[$] = transactions.find_first with (item.owner == op.id); 
-            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < op.id);
+            Transaction read[$] = transactions.find_first with (item.owner == id); 
+            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < id);
             return (writers.size() == 0) ? -1 : writers[$].owner;
         endfunction
   
@@ -698,96 +520,72 @@ package AbstractSim;
 
 
 
+//////////////////
+// General
+    function automatic logic anyActiveFetch(input FetchStage s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
 
-    // Core structures
+    function automatic logic anyActive(input OpSlotA s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
 
-    typedef OpSlot OpSlotA[RENAME_WIDTH];
-
-    typedef OpSlot FetchStage[FETCH_WIDTH];
-
-    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
-
-   
-    typedef struct {
-        OpSlot op;
-        Word adr;
-        Word val;
-    } StoreQueueEntry;
-
-        // TODO: should be removed?
-        typedef struct {
-            int num;
-            OpSlot regular[2];
-            OpSlot float[2];
-            OpSlot branch;
-            OpSlot mem;
-            OpSlot sys;
-        } IssueGroup;
-
-        const IssueGroup DEFAULT_ISSUE_GROUP = '{num: 0, 
-                                            regular: '{default: EMPTY_SLOT},
-                                            float: '{default: EMPTY_SLOT},
-                                            branch: EMPTY_SLOT,
-                                            mem: EMPTY_SLOT,
-                                            sys: EMPTY_SLOT};
-
-    typedef struct {
-        Mword target;
-        logic redirect;
-        logic sig;
-        logic wrong;
-    } LateEvent;
-
-    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
-
-
-    typedef struct {
-        logic req;
-        Word adr;
-        Word value;
-    } MemWriteInfo;
+    // Op classiication - not all are used!
     
-    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
-    
-    typedef struct {
-        OpSlot op;
-        logic interrupt;
-        logic reset;
-        logic redirect;
-        logic sigOk;
-        logic sigWrong;
-        Word target;
-    } EventInfo;
-    
-    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
+    function automatic logic writesIntReg(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return hasIntDest(abs);
+    endfunction
 
-    typedef struct {
-        //int oq;
-        int iqRegular;
-        int iqFloat;
-        int iqBranch;
-        int iqMem;
-        int iqSys;
-
-        int oooq;
-        //int bq;
-        int rob;
-        int lq;
-        int sq;
-        int csq;
-    } BufferLevels;
+    function automatic logic writesFloatReg(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return hasFloatDest(abs);
+    endfunction
 
 
-    typedef struct {
-        OpSlot late;
-        OpSlot exec;
-    } Events;
+    function automatic logic isBranchOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isBranchIns(abs);
+    endfunction
 
-    typedef struct {
-        InsId id;
-        Word target;
-    } BranchTargetEntry;
-    //////////////////////////////////////
+    function automatic logic isStoreMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreMemIns(abs);
+    endfunction
+
+    function automatic logic isStoreSysOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreSysIns(abs);
+    endfunction
+
+    function automatic logic isLoadMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isLoadMemIns(abs);
+    endfunction
+
+    function automatic logic isLoadOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isLoadIns(abs);
+    endfunction
+
+    function automatic logic isStoreOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isStoreIns(abs);
+    endfunction
+
+    function automatic logic isMemOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isMemIns(abs);
+    endfunction
+
+    function automatic logic isSysOp(input OpSlot op);
+        AbstractInstruction abs = decodeAbstract(op.bits);
+        return isSysIns(abs);
+    endfunction
+    /////////////////////////////////////////////////
+
 
     ////////////////////////////////////////////
     // Core functions
@@ -864,17 +662,6 @@ package AbstractSim;
     endfunction
 
 
-    function automatic logic anyActiveFetch(input FetchStage s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-    function automatic logic anyActive(input OpSlotA s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-
     function automatic logic getWrongSignal(input AbstractInstruction ins);
         return ins.def.o == O_undef;
     endfunction
@@ -887,6 +674,7 @@ package AbstractSim;
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
 
+    // core logic
     function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed);
         if (isBranchIns(ins))
             return executed;
@@ -895,6 +683,5 @@ package AbstractSim;
         else
             return prev + 4;
     endfunction;
-        
-endpackage
 
+endpackage

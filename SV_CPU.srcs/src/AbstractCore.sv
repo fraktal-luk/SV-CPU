@@ -46,7 +46,7 @@ module AbstractCore
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
-    BufferLevels oooLevels, oooAccepts;
+    IqLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
     // OOO
@@ -130,32 +130,13 @@ module AbstractCore
 
 
     task automatic handleCompletion();
-//        foreach (theExecBlock.doneOpsRegular_E[i]) begin
-//            completeOp(theExecBlock.doneOpsRegular_E[i]);
-//            writeResult(theExecBlock.doneOpsRegular_E[i], theExecBlock.execResultsRegular[i]);
-//        end
-
-//        foreach (theExecBlock.doneOpsFloat_E[i]) begin
-//            completeOp(theExecBlock.doneOpsFloat_E[i]);
-//            writeResult(theExecBlock.doneOpsFloat_E[i], theExecBlock.execResultsFloat[i]);
-//        end
-
-//        completeOp(theExecBlock.doneOpBranch_E);
-//        writeResult(theExecBlock.doneOpBranch_E, theExecBlock.execResultLink);
-
-//        completeOp(theExecBlock.doneOpMem_E);
-//        writeResult(theExecBlock.doneOpMem_E, theExecBlock.execResultMem);
-
-//        completeOp(theExecBlock.doneOpSys_E);
-        
-        
-                completePacket(theExecBlock.doneRegular0);
-                completePacket(theExecBlock.doneRegular1);
-                completePacket(theExecBlock.doneFloat0);
-                completePacket(theExecBlock.doneFloat1);
-                completePacket(theExecBlock.doneBranch);
-                completePacket(theExecBlock.doneMem);
-                completePacket(theExecBlock.doneSys);
+        completePacket(theExecBlock.doneRegular0);
+        completePacket(theExecBlock.doneRegular1);
+        completePacket(theExecBlock.doneFloat0);
+        completePacket(theExecBlock.doneFloat1);
+        completePacket(theExecBlock.doneBranch);
+        completePacket(theExecBlock.doneMem);
+        completePacket(theExecBlock.doneSys);
     endtask
 
     task automatic updateBookkeeping();
@@ -164,8 +145,8 @@ module AbstractCore
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
         
-        intRegsReadyV <= registerTracker.intReady;
-        floatRegsReadyV <= registerTracker.floatReady;
+        intRegsReadyV <= registerTracker.ints.ready;
+        floatRegsReadyV <= registerTracker.floats.ready;
 
         // Overall DB
             coreDB.insMapSize = insMap.size();
@@ -281,8 +262,8 @@ module AbstractCore
     assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
                                                 && theRob.allow && theSq.allow && theLq.allow;;
 
-    function automatic BufferLevels getBufferAccepts(input BufferLevels levels);
-        BufferLevels res;
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res;
      
         res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
@@ -293,7 +274,7 @@ module AbstractCore
         return res;
     endfunction
 
-    function automatic logic iqsAccept(input BufferLevels acc);
+    function automatic logic iqsAccept(input IqLevels acc);
         return 1
                 && acc.iqRegular
                 && acc.iqFloat
@@ -347,7 +328,6 @@ module AbstractCore
     endtask
 
     task automatic rollbackToCheckpoint(input BranchCheckpoint single);
-        //BranchCheckpoint single = branchCP;
         renamedEmul.coreState = single.state;
         renamedEmul.tmpDataMem.copyFrom(single.mem);
         renameInds = single.inds;
@@ -410,8 +390,9 @@ module AbstractCore
 
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
-                                    registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
-                                    registerTracker.intMapR, registerTracker.floatMapR,
+                                    //registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
+                                    registerTracker.ints.writersR, registerTracker.floats.writersR,
+                                    registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
     endtask
@@ -427,15 +408,15 @@ module AbstractCore
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
-        deps = registerTracker.getArgDeps(op); // For insMap
+        deps = registerTracker.getArgDeps(ins); // For insMap
 
-        runInEmulator(renamedEmul, op);
+        runInEmulator(renamedEmul, op.adr, op.bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
         updateInds(renameInds, op); // Crucial state
 
-        physDest = registerTracker.reserve(op);
+        physDest = registerTracker.reserve(ins, op.id);
         
         if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
 
@@ -491,7 +472,7 @@ module AbstractCore
         if (writesIntReg(op) || writesFloatReg(op)) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
 
-        runInEmulator(retiredEmul, op);
+        runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
         nextTrg = retiredEmul.coreState.target; // DB
 
@@ -512,7 +493,7 @@ module AbstractCore
         updateInds(commitInds, op); // Crucial
         commitInds.renameG = insMap.get(op.id).inds.renameG;
 
-        registerTracker.commit(op);
+        registerTracker.commit(insInfo.dec, op.id);
         
         if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
@@ -578,7 +559,6 @@ module AbstractCore
         if (!p.active) return;
         else begin
             OpSlot os = getOpSlotFromPacket(p);
-            //completeOp(os);
             writeResult(os, p.result);
             
             coreDB.lastCompleted = os;
@@ -586,7 +566,19 @@ module AbstractCore
         end
     endtask
     
-    
+
+    function automatic OpSlot getOpSlotFromId(input InsId id);
+        OpSlot res;
+        InstructionInfo ii = insMap.get(id);
+        
+        res.active = 1;
+        res.id = id;
+        res.adr = ii.adr;
+        res.bits = ii.bits;
+        
+        return res;
+    endfunction;
+
     function automatic OpSlot getOpSlotFromPacket(input OpPacket p);
         OpSlot res;
         InstructionInfo ii = insMap.get(p.id);
@@ -598,16 +590,6 @@ module AbstractCore
         
         return res;
     endfunction;
-    
-    
-//    task automatic completeOp(input OpSlot op);            
-//        if (!op.active) return;
-
-//        //putMilestone(op.id, InstructionMap::Complete); 
-
-//            coreDB.lastCompleted = op;
-//            coreDB.nCompleted++;
-//    endtask
 
 
     function automatic Word getSysReg(input Word adr);
@@ -620,17 +602,8 @@ module AbstractCore
 
     task automatic writeResult(input OpSlot op, input Word value);
         if (!op.active) return;
-
         putMilestone(op.id, InstructionMap::WriteResult);
-
-        if (writesIntReg(op)) begin
-            registerTracker.setReadyInt(op.id);
-            registerTracker.writeValueInt(op, value);
-        end
-        if (writesFloatReg(op)) begin
-            registerTracker.setReadyFloat(op.id);
-            registerTracker.writeValueFloat(op, value);
-        end
+        registerTracker.writeValue(decAbs(op), op.id, value);
     endtask
 
 
@@ -640,6 +613,17 @@ module AbstractCore
         if (!op.active || op.id == -1) return DEFAULT_ABS_INS;     
         return insMap.get(op.id).dec;
     endfunction
+
+    function automatic AbstractInstruction decId(input InsId id);
+        if (id == -1) return DEFAULT_ABS_INS;     
+        return insMap.get(id).dec;
+    endfunction
+
+    function automatic Word getAdr(input InsId id);
+        if (id == -1) return 'x;     
+        return insMap.get(id).adr;
+    endfunction
+ 
 
     function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);

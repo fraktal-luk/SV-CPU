@@ -6,6 +6,7 @@ package Emulation;
     import InsDefs::*;
     import Asm::*;
 
+        // UNUSED
         function automatic logic cmpMems(input Word a[4096], input Word b[4096]);
             foreach (a[i]) begin
                 if (a[i] === b[i]) continue;
@@ -582,5 +583,10 @@ package Emulation;
         
     endclass
 
+
+    function automatic void runInEmulator(ref Emulator emul, input Word adr, input Word bits);
+        AbstractInstruction ins = decodeAbstract(bits);
+        ExecResult res = emul.processInstruction(adr, ins, emul.tmpDataMem);
+    endfunction
 
 endpackage

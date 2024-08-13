@@ -4,6 +4,8 @@ package Base;
     typedef logic[31:0] Word;
     typedef logic[63:0] Dword;
 
+    typedef logic logic3[3]; // General
+
 
     function automatic Word divSigned(input Word a, input Word b);
         Word aInt = a;
