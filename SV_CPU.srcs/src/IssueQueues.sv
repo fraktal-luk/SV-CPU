@@ -54,7 +54,7 @@ module IssueQueue
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
 
-    WakeupMatrix wMatrix;
+    WakeupMatrix wMatrix, wMatrixVar;
 
 
     logic cmpb, cmpb0, cmpb1;
@@ -74,6 +74,8 @@ module IssueQueue
         fq_perArg = forwardStates;
         rfq_perArg  = unifyReadyAndForwardsQ(rq_perArg, fq_perArg);
         rfq_perSlot = makeReadyQueue(rfq_perArg);
+
+        wMatrixVar = wMatrix;
 
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
@@ -119,9 +121,9 @@ module IssueQueue
 
 
     // ONCE
-    function automatic OpPacket convertOutput(/*input OpSlot op,*/ input InsId id);
+    function automatic OpPacket convertOutput(input InsId id, input Poison p);
         OpPacket res;        
-        res = '{1, id, DEFAULT_POISON, 'x};  
+        res = '{1, id, p, 'x};  
         return res;
     endfunction
 
@@ -131,13 +133,17 @@ module IssueQueue
 
         foreach (ids[i]) begin
             InsId theId = ids[i];
+            OpPacket newPacket = EMPTY_OP_PACKET; 
+            Poison newPoison = EMPTY_POISON;
             
             int found[$] = array.find_first_index with (item.id == theId);
             int s = found[0];
             
-            assert (ids[i] != -1) else $error("Wrong id for issue");
+            assert (theId != -1) else $error("Wrong id for issue");
             
-            pIssued0[i] <= tickP(convertOutput(theId));
+            newPoison = mergePoisons(array[s].poisons.poisoned);
+            newPacket = (convertOutput(theId, newPoison));
+            pIssued0[i] <= tickP(newPacket);
 
             putMilestone(theId, InstructionMap::IqIssue);
             assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
@@ -189,7 +195,7 @@ module IssueQueue
     task automatic updateWakeups();
         foreach (array[i]) begin
             logic3 rf3 = rfq_perArg[i];
-            if (array[i].used) updateReadyBits(array[i], rf3);
+            if (array[i].used) updateReadyBits(array[i], rf3, wMatrixVar[i]);
         end
     endtask
 
@@ -252,7 +258,7 @@ module IssueQueue
         return res;
     endfunction
 
-    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3);
+    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3]);
         InsDependencies deps = insMap.get(entry.id).deps;
 
         foreach (ready3[a]) begin
@@ -261,7 +267,9 @@ module IssueQueue
                 entry.state.readyArgs[a] = 1;
 
                 if (prev) continue;
-
+                
+                    entry.poisons.poisoned[a] = wup[a].poison;
+                
                 if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
                 else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
             end

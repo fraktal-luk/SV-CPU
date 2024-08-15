@@ -18,8 +18,8 @@ package ExecDefs;
     typedef logic ReadyQueue3[$][3];
 
 
-    typedef InsId Poison[4];
-    localparam Poison DEFAULT_POISON = '{default: -1};
+    typedef InsId Poison[N_MEM_PORTS * (1 - -3 + 1)];
+    localparam Poison EMPTY_POISON = '{default: -1};
     
 
     typedef struct {
@@ -29,7 +29,7 @@ package ExecDefs;
         Word result;
     } OpPacket;
     
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, DEFAULT_POISON, 'x};
+    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, EMPTY_POISON, 'x};
 
     function automatic OpPacket setResult(input OpPacket p, input Word result);
         OpPacket res = p;            
@@ -71,31 +71,136 @@ package ExecDefs;
         Poison poisoned[3];
     } IqPoisonState;
     
-    localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: DEFAULT_POISON}};
+    localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
     
 
-    function automatic Poison poisonAppend(input Poison p, input InsId id);
-        Poison res = p;
-        int found[$] = p.find_first_index with (item == -1); 
-        res[found[0]] = id;
-        return res;
-    endfunction;
-
-    
-    function automatic Poison mergePoisons(input IqPoisonState ps);
-        Poison res = DEFAULT_POISON;
-        int n = 0;
         
-        foreach (ps.poisoned[a]) begin
-            Poison pa = ps.poisoned[a];
-            foreach (pa[i]) begin
-                if (pa[i] == -1) continue;
-                res[n++] = pa[i];
+
+        // convert IdQueue to Poison
+        function automatic Poison poisonFromQueue(input IdQueue q);
+            Poison res = EMPTY_POISON;
+            
+            foreach (q[i])
+                res[i] = q[i];
+            
+            return res;
+        endfunction 
+        
+        function automatic IdQueue getPoisoningMem(input Poison p);
+            IdQueue res;
+            
+//            foreach (q[i])
+//                res[i] = q[i];
+            
+            return res;
+        endfunction 
+        
+        
+        
+
+        function automatic IdQueue getPresentMemQ(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            IdQueue res;
+            
+            foreach (fea[p]) begin
+                ForwardingElement subpipe[-3:1] = fea[p];
+                foreach (subpipe[s]) begin
+                    if (subpipe[s].id != -1) res.push_back(subpipe[s].id);
+                end
             end
-        end
+
+            return res;
+        endfunction
         
-        return res;
-    endfunction
+        
+        typedef logic IdMap[InsId];
+        
+        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            IdMap res;
+            
+            foreach (fea[p]) begin
+                ForwardingElement subpipe[-3:1] = fea[p];
+                foreach (subpipe[s]) begin
+                    if (subpipe[s].id != -1) res[subpipe[s].id] = 1;
+                end
+            end
+
+            return res;
+        endfunction
+        
+        function automatic IdMap poison2map(input Poison p);
+            IdMap res;
+            foreach (p[i])
+                if (p[i] != -1) res[p[i]] = 1;
+            return res;
+        endfunction
+
+        // convert IdQueue to Poison
+        function automatic Poison map2poison(input IdMap map);
+            Poison res = EMPTY_POISON;
+            int n = 0;
+            
+            map.delete(-1);
+            
+            foreach (map[id])
+                res[n++] = id;
+            
+            return res;
+        endfunction 
+
+        
+        function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            IdMap present = getPresentMemM(fea);
+            IdMap old = poison2map(p);
+            
+            // Remove those not present
+            foreach (old[id])
+                if (!present.exists(id)) old.delete(id);
+            
+            return map2poison(old);
+        endfunction
+        
+
+        // poison operations:
+        // add producer - done when generating wakeup from mem ops
+        // merge args - on issue
+        // add poison - for argument on its wakeup
+        
+        function automatic Poison addProducer(input Poison p, input InsId id, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            Poison u = updatePoison(p, fea);
+            IdMap map = poison2map(u);
+            // add id
+            map[id] = 1;
+            
+            return map2poison(map);
+        endfunction
+        
+        
+        function automatic Poison mergePoisons(input Poison ap[3] /*, input ForwardingElement fea[N_MEM_PORTS][-3:1]*/);
+            // update 3 poisons
+            Poison u0 = ap[0];//updatePoison(ap[0], fea);
+            Poison u1 = ap[1];//updatePoison(ap[1], fea);
+            Poison u2 = ap[2];//updatePoison(ap[2], fea);
+            
+            IdMap m0 = poison2map(u0);
+            IdMap m1 = poison2map(u1);
+            IdMap m2 = poison2map(u2);
+            
+            foreach (m1[id]) m0[id] = 1;
+            foreach (m2[id]) m0[id] = 1;
+            
+            // put into 1 poison
+            return map2poison(m0);
+        endfunction
+        
+        
+        function automatic Poison addPoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            // update
+            return updatePoison(p, fea);
+            // assign
+        endfunction
+         
+
+  
     
 
     typedef struct {
@@ -124,7 +229,7 @@ package ExecDefs;
         Poison poison;
     } Wakeup;
     
-    localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, DEFAULT_POISON};
+    localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, EMPTY_POISON};
 
 
 
@@ -330,7 +435,7 @@ package ExecDefs;
             res.group = PG_MEM;
             res.port = p;
             res.stage = found[0];
-                res.poison = poisonAppend(fea[p][found[0]].poison, producer);
+                res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
             return res;
         end
         return res;
@@ -350,7 +455,7 @@ package ExecDefs;
             res.group = PG_VEC;
             res.port = p;
             res.stage = found[0];
-            
+                res.poison = EMPTY_POISON; //TMP!
             return res;
         end
         return res;
