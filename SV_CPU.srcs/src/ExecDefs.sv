@@ -26,10 +26,11 @@ package ExecDefs;
         logic active;
         InsId id;
         Poison poison;
+            logic TMP_pullback; // For poison dev
         Word result;
     } OpPacket;
     
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, EMPTY_POISON, 'x};
+    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, EMPTY_POISON, 'x, 'x};
 
     function automatic OpPacket setResult(input OpPacket p, input Word result);
         OpPacket res = p;            
@@ -61,10 +62,11 @@ package ExecDefs;
         InsId id;
         logic ready;
         logic readyArgs[3];
+        logic cancelledArgs[3];
     } IqArgState;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}};
+    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
 
     typedef struct {

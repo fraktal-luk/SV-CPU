@@ -123,7 +123,7 @@ module IssueQueue
     // ONCE
     function automatic OpPacket convertOutput(input InsId id, input Poison p);
         OpPacket res;        
-        res = '{1, id, p, 'x};  
+        res = '{1, id, p, 'x, 'x};  
         return res;
     endfunction
 
@@ -193,9 +193,11 @@ module IssueQueue
 
 
     task automatic updateWakeups();
+        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+    
         foreach (array[i]) begin
             logic3 rf3 = rfq_perArg[i];
-            if (array[i].used) updateReadyBits(array[i], rf3, wMatrixVar[i]);
+            if (array[i].used) updateReadyBits(array[i], rf3, wMatrixVar[i], memStage0);
         end
     endtask
 
@@ -258,17 +260,35 @@ module IssueQueue
         return res;
     endfunction
 
-    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3]);
+
+
+    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3], input ForwardingElement memStage0[N_MEM_PORTS]);
         InsDependencies deps = insMap.get(entry.id).deps;
-
-        foreach (ready3[a]) begin
-            if (ready3[a]) begin
-                logic prev = entry.state.readyArgs[a];
-                entry.state.readyArgs[a] = 1;
-
-                if (prev) continue;
                 
-                    entry.poisons.poisoned[a] = wup[a].poison;
+        foreach (ready3[a]) begin
+            logic prev = entry.state.readyArgs[a];
+
+            if (prev) begin // handle retraction if applies
+                foreach (memStage0[p]) begin
+                    if (!checkMemDep(entry.poisons.poisoned[a], memStage0[p])) continue;
+
+                    if (0) begin
+                        $display("pullback");
+//                        entry.state.readyArgs[a] = 0;
+//                        entry.poisons.poisoned[a] = EMPTY_POISON;
+
+//                        // cancel issue
+//                        entry.active = 1;
+//                        entry.issuedCounter = -1;
+                        // TODO: milestones! cancel arg, issue pullback 
+                    end
+                end
+            end
+
+            if (!prev && ready3[a]) begin // handle wakeup
+                entry.state.readyArgs[a] = 1;                
+                
+                entry.poisons.poisoned[a] = wup[a].poison;
                 
                 if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
                 else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
