@@ -1,0 +1,23 @@
+; Poison deps
+$start
+   add_i r1, r0, 36
+   add_i r2, r0, 57
+   sti_i r1, r0, 16
+   sys sync
+
+   ldi_i r10, r0, 16 ;
+   ldi_i r11, r0, 16 ;
+   add_r r21, r10, r11 ;
+   add_r r22, r21, r0 ;
+	
+   add_r r5, r21, r22
+   ldi_i r10, r0, 16
+   add_r r6, r10, r5
+   and_r r0, r0, r0
+
+$check
+	;add_i r22, r21, -57
+    ;jnz_i r22, $error
+	sys call
+$error
+    sys error

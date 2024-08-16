@@ -18,6 +18,7 @@ sf_deps2
 sf_deps3
 sf_deps4
 sf_deps5
+sf_deps6
 sys_regs
 loads_fp
 mem_sys

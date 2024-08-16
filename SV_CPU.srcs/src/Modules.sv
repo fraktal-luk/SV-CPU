@@ -131,8 +131,8 @@ module MemSubpipe(
         result <= 'x;    
         AbstractCore.readInfo <= EMPTY_WRITE_INFO;
 
-        if (p1_E.active) performMemFirst(p1_E.id);
-        if (pE1_E.active) result <= calcMemLater(pE1_E.id); 
+        if (p1_E.active) performMemE0(p1_E.id);
+        if (pE1_E.active) result <= calcMemE2(pE1_E.id); 
 
     end
 
@@ -328,7 +328,7 @@ module ExecBlock(ref InstructionMap insMap,
     endtask
 
     // TOPLEVEL
-    task automatic performMemFirst(input InsId id);
+    task automatic performMemE0(input InsId id);
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
         Word adr = calculateEffectiveAddress(abs, args);
@@ -347,7 +347,7 @@ module ExecBlock(ref InstructionMap insMap,
     endtask
 
     // TOPLEVEL
-    function automatic Word calcMemLater(input InsId id);
+    function automatic Word calcMemE2(input InsId id);
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
 

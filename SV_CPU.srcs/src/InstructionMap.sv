@@ -56,7 +56,7 @@ package Insmap;
             FlushOOO,
             
             FlushExec,
-            // TODO: flush in every region? (ROB, subpipes, queues etc.)
+                FlushPoison,
             
             IqEnter,
             IqWakeup0,
@@ -81,7 +81,8 @@ package Insmap;
             WriteMemValue,
             
             // TODO: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
-            
+                MemConfirmed,
+                MemMissed,
             
             WriteResult,
             //Complete,

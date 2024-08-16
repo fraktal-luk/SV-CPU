@@ -198,11 +198,11 @@ module AbstractCore
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
 
-       if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
+       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
 
        if (sqe.op.id == -1) return;
 
-       if (isStoreOp(sqe.op)) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
+       if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
 
        putMilestone(sqe.op.id, InstructionMap::Drain);
        putMilestone(sqe.op.id, InstructionMap::WqExit);
@@ -418,7 +418,7 @@ module AbstractCore
 
         physDest = registerTracker.reserve(ins, op.id);
         
-        if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
+        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -469,7 +469,7 @@ module AbstractCore
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
 
-        if (writesIntReg(op) || writesFloatReg(op)) // DB
+        if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
 
         runInEmulator(retiredEmul, op.adr, op.bits);
@@ -502,7 +502,7 @@ module AbstractCore
             putMilestone(op.id, InstructionMap::WqEnter);
         end
         
-        if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
+        if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
         // Crucial state
@@ -629,33 +629,75 @@ module AbstractCore
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 
+//    // UNUSED
+//    function automatic OpSlot tick(input OpSlot op);
+//        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
+//            putMilestone(op.id, InstructionMap::FlushExec);
+//            return EMPTY_SLOT;
+//        end
+//        return op;
+//    endfunction
+    
+//    // UNUSED
+//    function automatic OpSlot eff(input OpSlot op);
+//        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+//            return EMPTY_SLOT;
+//        return op;
+//    endfunction
 
-    function automatic OpSlot tick(input OpSlot op);
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-            putMilestone(op.id, InstructionMap::FlushExec);
-            return EMPTY_SLOT;
-        end
-        return op;
-    endfunction
-
-    function automatic OpSlot eff(input OpSlot op);
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
-            return EMPTY_SLOT;
-        return op;
-    endfunction
+        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+            if (fe.id != -1) begin
+                int inds[$] = p.find with (item == fe.id);
+                return inds.size() != 0;
+            end
+            return 0;
+        endfunction
 
         function automatic OpPacket tickP(input OpPacket op);
+            OpPacket res = op;
+            ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+            
+            foreach (memStage0[p]) begin
+                if (!checkMemDep(op.poison, memStage0[p])) continue;
+                            
+                // match:
+                res.TMP_pullback = 0; // if mem is missed, set to 1
+                
+                if (0) begin
+                    //putMilestone(op.id, InstructionMap::FlushPoison);
+                    //return EMPTY_OP_PACKET;
+                    res.TMP_pullback = 1;
+                end
+            end
+        
+            // TODO: check whether op is nonempty before putting milestone on it?
             if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
                 putMilestone(op.id, InstructionMap::FlushExec);
                 return EMPTY_OP_PACKET;
             end
-            return op;
+            return res;
         endfunction
     
         function automatic OpPacket effP(input OpPacket op);
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
+            OpPacket res = op;
+            ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+            
+            foreach (memStage0[p]) begin
+                if (!checkMemDep(op.poison, memStage0[p])) continue;
+
+                // match:
+                res.TMP_pullback = 0; // if mem is missed, set to 1
+                
+                if (0) begin
+                    //return EMPTY_OP_PACKET;
+                    res.TMP_pullback = 1;
+                end
+            end
+        
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
                 return EMPTY_OP_PACKET;
-            return op;
+            end
+            return res;
         endfunction
     
 
