@@ -198,11 +198,11 @@ module AbstractCore
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
 
-       if (storeHead.op.active && isStoreSysOp(storeHead.op)) setSysReg(storeHead.adr, storeHead.val);
+       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
 
        if (sqe.op.id == -1) return;
 
-       if (isStoreOp(sqe.op)) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
+       if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
 
        putMilestone(sqe.op.id, InstructionMap::Drain);
        putMilestone(sqe.op.id, InstructionMap::WqExit);
@@ -418,7 +418,7 @@ module AbstractCore
 
         physDest = registerTracker.reserve(ins, op.id);
         
-        if (isStoreOp(op) || isLoadOp(op)) memTracker.add(op, ins, argVals); // DB
+        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(op, ins, argVals); // DB
 
         if (isBranchIns(decAbs(op))) begin
             saveCP(op); // Crucial state
@@ -469,7 +469,7 @@ module AbstractCore
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
 
-        if (writesIntReg(op) || writesFloatReg(op)) // DB
+        if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
 
         runInEmulator(retiredEmul, op.adr, op.bits);
@@ -502,7 +502,7 @@ module AbstractCore
             putMilestone(op.id, InstructionMap::WqEnter);
         end
         
-        if (isStoreOp(op) || isLoadOp(op)) memTracker.remove(op); // DB?
+        if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
         if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
         // Crucial state
@@ -664,6 +664,7 @@ module AbstractCore
                 res.TMP_pullback = 0; // if mem is missed, set to 1
                 
                 if (0) begin
+                    //putMilestone(op.id, InstructionMap::FlushPoison);
                     //return EMPTY_OP_PACKET;
                     res.TMP_pullback = 1;
                 end

@@ -532,7 +532,7 @@ package AbstractSim;
         return 0;
     endfunction
 
-    // Op classiication - not all are used!
+    // Op classiication - UNUSED
     
     function automatic logic writesIntReg(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);
@@ -543,7 +543,6 @@ package AbstractSim;
         AbstractInstruction abs = decodeAbstract(op.bits);
         return hasFloatDest(abs);
     endfunction
-
 
     function automatic logic isBranchOp(input OpSlot op);
         AbstractInstruction abs = decodeAbstract(op.bits);

@@ -56,7 +56,7 @@ package Insmap;
             FlushOOO,
             
             FlushExec,
-            // TODO: flush in every region? (ROB, subpipes, queues etc.)
+                FlushPoison,
             
             IqEnter,
             IqWakeup0,
