@@ -57,6 +57,9 @@ module AbstractCore
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
+
+    Word instructionCacheOut[FETCH_WIDTH];
+
     EventInfo branchEventInfo = EMPTY_EVENT_INFO,
               lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
     Events evts;
@@ -80,9 +83,11 @@ module AbstractCore
     OpSlotA robOut;
 
     ///////////////////////////
-    InstructionL1 instructionCache(clk);
+            logic cmpA, cmpB, cmpC, cmpD;
+    InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
     DataL1        dataCache(clk);
-
+            assign cmpA = instructionCacheOut === insIn;
+            
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
