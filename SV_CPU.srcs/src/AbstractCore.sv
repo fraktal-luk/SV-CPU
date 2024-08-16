@@ -80,6 +80,9 @@ module AbstractCore
     OpSlotA robOut;
 
     ///////////////////////////
+    InstructionL1 instructionCache(clk);
+    DataL1        dataCache(clk);
+
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
