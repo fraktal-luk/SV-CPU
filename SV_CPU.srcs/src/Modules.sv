@@ -116,7 +116,8 @@ module MemSubpipe(
     OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
     OpPacket stage0, stage0_E;
-
+    
+    logic readActive = 0;
     Word effAdr = 'x;
 
     assign stage0 = setResult(pE2, result);
@@ -134,14 +135,18 @@ module MemSubpipe(
     
 
         result <= 'x;    
-        AbstractCore.readInfo <= EMPTY_WRITE_INFO;
+        //AbstractCore.readInfo <= EMPTY_WRITE_INFO;
 
         if (p1_E.active) performMemE0(p1_E.id);
-        if (pE1_E.active) result <= calcMemE2(pE1_E.id);
+        if (pE1_E.active) result <= calcMemE2(pE1_E.id, readResp);
         
+        readActive <= p1_E.active;
         effAdr <= getEffectiveAddress(p1_E.id);
 
     end
+
+        assign readReq = '{pE0_E.active, effAdr};
+
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
@@ -358,7 +363,6 @@ module ExecBlock(ref InstructionMap insMap,
         Word3 args = getAndVerifyArgs(id);
         Word adr = calculateEffectiveAddress(abs, args);
 
-        // TODO: compare adr with that in memTracker
         if (isStoreIns(abs)) begin            
             if (isStoreMemIns(abs)) begin
                 checkStoreValue(id, adr, args[2]);
@@ -368,11 +372,11 @@ module ExecBlock(ref InstructionMap insMap,
             end
         end
 
-        AbstractCore.readInfo <= '{1, adr, 'x};
+        //AbstractCore.readInfo <= '{1, adr, 'x};
     endtask
 
     // TOPLEVEL
-    function automatic Word calcMemE2(input InsId id);
+    function automatic Word calcMemE2(input InsId id, input DataReadResp readResp);
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
 
@@ -380,10 +384,10 @@ module ExecBlock(ref InstructionMap insMap,
 
         logic forwarded = (writerAllId !== -1);
         Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        Word memData = forwarded ? fwValue : AbstractCore.readIn[0];
+        Word memData = forwarded ? fwValue : readResp.result;
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
             
-            assert (AbstractCore.readIn[0] === AbstractCore.TMP_readData[0]) else $error("differing data: %d, %d", AbstractCore.readIn[0], AbstractCore.TMP_readData[0]);
+            assert (AbstractCore.readIn[0] === readResp.result) else $error("differing data: %d, %d", AbstractCore.readIn[0], readResp.result);
 
         if (forwarded) begin
             putMilestone(writerAllId, InstructionMap::MemFwProduce);

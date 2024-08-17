@@ -112,6 +112,7 @@ module AbstractCore
     
             assign cmpA = instructionCacheOut === insIn;
             
+          
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -735,8 +736,10 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    assign readReq[0] = readInfo.req;
-    assign readAdr[0] = readInfo.adr;
+    assign readReq[0] = //readInfo.req;
+                        TMP_readReqs[0].active;
+    assign readAdr[0] = //readInfo.adr;
+                        TMP_readReqs[0].adr;
 
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;

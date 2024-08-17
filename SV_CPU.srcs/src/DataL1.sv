@@ -29,26 +29,12 @@ module DataL1(
 
 
     always @(posedge clk) begin
-//        automatic logic[7:0] selected[4];
-//        automatic logic[7:0] writing[4];
-        
-        
-//        foreach (selected[i])
-//            selected[i] = content[readAddresses[0] + i];
-    
-//        readData[0] <= (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
-        
-        
-//        foreach (writing[i])
-//            writing[i] = writeData[0] >> 8*(3-i);
-        
-//        foreach (writing[i])
-//            if (writeReqs[0]) content[writeAddresses[0] + i] <= writing[i];
-        
         handleReads();
         handleWrites();
         
     end
+    
+    assign readResps[0] = '{0, readData[0]};
 
 
     function automatic void reset();
