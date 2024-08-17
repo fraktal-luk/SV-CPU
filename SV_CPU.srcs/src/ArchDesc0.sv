@@ -283,6 +283,9 @@ module ArchDesc0();
             #CYCLE announce(name);
             prepareTest(programMem.content, name, callSec, intSec);
             TMP_setP(programMem.content);
+            core.instructionCache.setProgram(programMem.content);
+            core.dataCache.reset();
+
             #CYCLE pulseReset();
 
             wait (done | wrong);
@@ -294,6 +297,9 @@ module ArchDesc0();
             #CYCLE announce("int");
             prepareTest(programMem.content, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER));
             TMP_setP(programMem.content);
+            core.instructionCache.setProgram(programMem.content);
+            core.dataCache.reset();
+            
             #CYCLE pulseReset();
             
             wait (fetchAdr == IP_CALL);

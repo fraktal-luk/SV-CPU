@@ -106,13 +106,19 @@ module MemSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP
+    input OpPacket opP,
+    
+    output DataReadReq readReq,
+    input DataReadResp readResp
 );
     Word result = 'x;
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
     OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
     OpPacket stage0, stage0_E;
+    
+    logic readActive = 0;
+    Word effAdr = 'x;
 
     assign stage0 = setResult(pE2, result);
     assign stage0_E = setResult(pE2_E, result);
@@ -129,12 +135,18 @@ module MemSubpipe(
     
 
         result <= 'x;    
-        AbstractCore.readInfo <= EMPTY_WRITE_INFO;
+        //AbstractCore.readInfo <= EMPTY_WRITE_INFO;
 
         if (p1_E.active) performMemE0(p1_E.id);
-        if (pE1_E.active) result <= calcMemE2(pE1_E.id); 
+        if (pE1_E.active) result <= calcMemE2(pE1_E.id, readResp);
+        
+        readActive <= p1_E.active;
+        effAdr <= getEffectiveAddress(p1_E.id);
 
     end
+
+        assign readReq = '{pE0_E.active, effAdr};
+
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
@@ -186,6 +198,10 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket doneSys_E;
 
 
+    DataReadReq readReqs[N_MEM_PORTS];
+    DataReadResp readResps[N_MEM_PORTS];
+    
+
     // Int 0
     RegularSubpipe regular0(
         insMap,
@@ -215,7 +231,9 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedMemP[0]
+        theIssueQueues.issuedMemP[0],
+            readReqs[0],
+            readResps[0]
     );
     
     // Vec 0
@@ -327,13 +345,24 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
     endtask
 
+
+    function automatic Word getEffectiveAddress(input InsId id);
+        if (id == -1) return 'x;
+        
+        begin
+            AbstractInstruction abs = decId(id);
+            Word3 args = getAndVerifyArgs(id);
+            return calculateEffectiveAddress(abs, args);
+        end
+    endfunction
+    
+
     // TOPLEVEL
     task automatic performMemE0(input InsId id);
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
         Word adr = calculateEffectiveAddress(abs, args);
 
-        // TODO: compare adr with that in memTracker
         if (isStoreIns(abs)) begin            
             if (isStoreMemIns(abs)) begin
                 checkStoreValue(id, adr, args[2]);
@@ -343,11 +372,11 @@ module ExecBlock(ref InstructionMap insMap,
             end
         end
 
-        AbstractCore.readInfo <= '{1, adr, 'x};
+        //AbstractCore.readInfo <= '{1, adr, 'x};
     endtask
 
     // TOPLEVEL
-    function automatic Word calcMemE2(input InsId id);
+    function automatic Word calcMemE2(input InsId id, input DataReadResp readResp);
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
 
@@ -355,8 +384,10 @@ module ExecBlock(ref InstructionMap insMap,
 
         logic forwarded = (writerAllId !== -1);
         Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        Word memData = forwarded ? fwValue : AbstractCore.readIn[0];
+        Word memData = forwarded ? fwValue : readResp.result;
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+            
+            assert (AbstractCore.readIn[0] === readResp.result) else $error("differing data: %d, %d", AbstractCore.readIn[0], readResp.result);
 
         if (forwarded) begin
             putMilestone(writerAllId, InstructionMap::MemFwProduce);

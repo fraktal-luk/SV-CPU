@@ -57,6 +57,9 @@ module AbstractCore
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
+
+    Word instructionCacheOut[FETCH_WIDTH];
+
     EventInfo branchEventInfo = EMPTY_EVENT_INFO,
               lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
     Events evts;
@@ -80,6 +83,36 @@ module AbstractCore
     OpSlotA robOut;
 
     ///////////////////////////
+        DataReadReq TMP_readReqs[N_MEM_PORTS];
+        DataReadResp TMP_readResps[N_MEM_PORTS];
+                
+        Word TMP_readAddresses[N_MEM_PORTS];
+        Word TMP_readData[N_MEM_PORTS];
+        
+        logic TMP_writeReqs[2];
+        Word TMP_writeAddresses[2];
+        Word TMP_writeData[2];
+
+        logic cmpA, cmpB, cmpC, cmpD;
+            
+    InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
+    DataL1        dataCache(clk, 
+                            TMP_readReqs, TMP_readResps,
+                            TMP_writeReqs, TMP_writeAddresses, TMP_writeData);
+    
+        assign TMP_readAddresses[0] = theExecBlock.mem0.effAdr;
+        
+        assign TMP_writeReqs[0] = writeInfo.req;
+        assign TMP_writeAddresses[0] = writeInfo.adr;
+        assign TMP_writeData[0] = writeInfo.value;
+    
+        assign TMP_readReqs = theExecBlock.readReqs;
+        assign theExecBlock.readResps = TMP_readResps;
+    
+    
+            assign cmpA = instructionCacheOut === insIn;
+            
+          
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -629,21 +662,6 @@ module AbstractCore
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 
-//    // UNUSED
-//    function automatic OpSlot tick(input OpSlot op);
-//        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-//            putMilestone(op.id, InstructionMap::FlushExec);
-//            return EMPTY_SLOT;
-//        end
-//        return op;
-//    endfunction
-    
-//    // UNUSED
-//    function automatic OpSlot eff(input OpSlot op);
-//        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
-//            return EMPTY_SLOT;
-//        return op;
-//    endfunction
 
         function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
             if (fe.id != -1) begin
@@ -703,8 +721,8 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    assign readReq[0] = readInfo.req;
-    assign readAdr[0] = readInfo.adr;
+    assign readReq[0] = TMP_readReqs[0].active;
+    assign readAdr[0] = TMP_readReqs[0].adr;
 
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;
