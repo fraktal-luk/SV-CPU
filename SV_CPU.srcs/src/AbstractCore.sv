@@ -83,6 +83,9 @@ module AbstractCore
     OpSlotA robOut;
 
     ///////////////////////////
+        DataReadReq TMP_readReqs[N_MEM_PORTS];
+        DataReadResp TMP_readResps[N_MEM_PORTS];
+                
         Word TMP_readAddresses[N_MEM_PORTS];
         Word TMP_readData[N_MEM_PORTS];
         
@@ -93,13 +96,18 @@ module AbstractCore
         logic cmpA, cmpB, cmpC, cmpD;
             
     InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
-    DataL1        dataCache(clk, TMP_readAddresses, TMP_readData, TMP_writeReqs, TMP_writeAddresses, TMP_writeData);
+    DataL1        dataCache(clk, 
+                            TMP_readReqs, TMP_readResps,
+                            TMP_readAddresses, TMP_readData, TMP_writeReqs, TMP_writeAddresses, TMP_writeData);
     
         assign TMP_readAddresses[0] = theExecBlock.mem0.effAdr;
         
         assign TMP_writeReqs[0] = writeInfo.req;
         assign TMP_writeAddresses[0] = writeInfo.adr;
         assign TMP_writeData[0] = writeInfo.value;
+    
+        assign TMP_readReqs = theExecBlock.readReqs;
+        assign theExecBlock.readResps = TMP_readResps;
     
     
             assign cmpA = instructionCacheOut === insIn;

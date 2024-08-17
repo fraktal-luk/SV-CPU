@@ -106,7 +106,10 @@ module MemSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP
+    input OpPacket opP,
+    
+    output DataReadReq readReq,
+    input DataReadResp readResp
 );
     Word result = 'x;
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
@@ -190,6 +193,10 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket doneSys_E;
 
 
+    DataReadReq readReqs[N_MEM_PORTS];
+    DataReadResp readResps[N_MEM_PORTS];
+    
+
     // Int 0
     RegularSubpipe regular0(
         insMap,
@@ -219,7 +226,9 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        theIssueQueues.issuedMemP[0]
+        theIssueQueues.issuedMemP[0],
+            readReqs[0],
+            readResps[0]
     );
     
     // Vec 0
@@ -373,6 +382,8 @@ module ExecBlock(ref InstructionMap insMap,
         Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
         Word memData = forwarded ? fwValue : AbstractCore.readIn[0];
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+            
+            assert (AbstractCore.readIn[0] === AbstractCore.TMP_readData[0]) else $error("differing data: %d, %d", AbstractCore.readIn[0], AbstractCore.TMP_readData[0]);
 
         if (forwarded) begin
             putMilestone(writerAllId, InstructionMap::MemFwProduce);

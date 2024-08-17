@@ -463,4 +463,15 @@ package ExecDefs;
         return res;
     endfunction;
 
+
+    typedef struct {
+        logic active;
+    } DataReadReq;
+
+
+    typedef struct {
+        logic active;
+    } DataReadResp;
+
+
 endpackage

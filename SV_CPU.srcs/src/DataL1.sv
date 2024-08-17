@@ -12,6 +12,9 @@ import ExecDefs::*;
 module DataL1(
                 input logic clk,
                 
+                input DataReadReq readReqs[N_MEM_PORTS],
+                output DataReadResp readResps[N_MEM_PORTS],
+                
                 input Word readAddresses[N_MEM_PORTS],
                 output Word readData[N_MEM_PORTS],
                 
@@ -22,21 +25,39 @@ module DataL1(
 
     logic[7:0] content[4096];
 
+
+
+
+    always @(posedge clk) begin
+//        automatic logic[7:0] selected[4];
+//        automatic logic[7:0] writing[4];
+        
+        
+//        foreach (selected[i])
+//            selected[i] = content[readAddresses[0] + i];
+    
+//        readData[0] <= (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
+        
+        
+//        foreach (writing[i])
+//            writing[i] = writeData[0] >> 8*(3-i);
+        
+//        foreach (writing[i])
+//            if (writeReqs[0]) content[writeAddresses[0] + i] <= writing[i];
+        
+        handleReads();
+        handleWrites();
+        
+    end
+
+
     function automatic void reset();
         content = '{default: 0};
     endfunction
 
 
-    always @(posedge clk) begin
-        automatic logic[7:0] selected[4];
-        automatic logic[7:0] writing[4];
-        
-        
-        foreach (selected[i])
-            selected[i] = content[readAddresses[0] + i];
-    
-        readData[0] <= (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
-        
+    task automatic handleWrites();
+        logic[7:0] writing[4];
         
         foreach (writing[i])
             writing[i] = writeData[0] >> 8*(3-i);
@@ -44,6 +65,16 @@ module DataL1(
         foreach (writing[i])
             if (writeReqs[0]) content[writeAddresses[0] + i] <= writing[i];
 
-    end
+    endtask
+
+
+    task automatic handleReads();
+        logic[7:0] selected[4];        
+        
+        foreach (selected[i])
+            selected[i] = content[readAddresses[0] + i];
+    
+        readData[0] <= (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
+    endtask
 
 endmodule
