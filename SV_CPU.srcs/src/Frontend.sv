@@ -111,7 +111,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         ipStageU = setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
 
         fetchStage0 <= ipStageU;
-        fetchStage0ua = setWords(fetchStage0, AbstractCore.insIn);
+        fetchStage0ua = setWords(fetchStage0, //AbstractCore.insIn);
+                                              AbstractCore.instructionCacheOut);
         
         foreach (ipStageU[i]) if (ipStageU[i].active) begin
             insMap.add(ipStageU[i]);
