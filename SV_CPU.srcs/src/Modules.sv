@@ -114,6 +114,8 @@ module MemSubpipe(
 
     OpPacket stage0, stage0_E;
 
+    Word effAdr = 'x;
+
     assign stage0 = setResult(pE2, result);
     assign stage0_E = setResult(pE2_E, result);
 
@@ -132,7 +134,9 @@ module MemSubpipe(
         AbstractCore.readInfo <= EMPTY_WRITE_INFO;
 
         if (p1_E.active) performMemE0(p1_E.id);
-        if (pE1_E.active) result <= calcMemE2(pE1_E.id); 
+        if (pE1_E.active) result <= calcMemE2(pE1_E.id);
+        
+        effAdr <= getEffectiveAddress(p1_E.id);
 
     end
 
@@ -326,6 +330,18 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.branchCP = found[0];
         AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
     endtask
+
+
+    function automatic Word getEffectiveAddress(input InsId id);
+        if (id == -1) return 'x;
+        
+        begin
+            AbstractInstruction abs = decId(id);
+            Word3 args = getAndVerifyArgs(id);
+            return calculateEffectiveAddress(abs, args);
+        end
+    endfunction
+    
 
     // TOPLEVEL
     task automatic performMemE0(input InsId id);
