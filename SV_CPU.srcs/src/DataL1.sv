@@ -15,9 +15,6 @@ module DataL1(
                 input DataReadReq readReqs[N_MEM_PORTS],
                 output DataReadResp readResps[N_MEM_PORTS],
                 
-                input Word readAddresses[N_MEM_PORTS],
-                output Word readData[N_MEM_PORTS],
-                
                 input logic writeReqs[2],
                 input Word writeAddresses[2],
                 input Word writeData[2]
@@ -25,6 +22,7 @@ module DataL1(
 
     logic[7:0] content[4096];
 
+    Word readData[N_MEM_PORTS] = '{default: 'x};
 
 
 
@@ -58,7 +56,7 @@ module DataL1(
         logic[7:0] selected[4];        
         
         foreach (selected[i])
-            selected[i] = content[readAddresses[0] + i];
+            selected[i] = content[readReqs[0].adr + i];
     
         readData[0] <= (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
     endtask

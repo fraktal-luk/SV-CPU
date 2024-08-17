@@ -98,7 +98,7 @@ module AbstractCore
     InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
     DataL1        dataCache(clk, 
                             TMP_readReqs, TMP_readResps,
-                            TMP_readAddresses, TMP_readData, TMP_writeReqs, TMP_writeAddresses, TMP_writeData);
+                            TMP_writeReqs, TMP_writeAddresses, TMP_writeData);
     
         assign TMP_readAddresses[0] = theExecBlock.mem0.effAdr;
         
@@ -662,21 +662,6 @@ module AbstractCore
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 
-//    // UNUSED
-//    function automatic OpSlot tick(input OpSlot op);
-//        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-//            putMilestone(op.id, InstructionMap::FlushExec);
-//            return EMPTY_SLOT;
-//        end
-//        return op;
-//    endfunction
-    
-//    // UNUSED
-//    function automatic OpSlot eff(input OpSlot op);
-//        if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id))
-//            return EMPTY_SLOT;
-//        return op;
-//    endfunction
 
         function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
             if (fe.id != -1) begin
@@ -736,10 +721,8 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    assign readReq[0] = //readInfo.req;
-                        TMP_readReqs[0].active;
-    assign readAdr[0] = //readInfo.adr;
-                        TMP_readReqs[0].adr;
+    assign readReq[0] = TMP_readReqs[0].active;
+    assign readAdr[0] = TMP_readReqs[0].adr;
 
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;
