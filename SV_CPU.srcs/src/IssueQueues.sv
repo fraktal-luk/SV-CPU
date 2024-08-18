@@ -19,7 +19,8 @@ module IssueQueue
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input OpSlotA inGroup,
-    input logic inMask[$size(OpSlotA)],    
+    input logic inMask[$size(OpSlotA)],
+    input logic allow,   
     output OpPacket outPackets[OUT_WIDTH]
 );
     localparam int IN_SIZE = $size(OpSlotA);
@@ -411,15 +412,15 @@ module IssueQueueComplex(
     OpPacket issuedBranchP[1];   
     
     
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask, 1,
                                             issuedRegularP);
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, 1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, 1,
                                             issuedBranchP);
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, 1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys,
+    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, 1,
                                             issuedSysP);
     
     typedef struct {

@@ -122,7 +122,8 @@ module ReorderBuffer
         markPacketCompleted(theExecBlock.doneFloat1_E);
     
         markPacketCompleted(theExecBlock.doneBranch_E);
-        markPacketCompleted(theExecBlock.doneMem_E);
+        markPacketCompleted(theExecBlock.doneMem0_E);
+        markPacketCompleted(theExecBlock.doneMem2_E);
         markPacketCompleted(theExecBlock.doneSys_E);
     endtask
     

@@ -178,7 +178,9 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket doneRegular1;
 
     OpPacket doneBranch;
-    OpPacket doneMem;
+    
+    OpPacket doneMem0;
+    OpPacket doneMem2;
     
     OpPacket doneFloat0;
     OpPacket doneFloat1; 
@@ -190,7 +192,9 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket doneRegular1_E;
 
     OpPacket doneBranch_E;
-    OpPacket doneMem_E;
+    
+    OpPacket doneMem0_E;
+    OpPacket doneMem2_E;
     
     OpPacket doneFloat0_E;
     OpPacket doneFloat1_E; 
@@ -201,6 +205,9 @@ module ExecBlock(ref InstructionMap insMap,
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadResp readResps[N_MEM_PORTS];
     
+    
+    OpPacket issuedReplayQueue;
+        
 
     // Int 0
     RegularSubpipe regular0(
@@ -235,7 +242,19 @@ module ExecBlock(ref InstructionMap insMap,
             readReqs[0],
             readResps[0]
     );
-    
+
+
+    // Mem 2 - for ReplayQueue only!
+    MemSubpipe mem2(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        issuedReplayQueue,
+            readReqs[2],
+            readResps[2]
+    );
+
+
     // Vec 0
     RegularSubpipe float0(
         insMap,
@@ -259,17 +278,32 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneSys_E = effP(doneSys);
 
 
+    ReplayQueue replayQueue(
+        insMap,
+        AbstractCore.clk,
+        branchEventInfo,
+        lateEventInfo,
+        EMPTY_OP_PACKET,
+        issuedReplayQueue
+    );
+    
+
+
+
+
     assign doneRegular0 = regular0.stage0;
     assign doneRegular1 = regular1.stage0;
     assign doneBranch = branch0.stage0;
-    assign doneMem = mem0.stage0;
+    assign doneMem0 = mem0.stage0;
+    assign doneMem2 = mem2.stage0;
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
-    assign doneMem_E = mem0.stage0_E;
+    assign doneMem0_E = mem0.stage0_E;
+    assign doneMem2_E = mem2.stage0_E;
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
 

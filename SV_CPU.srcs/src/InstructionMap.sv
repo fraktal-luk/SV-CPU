@@ -69,6 +69,10 @@ package Insmap;
             IqFlush,
             IqExit,
     
+            RqEnter,
+            RqFlush,
+            RqExit,
+    
               ReadArg, // TODO: by source type
     
               ExecRedirect,            

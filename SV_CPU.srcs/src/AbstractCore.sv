@@ -163,13 +163,14 @@ module AbstractCore
 
 
     task automatic handleCompletion();
-        completePacket(theExecBlock.doneRegular0);
-        completePacket(theExecBlock.doneRegular1);
-        completePacket(theExecBlock.doneFloat0);
-        completePacket(theExecBlock.doneFloat1);
-        completePacket(theExecBlock.doneBranch);
-        completePacket(theExecBlock.doneMem);
-        completePacket(theExecBlock.doneSys);
+        completePacket(theExecBlock.doneRegular0_E);
+        completePacket(theExecBlock.doneRegular1_E);
+        completePacket(theExecBlock.doneFloat0_E);
+        completePacket(theExecBlock.doneFloat1_E);
+        completePacket(theExecBlock.doneBranch_E);
+        completePacket(theExecBlock.doneMem0_E);
+        completePacket(theExecBlock.doneMem2_E);
+        completePacket(theExecBlock.doneSys_E);
     endtask
 
     task automatic updateBookkeeping();
