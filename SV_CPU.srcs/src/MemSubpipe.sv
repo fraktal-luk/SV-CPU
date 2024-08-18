@@ -27,7 +27,7 @@ module MemSubpipe(
     OpPacket stage0, stage0_E;
     
     logic readActive = 0;
-    Word effAdr = 'x;
+    Word effAdr = 'x, storeValue = 'x;
 
     assign stage0 = setResult(pE2, result);
     assign stage0_E = setResult(pE2_E, result);
@@ -73,13 +73,21 @@ module MemSubpipe(
     /////////////////////////////////////////////////////////////////////////////////////
     
     task automatic performE0();
+        Word adr;
+        Word val;
+    
         stateE0 = tickP(p1);
-        
-        if (p1_E.active) performMemE0(p1_E.id);
-        
-        readActive <= p1_E.active;
-        effAdr <= getEffectiveAddress(p1_E.id);
-        
+
+        adr = getEffectiveAddress(stateE0.id);
+        val = getStoreValue(stateE0.id);
+
+        readActive <= stateE0.active;
+        effAdr <= adr;
+        storeValue <= val;
+
+        if (stateE0.active) //performMemE0(stateE0.id);
+                            performStore_Dummy(stateE0.id, adr, val);
+
         pE0 <= stateE0;
     endtask
     
@@ -122,15 +130,24 @@ module MemSubpipe(
 
 
     // TOPLEVEL
-    task automatic performMemE0(input InsId id);
+//    task automatic performMemE0(input InsId id);
+//        AbstractInstruction abs = decId(id);
+//        Word adr = getEffectiveAddress(id);
+//        Word val = getStoreValue(id);
+
+//        if (isStoreMemIns(abs)) begin
+//            checkStoreValue(id, adr, val);
+            
+//            putMilestone(id, InstructionMap::WriteMemAddress);
+//            putMilestone(id, InstructionMap::WriteMemValue);
+//        end
+//    endtask
+
+    task automatic performStore_Dummy(input InsId id, input Word adr, input Word val);
         AbstractInstruction abs = decId(id);
-        //Word3 args = getAndVerifyArgs(id);
-        //Word adr = calculateEffectiveAddress(abs, args);
-            Word adr_N = getEffectiveAddress(id);
-            Word val_N = getStoreValue(id);
 
         if (isStoreMemIns(abs)) begin
-            checkStoreValue(id, adr_N, val_N);
+            checkStoreValue(id, adr, val);
             
             putMilestone(id, InstructionMap::WriteMemAddress);
             putMilestone(id, InstructionMap::WriteMemValue);
