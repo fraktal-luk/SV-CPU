@@ -63,8 +63,8 @@ module IssueQueue
 
     always_comb wMatrix = getForwards(array);
     always_comb forwardStates = fwFromWups(wMatrix, getIdQueue(array));
-
-    assign outPackets = pIssued0;
+    
+    assign outPackets = effA(pIssued0);
             
 
     always @(posedge AbstractCore.clk) begin
@@ -124,7 +124,7 @@ module IssueQueue
     // ONCE
     function automatic OpPacket convertOutput(input InsId id, input Poison p);
         OpPacket res;        
-        res = '{1, id, p, 'x, 'x};  
+        res = '{1, id, ES_OK, p, 'x, 'x};  
         return res;
     endfunction
 
@@ -331,6 +331,15 @@ module IssueQueue
     endfunction
     
     
+    function automatic OutGroupP effA(input OutGroupP g);
+        OutGroupP res;
+        foreach (g[i])
+            res[i] = effP(g[i]);
+        
+        return res;
+    endfunction
+    
+        
     function automatic IdArr q2a(input IdQueue queue);
         IdArr res = queue[0:$size(array)-1];
         return res;
@@ -412,15 +421,15 @@ module IssueQueueComplex(
     OpPacket issuedBranchP[1];   
     
     
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask, 1,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask, '1,
                                             issuedRegularP);
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, 1,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, '1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, 1,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, '1,
                                             issuedBranchP);
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, 1,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, '1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, 1,
+    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, '1,
                                             issuedSysP);
     
     typedef struct {

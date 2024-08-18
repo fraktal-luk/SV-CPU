@@ -22,15 +22,21 @@ package ExecDefs;
     localparam Poison EMPTY_POISON = '{default: -1};
     
 
+    typedef enum {
+        ES_OK,
+        ES_UNALIGNED
+    } ExecStatus;
+    
     typedef struct {
         logic active;
         InsId id;
+        ExecStatus status;
         Poison poison;
             logic TMP_pullback; // For poison dev
         Word result;
     } OpPacket;
     
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, EMPTY_POISON, 'x, 'x};
+    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, ES_OK, EMPTY_POISON, 'x, 'x};
 
     function automatic OpPacket setResult(input OpPacket p, input Word result);
         OpPacket res = p;            

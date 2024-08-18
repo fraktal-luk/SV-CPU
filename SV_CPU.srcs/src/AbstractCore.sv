@@ -718,6 +718,7 @@ module AbstractCore
             end
             return res;
         endfunction
+
     
 
     assign insAdr = theFrontend.ipStage[0].adr;

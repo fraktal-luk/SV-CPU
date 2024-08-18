@@ -28,6 +28,7 @@ module ReplayQueue(
     localparam Entry EMPTY_ENTRY = '{0, -1};
 
     int numUsed = 0;
+    logic accept;
     Entry content[SIZE] = '{default: EMPTY_ENTRY};
 
     OpPacket issued0 = EMPTY_OP_PACKET, issued1 = EMPTY_OP_PACKET;
@@ -76,6 +77,7 @@ module ReplayQueue(
     endfunction
 
 
-    assign outPacket = EMPTY_OP_PACKET;
+    assign accept = numUsed < SIZE - 5;
+    assign outPacket = effP(issued0);
 
 endmodule

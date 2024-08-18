@@ -115,6 +115,9 @@ module MemSubpipe(
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
     OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
+    OpPacket stateE0 = EMPTY_OP_PACKET, stateE1 = EMPTY_OP_PACKET, stateE2 = EMPTY_OP_PACKET;
+    //OpPacket stateE0_E, stateE1_E, stateE2_E;
+
     OpPacket stage0, stage0_E;
     
     logic readActive = 0;
@@ -125,27 +128,55 @@ module MemSubpipe(
 
     assign p0 = opP;
 
+    //assign pE0 = stateE0;
+    //assign pE1 = stateE1;
+    //assign pE2 = stateE2;
+
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= tickP(p1);
-        pE1 <= tickP(pE0);
-        pE2 <= tickP(pE1);
+
+        performE0();
+        performE1();
+        performE2();
+        
         pD0 <= tickP(pE2);
         pD1 <= tickP(pD0);
-    
-
-        result <= 'x;    
-        //AbstractCore.readInfo <= EMPTY_WRITE_INFO;
-
-        if (p1_E.active) performMemE0(p1_E.id);
-        if (pE1_E.active) result <= calcMemE2(pE1_E.id, readResp);
-        
-        readActive <= p1_E.active;
-        effAdr <= getEffectiveAddress(p1_E.id);
-
     end
 
-        assign readReq = '{pE0_E.active, effAdr};
+   assign readReq = '{/*pE0_E.active*/readActive, effAdr};
+
+    
+    task automatic performE0();
+        stateE0 = tickP(p1);
+        
+        if (p1_E.active) performMemE0(p1_E.id);
+        
+        readActive <= p1_E.active;
+        
+        effAdr <= getEffectiveAddress(p1_E.id);
+        
+        pE0 <= stateE0;
+    endtask
+    
+    task automatic performE1();
+        stateE1 = tickP(pE0);
+        
+        pE1 <= stateE1;
+    endtask
+    
+    task automatic performE2();
+        stateE2 = tickP(pE1);
+        
+        result <= 'x;
+        if (pE1_E.active) result <= calcMemE2(pE1_E.id, readResp);
+        
+        pE2 <= stateE2;
+    endtask
+
+
+//        assign stateE0_E = effP(stateE0);
+//        assign stateE1_E = effP(stateE1);
+//        assign stateE2_E = effP(stateE2);
 
 
     assign p0_E = effP(p0);
