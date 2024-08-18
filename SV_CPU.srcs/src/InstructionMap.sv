@@ -317,6 +317,7 @@ package Insmap;
         function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
+              //  if (id >= 9060+6 && id <= 9070-4) $display("tags[%d]: %p", id, records[id].tags);
         endfunction
 
 
