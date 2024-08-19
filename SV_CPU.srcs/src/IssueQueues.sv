@@ -273,8 +273,8 @@ module IssueQueue
                 foreach (memStage0[p]) begin
                     if (!checkMemDep(entry.poisons.poisoned[a], memStage0[p])) continue;
 
-                    if (0) begin
-                        $display("pullback");
+                    if (memStage0[p].status == ES_UNALIGNED) begin
+                        $display("pullback. %p", entry);
 //                        entry.state.readyArgs[a] = 0;
 //                        entry.poisons.poisoned[a] = EMPTY_POISON;
 

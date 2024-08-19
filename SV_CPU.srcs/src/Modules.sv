@@ -32,11 +32,14 @@ module RegularSubpipe(
         
         pE0 <= performRegularE0(tickP(p1));
         
+        result <= 'x;
+        if (p1_E.active) result <= calcRegularOp(p1_E.id);
+        
+        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
-        result <= 'x;
-        if (p1_E.active) result <= calcRegularOp(p1_E.id);
+
 
     end
 

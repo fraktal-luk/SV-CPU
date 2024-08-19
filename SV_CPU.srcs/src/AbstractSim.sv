@@ -34,7 +34,7 @@ package AbstractSim;
 
     localparam logic IN_ORDER = 0;
 
-    localparam int FW_FIRST = -2 + 0;
+    localparam int FW_FIRST = -2 + 2;
     localparam int FW_LAST = 1;
 
 
