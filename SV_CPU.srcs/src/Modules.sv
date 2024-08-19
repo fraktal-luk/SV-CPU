@@ -107,30 +107,22 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    OpPacket doneRegular0;
-    OpPacket doneRegular1;
-
+    OpPacket doneRegular0, doneRegular1;
     OpPacket doneBranch;
     
-    OpPacket doneMem0;
-    OpPacket doneMem2;
+    OpPacket doneMem0, doneMem2;
     
-    OpPacket doneFloat0;
-    OpPacket doneFloat1; 
+    OpPacket doneFloat0,  doneFloat1; 
     
     OpPacket doneSys = EMPTY_OP_PACKET;
     
 
-    OpPacket doneRegular0_E;
-    OpPacket doneRegular1_E;
-
+    OpPacket doneRegular0_E, doneRegular1_E;
     OpPacket doneBranch_E;
     
-    OpPacket doneMem0_E;
-    OpPacket doneMem2_E;
+    OpPacket doneMem0_E, doneMem2_E;
     
-    OpPacket doneFloat0_E;
-    OpPacket doneFloat1_E; 
+    OpPacket doneFloat0_E, doneFloat1_E; 
     
     OpPacket doneSys_E;
 
@@ -140,7 +132,9 @@ module ExecBlock(ref InstructionMap insMap,
     
     
     OpPacket issuedReplayQueue;
-        
+    
+    OpPacket toReplayQueue0, toReplayQueue2;
+    
 
     // Int 0
     RegularSubpipe regular0(
@@ -216,29 +210,47 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        EMPTY_OP_PACKET,
+        toReplayQueue0,
+        toReplayQueue2,
         issuedReplayQueue
     );
     
 
+
+    function automatic OpPacket memToComplete(input OpPacket p);
+        return p;
+    endfunction
+
+    function automatic OpPacket memToReplay(input OpPacket p);
+        return EMPTY_OP_PACKET;
+    endfunction
 
 
 
     assign doneRegular0 = regular0.stage0;
     assign doneRegular1 = regular1.stage0;
     assign doneBranch = branch0.stage0;
-    assign doneMem0 = mem0.stage0;
-    assign doneMem2 = mem2.stage0;
+    
+    assign doneMem0 = memToComplete(mem0.stage0);
+    assign doneMem2 = memToComplete(mem2.stage0);
+    
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
-    assign doneMem0_E = mem0.stage0_E;
-    assign doneMem2_E = mem2.stage0_E;
+    
+    assign doneMem0_E = memToComplete(mem0.stage0_E);
+    assign doneMem2_E = memToComplete(mem2.stage0_E);
+    
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
+
+    
+    assign toReplayQueue0 = memToReplay(mem0.stage0_E);
+    assign toReplayQueue2 = memToReplay(mem2.stage0_E);
+    
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];

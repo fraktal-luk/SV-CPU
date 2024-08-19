@@ -1,0 +1,8 @@
+; Unaligned access
+$start
+
+
+$check
+	sys call
+$error
+    sys error

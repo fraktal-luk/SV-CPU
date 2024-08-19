@@ -14,7 +14,8 @@ module ReplayQueue(
     input logic clk,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket inPacket,
+    input OpPacket inPacket0,
+    input OpPacket inPacket2,
     output OpPacket outPacket
 );
 

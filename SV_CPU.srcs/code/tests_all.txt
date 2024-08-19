@@ -22,6 +22,7 @@ sf_deps6
 sys_regs
 loads_fp
 mem_sys
+mem_unaligned
 fp0
 use_lib0
 shifts

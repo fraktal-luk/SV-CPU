@@ -9,7 +9,10 @@ import Insmap::*;
 import ExecDefs::*;
 
 
-module MemSubpipe(
+module MemSubpipe#(
+    parameter logic HANDLE_UNALIGNED = 0
+)
+(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
@@ -72,6 +75,15 @@ module MemSubpipe(
 
     /////////////////////////////////////////////////////////////////////////////////////
     
+    function automatic OpPacket updateE0(input OpPacket p, input Word adr);
+        OpPacket res = p;
+        
+        if (p.active && (adr % 4) != 0) res.status = ES_UNALIGNED;
+        
+        return res; 
+    endfunction
+    
+    
     task automatic performE0();
         Word adr;
         Word val;
@@ -85,14 +97,16 @@ module MemSubpipe(
         effAdr <= adr;
         storeValue <= val;
 
-        if (stateE0.active) //performMemE0(stateE0.id);
-                            performStore_Dummy(stateE0.id, adr, val);
+        //if (stateE0.active) //performMemE0(stateE0.id);
+        //                    performStore_Dummy(stateE0.id, adr, val);
 
-        pE0 <= stateE0;
+        pE0 <= updateE0(stateE0, adr);
     endtask
     
     task automatic performE1();
         stateE1 = tickP(pE0);
+        
+        if (stateE1.active) performStore_Dummy(stateE1.id, effAdr, storeValue);
         
         pE1 <= stateE1;
     endtask
@@ -101,7 +115,7 @@ module MemSubpipe(
         stateE2 = tickP(pE1);
         
         result <= 'x;
-        if (pE1_E.active) result <= calcMemE2(pE1_E.id, readResp);
+        if (stateE2.active) result <= calcMemE2(stateE2.id, readResp);
         
         pE2 <= stateE2;
     endtask
@@ -145,7 +159,9 @@ module MemSubpipe(
 
     task automatic performStore_Dummy(input InsId id, input Word adr, input Word val);
         AbstractInstruction abs = decId(id);
-
+        
+        if (!HANDLE_UNALIGNED && (adr % 4 != 0)) return;
+        
         if (isStoreMemIns(abs)) begin
             checkStoreValue(id, adr, val);
             
