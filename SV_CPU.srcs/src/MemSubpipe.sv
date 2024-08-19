@@ -78,7 +78,9 @@ module MemSubpipe#(
     function automatic OpPacket updateE0(input OpPacket p, input Word adr);
         OpPacket res = p;
         
-        if (p.active && (adr % 4) != 0) res.status = ES_UNALIGNED;
+        if (p.active && isMemIns(decId(p.id)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
+        
+            if (res.status == ES_UNALIGNED) $error("unaligned!");
         
         return res; 
     endfunction
@@ -106,7 +108,7 @@ module MemSubpipe#(
     task automatic performE1();
         stateE1 = tickP(pE0);
         
-        if (stateE1.active) performStore_Dummy(stateE1.id, effAdr, storeValue);
+        if (stateE1.active && stateE1.status == ES_OK) performStore_Dummy(stateE1.id, effAdr, storeValue);
         
         pE1 <= stateE1;
     endtask
@@ -159,8 +161,6 @@ module MemSubpipe#(
 
     task automatic performStore_Dummy(input InsId id, input Word adr, input Word val);
         AbstractInstruction abs = decId(id);
-        
-        if (!HANDLE_UNALIGNED && (adr % 4 != 0)) return;
         
         if (isStoreMemIns(abs)) begin
             checkStoreValue(id, adr, val);

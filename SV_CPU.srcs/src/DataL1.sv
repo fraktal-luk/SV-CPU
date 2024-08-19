@@ -32,7 +32,7 @@ module DataL1(
         
     end
     
-    assign readResps[0] = '{0, readData[0]};
+    //assign readResps[0] = '{0, readData[0]};
 
 
     function automatic void reset();
@@ -53,12 +53,18 @@ module DataL1(
 
 
     task automatic handleReads();
-        logic[7:0] selected[4];        
+        foreach (readData[p]) begin
+            logic[7:0] selected[4];
+            Word val;       
+            
+            foreach (selected[i])
+                selected[i] = content[readReqs[p].adr + i];
+            
+            val = (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
         
-        foreach (selected[i])
-            selected[i] = content[readReqs[0].adr + i];
-    
-        readData[0] <= (selected[0] << 24) | (selected[1] << 16) | (selected[2] << 8) | selected[3];
+            readData[p] <= val;
+            readResps[p] <= '{0, val};
+        end
     endtask
 
 endmodule

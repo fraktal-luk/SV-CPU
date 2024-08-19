@@ -172,7 +172,8 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     // Mem 2 - for ReplayQueue only!
-    MemSubpipe mem2(
+    MemSubpipe#(.HANDLE_UNALIGNED(1))
+    mem2(
         insMap,
         branchEventInfo,
         lateEventInfo,
@@ -218,11 +219,13 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic OpPacket memToComplete(input OpPacket p);
-        return p;
+        if (p.status == ES_UNALIGNED) return EMPTY_OP_PACKET;
+        else return p;
     endfunction
 
     function automatic OpPacket memToReplay(input OpPacket p);
-        return EMPTY_OP_PACKET;
+        if (p.status == ES_UNALIGNED) return p;
+        else return EMPTY_OP_PACKET;
     endfunction
 
 
@@ -247,7 +250,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
 
-    
+
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
     assign toReplayQueue2 = memToReplay(mem2.stage0_E);
     

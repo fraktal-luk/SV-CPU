@@ -504,7 +504,7 @@ module AbstractCore
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
 
         if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
-            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
+            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
 
         runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();

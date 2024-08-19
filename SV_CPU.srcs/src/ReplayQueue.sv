@@ -45,6 +45,9 @@ module ReplayQueue(
         if (!(lateEventInfo.redirect || branchEventInfo.redirect))
             writeInput();
         
+            
+          issued0 <= tickP(inPacket0);
+          issued0.status <= ES_OK;
 
         issued1 <= tickP(issued0);
         
