@@ -29,7 +29,9 @@ module RegularSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= tickP(p1);
+        
+        pE0 <= performRegularE0(tickP(p1));
+        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
@@ -76,7 +78,9 @@ module BranchSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= tickP(p1);
+        
+        pE0 <= performBranchE0(tickP(p1));
+        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
@@ -279,6 +283,17 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.vecs = floatImagesTr;
 
 
+
+    function automatic OpPacket performRegularE0(input OpPacket p);
+        if (p.id == -1) return p;
+        begin
+            OpPacket res = p;
+            res.result = calcRegularOp(p.id);
+            
+            return res;
+        end
+    endfunction
+
     // TOPLEVEL
     function automatic Word calcRegularOp(input InsId id);
         AbstractInstruction abs = decId(id);
@@ -290,6 +305,18 @@ module ExecBlock(ref InstructionMap insMap,
         insMap.setActualResult(id, result);
         
         return result;
+    endfunction
+
+
+
+    function automatic OpPacket performBranchE0(input OpPacket p);
+        if (p.id == -1) return p;
+        begin
+            OpPacket res = p;
+            res.result = getBranchResult(p.active, p.id);
+            
+            return res;
+        end
     endfunction
 
     // TOPLEVEL

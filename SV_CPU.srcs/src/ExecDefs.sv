@@ -321,7 +321,7 @@ package ExecDefs;
 
     function automatic void verifyForward(input InstructionInfo ii, input int source, input Word result);
         assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ii.actualResult === result) else $fatal("Value differs! %d // %d", ii.actualResult, result);
+        assert (ii.actualResult === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.actualResult, result, ii, disasm(ii.bits));
     endfunction
     
 

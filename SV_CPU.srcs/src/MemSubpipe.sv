@@ -114,10 +114,14 @@ module MemSubpipe#(
     endtask
     
     task automatic performE2();
+        Word resultE2;
+    
         stateE2 = tickP(pE1);
         
-        result <= 'x;
-        if (stateE2.active) result <= calcMemE2(stateE2.id, readResp);
+        resultE2 = 'x;
+        if (stateE2.active) resultE2 = calcMemE2(stateE2.id, readResp);
+        stateE2.result = resultE2;
+        result <= resultE2;
         
         pE2 <= stateE2;
     endtask
