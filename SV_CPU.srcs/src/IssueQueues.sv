@@ -147,6 +147,9 @@ module IssueQueue
             pIssued0[i] <= tickP(newPacket);
 
             putMilestone(theId, InstructionMap::IqIssue);
+                    
+                    if (theId == 12601) $error("issue %d", theId);
+                    
             assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
             array[s].active = 0;
             array[s].issueCounter = 0;
@@ -157,6 +160,9 @@ module IssueQueue
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
                 putMilestone(array[s].id, InstructionMap::IqExit);
+                
+                      if (array[s].id == 12601) $error("iqexit %d", array[s].id);
+                
                 assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
                 array[s] = EMPTY_ENTRY;
             end
@@ -182,7 +188,9 @@ module IssueQueue
 
                 logic active = entry.used && entry.active;
                 
-                assert (ready_S == ready) else $fatal(2, "differing ready bits");  
+                    if (!active) continue;
+                                    
+                assert (ready_S == ready) else $fatal(2, "differing ready bits\n%p", entry);  
 
                 if (active && ready) res[nF++] = idsSorted[i];
                 else if (IN_ORDER && active) break;
@@ -269,27 +277,14 @@ module IssueQueue
         foreach (ready3[a]) begin
             logic prev = entry.state.readyArgs[a];
 
-            if (prev) begin // handle retraction if applies
-                foreach (memStage0[p]) begin
-                    if (!checkMemDep(entry.poisons.poisoned[a], memStage0[p])) continue;
 
-                    if (memStage0[p].status == ES_UNALIGNED) begin
-                        $display("pullback. %p", entry);
-//                        entry.state.readyArgs[a] = 0;
-//                        entry.poisons.poisoned[a] = EMPTY_POISON;
-
-//                        // cancel issue
-//                        entry.active = 1;
-//                        entry.issuedCounter = -1;
-                        // TODO: milestones! cancel arg, issue pullback 
-                    end
-                end
-            end
 
             if (!prev && ready3[a]) begin // handle wakeup
                 entry.state.readyArgs[a] = 1;                
                 
                 entry.poisons.poisoned[a] = wup[a].poison;
+                
+                    if (entry.id == 12601) $error("wakeup by %d", wup[a]);
                 
                 if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
                 else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
@@ -301,6 +296,27 @@ module IssueQueue
             logic prev = entry.state.ready;
             entry.state.ready = 1;
             if (!prev) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
+        end
+        
+        foreach (ready3[a]) begin
+                    // TODO: this must be after the wakeup phase because the wakeup and cancel may be from the same source! 
+            if (entry.state.readyArgs[a]) begin // handle retraction if applies
+                foreach (memStage0[p]) begin
+                    if (!checkMemDep(entry.poisons.poisoned[a], memStage0[p])) continue;
+
+                    if (memStage0[p].status == ES_UNALIGNED) begin
+                        $error("pullback. %p", entry);
+                        entry.state.ready = 0;
+                        entry.state.readyArgs[a] = 0;
+                        entry.poisons.poisoned[a] = EMPTY_POISON;
+
+                        // cancel issue
+                        entry.active = 1;
+                        entry.issueCounter = -1;
+                        // TODO: milestones! cancel arg, issue pullback 
+                    end
+                end
+            end
         end
     endfunction
 
