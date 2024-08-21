@@ -274,7 +274,7 @@ module ExecBlock(ref InstructionMap insMap,
     ForwardsByStage_0 allByStage;
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, default: EMPTY_IMAGE};
-    assign memImages = '{0: mem0.image_E, default: EMPTY_IMAGE};
+    assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, default: EMPTY_IMAGE};
 
     assign intImagesTr = trsInt(intImages);

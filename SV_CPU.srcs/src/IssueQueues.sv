@@ -148,7 +148,7 @@ module IssueQueue
 
             putMilestone(theId, InstructionMap::IqIssue);
                     
-                    if (theId == 12601) $error("issue %d", theId);
+                    if (theId == TRACKED_ID) $error("issue %d", theId);
                     
             assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
             array[s].active = 0;
@@ -161,7 +161,7 @@ module IssueQueue
             if (array[s].issueCounter == HOLD_CYCLES) begin
                 putMilestone(array[s].id, InstructionMap::IqExit);
                 
-                      if (array[s].id == 12601) $error("iqexit %d", array[s].id);
+                      if (array[s].id == TRACKED_ID) $error("iqexit %d", array[s].id);
                 
                 assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
                 array[s] = EMPTY_ENTRY;
@@ -284,7 +284,7 @@ module IssueQueue
                 
                 entry.poisons.poisoned[a] = wup[a].poison;
                 
-                    if (entry.id == 12601) $error("wakeup by %d", wup[a]);
+                    if (entry.id == TRACKED_ID) $error("wakeup by %p", wup[a]);
                 
                 if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
                 else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
