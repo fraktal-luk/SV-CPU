@@ -683,7 +683,7 @@ module AbstractCore
                 res.TMP_pullback = 0; // if mem is missed, set to 1
                 
                 if (memStage0[p].status == ES_UNALIGNED) begin
-                        $error("tick poisoned: %p", op);
+                       // $error("tick poisoned: %p", op);
                 
                     //putMilestone(op.id, InstructionMap::FlushPoison);
                     //return EMPTY_OP_PACKET;

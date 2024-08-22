@@ -305,7 +305,7 @@ module IssueQueue
                     if (!checkMemDep(entry.poisons.poisoned[a], memStage0[p])) continue;
 
                     if (memStage0[p].status == ES_UNALIGNED) begin
-                        $error("pullback. %p", entry);
+                        //$error("pullback. %p", entry);
                         entry.state.ready = 0;
                         entry.state.readyArgs[a] = 0;
                         entry.poisons.poisoned[a] = EMPTY_POISON;
@@ -313,7 +313,9 @@ module IssueQueue
                         // cancel issue
                         entry.active = 1;
                         entry.issueCounter = -1;
-                        // TODO: milestones! cancel arg, issue pullback 
+                        // TODO: milestones! cancel arg, issue pullback
+                        
+                            putMilestone(entry.id, InstructionMap::IqPullback);
                     end
                 end
             end
