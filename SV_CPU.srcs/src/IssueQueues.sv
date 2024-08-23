@@ -61,11 +61,11 @@ module IssueQueue
     logic cmpb, cmpb0, cmpb1;
 
 
+    assign outPackets = effA(pIssued0);
+
+
     always_comb wMatrix = getForwards(array);
     always_comb forwardStates = fwFromWups(wMatrix, getIdQueue(array));
-    
-    assign outPackets = effA(pIssued0);
-            
 
     always @(posedge AbstractCore.clk) begin
         TMP_incIssueCounter();
@@ -76,7 +76,7 @@ module IssueQueue
         rfq_perArg  = unifyReadyAndForwardsQ(rq_perArg, fq_perArg);
         rfq_perSlot = makeReadyQueue(rfq_perArg);
 
-        wMatrixVar = wMatrix;
+        wMatrixVar = wMatrix; // for DB
 
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
@@ -107,6 +107,16 @@ module IssueQueue
 
 
 
+    task automatic updateWakeups();
+        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+    
+        foreach (array[i]) begin
+            logic3 rf3 = rfq_perArg[i];
+            if (array[i].used) updateReadyBits(array[i], rf3, wMatrixVar[i], memStage0);
+        end
+    endtask
+
+
     task automatic issue();
         OutIds ov = getArrOpsToIssue();
         IdQueue validIds = getValidIds(ov);        
@@ -121,59 +131,10 @@ module IssueQueue
     endfunction
 
 
-    // ONCE
-    function automatic OpPacket convertOutput(input InsId id, input Poison p);
-        OpPacket res;        
-        res = '{1, id, ES_OK, p, 'x, 'x};  
-        return res;
-    endfunction
-
-
-    task automatic issueFromArray(input IdQueue ids);
-        pIssued0 <= '{default: EMPTY_OP_PACKET};
-
-        foreach (ids[i]) begin
-            InsId theId = ids[i];
-            OpPacket newPacket = EMPTY_OP_PACKET; 
-            Poison newPoison = EMPTY_POISON;
-            
-            int found[$] = array.find_first_index with (item.id == theId);
-            int s = found[0];
-            
-            assert (theId != -1) else $error("Wrong id for issue");
-            
-            newPoison = mergePoisons(array[s].poisons.poisoned);
-            newPacket = (convertOutput(theId, newPoison));
-            pIssued0[i] <= tickP(newPacket);
-
-            putMilestone(theId, InstructionMap::IqIssue);
-                    
-                    if (theId == TRACKED_ID) $error("issue %d", theId);
-                    
-            assert (array[s].used == 1 && array[s].active == 1) else $fatal(2, "Inactive slot to issue?");
-            array[s].active = 0;
-            array[s].issueCounter = 0;
-        end
-    endtask
-
-    task automatic removeIssuedFromArray();
-        foreach (array[s]) begin
-            if (array[s].issueCounter == HOLD_CYCLES) begin
-                putMilestone(array[s].id, InstructionMap::IqExit);
-                
-                      if (array[s].id == TRACKED_ID) $error("iqexit %d", array[s].id);
-                
-                assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
-                array[s] = EMPTY_ENTRY;
-            end
-        end
-    endtask
-
-
     function automatic OutIds getArrOpsToIssue();
         int nF = 0;
         OutIds res = '{default: -1};
-    
+
         IdQueue ids = getIdQueue(array);
         IdQueue idsSorted = ids;
         idsSorted.sort();
@@ -184,16 +145,14 @@ module IssueQueue
                 int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
                 IqEntry entry = array[arrayLoc[0]]; 
                 logic ready = rfq_perSlot[arrayLoc[0]];
-                logic ready_S = entry.state.ready;
-
                 logic active = entry.used && entry.active;
-                
-                    if (!active) continue;
-                                    
-                assert (ready_S == ready) else $fatal(2, "differing ready bits\n%p", entry);  
 
-                if (active && ready) res[nF++] = idsSorted[i];
-                else if (IN_ORDER && active) break;
+                if (!active) continue;
+
+                assert (entry.state.ready == ready) else $fatal(2, "differing ready bits\n%p", entry);  
+
+                if (ready) res[nF++] = idsSorted[i];
+                else if (IN_ORDER) break;
             end
         end
         
@@ -201,12 +160,47 @@ module IssueQueue
     endfunction
 
 
-    task automatic updateWakeups();
-        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
-    
-        foreach (array[i]) begin
-            logic3 rf3 = rfq_perArg[i];
-            if (array[i].used) updateReadyBits(array[i], rf3, wMatrixVar[i], memStage0);
+    task automatic issueFromArray(input IdQueue ids);
+        pIssued0 <= '{default: EMPTY_OP_PACKET};
+
+        foreach (ids[i]) begin
+            InsId theId = ids[i];
+            int found[$] = array.find_first_index with (item.id == theId);
+            int s = found[0];
+            
+            Poison newPoison = mergePoisons(array[s].poisons.poisoned);
+            OpPacket newPacket = '{1, theId, ES_OK, newPoison, 'x, 'x};
+            
+            assert (theId != -1) else $fatal(2, "Wrong id for issue");
+            assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
+
+            pIssued0[i] <= tickP(newPacket);
+
+            putMilestone(theId, InstructionMap::IqIssue);
+                    
+                if (theId == TRACKED_ID) $error("issue %d", theId);
+
+            array[s].active = 0;
+            array[s].issueCounter = 0;
+        end
+    endtask
+
+
+    task automatic TMP_incIssueCounter();
+        foreach (array[s])
+            if (array[s].used && !array[s].active) array[s].issueCounter++;
+    endtask
+
+    task automatic removeIssuedFromArray();
+        foreach (array[s]) begin
+            if (array[s].issueCounter == HOLD_CYCLES) begin
+                putMilestone(array[s].id, InstructionMap::IqExit);
+                
+                    if (array[s].id == TRACKED_ID) $error("iqexit %d", array[s].id);
+                
+                assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
+                array[s] = EMPTY_ENTRY;
+            end
         end
     endtask
 
@@ -226,15 +220,6 @@ module IssueQueue
             end
         end
     endtask
-
-    task automatic TMP_incIssueCounter();
-        foreach (array[s]) begin
-            if (array[s].used == 1 && array[s].active == 0) begin
-                array[s].issueCounter++;
-            end
-        end
-    endtask
-
 
 
     task automatic flushIq();
@@ -271,9 +256,7 @@ module IssueQueue
 
 
 
-    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3], input ForwardingElement memStage0[N_MEM_PORTS]);
-        InsDependencies deps = insMap.get(entry.id).deps;
-                
+    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3], input ForwardingElement memStage0[N_MEM_PORTS]);                
         foreach (ready3[a]) begin
             logic prev = entry.state.readyArgs[a];
 
@@ -287,7 +270,6 @@ module IssueQueue
                 else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
                 else if (a == 2) putMilestone(entry.id, InstructionMap::IqWakeup2);
             end
-
         end
 
         if (entry.state.readyArgs.and()) begin
@@ -296,27 +278,24 @@ module IssueQueue
             if (!prev) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
         end
         
-        
         foreach (ready3[a]) begin
+            // Check for args to cancel.
+            // CAREFUL: it seems this can't apply to arg that is being woken up now, because wakeup is suppressed if poisoned by failing op.
             if (entry.state.readyArgs[a]) begin // handle retraction if applies
                 if (shouldFlushPoison(entry.poisons.poisoned[a])) begin    
-                    begin
-                        if (entry.state.ready) putMilestone(entry.id, InstructionMap::IqPullback);
-                    
-                        entry.state.ready = 0;
-                        entry.state.readyArgs[a] = 0;
-                        entry.poisons.poisoned[a] = EMPTY_POISON;
+                    if (entry.state.ready) putMilestone(entry.id, InstructionMap::IqPullback);
+                
+                    entry.state.ready = 0;
+                    entry.state.readyArgs[a] = 0;
+                    entry.poisons.poisoned[a] = EMPTY_POISON;
 
-                        // cancel issue
-                        entry.active = 1;
-                        entry.issueCounter = -1;
+                    // cancel issue
+                    entry.active = 1;
+                    entry.issueCounter = -1;
 
-
-                        if (a == 0) putMilestone(entry.id, InstructionMap::IqCancelWakeup0);
-                        else if (a == 1) putMilestone(entry.id, InstructionMap::IqCancelWakeup1);
-                        else if (a == 2) putMilestone(entry.id, InstructionMap::IqCancelWakeup2);
-                    end
-                    
+                    if (a == 0) putMilestone(entry.id, InstructionMap::IqCancelWakeup0);
+                    else if (a == 1) putMilestone(entry.id, InstructionMap::IqCancelWakeup1);
+                    else if (a == 2) putMilestone(entry.id, InstructionMap::IqCancelWakeup2);
                 end
                 
             end
@@ -348,8 +327,8 @@ module IssueQueue
         
         return res;
     endfunction
-    
-    
+
+
     function automatic OutGroupP effA(input OutGroupP g);
         OutGroupP res;
         foreach (g[i])
@@ -409,9 +388,8 @@ module IssueQueue
                 continue;
             end
             
-            foreach (w3[a]) begin
-                r3[a] = w3[a].active;
-            end
+            foreach (w3[a]) r3[a] = w3[a].active;
+
             res.push_back(r3);
         end
         
@@ -496,8 +474,7 @@ module IssueQueueComplex(
         ReadyQueue3 res;
         foreach (ids[i])
             if (ids[i] == -1) res.push_back(D3);
-            else
-            begin
+            else begin
                 InsDependencies deps = imap.get(ids[i]).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 res.push_back(ra);
