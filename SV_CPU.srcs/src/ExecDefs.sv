@@ -442,7 +442,8 @@ package ExecDefs;
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
-            
+                
+                // Don't wake up if this is a failed op
                 if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
             
             res.producer = producer;

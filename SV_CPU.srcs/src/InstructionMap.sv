@@ -420,6 +420,7 @@ package Insmap;
         endfunction
     
                 function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
+                        $error("Tags [%d] are:\n%p", id, tags);
                     if (reissuedId != -1) return;
                     
                     begin

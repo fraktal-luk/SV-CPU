@@ -23,6 +23,7 @@ sys_regs
 loads_fp
 mem_sys
 mem_unaligned
+mem_unaligned2
 fp0
 use_lib0
 shifts

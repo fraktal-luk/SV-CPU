@@ -364,7 +364,7 @@ module IssueQueue
     endfunction
     
 
-    function automatic Wakeup3 getForwardsForOp(input IqEntry entry);
+    function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
         if (entry.id == -1) return res;
         
@@ -379,7 +379,16 @@ module IssueQueue
             // CAREFUL: Not using mem pipe forwarding for FP to simplify things
             if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
             
+            
+                foreach (memStage0[p]) begin
+                    if (!checkMemDep(wup.poison, memStage0[p])) continue;
+                    
+                    if (memStage0[p].status == ES_UNALIGNED)
+                        wup.active = 0; // Suppress wakeup if it depends on a failing mem op
+                end
+            
             if (wup.active) res[a] = wup;
+
         end
         return res;
     endfunction
@@ -389,7 +398,7 @@ module IssueQueue
     
         foreach (arr[i]) begin
             IqEntry entry = arr[i];
-            Wakeup3 w3 = getForwardsForOp(entry);
+            Wakeup3 w3 = getForwardsForOp(entry, theExecBlock.memImagesTr[0]);
             res[i] = w3;
         end
         
