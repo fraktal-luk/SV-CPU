@@ -106,34 +106,20 @@ module IssueQueue
     end
 
 
-
-    task automatic updateWakeups();
-        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
-    
-        foreach (array[i]) begin
-            logic3 rf3 = rfq_perArg[i];
-            if (array[i].used) updateReadyBits(array[i], rf3, wMatrixVar[i], memStage0);
-        end
+    task automatic updateWakeups();    
+        foreach (array[i])
+            if (array[i].used) updateReadyBits(array[i], rfq_perArg[i], wMatrixVar[i], theExecBlock.memImagesTr[0]);
     endtask
 
 
     task automatic issue();
-        OutIds ov = getArrOpsToIssue();
-        IdQueue validIds = getValidIds(ov);        
+        IdQueue validIds = getArrOpsToIssue();
         issueFromArray(validIds);
     endtask
 
-    // ONCE
-    function automatic IdQueue getValidIds(input OutIds outs);
+
+    function automatic IdQueue getArrOpsToIssue();
         IdQueue res;
-        foreach (outs[i]) if (outs[i] != -1) res.push_back(outs[i]);
-        return res;
-    endfunction
-
-
-    function automatic OutIds getArrOpsToIssue();
-        int nF = 0;
-        OutIds res = '{default: -1};
 
         IdQueue ids = getIdQueue(array);
         IdQueue idsSorted = ids;
@@ -151,13 +137,17 @@ module IssueQueue
 
                 assert (entry.state.ready == ready) else $fatal(2, "differing ready bits\n%p", entry);  
 
-                if (ready) res[nF++] = idsSorted[i];
+                if (ready) res.push_back(idsSorted[i]);
                 else if (IN_ORDER) break;
+                
+                if (res.size() == OUT_WIDTH) break;
             end
+            
         end
         
         return res;
     endfunction
+
 
 
     task automatic issueFromArray(input IdQueue ids);
@@ -247,57 +237,31 @@ module IssueQueue
         InputLocs res = '{default: -1};
         int nFound = 0;
 
-        foreach (array[i]) begin
+        foreach (array[i])
             if (!array[i].used) res[nFound++] = i;
-        end
 
         return res;
     endfunction
 
 
-
     function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3], input ForwardingElement memStage0[N_MEM_PORTS]);                
         foreach (ready3[a]) begin
-            logic prev = entry.state.readyArgs[a];
-
-            if (!prev && ready3[a]) begin // handle wakeup
-                entry.state.readyArgs[a] = 1;
-                entry.poisons.poisoned[a] = wup[a].poison;
-                
-                    if (entry.id == TRACKED_ID) $error("wakeup by %p", wup[a]);
-                
-                if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
-                else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
-                else if (a == 2) putMilestone(entry.id, InstructionMap::IqWakeup2);
+            if (ready3[a] && !entry.state.readyArgs[a]) begin // handle wakeup
+                setArgReady(entry, a, wup[a]);
             end
         end
 
         if (entry.state.readyArgs.and()) begin
-            logic prev = entry.state.ready;
+            if (!entry.state.ready) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
             entry.state.ready = 1;
-            if (!prev) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
         end
         
         foreach (ready3[a]) begin
             // Check for args to cancel.
             // CAREFUL: it seems this can't apply to arg that is being woken up now, because wakeup is suppressed if poisoned by failing op.
-            if (entry.state.readyArgs[a]) begin // handle retraction if applies
-                if (shouldFlushPoison(entry.poisons.poisoned[a])) begin    
-                    if (entry.state.ready) putMilestone(entry.id, InstructionMap::IqPullback);
-                
-                    entry.state.ready = 0;
-                    entry.state.readyArgs[a] = 0;
-                    entry.poisons.poisoned[a] = EMPTY_POISON;
-
-                    // cancel issue
-                    entry.active = 1;
-                    entry.issueCounter = -1;
-
-                    if (a == 0) putMilestone(entry.id, InstructionMap::IqCancelWakeup0);
-                    else if (a == 1) putMilestone(entry.id, InstructionMap::IqCancelWakeup1);
-                    else if (a == 2) putMilestone(entry.id, InstructionMap::IqCancelWakeup2);
-                end
-                
+            if (entry.state.readyArgs[a] && shouldFlushPoison(entry.poisons.poisoned[a])) begin // handle retraction if applies
+                pullbackEntry(entry);
+                cancelArg(entry, a);
             end
         end
     endfunction
@@ -316,7 +280,6 @@ module IssueQueue
     endfunction
 
 
-
     function automatic IdQueue getIdQueue(input IqEntry entries[$size(array)]);
         InsId res[$];
         
@@ -331,8 +294,7 @@ module IssueQueue
 
     function automatic OutGroupP effA(input OutGroupP g);
         OutGroupP res;
-        foreach (g[i])
-            res[i] = effP(g[i]);
+        foreach (g[i]) res[i] = effP(g[i]);
         
         return res;
     endfunction
@@ -356,7 +318,8 @@ module IssueQueue
             
             Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
             if (!wup.active) wup = checkForwardSourceVec(insMap, prod, source, AbstractCore.theExecBlock.floatImages);
-            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages); // CAREFUL: Not using mem pipe forwarding for FP to simplify things
+            // CAREFUL: Not using mem pipe forwarding for FP to simplify things
+            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
             
             if (shouldFlushPoison(wup.poison)) wup.active = 0;
            
@@ -367,12 +330,7 @@ module IssueQueue
 
     function automatic WakeupMatrix getForwards(input IqEntry arr[TOTAL_SIZE]);
         WakeupMatrix res;
-    
-        foreach (arr[i]) begin
-            IqEntry entry = arr[i];
-            Wakeup3 w3 = getForwardsForOp(entry, theExecBlock.memImagesTr[0]);
-            res[i] = w3;
-        end
+        foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
         
         return res;
     endfunction
@@ -380,21 +338,48 @@ module IssueQueue
     function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input InsId ids[$]);
         ReadyQueue3 res;
         foreach (wm[i]) begin
-            Wakeup3 w3 = wm[i];
-            logic3 r3;
-            
-            if (ids[i] == -1) begin
-                res.push_back('{'z, 'z, 'z});
-                continue;
-            end
-            
-            foreach (w3[a]) r3[a] = w3[a].active;
+            logic3 r3 = '{'z, 'z, 'z};
+
+            if (ids[i] != -1)
+                foreach (r3[a]) r3[a] = wm[i][a].active;
 
             res.push_back(r3);
         end
         
         return res;
     endfunction
+
+
+
+    function automatic void setArgReady(ref IqEntry entry, input int a, input Wakeup wup);
+        entry.state.readyArgs[a] = 1;
+        entry.poisons.poisoned[a] = wup.poison;
+
+            if (entry.id == TRACKED_ID) $error("wakeup by %p", wup);
+
+        if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
+        else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
+        else if (a == 2) putMilestone(entry.id, InstructionMap::IqWakeup2);
+    endfunction
+
+    function automatic void cancelArg(ref IqEntry entry, input int a);
+        entry.state.readyArgs[a] = 0;
+        entry.poisons.poisoned[a] = EMPTY_POISON;
+
+        if (a == 0) putMilestone(entry.id, InstructionMap::IqCancelWakeup0);
+        else if (a == 1) putMilestone(entry.id, InstructionMap::IqCancelWakeup1);
+        else if (a == 2) putMilestone(entry.id, InstructionMap::IqCancelWakeup2);
+    endfunction
+
+    function automatic void pullbackEntry(ref IqEntry entry);
+        if (entry.state.ready) putMilestone(entry.id, InstructionMap::IqPullback);
+
+        // cancel issue
+        entry.active = 1;
+        entry.issueCounter = -1;                    
+        entry.state.ready = 0;
+    endfunction
+
 
 endmodule
 
@@ -405,52 +390,30 @@ module IssueQueueComplex(
                         input EventInfo branchEventInfo,
                         input EventInfo lateEventInfo,
                         input OpSlotA inGroup
-);
-
-    localparam int IN_WIDTH = $size(inGroup);
-
-
-    logic regularMask[IN_WIDTH];
+);    
+    RoutingInfo routingInfo;    
     
     OpPacket issuedRegularP[2];
+    OpPacket issuedBranchP[1];
     OpPacket issuedFloatP[2];
     OpPacket issuedMemP[1];
     OpPacket issuedSysP[1];
-    OpPacket issuedBranchP[1];   
+
+
+    assign routingInfo = routeOps(inGroup); 
+
     
-    
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, regularMask, '1,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.regular, '1,
                                             issuedRegularP);
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, '1,
-                                            issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, '1,
                                             issuedBranchP);
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, '1,
+                                            issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, '1,
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, '1,
                                             issuedSysP);
     
-    typedef struct {
-        logic regular[IN_WIDTH];
-        logic float[IN_WIDTH];
-        logic branch[IN_WIDTH];
-        logic mem[IN_WIDTH];
-        logic sys[IN_WIDTH];
-    } RoutingInfo;
-    
-    const RoutingInfo DEFAULT_ROUTING_INFO = '{
-        regular: '{default: 0},
-        float: '{default: 0},
-        branch: '{default: 0},
-        mem: '{default: 0},
-        sys: '{default: 0}
-    };
-    
-    RoutingInfo routingInfo;
-    
-    assign routingInfo = routeOps(inGroup); 
-    assign regularMask = routingInfo.regular;
-
 
     function automatic RoutingInfo routeOps(input OpSlotA gr);
         RoutingInfo res = DEFAULT_ROUTING_INFO;
@@ -468,12 +431,10 @@ module IssueQueueComplex(
         return res;
     endfunction
 
-
     function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
-        logic D3[3] = '{'z, 'z, 'z};
         ReadyQueue3 res;
         foreach (ids[i])
-            if (ids[i] == -1) res.push_back(D3);
+            if (ids[i] == -1) res.push_back('{'z, 'z, 'z});
             else begin
                 InsDependencies deps = imap.get(ids[i]).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);

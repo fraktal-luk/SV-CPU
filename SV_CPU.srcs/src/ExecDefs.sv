@@ -437,4 +437,22 @@ package ExecDefs;
     } DataReadResp;
 
 
+    localparam int DISPATCH_WIDTH = $size(OpSlotA);
+
+    typedef struct {
+        logic regular[DISPATCH_WIDTH];
+        logic float[DISPATCH_WIDTH];
+        logic branch[DISPATCH_WIDTH];
+        logic mem[DISPATCH_WIDTH];
+        logic sys[DISPATCH_WIDTH];
+    } RoutingInfo;
+
+    const RoutingInfo DEFAULT_ROUTING_INFO = '{
+        regular: '{default: 0},
+        float: '{default: 0},
+        branch: '{default: 0},
+        mem: '{default: 0},
+        sys: '{default: 0}
+    };
+
 endpackage
