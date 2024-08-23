@@ -59,11 +59,9 @@ package Insmap;
                 FlushPoison,
             
             IqEnter,
-            IqWakeup0,
-            IqWakeup1,
+            IqWakeup0, IqWakeup1, IqWakeup2,
             IqWakeupComplete,
-            IqCancelWakeup0,
-            IqCancelWakeup1,
+            IqCancelWakeup0, IqCancelWakeup1, IqCancelWakeup2,
             IqIssue,
             IqPullback,
             IqFlush,

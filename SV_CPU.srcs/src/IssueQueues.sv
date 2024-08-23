@@ -277,17 +277,15 @@ module IssueQueue
         foreach (ready3[a]) begin
             logic prev = entry.state.readyArgs[a];
 
-
-
             if (!prev && ready3[a]) begin // handle wakeup
-                entry.state.readyArgs[a] = 1;                
-                
+                entry.state.readyArgs[a] = 1;
                 entry.poisons.poisoned[a] = wup[a].poison;
                 
                     if (entry.id == TRACKED_ID) $error("wakeup by %p", wup[a]);
                 
                 if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
                 else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
+                else if (a == 2) putMilestone(entry.id, InstructionMap::IqWakeup2);
             end
 
         end
@@ -298,14 +296,13 @@ module IssueQueue
             if (!prev) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
         end
         
+        
         foreach (ready3[a]) begin
-                    // TODO: this must be after the wakeup phase because the wakeup and cancel may be from the same source! 
             if (entry.state.readyArgs[a]) begin // handle retraction if applies
-                foreach (memStage0[p]) begin
-                    if (!checkMemDep(entry.poisons.poisoned[a], memStage0[p])) continue;
-
-                    if (memStage0[p].status == ES_UNALIGNED) begin
-                        //$error("pullback. %p", entry);
+                if (shouldFlushPoison(entry.poisons.poisoned[a])) begin    
+                    begin
+                        if (entry.state.ready) putMilestone(entry.id, InstructionMap::IqPullback);
+                    
                         entry.state.ready = 0;
                         entry.state.readyArgs[a] = 0;
                         entry.poisons.poisoned[a] = EMPTY_POISON;
@@ -313,11 +310,15 @@ module IssueQueue
                         // cancel issue
                         entry.active = 1;
                         entry.issueCounter = -1;
-                        // TODO: milestones! cancel arg, issue pullback
-                        
-                            putMilestone(entry.id, InstructionMap::IqPullback);
+
+
+                        if (a == 0) putMilestone(entry.id, InstructionMap::IqCancelWakeup0);
+                        else if (a == 1) putMilestone(entry.id, InstructionMap::IqCancelWakeup1);
+                        else if (a == 2) putMilestone(entry.id, InstructionMap::IqCancelWakeup2);
                     end
+                    
                 end
+                
             end
         end
     endfunction
@@ -376,19 +377,11 @@ module IssueQueue
             
             Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
             if (!wup.active) wup = checkForwardSourceVec(insMap, prod, source, AbstractCore.theExecBlock.floatImages);
-            // CAREFUL: Not using mem pipe forwarding for FP to simplify things
-            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
+            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages); // CAREFUL: Not using mem pipe forwarding for FP to simplify things
             
-            
-                foreach (memStage0[p]) begin
-                    if (!checkMemDep(wup.poison, memStage0[p])) continue;
-                    
-                    if (memStage0[p].status == ES_UNALIGNED)
-                        wup.active = 0; // Suppress wakeup if it depends on a failing mem op
-                end
-            
+            if (shouldFlushPoison(wup.poison)) wup.active = 0;
+           
             if (wup.active) res[a] = wup;
-
         end
         return res;
     endfunction

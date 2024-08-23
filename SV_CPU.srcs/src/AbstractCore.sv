@@ -664,68 +664,60 @@ module AbstractCore
     endfunction
 
 
-        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.id != -1) begin
-                int inds[$] = p.find with (item == fe.id);
-                return inds.size() != 0;
-            end
-            return 0;
-        endfunction
 
-        function automatic OpPacket tickP(input OpPacket op);
-            OpPacket res = op;
-            ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
-            
-            foreach (memStage0[p]) begin
-                if (!checkMemDep(op.poison, memStage0[p])) continue;
-                            
-                // match:
-                res.TMP_pullback = 0; // if mem is missed, set to 1
-                
-                if (memStage0[p].status == ES_UNALIGNED) begin
-                       // $error("tick poisoned: %p", op);
-                
-                    //putMilestone(op.id, InstructionMap::FlushPoison);
-                    //return EMPTY_OP_PACKET;
-                    res.TMP_pullback = 1;
-                    
-                        return EMPTY_OP_PACKET;
-                end
-            end
+
+    function automatic OpPacket tickP(input OpPacket op);
+        OpPacket res = op;
         
-            // TODO: check whether op is nonempty before putting milestone on it?
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                putMilestone(op.id, InstructionMap::FlushExec);
-                return EMPTY_OP_PACKET;
-            end
-            return res;
-        endfunction
+        if (shouldFlushPoison(op.poison)) begin
+            putMilestone(op.id, InstructionMap::FlushPoison);
+            return EMPTY_OP_PACKET;
+        end
     
-        function automatic OpPacket effP(input OpPacket op);
-            OpPacket res = op;
-            ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+        // TODO: check whether op is nonempty before putting milestone on it?
+        if (shouldFlushEvent(op.id)) begin 
+            putMilestone(op.id, InstructionMap::FlushExec);
+            return EMPTY_OP_PACKET;
+        end
+        return res;
+    endfunction
+
+    function automatic OpPacket effP(input OpPacket op);
+        OpPacket res = op;
+
+        if (shouldFlushPoison(op.poison))
+            return EMPTY_OP_PACKET;
             
-            foreach (memStage0[p]) begin
-                if (!checkMemDep(op.poison, memStage0[p])) continue;
-
-                // match:
-                res.TMP_pullback = 0; // if mem is missed, set to 1
-                
-                if (memStage0[p].status == ES_UNALIGNED) begin
-                    //return EMPTY_OP_PACKET;
-                    res.TMP_pullback = 1;
-                    
-                       return EMPTY_OP_PACKET;
-                end
-            end
+        if (shouldFlushEvent(op.id)) begin
+            return EMPTY_OP_PACKET;
+        end
         
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                return EMPTY_OP_PACKET;
-            end
-            return res;
-        endfunction
+        return res;
+    endfunction
 
-    
+
+    function automatic logic shouldFlushEvent(input InsId id);
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
+    endfunction
+
+    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+        if (fe.id != -1) begin
+            int inds[$] = p.find with (item == fe.id);
+            return inds.size() != 0;
+        end
+        return 0;
+    endfunction
+
+    function automatic logic shouldFlushPoison(input Poison poison);
+        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+        
+        foreach (memStage0[p])
+            if (checkMemDep(poison, memStage0[p]) && memStage0[p].status == ES_UNALIGNED) return 1;
+        
+        return 0;
+    endfunction
+
+
 
     assign insAdr = theFrontend.ipStage[0].adr;
 

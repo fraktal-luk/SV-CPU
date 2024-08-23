@@ -63,7 +63,6 @@ package ExecDefs;
     } ForwardsByStage_0;
 
 
-
     typedef struct {
         InsId id;
         logic ready;
@@ -80,136 +79,90 @@ package ExecDefs;
     } IqPoisonState;
     
     localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
+
     
-
         
-
-        // convert IdQueue to Poison
-        function automatic Poison poisonFromQueue(input IdQueue q);
-            Poison res = EMPTY_POISON;
-            
-            foreach (q[i])
-                res[i] = q[i];
-            
-            return res;
-        endfunction 
-        
-        function automatic IdQueue getPoisoningMem(input Poison p);
-            IdQueue res;
-            
-//            foreach (q[i])
-//                res[i] = q[i];
-            
-            return res;
-        endfunction 
-        
-        
-        
-
-        function automatic IdQueue getPresentMemQ(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            IdQueue res;
-            
-            foreach (fea[p]) begin
-                ForwardingElement subpipe[-3:1] = fea[p];
-                foreach (subpipe[s]) begin
-                    if (subpipe[s].id != -1) res.push_back(subpipe[s].id);
-                end
-            end
-
-            return res;
-        endfunction
-        
-        
-        typedef logic IdMap[InsId];
-        
-        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            IdMap res;
-            
-            foreach (fea[p]) begin
-                ForwardingElement subpipe[-3:1] = fea[p];
-                foreach (subpipe[s]) begin
-                    if (subpipe[s].id != -1) res[subpipe[s].id] = 1;
-                end
-            end
-
-            return res;
-        endfunction
-        
-        function automatic IdMap poison2map(input Poison p);
-            IdMap res;
-            foreach (p[i])
-                if (p[i] != -1) res[p[i]] = 1;
-            return res;
-        endfunction
-
-        // convert IdQueue to Poison
-        function automatic Poison map2poison(input IdMap map);
-            Poison res = EMPTY_POISON;
-            int n = 0;
-            
-            map.delete(-1);
-            
-            foreach (map[id])
-                res[n++] = id;
-            
-            return res;
-        endfunction 
-
-        
-        function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            IdMap present = getPresentMemM(fea);
-            IdMap old = poison2map(p);
-            
-            // Remove those not present
-            foreach (old[id])
-                if (!present.exists(id)) old.delete(id);
-            
-            return map2poison(old);
-        endfunction
-        
-
-        // poison operations:
-        // add producer - done when generating wakeup from mem ops
-        // merge args - on issue
-        // add poison - for argument on its wakeup
-        
-        function automatic Poison addProducer(input Poison p, input InsId id, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            Poison u = updatePoison(p, fea);
-            IdMap map = poison2map(u);
-            // add id
-            map[id] = 1;
-            
-            return map2poison(map);
-        endfunction
-        
-        
-        function automatic Poison mergePoisons(input Poison ap[3] /*, input ForwardingElement fea[N_MEM_PORTS][-3:1]*/);
-            // update 3 poisons
-            Poison u0 = ap[0];//updatePoison(ap[0], fea);
-            Poison u1 = ap[1];//updatePoison(ap[1], fea);
-            Poison u2 = ap[2];//updatePoison(ap[2], fea);
-            
-            IdMap m0 = poison2map(u0);
-            IdMap m1 = poison2map(u1);
-            IdMap m2 = poison2map(u2);
-            
-            foreach (m1[id]) m0[id] = 1;
-            foreach (m2[id]) m0[id] = 1;
-            
-            // put into 1 poison
-            return map2poison(m0);
-        endfunction
-        
-        
-        function automatic Poison addPoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            // update
-            return updatePoison(p, fea);
-            // assign
-        endfunction
-         
-
-  
+    typedef logic IdMap[InsId];
     
+    function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        IdMap res;
+        
+        foreach (fea[p]) begin
+            ForwardingElement subpipe[-3:1] = fea[p];
+            foreach (subpipe[s]) begin
+                if (subpipe[s].id != -1) res[subpipe[s].id] = 1;
+            end
+        end
+
+        return res;
+    endfunction
+    
+    function automatic IdMap poison2map(input Poison p);
+        IdMap res;
+        foreach (p[i])
+            if (p[i] != -1) res[p[i]] = 1;
+        return res;
+    endfunction
+
+    // convert IdQueue to Poison
+    function automatic Poison map2poison(input IdMap map);
+        Poison res = EMPTY_POISON;
+        int n = 0;
+        
+        map.delete(-1);
+        
+        foreach (map[id])
+            res[n++] = id;
+        
+        return res;
+    endfunction 
+
+        
+    function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        IdMap present = getPresentMemM(fea);
+        IdMap old = poison2map(p);
+        
+        // Remove those not present
+        foreach (old[id])
+            if (!present.exists(id)) old.delete(id);
+        
+        return map2poison(old);
+    endfunction
+        
+
+    // poison operations:
+    // add producer - done when generating wakeup from mem ops
+    // merge args - on issue
+    // add poison - for argument on its wakeup
+    
+    function automatic Poison addProducer(input Poison p, input InsId id, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        Poison u = updatePoison(p, fea);
+        IdMap map = poison2map(u);
+        // add id
+        map[id] = 1;
+        
+        return map2poison(map);
+    endfunction
+        
+        
+    function automatic Poison mergePoisons(input Poison ap[3] /*, input ForwardingElement fea[N_MEM_PORTS][-3:1]*/);
+        // update 3 poisons
+        Poison u0 = ap[0];
+        Poison u1 = ap[1];
+        Poison u2 = ap[2];
+        
+        IdMap m0 = poison2map(u0);
+        IdMap m1 = poison2map(u1);
+        IdMap m2 = poison2map(u2);
+        
+        foreach (m1[id]) m0[id] = 1;
+        foreach (m2[id]) m0[id] = 1;
+        
+        // put into 1 poison
+        return map2poison(m0);
+    endfunction
+        
+
 
     typedef struct {
         logic used;
@@ -238,7 +191,6 @@ package ExecDefs;
     } Wakeup;
     
     localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, EMPTY_POISON};
-
 
 
 
@@ -277,8 +229,6 @@ package ExecDefs;
         
         return res;
     endfunction
-
-
 
 
 
@@ -419,8 +369,6 @@ package ExecDefs;
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
-                
-            //    if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
                 
             res.producer = producer;
             res.group = PG_INT;
