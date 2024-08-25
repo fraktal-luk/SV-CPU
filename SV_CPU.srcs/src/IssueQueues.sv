@@ -88,12 +88,13 @@ module IssueQueue
 
         issue();
 
-        removeIssuedFromArray();
       
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
         end                
         
+                removeIssuedFromArray();
+                
         
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);

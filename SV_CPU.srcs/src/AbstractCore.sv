@@ -712,7 +712,7 @@ module AbstractCore
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         
         foreach (memStage0[p])
-            if (checkMemDep(poison, memStage0[p]) && memStage0[p].status == ES_UNALIGNED) return 1;
+            if (checkMemDep(poison, memStage0[p]) && memStage0[p].status != ES_OK) return 1;
         
         return 0;
     endfunction

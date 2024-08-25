@@ -141,6 +141,7 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket issuedReplayQueue;
     
     OpPacket toReplayQueue0, toReplayQueue2;
+    OpPacket toReplayQueue[N_MEM_PORTS];
     
 
     // Int 0
@@ -218,22 +219,34 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        toReplayQueue0,
-        toReplayQueue2,
+        //toReplayQueue0,
+        //toReplayQueue2,
+        toReplayQueue,
         issuedReplayQueue
     );
     
 
 
     function automatic OpPacket memToComplete(input OpPacket p);
-        if (p.status == ES_UNALIGNED) return EMPTY_OP_PACKET;
+        if (p.status != ES_OK) return EMPTY_OP_PACKET;
         else return p;
     endfunction
 
     function automatic OpPacket memToReplay(input OpPacket p);
-        if (p.status == ES_UNALIGNED) return p;
+        if (p.status != ES_OK) return p;
         else return EMPTY_OP_PACKET;
     endfunction
+
+//    typedef OpPacket OpPacketsMem[N_MEM_PORTS];
+
+//    function automatic OpPacketsMem memPortsToReplay(input OpPacketsMem ps);
+//        OpPacketsMem res;
+        
+//        foreach (res[i])
+//            res[i] = memToReplay(ps[i]);
+        
+//        return res;
+//    endfunction
 
 
 
@@ -261,6 +274,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
     assign toReplayQueue2 = memToReplay(mem2.stage0_E);
     
+    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_OP_PACKET};
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
