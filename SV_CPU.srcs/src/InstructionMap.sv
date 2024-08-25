@@ -59,15 +59,17 @@ package Insmap;
                 FlushPoison,
             
             IqEnter,
-            IqWakeup0,
-            IqWakeup1,
+            IqWakeup0, IqWakeup1, IqWakeup2,
             IqWakeupComplete,
-            IqCancelWakeup0,
-            IqCancelWakeup1,
+            IqCancelWakeup0, IqCancelWakeup1, IqCancelWakeup2,
             IqIssue,
             IqPullback,
             IqFlush,
             IqExit,
+    
+            RqEnter,
+            RqFlush,
+            RqExit,
     
               ReadArg, // TODO: by source type
     
@@ -144,6 +146,10 @@ package Insmap;
         MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
         MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
         MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
+    
+            
+            InsId reissuedId = -1;
+    
     
         // ins info
         static function automatic InstructionInfo initInsInfo(input OpSlot op);
@@ -313,6 +319,7 @@ package Insmap;
         function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
+              //  if (id >= 9060+6 && id <= 9070-4) $display("tags[%d]: %p", id, records[id].tags);
         endfunction
 
 
@@ -401,8 +408,40 @@ package Insmap;
             if (isLoadIns(dec)) assert (checkRetiredLoad(tags)) else $error("wrong load op");
             if (isBranchIns(dec)) assert (checkRetiredBranch(tags)) else $error("wrong branch op: %d / %p", id, tags);
             
+            
+                // HACK: if has been pulled back, remember it
+                begin
+                    if (has(tags, IqPullback)) storeReissued(id, tags);
+                end
+                
             return 1;
         endfunction
+    
+                function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
+                    //    $error("Tags [%d] are:\n%p", id, tags);
+                    if (reissuedId != -1) return;
+                    
+                    begin
+                        MilestoneTag issueTags[$] = tags.find with (item.kind == IqIssue);
+                        MilestoneTag exitTags[$] = tags.find with (item.kind == IqExit);
+                        MilestoneTag pullbackTags[$] = tags.find with (item.kind == IqPullback);
+                        
+                       // $error("Tags [%d] are:\n%p", id, tags);
+                        
+                            issueTags.sort with (item.cycle);
+                            pullbackTags.sort with(item.cycle);
+                            
+                            assert (exitTags.size() == 1) else $fatal(2, "!!!!!");
+                            assert (issueTags[$].cycle < exitTags[0].cycle) else $fatal(2, "!!!!!");
+                            assert (pullbackTags[$].cycle < issueTags[$].cycle) else $fatal(2, "!!!!!");
+                            
+                           // $error("confimrd reissue");
+                            
+                        reissuedId = id;
+                    end
+                    
+                endfunction
+                
     
         static function automatic logic checkRetiredStore(input MilestoneTag tags[$]);
             assert (has(tags, SqEnter)) else return 0;
@@ -478,7 +517,13 @@ package Insmap;
             else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags);
             else return checkRetired(id, tags);            
         endfunction
-    
+        
+        
+            function automatic void assertReissue();
+                  //  $display(" reissued is %d ", reissuedId);
+                assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
+            endfunction
+        
     endclass
 
 

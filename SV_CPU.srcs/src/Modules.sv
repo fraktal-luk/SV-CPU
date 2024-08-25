@@ -29,12 +29,17 @@ module RegularSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= tickP(p1);
+        
+        pE0 <= performRegularE0(tickP(p1));
+        
+        result <= 'x;
+        if (p1_E.active) result <= calcRegularOp(p1_E.id);
+        
+        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
-        result <= 'x;
-        if (p1_E.active) result <= calcRegularOp(p1_E.id);
+
 
     end
 
@@ -76,7 +81,9 @@ module BranchSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= tickP(p1);
+        
+        pE0 <= performBranchE0(tickP(p1));
+        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
@@ -102,104 +109,40 @@ module BranchSubpipe(
 endmodule
 
 
-module MemSubpipe(
-    ref InstructionMap insMap,
-    input EventInfo branchEventInfo,
-    input EventInfo lateEventInfo,
-    input OpPacket opP,
-    
-    output DataReadReq readReq,
-    input DataReadResp readResp
-);
-    Word result = 'x;
-    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
-    OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
-
-    OpPacket stage0, stage0_E;
-    
-    logic readActive = 0;
-    Word effAdr = 'x;
-
-    assign stage0 = setResult(pE2, result);
-    assign stage0_E = setResult(pE2_E, result);
-
-    assign p0 = opP;
-
-    always @(posedge AbstractCore.clk) begin
-        p1 <= tickP(p0);
-        pE0 <= tickP(p1);
-        pE1 <= tickP(pE0);
-        pE2 <= tickP(pE1);
-        pD0 <= tickP(pE2);
-        pD1 <= tickP(pD0);
-    
-
-        result <= 'x;    
-        //AbstractCore.readInfo <= EMPTY_WRITE_INFO;
-
-        if (p1_E.active) performMemE0(p1_E.id);
-        if (pE1_E.active) result <= calcMemE2(pE1_E.id, readResp);
-        
-        readActive <= p1_E.active;
-        effAdr <= getEffectiveAddress(p1_E.id);
-
-    end
-
-        assign readReq = '{pE0_E.active, effAdr};
-
-
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pE1_E = effP(pE1);
-    assign pE2_E = effP(pE2);
-    assign pD0_E = effP(pD0);
-    assign pD1_E = effP(pD1);
-    
-    ForwardingElement image_E[-3:1];
-    
-    assign image_E = '{
-        -3: p1_E,
-        -2: pE0_E,
-        -1: pE1_E,
-        0: pE2_E,
-        1: pD0_E,
-        default: EMPTY_FORWARDING_ELEMENT
-    };
-endmodule
-
-
 
 module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    OpPacket doneRegular0;
-    OpPacket doneRegular1;
-
+    OpPacket doneRegular0, doneRegular1;
     OpPacket doneBranch;
-    OpPacket doneMem;
     
-    OpPacket doneFloat0;
-    OpPacket doneFloat1; 
+    OpPacket doneMem0, doneMem2;
+    
+    OpPacket doneFloat0,  doneFloat1; 
     
     OpPacket doneSys = EMPTY_OP_PACKET;
     
 
-    OpPacket doneRegular0_E;
-    OpPacket doneRegular1_E;
-
+    OpPacket doneRegular0_E, doneRegular1_E;
     OpPacket doneBranch_E;
-    OpPacket doneMem_E;
     
-    OpPacket doneFloat0_E;
-    OpPacket doneFloat1_E; 
+    OpPacket doneMem0_E, doneMem2_E;
+    
+    OpPacket doneFloat0_E, doneFloat1_E; 
     
     OpPacket doneSys_E;
 
 
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadResp readResps[N_MEM_PORTS];
+    
+    logic TMP_memAllow;
+    
+    OpPacket issuedReplayQueue;
+    
+    OpPacket toReplayQueue0, toReplayQueue2;
+    OpPacket toReplayQueue[N_MEM_PORTS];
     
 
     // Int 0
@@ -235,7 +178,20 @@ module ExecBlock(ref InstructionMap insMap,
             readReqs[0],
             readResps[0]
     );
-    
+
+
+    // Mem 2 - for ReplayQueue only!
+    MemSubpipe#(.HANDLE_UNALIGNED(1))
+    mem2(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        issuedReplayQueue,
+            readReqs[2],
+            readResps[2]
+    );
+
+
     // Vec 0
     RegularSubpipe float0(
         insMap,
@@ -259,19 +215,67 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneSys_E = effP(doneSys);
 
 
+    ReplayQueue replayQueue(
+        insMap,
+        AbstractCore.clk,
+        branchEventInfo,
+        lateEventInfo,
+        toReplayQueue,
+        issuedReplayQueue
+    );
+    
+
+    assign TMP_memAllow = replayQueue.accept;
+
+
+    function automatic OpPacket memToComplete(input OpPacket p);
+        if (p.status != ES_OK) return EMPTY_OP_PACKET;
+        else return p;
+    endfunction
+
+    function automatic OpPacket memToReplay(input OpPacket p);
+        if (p.status != ES_OK) return p;
+        else return EMPTY_OP_PACKET;
+    endfunction
+
+//    typedef OpPacket OpPacketsMem[N_MEM_PORTS];
+
+//    function automatic OpPacketsMem memPortsToReplay(input OpPacketsMem ps);
+//        OpPacketsMem res;
+        
+//        foreach (res[i])
+//            res[i] = memToReplay(ps[i]);
+        
+//        return res;
+//    endfunction
+
+
+
     assign doneRegular0 = regular0.stage0;
     assign doneRegular1 = regular1.stage0;
     assign doneBranch = branch0.stage0;
-    assign doneMem = mem0.stage0;
+    
+    assign doneMem0 = memToComplete(mem0.stage0);
+    assign doneMem2 = memToComplete(mem2.stage0);
+    
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
-    assign doneMem_E = mem0.stage0_E;
+    
+    assign doneMem0_E = memToComplete(mem0.stage0_E);
+    assign doneMem2_E = memToComplete(mem2.stage0_E);
+    
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
+
+
+    assign toReplayQueue0 = memToReplay(mem0.stage0_E);
+    assign toReplayQueue2 = memToReplay(mem2.stage0_E);
+    
+    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_OP_PACKET};
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
@@ -285,7 +289,7 @@ module ExecBlock(ref InstructionMap insMap,
     ForwardsByStage_0 allByStage;
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, default: EMPTY_IMAGE};
-    assign memImages = '{0: mem0.image_E, default: EMPTY_IMAGE};
+    assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, default: EMPTY_IMAGE};
 
     assign intImagesTr = trsInt(intImages);
@@ -296,6 +300,17 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.mems = memImagesTr;
     assign allByStage.vecs = floatImagesTr;
 
+
+
+    function automatic OpPacket performRegularE0(input OpPacket p);
+        if (p.id == -1) return p;
+        begin
+            OpPacket res = p;
+            res.result = calcRegularOp(p.id);
+            
+            return res;
+        end
+    endfunction
 
     // TOPLEVEL
     function automatic Word calcRegularOp(input InsId id);
@@ -308,6 +323,18 @@ module ExecBlock(ref InstructionMap insMap,
         insMap.setActualResult(id, result);
         
         return result;
+    endfunction
+
+
+
+    function automatic OpPacket performBranchE0(input OpPacket p);
+        if (p.id == -1) return p;
+        begin
+            OpPacket res = p;
+            res.result = getBranchResult(p.active, p.id);
+            
+            return res;
+        end
     endfunction
 
     // TOPLEVEL
@@ -344,66 +371,6 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.branchCP = found[0];
         AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
     endtask
-
-
-    function automatic Word getEffectiveAddress(input InsId id);
-        if (id == -1) return 'x;
-        
-        begin
-            AbstractInstruction abs = decId(id);
-            Word3 args = getAndVerifyArgs(id);
-            return calculateEffectiveAddress(abs, args);
-        end
-    endfunction
-    
-
-    // TOPLEVEL
-    task automatic performMemE0(input InsId id);
-        AbstractInstruction abs = decId(id);
-        Word3 args = getAndVerifyArgs(id);
-        Word adr = calculateEffectiveAddress(abs, args);
-
-        if (isStoreIns(abs)) begin            
-            if (isStoreMemIns(abs)) begin
-                checkStoreValue(id, adr, args[2]);
-                
-                putMilestone(id, InstructionMap::WriteMemAddress);
-                putMilestone(id, InstructionMap::WriteMemValue);
-            end
-        end
-
-        //AbstractCore.readInfo <= '{1, adr, 'x};
-    endtask
-
-    // TOPLEVEL
-    function automatic Word calcMemE2(input InsId id, input DataReadResp readResp);
-        AbstractInstruction abs = decId(id);
-        Word3 args = getAndVerifyArgs(id);
-
-        InsId writerAllId = AbstractCore.memTracker.checkWriter(id);
-
-        logic forwarded = (writerAllId !== -1);
-        Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        Word memData = forwarded ? fwValue : readResp.result;
-        Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
-            
-            assert (AbstractCore.readIn[0] === readResp.result) else $error("differing data: %d, %d", AbstractCore.readIn[0], readResp.result);
-
-        if (forwarded) begin
-            putMilestone(writerAllId, InstructionMap::MemFwProduce);
-            putMilestone(id, InstructionMap::MemFwConsume);
-        end
-
-        insMap.setActualResult(id, data);
-
-        return data;
-    endfunction
-
-    // Used once by Mem subpipes
-    function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
-        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == id);
-        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
-    endfunction
 
 
 

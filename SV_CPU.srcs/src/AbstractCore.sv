@@ -163,13 +163,14 @@ module AbstractCore
 
 
     task automatic handleCompletion();
-        completePacket(theExecBlock.doneRegular0);
-        completePacket(theExecBlock.doneRegular1);
-        completePacket(theExecBlock.doneFloat0);
-        completePacket(theExecBlock.doneFloat1);
-        completePacket(theExecBlock.doneBranch);
-        completePacket(theExecBlock.doneMem);
-        completePacket(theExecBlock.doneSys);
+        completePacket(theExecBlock.doneRegular0_E);
+        completePacket(theExecBlock.doneRegular1_E);
+        completePacket(theExecBlock.doneFloat0_E);
+        completePacket(theExecBlock.doneFloat1_E);
+        completePacket(theExecBlock.doneBranch_E);
+        completePacket(theExecBlock.doneMem0_E);
+        completePacket(theExecBlock.doneMem2_E);
+        completePacket(theExecBlock.doneSys_E);
     endtask
 
     task automatic updateBookkeeping();
@@ -503,7 +504,7 @@ module AbstractCore
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
 
         if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
-            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s", op, disasm(op.bits));
+            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
 
         runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
@@ -663,61 +664,60 @@ module AbstractCore
     endfunction
 
 
-        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.id != -1) begin
-                int inds[$] = p.find with (item == fe.id);
-                return inds.size() != 0;
-            end
-            return 0;
-        endfunction
 
-        function automatic OpPacket tickP(input OpPacket op);
-            OpPacket res = op;
-            ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
-            
-            foreach (memStage0[p]) begin
-                if (!checkMemDep(op.poison, memStage0[p])) continue;
-                            
-                // match:
-                res.TMP_pullback = 0; // if mem is missed, set to 1
-                
-                if (0) begin
-                    //putMilestone(op.id, InstructionMap::FlushPoison);
-                    //return EMPTY_OP_PACKET;
-                    res.TMP_pullback = 1;
-                end
-            end
-        
-            // TODO: check whether op is nonempty before putting milestone on it?
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                putMilestone(op.id, InstructionMap::FlushExec);
-                return EMPTY_OP_PACKET;
-            end
-            return res;
-        endfunction
-    
-        function automatic OpPacket effP(input OpPacket op);
-            OpPacket res = op;
-            ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
-            
-            foreach (memStage0[p]) begin
-                if (!checkMemDep(op.poison, memStage0[p])) continue;
 
-                // match:
-                res.TMP_pullback = 0; // if mem is missed, set to 1
-                
-                if (0) begin
-                    //return EMPTY_OP_PACKET;
-                    res.TMP_pullback = 1;
-                end
-            end
+    function automatic OpPacket tickP(input OpPacket op);
+        OpPacket res = op;
         
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && op.id > branchEventInfo.op.id)) begin
-                return EMPTY_OP_PACKET;
-            end
-            return res;
-        endfunction
+        if (shouldFlushPoison(op.poison)) begin
+            putMilestone(op.id, InstructionMap::FlushPoison);
+            return EMPTY_OP_PACKET;
+        end
     
+        // TODO: check whether op is nonempty before putting milestone on it?
+        if (shouldFlushEvent(op.id)) begin 
+            putMilestone(op.id, InstructionMap::FlushExec);
+            return EMPTY_OP_PACKET;
+        end
+        return res;
+    endfunction
+
+    function automatic OpPacket effP(input OpPacket op);
+        OpPacket res = op;
+
+        if (shouldFlushPoison(op.poison))
+            return EMPTY_OP_PACKET;
+            
+        if (shouldFlushEvent(op.id)) begin
+            return EMPTY_OP_PACKET;
+        end
+        
+        return res;
+    endfunction
+
+
+    function automatic logic shouldFlushEvent(input InsId id);
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
+    endfunction
+
+    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+        if (fe.id != -1) begin
+            int inds[$] = p.find with (item == fe.id);
+            return inds.size() != 0;
+        end
+        return 0;
+    endfunction
+
+    function automatic logic shouldFlushPoison(input Poison poison);
+        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+        
+        foreach (memStage0[p])
+            if (checkMemDep(poison, memStage0[p]) && memStage0[p].status != ES_OK) return 1;
+        
+        return 0;
+    endfunction
+
+
 
     assign insAdr = theFrontend.ipStage[0].adr;
 

@@ -1,0 +1,10 @@
+; Unaligned access
+$start
+
+	ldi_i r10, r0, 3
+	add_r r11, r10, r0
+
+$check
+	sys call
+$error
+    sys error

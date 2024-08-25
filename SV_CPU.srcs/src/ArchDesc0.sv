@@ -269,6 +269,10 @@ module ArchDesc0();
             runIntTestSim();
             
             $display("All tests done;");
+            
+                // Now assure that a pullback and reissue has happened because of mem replay 
+                core.insMap.assertReissue();
+            
             $stop(2);
         endtask
         
