@@ -137,6 +137,7 @@ module ExecBlock(ref InstructionMap insMap,
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadResp readResps[N_MEM_PORTS];
     
+    logic TMP_memAllow;
     
     OpPacket issuedReplayQueue;
     
@@ -219,12 +220,12 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        //toReplayQueue0,
-        //toReplayQueue2,
         toReplayQueue,
         issuedReplayQueue
     );
     
+
+    assign TMP_memAllow = replayQueue.accept;
 
 
     function automatic OpPacket memToComplete(input OpPacket p);

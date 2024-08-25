@@ -126,6 +126,8 @@ module IssueQueue
         IdQueue idsSorted = ids;
         idsSorted.sort();
 
+        if (!allow) return res;
+
         foreach (idsSorted[i]) begin
             if (idsSorted[i] == -1) continue;
             else begin
