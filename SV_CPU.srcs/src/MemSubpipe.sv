@@ -80,7 +80,7 @@ module MemSubpipe#(
         
         if (p.active && isMemIns(decId(p.id)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
         
-           // if (res.status == ES_UNALIGNED) $error("unaligned!");
+        res.result = adr;
         
         return res; 
     endfunction

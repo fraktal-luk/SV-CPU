@@ -20,10 +20,59 @@ module DataL1(
                 input Word writeData[2]
               );
 
-    logic[7:0] content[4096];
+
+    typedef Dword EffectiveAddress;
+
+    localparam int PAGE_SIZE = 4096;
+
+    localparam int V_INDEX_BITS = 12;
+    localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
+    
+    typedef logic[V_INDEX_BITS-1:0] VirtualAddressLow;
+    typedef logic[$size(EffectiveAddress)-1:V_INDEX_BITS] VirtualAddressHigh;
+
+    localparam int PHYS_ADR_BITS = 40;
+
+    typedef logic[PHYS_ADR_BITS-1:V_INDEX_BITS] PhysicalAddressHigh;
+
+
+    localparam int BLOCK_SIZE = 64;
+    localparam int WAY_SIZE = 4096;
+    
+    
+    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
+
+    int tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
+
+    Mbyte content[4096]; // So far this corresponds to way 0
+
+
+    typedef struct {
+        EffectiveAddress adr;
+        int accessSize;
+        VirtualAddressHigh aHigh;
+        VirtualAddressLow aLow;
+        int block;
+        int blockOffset;
+        logic blockCross;
+        logic pageCross;
+    } AccessInfo;
+
+
+    typedef struct {
+        logic present; // TLB hit
+        VirtualAddressHigh vHigh;
+        PhysicalAddressHigh pHigh;
+        logic canRead;
+        logic canWrite;
+    } Translation;
+
+
+    AccessInfo accesses[N_MEM_PORTS];
+    Translation translations[N_MEM_PORTS];        
+
 
     Word readData[N_MEM_PORTS] = '{default: 'x};
-
 
 
     always @(posedge clk) begin
@@ -32,8 +81,6 @@ module DataL1(
         
     end
     
-    //assign readResps[0] = '{0, readData[0]};
-
 
     function automatic void reset();
         content = '{default: 0};
@@ -41,7 +88,7 @@ module DataL1(
 
 
     task automatic handleWrites();
-        logic[7:0] writing[4];
+        Mbyte writing[4];
         
         foreach (writing[i])
             writing[i] = writeData[0] >> 8*(3-i);
@@ -53,6 +100,11 @@ module DataL1(
 
 
     task automatic handleReads();
+        foreach (accesses[p]) begin
+            accesses[p] <= analyzeAccess(readReqs[p].adr);
+            translations[p] <= translateAddress(readReqs[p].adr);
+        end
+    
         foreach (readData[p]) begin
             logic[7:0] selected[4];
             Word val;       
@@ -66,5 +118,59 @@ module DataL1(
             readResps[p] <= '{0, val};
         end
     endtask
+
+
+    
+    function automatic VirtualAddressLow adrLow(input EffectiveAddress adr);
+        return adr[V_INDEX_BITS-1:0];
+    endfunction
+
+    function automatic VirtualAddressHigh adrHigh(input EffectiveAddress adr);
+        return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
+    endfunction
+
+
+    function automatic AccessInfo analyzeAccess(input EffectiveAddress adr);
+        AccessInfo res;
+        
+        VirtualAddressLow aLow = adrLow(adr);
+        VirtualAddressHigh aHigh = adrHigh(adr);
+
+        int accessSize = 4; // n bytes to read
+        
+        int block = aLow / BLOCK_SIZE;
+        int blockOffset = aLow % BLOCK_SIZE;
+        
+        res.adr = adr;
+        res.accessSize = accessSize;
+        
+        res.aHigh = aHigh;
+        res.aLow = aLow;
+        
+        res.block = block;
+        res.blockOffset = blockOffset;
+        
+        res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+        res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+        return res;
+    endfunction
+
+    
+    function automatic Translation translateAddress(input EffectiveAddress adr);
+        Translation res;
+        
+        res.vHigh = adrHigh(adr);
+        
+        if ($isunknown(adr)) return res;
+        
+        // TMP:
+        res.pHigh = res.vHigh; // Direct mapping of memory
+        res.present = 1; // Obviously
+        res.canRead = 1;
+        res.canWrite = 1;
+        
+        return res;
+    endfunction
 
 endmodule

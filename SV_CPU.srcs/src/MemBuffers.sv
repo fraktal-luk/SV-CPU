@@ -20,7 +20,9 @@ module StoreQueue
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input OpSlotA inGroup,
-    output OpSlotA outGroup
+    output OpSlotA outGroup,
+    
+    input OpPacket wrInputs[N_MEM_PORTS]
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -32,9 +34,14 @@ module StoreQueue
 
     typedef struct {
         InsId id;
+        
+        logic adrReady;
+        logic valReady;
+        Mword adr;
+        Mword val;
     } QueueEntry;
 
-    const QueueEntry EMPTY_ENTRY = '{-1};
+    const QueueEntry EMPTY_ENTRY = '{-1, 0, 0, 'x, 'x};
 
     int startPointer = 0, endPointer = 0, drainPointer = 0;
     int size;
@@ -45,6 +52,22 @@ module StoreQueue
 
     QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
     
+
+
+    always @(posedge AbstractCore.clk) begin
+        advance();
+    
+        update();
+    
+        if (lateEventInfo.redirect)
+            flushAll();
+        else if (branchEventInfo.redirect)
+           flushPartial(); 
+        else
+            writeInput(inGroup);
+    end
+
+
     
     task automatic flushAll();
         for (int i = 0; i < SIZE; i++)
@@ -90,6 +113,28 @@ module StoreQueue
         end
     endtask
 
+    task automatic update();
+        foreach (wrInputs[p]) begin
+            logic applies;
+            if (wrInputs[p].active !== 1) continue;
+            applies =
+                      IS_LOAD_QUEUE && isLoadIns(decId(wrInputs[p].id))
+                  ||  IS_BRANCH_QUEUE && isBranchIns(decId(wrInputs[p].id))
+                  ||  IS_STORE_QUEUE && isStoreIns(decId(wrInputs[p].id));
+            
+            if (!applies) continue;
+            
+            begin
+            
+               int found[$] = content.find_index with (item.id == wrInputs[p].id);
+               
+               if (found.size() == 1) updateEntry(found[0], wrInputs[p]);
+               else $error("Sth wrong with SQ update [%d], found(%d) %p // %p", wrInputs[p].id, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].id));
+            end
+        end 
+    endtask
+
+
     task automatic writeInput(input OpSlotA inGroup);
         if (!anyActive(inGroup)) return;
     
@@ -100,7 +145,7 @@ module StoreQueue
                           ||  IS_STORE_QUEUE && isStoreIns(decAbs(inGroup[i]));
         
             if (applies) begin
-                content[endPointer % SIZE].id = inGroup[i].id;
+                content[endPointer % SIZE] = '{inGroup[i].id, 0, 0, 'x, 'x};
                     putMilestone(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
@@ -108,18 +153,22 @@ module StoreQueue
     endtask
 
     
-    always @(posedge AbstractCore.clk) begin
-        advance();
+    task automatic updateEntry(input int index, input OpPacket p);
+        if (IS_BRANCH_QUEUE) begin
+        
+        end
+        
+        if (IS_STORE_QUEUE) begin
+            content[index].adrReady = 1;
+            content[index].adr = p.result;
+        end
+        
+        if (IS_LOAD_QUEUE) begin
+            content[index].adrReady = 1;
+            content[index].adr = p.result;
+        end       
+    endtask
     
-        if (lateEventInfo.redirect)
-            flushAll();
-        else if (branchEventInfo.redirect)
-           flushPartial(); 
-        else
-            writeInput(inGroup);
-    end
-
-
 endmodule
 
 

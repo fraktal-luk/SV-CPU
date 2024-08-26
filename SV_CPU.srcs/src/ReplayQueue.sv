@@ -80,8 +80,11 @@ module ReplayQueue(
     task automatic writeInput();
         inLocs = getInputLocs();
         
-        foreach (inPackets[i])
+        foreach (inPackets[i]) begin
+            if (!inPackets[i].active) continue;
             content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, inPackets[i].id};
+            putMilestone(inPackets[i].id, InstructionMap::RqEnter);
+        end
     endtask
 
 
@@ -89,6 +92,7 @@ module ReplayQueue(
     task automatic removeIssued();
         foreach (content[i]) begin
             if (content[i].used && !content[i].active) begin
+                putMilestone(content[i].id, InstructionMap::RqExit);
                 content[i] = EMPTY_ENTRY;
             end
         end
@@ -105,6 +109,8 @@ module ReplayQueue(
                 selected <= content[i];
                 
                 newPacket = '{1, content[i].id, ES_OK, EMPTY_POISON, 'x, 'x};
+                
+                putMilestone(content[i].id, InstructionMap::RqIssue);
                 content[i].active = 0;
                 break;
             end

@@ -69,6 +69,7 @@ package Insmap;
     
             RqEnter,
             RqFlush,
+            RqIssue,
             RqExit,
     
               ReadArg, // TODO: by source type
@@ -413,6 +414,9 @@ package Insmap;
                 begin
                     if (has(tags, IqPullback)) storeReissued(id, tags);
                 end
+                
+                
+                  //  if (has(tags, RqEnter)) $display("[%d]: %p", id, tags);
                 
             return 1;
         endfunction
