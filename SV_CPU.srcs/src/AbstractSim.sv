@@ -414,7 +414,28 @@ package AbstractSim;
 
     endclass
 
+
+
+    function automatic logic wordOverlap(input Word wa, input Word wb);
+        Word aEnd = wa + 4; // Exclusive end
+        Word bEnd = wb + 4; // Exclusive end
+        
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+        if (wb >= aEnd || wa >= bEnd) return 0;
+        else return 1;
+    endfunction
+
+    function automatic logic wordInside(input Word wa, input Word wb);
+        Word aEnd = wa + 4; // Exclusive end
+        Word bEnd = wb + 4; // Exclusive end
+        
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+       
+        return (wa >= wb && aEnd <= bEnd);
+    endfunction
     
+    
+     
     typedef struct {
         InsId owner;
         Word adr;
@@ -508,7 +529,23 @@ package AbstractSim;
             Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < id);
             return (writers.size() == 0) ? -1 : writers[$].owner;
         endfunction
-  
+
+            function automatic InsId checkWriter_Overlap(input InsId id);
+                Transaction allStores[$] = {committedStores, stores};
+            
+                Transaction read[$] = transactions.find_first with (item.owner == id); 
+                Transaction writers[$] = allStores.find with (wordOverlap(item.adr, read[0].adr) && item.owner < id);
+                return (writers.size() == 0) ? -1 : writers[$].owner;
+            endfunction
+
+            function automatic InsId checkWriter_Inside(input InsId id);
+                Transaction allStores[$] = {committedStores, stores};
+            
+                Transaction read[$] = transactions.find_first with (item.owner == id); 
+                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
+                return (writers.size() == 0) ? -1 : writers[$].owner;
+            endfunction
+
         function automatic Word getStoreValue(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
             Transaction writers[$] = allStores.find with (item.owner == id);

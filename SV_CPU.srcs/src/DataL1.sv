@@ -21,27 +21,6 @@ module DataL1(
               );
 
 
-    typedef Dword EffectiveAddress;
-
-    localparam int PAGE_SIZE = 4096;
-
-    localparam int V_INDEX_BITS = 12;
-    localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
-    
-    typedef logic[V_INDEX_BITS-1:0] VirtualAddressLow;
-    typedef logic[$size(EffectiveAddress)-1:V_INDEX_BITS] VirtualAddressHigh;
-
-    localparam int PHYS_ADR_BITS = 40;
-
-    typedef logic[PHYS_ADR_BITS-1:V_INDEX_BITS] PhysicalAddressHigh;
-
-
-    localparam int BLOCK_SIZE = 64;
-    localparam int WAY_SIZE = 4096;
-    
-    
-    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
-
     int tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
 
     Mbyte content[4096]; // So far this corresponds to way 0

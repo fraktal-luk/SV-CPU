@@ -19,7 +19,9 @@ module MemSubpipe#(
     input OpPacket opP,
     
     output DataReadReq readReq,
-    input DataReadResp readResp
+    input DataReadResp readResp,
+    
+    input OpPacket sqResp
 );
     Word result = 'x;
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
@@ -119,7 +121,7 @@ module MemSubpipe#(
         stateE2 = tickP(pE1);
         
         resultE2 = 'x;
-        if (stateE2.active) resultE2 = calcMemE2(stateE2.id, readResp);
+        if (stateE2.active) resultE2 = calcMemE2(stateE2.id, readResp, sqResp);
         stateE2.result = resultE2;
         result <= resultE2;
         
@@ -149,19 +151,7 @@ module MemSubpipe#(
     endfunction
 
 
-    // TOPLEVEL
-//    task automatic performMemE0(input InsId id);
-//        AbstractInstruction abs = decId(id);
-//        Word adr = getEffectiveAddress(id);
-//        Word val = getStoreValue(id);
 
-//        if (isStoreMemIns(abs)) begin
-//            checkStoreValue(id, adr, val);
-            
-//            putMilestone(id, InstructionMap::WriteMemAddress);
-//            putMilestone(id, InstructionMap::WriteMemValue);
-//        end
-//    endtask
 
     task automatic performStore_Dummy(input InsId id, input Word adr, input Word val);
         AbstractInstruction abs = decId(id);
@@ -175,16 +165,22 @@ module MemSubpipe#(
     endtask
 
     // TOPLEVEL
-    function automatic Word calcMemE2(input InsId id, input DataReadResp readResp);
+    function automatic Word calcMemE2(input InsId id, input DataReadResp readResp, input OpPacket sqResp);
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
 
         InsId writerAllId = AbstractCore.memTracker.checkWriter(id);
+            InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(id);
+            InsId writerInsideId = AbstractCore.memTracker.checkWriter_Inside(id);
+        
 
         logic forwarded = (writerAllId !== -1);
         Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
         Word memData = forwarded ? fwValue : readResp.result;
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+
+            if (writerOverlapId != writerInsideId) $error("Cannot forward from last overlapping store!");
+
 
         if (forwarded) begin
             putMilestone(writerAllId, InstructionMap::MemFwProduce);

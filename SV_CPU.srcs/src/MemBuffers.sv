@@ -54,8 +54,18 @@ module StoreQueue
     
 
 
+    typedef enum {
+        NO_LOAD, NO_MATCH, SINGLE_EXACT, SINGLE_INEXACT, MULTIPLE
+    } MatchStatus;
+    
+    MatchStatus TMP_fw;
+    QueueEntry TMP_matched;
+
     always @(posedge AbstractCore.clk) begin
         advance();
+    
+        
+        if (IS_STORE_QUEUE) handleForwards();
     
         update();
     
@@ -168,6 +178,92 @@ module StoreQueue
             content[index].adr = p.result;
         end       
     endtask
+    
+    
+    task automatic handleForwards();
+            TMP_matched <= EMPTY_ENTRY;
+            TMP_fw <= NO_LOAD;
+    
+        foreach (theExecBlock.toLq[p]) begin
+            logic active = theExecBlock.toLq[p].active;
+            Word adr = theExecBlock.toLq[p].result;
+            MatchStatus st;
+
+            theExecBlock.fromSq[p] <= EMPTY_OP_PACKET;
+            
+            if (active !== 1) begin  /*$display("not active");*/  continue; end
+            if (!isLoadMemIns(decId(theExecBlock.toLq[p].id))) begin  /*$display("not load??\n%p", decId(theExecBlock.toLq[p].id));*/  continue; end
+            
+            st = scanQueue(theExecBlock.toLq[p].id, adr);
+            theExecBlock.fromSq[p] <= scanQueue_P(theExecBlock.toLq[p].id, adr);
+
+                if (p == 0) TMP_fw <= st;
+
+
+        end
+    endtask
+    
+    
+
+    
+    
+
+    function automatic MatchStatus scanQueue(input InsId id, input Word adr);    
+        QueueEntry found[$] = content.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
+        
+            //$error(" scanign ! %d", found.size());
+        
+        if (found.size() == 0) return NO_MATCH;
+        else if (found.size() == 1) begin
+                TMP_matched <= found[0];
+        
+            if (wordInside(adr, found[0].adr)) return SINGLE_EXACT;
+            else return SINGLE_INEXACT;
+        end
+        else begin
+            QueueEntry sorted[$] = found[0:$];
+            sorted.sort with (item.id);
+                
+               if (0) $error("found multiple: %p", sorted);
+                
+                TMP_matched <= sorted[$];
+                
+            return MULTIPLE;
+        end
+    
+    endfunction
+    
+    function automatic OpPacket scanQueue_P(input InsId id, input Word adr);
+        // TODO: don't include sys stores in adr matching 
+        QueueEntry found[$] = content.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
+        
+            //$error(" scanign ! %d", found.size());
+        
+        if (found.size() == 0) return EMPTY_OP_PACKET;
+        else if (found.size() == 1) begin
+              //  TMP_matched <= found[0];
+        
+               // if (found[0].id == 4030) $display("%p -> %p", insMap.get(found[0].id), insMap.get(id));
+        
+            if (wordInside(adr, found[0].adr)) return '{1, found[0].id, ES_OK, EMPTY_POISON, 'x, found[0].val};
+            else return '{1, found[0].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
+        end
+        else begin
+            QueueEntry sorted[$] = found[0:$];
+            sorted.sort with (item.id);
+                
+              //  $error("found multiple: %p", sorted);
+                
+              //  TMP_matched <= sorted[$];
+            
+            if (wordInside(adr, sorted[$].adr)) return '{1, sorted[$].id, ES_OK, EMPTY_POISON, 'x, sorted[$].val};
+            
+            return '{1, sorted[$].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
+            
+        end
+
+    endfunction
+    
     
 endmodule
 

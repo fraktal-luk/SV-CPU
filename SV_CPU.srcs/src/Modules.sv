@@ -148,6 +148,7 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket toSq[N_MEM_PORTS];
     OpPacket toBq[N_MEM_PORTS]; // TODO: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
+    OpPacket fromSq[N_MEM_PORTS];
 
 
     // Int 0
@@ -181,7 +182,8 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
             readReqs[0],
-            readResps[0]
+            readResps[0],
+            fromSq[0]
     );
 
 
@@ -193,7 +195,8 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
             readReqs[2],
-            readResps[2]
+            readResps[2],
+            fromSq[2]
     );
 
 
