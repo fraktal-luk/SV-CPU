@@ -44,27 +44,25 @@ module StoreQueue
     const QueueEntry EMPTY_ENTRY = '{-1, 0, 0, 'x, 'x};
 
     int startPointer = 0, endPointer = 0, drainPointer = 0;
+    
     int size;
     logic allow;
     
     assign size = (endPointer - startPointer + 2*SIZE) % (2*SIZE);
+                  //(endPointer - drainPointer + 2*SIZE) % (2*SIZE);
     assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
     QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
-    
 
 
     typedef enum {
         NO_LOAD, NO_MATCH, SINGLE_EXACT, SINGLE_INEXACT, MULTIPLE
     } MatchStatus;
     
-    MatchStatus TMP_fw;
-    QueueEntry TMP_matched;
 
     always @(posedge AbstractCore.clk) begin
         advance();
-    
-        
+
         if (IS_STORE_QUEUE) handleForwards();
     
         update();
@@ -76,7 +74,6 @@ module StoreQueue
         else
             writeInput(inGroup);
     end
-
 
     
     task automatic flushAll();
@@ -90,36 +87,43 @@ module StoreQueue
     
     task automatic flushPartial();
         InsId causingId = branchEventInfo.op.id;
-        
         int p = startPointer;
         
         endPointer = startPointer;
-        
         for (int i = 0; i < SIZE; i++) begin
             if (content[p % SIZE].id > causingId) begin
-                    putMilestone(content[p % SIZE].id, QUEUE_FLUSH);
+                putMilestone(content[p % SIZE].id, QUEUE_FLUSH);
                 content[p % SIZE] = EMPTY_ENTRY;
             end
-            else if (content[p % SIZE].id == -1)
-                break;
-            else
-                endPointer = (p+1) % (2*SIZE);   
+            else if (content[p % SIZE].id == -1) break;
+            else endPointer = (p+1) % (2*SIZE);   
             p++;
         end
     endtask
     
     
     task automatic advance();
-            int nOut = 0;
-            outGroup <= '{default: EMPTY_SLOT};
+        int nOut = 0;
+        outGroup <= '{default: EMPTY_SLOT};
         while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut) begin
-                outGroup[nOut].id <= content[startPointer % SIZE].id;
-                outGroup[nOut].active <= 1;
-                nOut++;
+            InsId thisId = content[startPointer % SIZE].id;
+            outGroup[nOut].id <= content[startPointer % SIZE].id;
+            outGroup[nOut].active <= 1;
+            nOut++;
                 
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
             content[startPointer % SIZE] = EMPTY_ENTRY;
+                
+                if (IS_STORE_QUEUE) content[startPointer % SIZE].val = thisId; // TMP: DB reminder what has been here
+                
             startPointer = (startPointer+1) % (2*SIZE);
+        end
+        
+        if (IS_STORE_QUEUE) begin
+            if (AbstractCore.storeHead.op.active) drainPointer = (drainPointer+1) % (2*SIZE);
+        end
+        else begin
+            drainPointer = startPointer;
         end
     endtask
 
@@ -128,16 +132,14 @@ module StoreQueue
             logic applies;
             if (wrInputs[p].active !== 1) continue;
             applies =
-                      IS_LOAD_QUEUE && isLoadIns(decId(wrInputs[p].id))
-                  ||  IS_BRANCH_QUEUE && isBranchIns(decId(wrInputs[p].id))
-                  ||  IS_STORE_QUEUE && isStoreIns(decId(wrInputs[p].id));
-            
+                  IS_LOAD_QUEUE && isLoadIns(decId(wrInputs[p].id))
+              ||  IS_BRANCH_QUEUE && isBranchIns(decId(wrInputs[p].id))
+              ||  IS_STORE_QUEUE && isStoreIns(decId(wrInputs[p].id));
+        
             if (!applies) continue;
             
             begin
-            
                int found[$] = content.find_index with (item.id == wrInputs[p].id);
-               
                if (found.size() == 1) updateEntry(found[0], wrInputs[p]);
                else $error("Sth wrong with SQ update [%d], found(%d) %p // %p", wrInputs[p].id, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].id));
             end
@@ -149,14 +151,14 @@ module StoreQueue
         if (!anyActive(inGroup)) return;
     
         foreach (inGroup[i]) begin
-            automatic logic applies = 
-                              IS_LOAD_QUEUE && isLoadIns(decAbs(inGroup[i]))
-                          ||  IS_BRANCH_QUEUE && isBranchIns(decAbs(inGroup[i]))
-                          ||  IS_STORE_QUEUE && isStoreIns(decAbs(inGroup[i]));
-        
+            logic applies = 
+                  IS_LOAD_QUEUE && isLoadIns(decAbs(inGroup[i]))
+              ||  IS_BRANCH_QUEUE && isBranchIns(decAbs(inGroup[i]))
+              ||  IS_STORE_QUEUE && isStoreIns(decAbs(inGroup[i]));
+
             if (applies) begin
                 content[endPointer % SIZE] = '{inGroup[i].id, 0, 0, 'x, 'x};
-                    putMilestone(inGroup[i].id, QUEUE_ENTER);
+                putMilestone(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
         end
@@ -181,9 +183,6 @@ module StoreQueue
     
     
     task automatic handleForwards();
-            TMP_matched <= EMPTY_ENTRY;
-            TMP_fw <= NO_LOAD;
-    
         foreach (theExecBlock.toLq[p]) begin
             logic active = theExecBlock.toLq[p].active;
             Word adr = theExecBlock.toLq[p].result;
@@ -191,75 +190,29 @@ module StoreQueue
 
             theExecBlock.fromSq[p] <= EMPTY_OP_PACKET;
             
-            if (active !== 1) begin  /*$display("not active");*/  continue; end
-            if (!isLoadMemIns(decId(theExecBlock.toLq[p].id))) begin  /*$display("not load??\n%p", decId(theExecBlock.toLq[p].id));*/  continue; end
+            if (active !== 1) continue;
+            if (!isLoadMemIns(decId(theExecBlock.toLq[p].id))) continue;
             
-            st = scanQueue(theExecBlock.toLq[p].id, adr);
             theExecBlock.fromSq[p] <= scanQueue_P(theExecBlock.toLq[p].id, adr);
-
-                if (p == 0) TMP_fw <= st;
-
-
         end
     endtask
     
     
-
-    
-    
-
-    function automatic MatchStatus scanQueue(input InsId id, input Word adr);    
-        QueueEntry found[$] = content.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
-        
-            //$error(" scanign ! %d", found.size());
-        
-        if (found.size() == 0) return NO_MATCH;
-        else if (found.size() == 1) begin
-                TMP_matched <= found[0];
-        
-            if (wordInside(adr, found[0].adr)) return SINGLE_EXACT;
-            else return SINGLE_INEXACT;
-        end
-        else begin
-            QueueEntry sorted[$] = found[0:$];
-            sorted.sort with (item.id);
-                
-               if (0) $error("found multiple: %p", sorted);
-                
-                TMP_matched <= sorted[$];
-                
-            return MULTIPLE;
-        end
-    
-    endfunction
-    
     function automatic OpPacket scanQueue_P(input InsId id, input Word adr);
         // TODO: don't include sys stores in adr matching 
         QueueEntry found[$] = content.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
-        
-            //$error(" scanign ! %d", found.size());
-        
+       
         if (found.size() == 0) return EMPTY_OP_PACKET;
-        else if (found.size() == 1) begin
-              //  TMP_matched <= found[0];
-        
-               // if (found[0].id == 4030) $display("%p -> %p", insMap.get(found[0].id), insMap.get(id));
-        
+        else if (found.size() == 1) begin        
             if (wordInside(adr, found[0].adr)) return '{1, found[0].id, ES_OK, EMPTY_POISON, 'x, found[0].val};
             else return '{1, found[0].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
         end
         else begin
             QueueEntry sorted[$] = found[0:$];
             sorted.sort with (item.id);
-                
-              //  $error("found multiple: %p", sorted);
-                
-              //  TMP_matched <= sorted[$];
             
             if (wordInside(adr, sorted[$].adr)) return '{1, sorted[$].id, ES_OK, EMPTY_POISON, 'x, sorted[$].val};
-            
             return '{1, sorted[$].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
-            
         end
 
     endfunction

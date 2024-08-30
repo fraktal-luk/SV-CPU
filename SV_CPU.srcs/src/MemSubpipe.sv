@@ -173,16 +173,22 @@ module MemSubpipe#(
             InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(id);
             InsId writerInsideId = AbstractCore.memTracker.checkWriter_Inside(id);
         
-
         logic forwarded = (writerAllId !== -1);
+        
         Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
         Word memData = forwarded ? fwValue : readResp.result;
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
             if (writerOverlapId != writerInsideId) $error("Cannot forward from last overlapping store!");
-
-
-        if (forwarded) begin
+            
+            if (isLoadMemIns(decId(id)))  assert (forwarded === sqResp.active) else begin
+                $error("AAAAA: %d, %d", forwarded, sqResp.active);
+                
+                $error("%p  from  %p", insMap.get(id), insMap.get(writerAllId));
+            end
+            
+        if (forwarded && isLoadMemIns(decId(id))) begin
+                assert (writerInsideId == sqResp.id) else $error("SQ id not matchinf memTracker id");
             putMilestone(writerAllId, InstructionMap::MemFwProduce);
             putMilestone(id, InstructionMap::MemFwConsume);
         end
