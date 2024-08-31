@@ -72,7 +72,7 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
+        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
     
     // Event control
@@ -231,6 +231,8 @@ module AbstractCore
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
+
+           drainHead <= csq[0];
 
        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
 

@@ -182,9 +182,12 @@ module MemSubpipe#(
             if (writerOverlapId != writerInsideId) $error("Cannot forward from last overlapping store!");
             
             if (isLoadMemIns(decId(id)))  assert (forwarded === sqResp.active) else begin
-                $error("AAAAA: %d, %d", forwarded, sqResp.active);
+                InstructionInfo thisInfo, writerInfo;
+                if (id != -1) thisInfo = insMap.get(id);
+                if (writerAllId != -1) writerInfo = insMap.get(writerAllId);
                 
-                $error("%p  from  %p", insMap.get(id), insMap.get(writerAllId));
+                $error("AAAAA: %d, %d", forwarded, sqResp.active);
+                $error("%p  from  %p", thisInfo, writerInfo);
             end
             
         if (forwarded && isLoadMemIns(decId(id))) begin

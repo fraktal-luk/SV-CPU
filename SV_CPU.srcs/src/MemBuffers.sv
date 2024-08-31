@@ -35,21 +35,23 @@ module StoreQueue
     typedef struct {
         InsId id;
         
+        logic committed;
+        
         logic adrReady;
         logic valReady;
         Mword adr;
         Mword val;
     } QueueEntry;
 
-    const QueueEntry EMPTY_ENTRY = '{-1, 0, 0, 'x, 'x};
+    const QueueEntry EMPTY_ENTRY = '{-1, 0, 0, 0, 'x, 'x};
 
     int startPointer = 0, endPointer = 0, drainPointer = 0;
     
     int size;
     logic allow;
     
-    assign size = (endPointer - startPointer + 2*SIZE) % (2*SIZE);
-                  //(endPointer - drainPointer + 2*SIZE) % (2*SIZE);
+    assign size = //(endPointer - startPointer + 2*SIZE) % (2*SIZE);
+                  (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
     assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
     QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
@@ -77,10 +79,17 @@ module StoreQueue
 
     
     task automatic flushAll();
-        for (int i = 0; i < SIZE; i++)
-            if (content[i].id != -1) putMilestone(content[i % SIZE].id, QUEUE_FLUSH);
+        foreach (content[i]) begin
+            if (content[i].committed) continue; 
+            
+            if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);
 
-        content = '{default: EMPTY_ENTRY};
+            content[i] = EMPTY_ENTRY;
+        end
+//        for (int i = 0; i < SIZE; i++)
+//            if (content[i].id != -1) putMilestone(content[i % SIZE].id, QUEUE_FLUSH);
+
+//        content = '{default: EMPTY_ENTRY};
         endPointer = startPointer;
     endtask
 
@@ -112,15 +121,18 @@ module StoreQueue
             nOut++;
                 
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
-            content[startPointer % SIZE] = EMPTY_ENTRY;
                 
-                if (IS_STORE_QUEUE) content[startPointer % SIZE].val = thisId; // TMP: DB reminder what has been here
-                
+            if (IS_STORE_QUEUE) content[startPointer % SIZE].committed = 1; // TMP: DB reminder what has been here
+            else content[startPointer % SIZE] = EMPTY_ENTRY;
+
             startPointer = (startPointer+1) % (2*SIZE);
         end
         
         if (IS_STORE_QUEUE) begin
-            if (AbstractCore.storeHead.op.active) drainPointer = (drainPointer+1) % (2*SIZE);
+            if (AbstractCore.drainHead.op.active) begin
+                content[drainPointer % SIZE] = EMPTY_ENTRY;
+                drainPointer = (drainPointer+1) % (2*SIZE);
+            end
         end
         else begin
             drainPointer = startPointer;
@@ -157,7 +169,7 @@ module StoreQueue
               ||  IS_STORE_QUEUE && isStoreIns(decAbs(inGroup[i]));
 
             if (applies) begin
-                content[endPointer % SIZE] = '{inGroup[i].id, 0, 0, 'x, 'x};
+                content[endPointer % SIZE] = '{inGroup[i].id, 0, 0, 0, 'x, 'x};
                 putMilestone(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
