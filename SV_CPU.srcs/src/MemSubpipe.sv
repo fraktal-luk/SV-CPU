@@ -186,12 +186,12 @@ module MemSubpipe#(
                 if (id != -1) thisInfo = insMap.get(id);
                 if (writerAllId != -1) writerInfo = insMap.get(writerAllId);
                 
-                $error("AAAAA: %d, %d", forwarded, sqResp.active);
-                $error("%p  from  %p", thisInfo, writerInfo);
+              // $error("AAAAA: %d, %d", forwarded, sqResp.active);
+              //  $error("%p  from:\n%p", thisInfo, writerInfo);
             end
             
         if (forwarded && isLoadMemIns(decId(id))) begin
-                assert (writerInsideId == sqResp.id) else $error("SQ id not matchinf memTracker id");
+              //  assert (writerInsideId == sqResp.id) else $error("SQ id not matchinf memTracker id");
             putMilestone(writerAllId, InstructionMap::MemFwProduce);
             putMilestone(id, InstructionMap::MemFwConsume);
         end

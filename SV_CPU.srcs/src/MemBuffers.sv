@@ -70,7 +70,7 @@ module StoreQueue
         update();
     
         if (lateEventInfo.redirect)
-            flushAll();
+           flushAll();
         else if (branchEventInfo.redirect)
            flushPartial(); 
         else
@@ -80,10 +80,11 @@ module StoreQueue
     
     task automatic flushAll();
         foreach (content[i]) begin
-            if (content[i].committed) continue; 
+            //if (content[i].committed) continue; 
             
             if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);
-
+            
+            //if (lateEventInfo.reset || lateEventInfo.interrupt || lateEventInfo.op.id < content[i].id)
             content[i] = EMPTY_ENTRY;
         end
 //        for (int i = 0; i < SIZE; i++)
@@ -121,15 +122,20 @@ module StoreQueue
             nOut++;
                 
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
-                
-            if (IS_STORE_QUEUE) content[startPointer % SIZE].committed = 1; // TMP: DB reminder what has been here
+
+            if (0 && IS_STORE_QUEUE) begin 
+                //if (lateEventInfo.op.active && lateEventInfo.op.id) begin end
+                content[startPointer % SIZE].committed = 1;
+            end
             else content[startPointer % SIZE] = EMPTY_ENTRY;
 
             startPointer = (startPointer+1) % (2*SIZE);
         end
         
-        if (IS_STORE_QUEUE) begin
+        if (0 && IS_STORE_QUEUE) begin
             if (AbstractCore.drainHead.op.active) begin
+                    assert (AbstractCore.drainHead.op.id == content[drainPointer % SIZE].id) else $error("Not matching id drain %d/%d", AbstractCore.drainHead.op.id, content[drainPointer % SIZE].id);
+            
                 content[drainPointer % SIZE] = EMPTY_ENTRY;
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
@@ -138,6 +144,7 @@ module StoreQueue
             drainPointer = startPointer;
         end
     endtask
+
 
     task automatic update();
         foreach (wrInputs[p]) begin

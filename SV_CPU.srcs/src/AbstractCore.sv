@@ -72,6 +72,9 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+            StoreQueueEntry csq_Mirror[4] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+            string csqStr;
+            
         StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
     
@@ -157,6 +160,10 @@ module AbstractCore
 
         // Complete + write regs
         handleCompletion();
+        
+            //csq_Mirror <= csq[0:$];
+        
+            $swrite(csqStr, "%p", csq);
         
         updateBookkeeping();
     end
