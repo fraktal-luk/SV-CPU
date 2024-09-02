@@ -1,6 +1,7 @@
 
 package Base;
 
+    typedef logic[7:0]  Mbyte;
     typedef logic[31:0] Word;
     typedef logic[63:0] Dword;
 

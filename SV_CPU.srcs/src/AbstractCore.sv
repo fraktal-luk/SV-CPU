@@ -72,7 +72,10 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x};
+            StoreQueueEntry csq_Mirror[4] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+            string csqStr;
+            
+        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
     
     // Event control
@@ -122,11 +125,11 @@ module AbstractCore
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
     StoreQueue#(.SIZE(SQ_SIZE))
-        theSq(insMap, branchEventInfo, lateEventInfo, stageRename1, sqOut);
+        theSq(insMap, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE))
-        theLq(insMap, branchEventInfo, lateEventInfo, stageRename1, lqOut);
+        theLq(insMap, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLq);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE))
-        theBq(insMap, branchEventInfo, lateEventInfo, stageRename1, bqOut);
+        theBq(insMap, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq);
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
@@ -157,6 +160,10 @@ module AbstractCore
 
         // Complete + write regs
         handleCompletion();
+        
+            //csq_Mirror <= csq[0:$];
+        
+            $swrite(csqStr, "%p", csq);
         
         updateBookkeeping();
     end
@@ -231,6 +238,8 @@ module AbstractCore
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
+
+           drainHead <= csq[0];
 
        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
 

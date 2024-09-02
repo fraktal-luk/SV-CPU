@@ -143,7 +143,13 @@ module ExecBlock(ref InstructionMap insMap,
     
     OpPacket toReplayQueue0, toReplayQueue2;
     OpPacket toReplayQueue[N_MEM_PORTS];
-    
+
+    OpPacket toLq[N_MEM_PORTS];
+    OpPacket toSq[N_MEM_PORTS];
+    OpPacket toBq[N_MEM_PORTS]; // TODO: Customize this width in MemBuffer (or make whole new module for BQ)?  
+
+    OpPacket fromSq[N_MEM_PORTS];
+
 
     // Int 0
     RegularSubpipe regular0(
@@ -176,7 +182,8 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
             readReqs[0],
-            readResps[0]
+            readResps[0],
+            fromSq[0]
     );
 
 
@@ -188,7 +195,8 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
             readReqs[2],
-            readResps[2]
+            readResps[2],
+            fromSq[2]
     );
 
 
@@ -238,17 +246,6 @@ module ExecBlock(ref InstructionMap insMap,
         else return EMPTY_OP_PACKET;
     endfunction
 
-//    typedef OpPacket OpPacketsMem[N_MEM_PORTS];
-
-//    function automatic OpPacketsMem memPortsToReplay(input OpPacketsMem ps);
-//        OpPacketsMem res;
-        
-//        foreach (res[i])
-//            res[i] = memToReplay(ps[i]);
-        
-//        return res;
-//    endfunction
-
 
 
     assign doneRegular0 = regular0.stage0;
@@ -276,6 +273,9 @@ module ExecBlock(ref InstructionMap insMap,
     assign toReplayQueue2 = memToReplay(mem2.stage0_E);
     
     assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_OP_PACKET};
+    
+    assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_OP_PACKET};
+    assign toSq = toLq;
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
