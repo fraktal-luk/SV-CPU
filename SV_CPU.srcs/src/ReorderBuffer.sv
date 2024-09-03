@@ -53,16 +53,16 @@ module ReorderBuffer
     
     
 
-    Row outRow = EMPTY_ROW;
+    Row outRow = EMPTY_ROW, outRow_D = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
-    InsId lastIn = -1, lastRestored = -1, lastOut = -1;
+    InsId lastIn = -1, lastOut = -1;
     
     assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - 3);
     
     task automatic flushArrayAll();
-            lastRestored = lateEventInfo.op.id;
+          //  lastRestored = lateEventInfo.op.id;
         
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
@@ -82,7 +82,7 @@ module ReorderBuffer
         InsId causingId = branchEventInfo.op.id;
         int p = startPointer;
         
-            lastRestored = branchEventInfo.op.id;
+           // lastRestored = branchEventInfo.op.id;
             
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
@@ -128,28 +128,43 @@ module ReorderBuffer
     endtask
     
     
-    assign outGroup = makeOutGroup(outRow);
+    assign outGroup = //makeOutGroup(outRow);
+                      makeOutGroup(outRow_D);
     
     
     always @(posedge AbstractCore.clk) begin
 
-        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect)
-            outRow <= EMPTY_ROW;
-        else if (frontCompleted()) begin
-            automatic Row row = array[startPointer % DEPTH];
-                lastOut <= getLastOut(lastOut, array[startPointer % DEPTH].records);
-            
-            foreach (row.records[i])
-                putMilestone(row.records[i].id, InstructionMap::RobExit);
+        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
                 
-            outRow <= row;
+            foreach (outRow.records[i]) begin
+                if (outRow.records[i].id == -1) continue;
+                putMilestone(outRow.records[i].id, InstructionMap::FlushCommit);
+            end
 
-            array[startPointer % DEPTH] = EMPTY_ROW;
-            startPointer = (startPointer+1) % (2*DEPTH);
-            
-        end
-        else
             outRow <= EMPTY_ROW;
+           
+            outRow_D <= EMPTY_ROW;
+        end
+        else if (frontCompleted()) begin
+//            automatic Row row = array[startPointer % DEPTH];
+//                lastOut <= getLastOut(lastOut, array[startPointer % DEPTH].records);
+            
+//            foreach (row.records[i])
+//                if (row.records[i].id != -1) putMilestone(row.records[i].id, InstructionMap::RobExit);
+
+//            array[startPointer % DEPTH] = EMPTY_ROW;
+//            startPointer = (startPointer+1) % (2*DEPTH);
+            
+//            outRow <= row;
+            
+            readOutRow();
+            
+            outRow_D <= outRow;
+        end
+        else begin
+            outRow <= EMPTY_ROW;
+            outRow_D <= outRow;
+        end
 
         markCompleted();
 
@@ -163,6 +178,21 @@ module ReorderBuffer
             add(inGroup);
 
     end
+
+
+    task automatic readOutRow();
+        Row row = array[startPointer % DEPTH];
+            lastOut <= getLastOut(lastOut, array[startPointer % DEPTH].records);
+        
+        foreach (row.records[i])
+            if (row.records[i].id != -1) putMilestone(row.records[i].id, InstructionMap::RobExit);
+
+        array[startPointer % DEPTH] = EMPTY_ROW;
+        startPointer = (startPointer+1) % (2*DEPTH);
+        
+        outRow <= row;
+    endtask
+    
 
 
     function automatic OpRecordA makeRecord(input OpSlotA ops);

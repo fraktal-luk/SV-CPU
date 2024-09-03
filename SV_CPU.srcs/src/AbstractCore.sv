@@ -52,6 +52,14 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
+        typedef struct {
+            InsId last = -1;
+            InsId lastWq = -1;
+        } CommittedState;
+        
+        CommittedState committedState;
+
+
     // Exec
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
@@ -487,16 +495,23 @@ module AbstractCore
         endtask
 
 
+    function automatic logic breaksCommit(input OpSlot op);
+        return (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op)));
+    endfunction
+    
+
     task automatic advanceCommit();
+        logic cancelRest = 0;
         // Don't commit anything more if event is being handled
         if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
-            if (opC.active) commitOp(opC);
+            if (opC.active && !cancelRest) commitOp(opC);
+            else if (opC.active && cancelRest) cancelOp(opC);
             else continue;
 
-            if (isSysIns(decAbs(opC)) && !isStoreSysIns(decAbs(opC))) break;
+            if (breaksCommit(opC)) cancelRest = 1;
         end
     endtask
 
@@ -527,7 +542,9 @@ module AbstractCore
     task automatic commitOp(input OpSlot opC);
         InstructionInfo insInfo = insMap.get(opC.id);
         OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-
+                
+            committedState.last <= op.id; 
+            
         assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
         verifyOnCommit(op);
@@ -540,7 +557,10 @@ module AbstractCore
         
         if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
-            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};        
+            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};
+            
+                committedState.lastWq <= op.id;
+            
             csq.push_back(sqe);
             putMilestone(op.id, InstructionMap::WqEnter);
         end
@@ -559,6 +579,42 @@ module AbstractCore
             putMilestone(op.id, InstructionMap::Retire);
             insMap.setRetired(op.id);
     endtask
+
+
+
+    task automatic cancelOp(input OpSlot opC);
+        InstructionInfo insInfo = insMap.get(opC.id);
+        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+                
+        //    committedState.last <= op.id; 
+            
+        assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
+
+        //verifyOnCommit(op);
+        //checkUnimplementedInstruction(decAbs(op));
+
+        //updateInds(commitInds, op); // Crucial
+        //commitInds.renameG = insMap.get(op.id).inds.renameG;
+
+        //registerTracker.commit(insInfo.dec, op.id);
+        
+        
+        //if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
+        //if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
+
+        // Crucial state
+        //retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
+
+        //releaseQueues(op); // Crucial state
+
+//            coreDB.lastRetired = op;
+//            coreDB.nRetired++;
+            
+            putMilestone(op.id, InstructionMap::FlushCommit);
+            insMap.setKilled(op.id);
+    endtask
+
+
 
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);

@@ -112,10 +112,17 @@ module StoreQueue
     endtask
     
     
+    localparam logic SQ_RETAIN = 0;
+    
+    
     task automatic advance();
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT};
-        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut) begin
+        while (content[startPointer % SIZE].id != -1
+            && content[startPointer % SIZE].id <= //AbstractCore.committedState.last
+                                                  AbstractCore.theRob.lastOut
+               )
+        begin
             InsId thisId = content[startPointer % SIZE].id;
             outGroup[nOut].id <= content[startPointer % SIZE].id;
             outGroup[nOut].active <= 1;
@@ -123,7 +130,7 @@ module StoreQueue
                 
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
 
-            if (0 && IS_STORE_QUEUE) begin 
+            if (SQ_RETAIN && IS_STORE_QUEUE) begin
                 //if (lateEventInfo.op.active && lateEventInfo.op.id) begin end
                 content[startPointer % SIZE].committed = 1;
             end
@@ -132,7 +139,7 @@ module StoreQueue
             startPointer = (startPointer+1) % (2*SIZE);
         end
         
-        if (0 && IS_STORE_QUEUE) begin
+        if (SQ_RETAIN && IS_STORE_QUEUE) begin
             if (AbstractCore.drainHead.op.active) begin
                     assert (AbstractCore.drainHead.op.id == content[drainPointer % SIZE].id) else $error("Not matching id drain %d/%d", AbstractCore.drainHead.op.id, content[drainPointer % SIZE].id);
             

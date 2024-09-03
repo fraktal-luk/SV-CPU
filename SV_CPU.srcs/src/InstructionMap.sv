@@ -90,6 +90,7 @@ package Insmap;
             WriteResult,
             //Complete,
             
+            FlushCommit,
             Retire,
             
             Drain
@@ -330,15 +331,17 @@ package Insmap;
         // a. Killed in Front
         // b. Killed in OOO
         // c. Retired
-        typedef enum { EC_KilledFront, EC_KilledOOO, EC_Retired } ExecClass;
+        typedef enum { EC_KilledFront, EC_KilledOOO, EC_KilledCommit, EC_Retired } ExecClass;
     
         function automatic ExecClass determineClass(input MilestoneTag tags[$]);
             MilestoneTag retirement[$] = tags.find with (item.kind == Retire);
             MilestoneTag frontKill[$] = tags.find with (item.kind == FlushFront);
+            MilestoneTag commitKill[$] = tags.find with (item.kind == FlushCommit);
             
             assert (tags[0].kind == GenAddress) else $fatal(2, "Op not starting with GenAdress");
             
             if (frontKill.size() > 0) return EC_KilledFront;
+            if (commitKill.size() > 0) return EC_KilledCommit;
             if (retirement.size() > 0) return EC_Retired;
             return EC_KilledOOO;            
         endfunction
@@ -382,7 +385,36 @@ package Insmap;
             
             return 1;        
         endfunction
+
+        function automatic logic checkKilledCommit(input InsId id, input MilestoneTag tags[$]);
+            AbstractInstruction dec = get(id).dec;
+      
+            MilestoneTag tag = tags.pop_front();
+            assert (tag.kind == GenAddress) else $error("  k////");
+            tag = tags.pop_front();
+            assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
+            
+//            // Has it entered the ROB or killed right after Rename?
+//            if (!has(tags, RobEnter)) begin
+//                tag = tags.pop_front();
+//                assert (tag.kind == FlushOOO) else begin
+//                    $error("ROB not entered but not FlushOOO!");
+//                    return 0;
+//                end
+                
+//                assert (tags.size() == 0) else $error(" strange %d: %p", id, tags);
+//                return 1;
+//            end
+                        
+            //assert (checkKilledIq(tags)) else $error("wrong k iq");
     
+            if (isStoreIns(dec)) assert (checkKilledStore(tags)) else $error("wrong kStore op");
+            if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
+            if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
+            
+            return 1;        
+        endfunction
+
         function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$]);
             AbstractInstruction dec = get(id).dec;
         
@@ -518,6 +550,7 @@ package Insmap;
             ExecClass eclass = determineClass(tags);
             
             if (eclass == EC_KilledFront) return checkKilledFront(id, tags);
+            else if (eclass == EC_KilledCommit) return checkKilledCommit(id, tags);
             else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags);
             else return checkRetired(id, tags);            
         endfunction
