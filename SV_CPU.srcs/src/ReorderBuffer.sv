@@ -64,6 +64,10 @@ module ReorderBuffer
     
     InsId lastIn = -1, lastOut = -1;
     
+    logic commitStalled = 0;
+    
+    
+    
     assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - 3);
     
@@ -76,7 +80,7 @@ module ReorderBuffer
         if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
             outRow <= EMPTY_ROW;
         end
-        else if (frontCompleted()) begin
+        else if (frontCompleted() && commitQ.size() <= 3*WIDTH - 2*WIDTH) begin
             readOutRow();
         end
         else begin
@@ -86,7 +90,7 @@ module ReorderBuffer
         outRow_D <= tickRow(outRow);
         outRow_D2 <= tickRow(outRow_D);
 
-            outRow_D2_Alt <= takeFromQueue(commitQ);
+            outRow_D2_Alt <= takeFromQueue(commitQ, commitStalled);
             insertToQueue(commitQ, tickRow(outRow));
 
         markCompleted();
@@ -144,7 +148,7 @@ module ReorderBuffer
                 end 
         endfunction
 
-        function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH]);
+        function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH], input logic stall);
             Row res = EMPTY_ROW;
             
             if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
@@ -153,6 +157,8 @@ module ReorderBuffer
                 
                 q = '{};
             end
+            
+            if (stall) return res; // Not removing from queue
             
             foreach (res.records[i]) begin
                 if (q.size() > 0) res.records[i] = q.pop_front();
