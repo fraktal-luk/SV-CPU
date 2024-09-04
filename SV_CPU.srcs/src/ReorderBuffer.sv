@@ -38,6 +38,10 @@ module ReorderBuffer
         OpRecord records[WIDTH];
     } Row;
 
+        OpRecord commitQ[$];
+        OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
+    
+
     const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
     function automatic OpSlotA makeOutGroup(input Row row);
@@ -53,7 +57,7 @@ module ReorderBuffer
     
     
 
-    Row outRow = EMPTY_ROW, outRow_D = EMPTY_ROW;
+    Row outRow = EMPTY_ROW, outRow_D = EMPTY_ROW, outRow_D2 = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
     InsId lastIn = -1, lastOut = -1;
@@ -61,6 +65,72 @@ module ReorderBuffer
     assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - 3);
     
+    
+    assign outGroup = //makeOutGroup(outRow);
+                      //makeOutGroup(outRow_D);
+                      makeOutGroup(outRow_D2);
+    
+    
+    always @(posedge AbstractCore.clk) begin
+
+        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+                
+            foreach (outRow.records[i]) begin
+                if (outRow.records[i].id == -1) continue;
+                putMilestone(outRow.records[i].id, InstructionMap::FlushCommit);
+            end
+
+            outRow <= EMPTY_ROW;
+           
+            //outRow_D <= EMPTY_ROW;
+        end
+        else if (frontCompleted()) begin
+            readOutRow();
+            
+            //outRow_D <= outRow;
+        end
+        else begin
+            outRow <= EMPTY_ROW;
+            //outRow_D <= outRow;
+        end
+
+//            if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+//                outRow_D <= EMPTY_ROW;
+//            end
+//            else begin
+//                outRow_D <= outRow;
+//            end
+            
+            outRow_D <= tickRow(outRow);
+            outRow_D2 <= tickRow(outRow_D);
+
+        markCompleted();
+
+        if (lateEventInfo.redirect) begin
+            flushArrayAll();
+        end
+        else if (branchEventInfo.redirect) begin
+            flushArrayPartial();
+        end
+        else if (anyActive(inGroup))
+            add(inGroup);
+
+    end
+
+
+        function automatic Row tickRow(input Row row);
+            if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+                            foreach (row.records[i]) begin
+                                if (row.records[i].id == -1) continue;
+                                putMilestone(row.records[i].id, InstructionMap::FlushCommit);
+                            end
+                return EMPTY_ROW;
+            end
+            else
+                return row;
+        endfunction
+
+
     task automatic flushArrayAll();
           //  lastRestored = lateEventInfo.op.id;
         
@@ -126,58 +196,6 @@ module ReorderBuffer
         markPacketCompleted(theExecBlock.doneMem2_E);
         markPacketCompleted(theExecBlock.doneSys_E);
     endtask
-    
-    
-    assign outGroup = //makeOutGroup(outRow);
-                      makeOutGroup(outRow_D);
-    
-    
-    always @(posedge AbstractCore.clk) begin
-
-        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
-                
-            foreach (outRow.records[i]) begin
-                if (outRow.records[i].id == -1) continue;
-                putMilestone(outRow.records[i].id, InstructionMap::FlushCommit);
-            end
-
-            outRow <= EMPTY_ROW;
-           
-            outRow_D <= EMPTY_ROW;
-        end
-        else if (frontCompleted()) begin
-//            automatic Row row = array[startPointer % DEPTH];
-//                lastOut <= getLastOut(lastOut, array[startPointer % DEPTH].records);
-            
-//            foreach (row.records[i])
-//                if (row.records[i].id != -1) putMilestone(row.records[i].id, InstructionMap::RobExit);
-
-//            array[startPointer % DEPTH] = EMPTY_ROW;
-//            startPointer = (startPointer+1) % (2*DEPTH);
-            
-//            outRow <= row;
-            
-            readOutRow();
-            
-            outRow_D <= outRow;
-        end
-        else begin
-            outRow <= EMPTY_ROW;
-            outRow_D <= outRow;
-        end
-
-        markCompleted();
-
-        if (lateEventInfo.redirect) begin
-            flushArrayAll();
-        end
-        else if (branchEventInfo.redirect) begin
-            flushArrayPartial();
-        end
-        else if (anyActive(inGroup))
-            add(inGroup);
-
-    end
 
 
     task automatic readOutRow();
