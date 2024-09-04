@@ -41,6 +41,8 @@ module ReorderBuffer
         OpRecord commitQ[$:3*WIDTH];
         OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
     
+        typedef OpRecord QM[3*WIDTH];
+
 
     const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
@@ -57,7 +59,7 @@ module ReorderBuffer
     
     
 
-    Row outRow = EMPTY_ROW, outRow_D = EMPTY_ROW, outRow_D2 = EMPTY_ROW;
+    Row outRow = EMPTY_ROW, outRow_D = EMPTY_ROW, outRow_D2 = EMPTY_ROW, outRow_D2_Alt = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
     InsId lastIn = -1, lastOut = -1;
@@ -72,12 +74,6 @@ module ReorderBuffer
     always @(posedge AbstractCore.clk) begin
 
         if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
-                
-//            foreach (outRow.records[i]) begin
-//                if (outRow.records[i].id == -1) continue;
-//                putMilestone(outRow.records[i].id, InstructionMap::FlushCommit);
-//            end
-
             outRow <= EMPTY_ROW;
         end
         else if (frontCompleted()) begin
@@ -90,6 +86,9 @@ module ReorderBuffer
         outRow_D <= tickRow(outRow);
         outRow_D2 <= tickRow(outRow_D);
 
+            outRow_D2_Alt <= takeFromQueue(commitQ);
+            insertToQueue(commitQ, tickRow(outRow));
+
         markCompleted();
 
         if (lateEventInfo.redirect) begin
@@ -100,8 +99,23 @@ module ReorderBuffer
         end
         else if (anyActive(inGroup))
             add(inGroup);
+        
+            
+        
+        commitQM <= makeQM(commitQ);
+        
 
     end
+
+        
+        function automatic QM makeQM(input OpRecord q[$:3*WIDTH]);
+            QM res = '{default: EMPTY_RECORD};
+            
+            foreach (q[i]) res[i] = q[i];
+            
+            return res;
+        endfunction
+
 
         function automatic OpRecord tickRecord(input OpRecord rec);
             if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
@@ -114,16 +128,6 @@ module ReorderBuffer
         endfunction
 
         function automatic Row tickRow(input Row row);
-//            if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
-//                foreach (row.records[i]) begin
-//                    if (row.records[i].id == -1) continue;
-//                    putMilestone(row.records[i].id, InstructionMap::FlushCommit);
-//                end
-//                return EMPTY_ROW;
-//            end
-//            else
-//                return row;
-                
             Row res;
 
             foreach (res.records[i])
@@ -142,8 +146,17 @@ module ReorderBuffer
 
         function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH]);
             Row res = EMPTY_ROW;
+            
+            if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+                foreach (q[i])
+                    if (q[i].id != -1) putMilestone(q[i].id, InstructionMap::FlushCommit);
+                
+                q = '{};
+            end
+            
             foreach (res.records[i]) begin
                 if (q.size() > 0) res.records[i] = q.pop_front();
+                else break;
                 
             end
             
