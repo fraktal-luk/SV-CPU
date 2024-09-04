@@ -38,7 +38,7 @@ module ReorderBuffer
         OpRecord records[WIDTH];
     } Row;
 
-        OpRecord commitQ[$];
+        OpRecord commitQ[$:3*WIDTH];
         OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
     
 
@@ -66,43 +66,29 @@ module ReorderBuffer
     assign allow = (size < DEPTH - 3);
     
     
-    assign outGroup = //makeOutGroup(outRow);
-                      //makeOutGroup(outRow_D);
-                      makeOutGroup(outRow_D2);
+    assign outGroup = makeOutGroup(outRow_D2);
     
     
     always @(posedge AbstractCore.clk) begin
 
         if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
                 
-            foreach (outRow.records[i]) begin
-                if (outRow.records[i].id == -1) continue;
-                putMilestone(outRow.records[i].id, InstructionMap::FlushCommit);
-            end
+//            foreach (outRow.records[i]) begin
+//                if (outRow.records[i].id == -1) continue;
+//                putMilestone(outRow.records[i].id, InstructionMap::FlushCommit);
+//            end
 
             outRow <= EMPTY_ROW;
-           
-            //outRow_D <= EMPTY_ROW;
         end
         else if (frontCompleted()) begin
             readOutRow();
-            
-            //outRow_D <= outRow;
         end
         else begin
             outRow <= EMPTY_ROW;
-            //outRow_D <= outRow;
         end
 
-//            if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
-//                outRow_D <= EMPTY_ROW;
-//            end
-//            else begin
-//                outRow_D <= outRow;
-//            end
-            
-            outRow_D <= tickRow(outRow);
-            outRow_D2 <= tickRow(outRow_D);
+        outRow_D <= tickRow(outRow);
+        outRow_D2 <= tickRow(outRow_D);
 
         markCompleted();
 
@@ -117,23 +103,55 @@ module ReorderBuffer
 
     end
 
-
-        function automatic Row tickRow(input Row row);
+        function automatic OpRecord tickRecord(input OpRecord rec);
             if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
-                            foreach (row.records[i]) begin
-                                if (row.records[i].id == -1) continue;
-                                putMilestone(row.records[i].id, InstructionMap::FlushCommit);
-                            end
-                return EMPTY_ROW;
+                if (rec.id != -1)
+                    putMilestone(rec.id, InstructionMap::FlushCommit);
+                return EMPTY_RECORD;
             end
             else
-                return row;
+                return rec;
+        endfunction
+
+        function automatic Row tickRow(input Row row);
+//            if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+//                foreach (row.records[i]) begin
+//                    if (row.records[i].id == -1) continue;
+//                    putMilestone(row.records[i].id, InstructionMap::FlushCommit);
+//                end
+//                return EMPTY_ROW;
+//            end
+//            else
+//                return row;
+                
+            Row res;
+
+            foreach (res.records[i])
+                res.records[i] = tickRecord(row.records[i]);
+                
+            return res;
+        endfunction
+
+        function automatic void insertToQueue(ref OpRecord q[$:3*WIDTH], input Row row);
+            foreach (row.records[i])
+                if (row.records[i].id != -1) begin
+                    assert (row.records[i].completed === 1) else $fatal(2, "not compl");
+                    q.push_back(row.records[i]);
+                end 
+        endfunction
+
+        function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH]);
+            Row res = EMPTY_ROW;
+            foreach (res.records[i]) begin
+                if (q.size() > 0) res.records[i] = q.pop_front();
+                
+            end
+            
+            return res;
         endfunction
 
 
-    task automatic flushArrayAll();
-          //  lastRestored = lateEventInfo.op.id;
-        
+    task automatic flushArrayAll();        
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
             foreach (row[c])
@@ -151,9 +169,7 @@ module ReorderBuffer
         int causingSlot = insMap.get(branchEventInfo.op.id).slot;
         InsId causingId = branchEventInfo.op.id;
         int p = startPointer;
-        
-           // lastRestored = branchEventInfo.op.id;
-            
+                    
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
             for (int c = 0; c < WIDTH; c++) begin
