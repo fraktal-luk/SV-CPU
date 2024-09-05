@@ -72,7 +72,9 @@ module ReorderBuffer
     assign allow = (size < DEPTH - 3);
     
     
-    assign outGroup = makeOutGroup(outRow_D2);
+    assign outGroup = //makeOutGroup(outRow_D2);
+                      makeOutGroup(outRow_D2_Alt);
+    
     
     
     always @(posedge AbstractCore.clk) begin
@@ -161,8 +163,11 @@ module ReorderBuffer
             if (stall) return res; // Not removing from queue
             
             foreach (res.records[i]) begin
-                if (q.size() > 0) res.records[i] = q.pop_front();
-                else break;
+                if (q.size() == 0) break;
+                
+                res.records[i] = q.pop_front();
+                
+                if (breaksCommitId(res.records[i].id)) break;
                 
             end
             

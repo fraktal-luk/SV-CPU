@@ -498,7 +498,11 @@ module AbstractCore
     function automatic logic breaksCommit(input OpSlot op);
         return (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op)));
     endfunction
-    
+
+    function automatic logic breaksCommitId(input InsId id);
+        return (isSysIns(decId(id)) && !isStoreSysIns(decId(id)));
+    endfunction
+
 
     task automatic advanceCommit();
         logic cancelRest = 0;
@@ -609,6 +613,8 @@ module AbstractCore
 
 //            coreDB.lastRetired = op;
 //            coreDB.nRetired++;
+            
+         $error(" cancel at commit %d", opC.id);
             
             putMilestone(op.id, InstructionMap::FlushCommit);
             insMap.setKilled(op.id);
