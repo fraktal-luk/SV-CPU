@@ -80,7 +80,7 @@ module StoreQueue
     
     task automatic flushAll();
         foreach (content[i]) begin
-            //if (content[i].committed) continue; 
+            if (content[i].committed) continue; 
             
             if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);
             
