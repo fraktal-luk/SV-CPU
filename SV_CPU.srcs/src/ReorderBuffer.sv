@@ -62,7 +62,7 @@ module ReorderBuffer
     Row outRow = EMPTY_ROW, outRow_D = EMPTY_ROW, outRow_D2 = EMPTY_ROW, outRow_D2_Alt = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
-    InsId lastIn = -1, lastOut = -1;
+    InsId lastIn = -1, lastOut = -1, lastOut_N = -1;
     
     logic commitStalled = 0;
     
@@ -78,6 +78,7 @@ module ReorderBuffer
     
     
     always @(posedge AbstractCore.clk) begin
+        automatic Row outRow_D2_Alt_Pre;
 
         if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
             outRow <= EMPTY_ROW;
@@ -92,7 +93,12 @@ module ReorderBuffer
         outRow_D <= tickRow(outRow);
         outRow_D2 <= tickRow(outRow_D);
 
-            outRow_D2_Alt <= takeFromQueue(commitQ, commitStalled);
+            outRow_D2_Alt_Pre = takeFromQueue(commitQ, commitStalled);
+            outRow_D2_Alt <= outRow_D2_Alt_Pre;
+
+               lastOut_N <= getLastOut(lastOut_N, outRow_D2_Alt_Pre.records);
+
+            
             insertToQueue(commitQ, tickRow(outRow));
 
         markCompleted();

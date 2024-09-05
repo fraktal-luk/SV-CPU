@@ -120,7 +120,7 @@ module StoreQueue
         outGroup <= '{default: EMPTY_SLOT};
         while (content[startPointer % SIZE].id != -1
             && content[startPointer % SIZE].id <= //AbstractCore.committedState.last
-                                                  AbstractCore.theRob.lastOut
+                                                  AbstractCore.theRob.lastOut_N
                )
         begin
             InsId thisId = content[startPointer % SIZE].id;
