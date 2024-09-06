@@ -119,8 +119,7 @@ module StoreQueue
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT};
         while (content[startPointer % SIZE].id != -1
-            && content[startPointer % SIZE].id <= //AbstractCore.committedState.last
-                                                  AbstractCore.theRob.lastOut_N
+            && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut
                )
         begin
             InsId thisId = content[startPointer % SIZE].id;
@@ -131,7 +130,6 @@ module StoreQueue
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
-                //if (lateEventInfo.op.active && lateEventInfo.op.id) begin end
                 content[startPointer % SIZE].committed = 1;
             end
             else content[startPointer % SIZE] = EMPTY_ENTRY;
