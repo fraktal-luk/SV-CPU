@@ -113,41 +113,41 @@ package Insmap;
     
     
         InsId retiredArr[$];
-        InsId retiredArrPre[$];
+        //InsId retiredArrPre[$];
     
         InsId killedArr[$];
-        InsId killedArrPre[$];
+        //InsId killedArrPre[$];
     
     
         string retiredArrStr;
         string killedArrStr;
     
         InsId lastRetired = -1;
-        InsId lastRetiredPre = -1;
-        InsId lastRetiredPrePre = -1;
+//        InsId lastRetiredPre = -1;
+//        InsId lastRetiredPrePre = -1;
     
         InsId lastKilled = -1;
-        InsId lastKilledPre = -1;
-        InsId lastKilledPrePre = -1;
+//        InsId lastKilledPre = -1;
+//        InsId lastKilledPrePre = -1;
     
         string lastRetiredStr;
-        string lastRetiredStrPre;
-        string lastRetiredStrPrePre;
+//        string lastRetiredStrPre;
+//        string lastRetiredStrPrePre;
     
         string lastKilledStr;
-        string lastKilledStrPre;
-        string lastKilledStrPrePre;
+//        string lastKilledStrPre;
+//        string lastKilledStrPrePre;
     
     
         localparam int RECORD_ARRAY_SIZE = 24;
     
         MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
-        MilestoneTag lastRecordArrPre[RECORD_ARRAY_SIZE];
-        MilestoneTag lastRecordArrPrePre[RECORD_ARRAY_SIZE];
+//        MilestoneTag lastRecordArrPre[RECORD_ARRAY_SIZE];
+//        MilestoneTag lastRecordArrPrePre[RECORD_ARRAY_SIZE];
     
         MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
-        MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
-        MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
+//        MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
+//        MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
     
             
             InsId reissuedId = -1;
@@ -167,37 +167,12 @@ package Insmap;
             return res;
         endfunction
 
-        // all
-        function automatic void endCycle();
-            retiredArrPre = retiredArr;
-            killedArrPre = killedArr;
-        
-            foreach (retiredArr[i]) checkOk(retiredArr[i]);
-            foreach (killedArr[i]) checkOk(killedArr[i]);
-    
-            retiredArr.delete();
-            killedArr.delete();
-            
-            retiredArrStr = "";
-            killedArrStr = "";
-            
-        
-            lastRetiredPrePre = lastRetiredPre;
-            lastRetiredPre = lastRetired;
-    
-            lastKilledPrePre = lastKilledPre;
-            lastKilledPre = lastKilled;
-    
-    
-            setRecordArr(lastRecordArr, lastRetired);
-            setRecordArr(lastRecordArrPre, lastRetiredPre);
-            setRecordArr(lastRecordArrPrePre, lastRetiredPrePre);
-      
-            setRecordArr(lastKilledRecordArr, lastKilled);
-            setRecordArr(lastKilledRecordArrPre, lastKilledPre);
-            setRecordArr(lastKilledRecordArrPrePre, lastKilledPrePre);
-    
+        // insinfo
+        function automatic void registerIndex(input InsId id);
+            indexList.push_back(id);
+            records[id] = new();
         endfunction
+
         
         // ins info
         function automatic InstructionInfo get(input InsId id);
@@ -261,6 +236,25 @@ package Insmap;
         endfunction
         ////////////
     
+        // milestones
+        function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
+            if (id == -1) return;
+            records[id].tags.push_back('{kind, cycle});
+        endfunction
+
+    
+        // milestones (helper)
+        function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
+            MilestoneTag def = '{___, -1};
+            InsRecord empty = new();
+            InsRecord rec = id == -1 ? empty : records[id];
+            arr = '{default: def};
+            
+            foreach(rec.tags[i]) arr[i] = rec.tags[i];
+        endfunction
+
+
+
     
         // all
         function automatic void setRetired(input InsId id);
@@ -291,22 +285,40 @@ package Insmap;
                 $fatal(2, "Killed not added: %d", id);
             end
         endfunction
+
+
+        // all
+        function automatic void endCycle();
+            //retiredArrPre = retiredArr;
+            //killedArrPre = killedArr;
+        
+            foreach (retiredArr[i]) checkOk(retiredArr[i]);
+            foreach (killedArr[i]) checkOk(killedArr[i]);
     
-        // milestones
-        function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
-            MilestoneTag def = '{___, -1};
-            InsRecord empty = new();
-            InsRecord rec = id == -1 ? empty : records[id];
-            arr = '{default: def};
+            retiredArr.delete();
+            killedArr.delete();
             
-            foreach(rec.tags[i]) arr[i] = rec.tags[i];
+            retiredArrStr = "";
+            killedArrStr = "";
+            
+        
+            //lastRetiredPrePre = lastRetiredPre;
+            //lastRetiredPre = lastRetired;
+    
+            //lastKilledPrePre = lastKilledPre;
+            //lastKilledPre = lastKilled;
+    
+    
+            setRecordArr(lastRecordArr, lastRetired);
+            //setRecordArr(lastRecordArrPre, lastRetiredPre);
+            //setRecordArr(lastRecordArrPrePre, lastRetiredPrePre);
+      
+            setRecordArr(lastKilledRecordArr, lastKilled);
+            //setRecordArr(lastKilledRecordArrPre, lastKilledPre);
+            //setRecordArr(lastKilledRecordArrPrePre, lastKilledPrePre);
+    
         endfunction
 
-        // insinfo
-        function automatic void registerIndex(input InsId id);
-            indexList.push_back(id);
-            records[id] = new();
-        endfunction
 
         // all
         function automatic void cleanDescs();       
@@ -317,13 +329,8 @@ package Insmap;
             end
         endfunction
 
-        // milestones
-        function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
-            if (id == -1) return;
-            records[id].tags.push_back('{kind, cycle});
-              //  if (id >= 9060+6 && id <= 9070-4) $display("tags[%d]: %p", id, records[id].tags);
-        endfunction
 
+        // CHECKS
 
         // Different area: checking
 
@@ -441,15 +448,11 @@ package Insmap;
             if (isLoadIns(dec)) assert (checkRetiredLoad(tags)) else $error("wrong load op");
             if (isBranchIns(dec)) assert (checkRetiredBranch(tags)) else $error("wrong branch op: %d / %p", id, tags);
             
-            
                 // HACK: if has been pulled back, remember it
                 begin
                     if (has(tags, IqPullback)) storeReissued(id, tags);
                 end
-                
-                
-                  //  if (has(tags, RqEnter)) $display("[%d]: %p", id, tags);
-                
+
             return 1;
         endfunction
     
@@ -555,7 +558,7 @@ package Insmap;
             else return checkRetired(id, tags);            
         endfunction
         
-        
+            // UNUSED
             function automatic void assertReissue();
                   //  $display(" reissued is %d ", reissuedId);
                 assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
