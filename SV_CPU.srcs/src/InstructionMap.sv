@@ -113,12 +113,6 @@ package Insmap;
 
         InstructionInfo content[InsId];
         InsRecord records[int];
-    
-        //InsId retiredArr[$];
-        //InsId killedArr[$];
-    
-        //string retiredArrStr;
-        //string killedArrStr;
         
         int specListSize;
         int doneListSize;
@@ -258,6 +252,8 @@ package Insmap;
 
 
             function automatic void confirmDone();
+                int removed = -1;
+            
                 foreach (latestCommittedList[i]) begin
                     checkOk(latestCommittedList[i]);
                 end
@@ -265,10 +261,25 @@ package Insmap;
                 latestCommittedList = '{};
                 
                 
-                while (doneList.size() > 100) begin
-                    void'(doneList.pop_front());
+                if (doneList.size() > 100) begin
+                    //$display(">>>> confirmDone %d", doneList[0]);
+                
+                    while (doneList.size() > 100) begin
+                        removed = doneList.pop_front();
+                    end
+                    
+                    // 
+                    
+                      //  $display("     indexList[0] = ", indexList[0]);
+                    while (indexList.size() > 0 && indexList[0] <= removed) begin
+                        int tmpIndex = indexList.pop_front();
+                        
+                        content.delete(tmpIndex);
+                        records.delete(tmpIndex);
+                    end
                 end
-            
+                
+                
                 while (specList.size() > 0 && specList[0] <= lastRetired) begin
                     InsId specHead = specList.pop_front();
                     doneList.push_back(specHead);
@@ -298,49 +309,28 @@ package Insmap;
         endfunction
         
         // all
-        function automatic void setKilled(input InsId id, input logic front = 0);
-//            assert (id != -1) else $fatal(2, "killed -1");
-        
-//                if (front) return;
-        
-////            killedArr.push_back(id);
-////            $swrite(killedArrStr, "%p", killedArr);
-    
-//            if (id <= lastKilled) return;
-//            lastKilled = id;
-//            if (content.exists(id))
-//                lastKilledStr = disasm(get(id).bits);
-//            else begin
-//                lastKilledStr = "???";
-//                $fatal(2, "Killed not added: %d", id);
-//            end
-        endfunction
+//        function automatic void setKilled(input InsId id, input logic front = 0);
+
+//        endfunction
 
 
         // all
         function automatic void endCycle();
-            //foreach (retiredArr[i]) checkOk(retiredArr[i]);
-            //foreach (killedArr[i]) checkOk(killedArr[i]);
-    
-//            retiredArr.delete();
-//            killedArr.delete();
-            
-//            retiredArrStr = "";
-//            killedArrStr = "";
-            
             setRecordArr(lastRecordArr, lastRetired);
             setRecordArr(lastKilledRecordArr, lastKilled);
         endfunction
 
 
         // all
-        function automatic void cleanDescs();       
-            while (indexList[0] < lastRetired - 10) begin
-                content.delete(indexList[0]);
-                records.delete(indexList[0]);
-                void'(indexList.pop_front());
-            end
-        endfunction
+//        function automatic void cleanDescs();
+//                $display(">>>> cleanDescs %d", indexList[0]);
+               
+////            while (indexList[0] < lastRetired - 10) begin
+////                content.delete(indexList[0]);
+////                records.delete(indexList[0]);
+////                void'(indexList.pop_front());
+////            end
+//        endfunction
 
 
         // CHECKS

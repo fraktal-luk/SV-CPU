@@ -435,7 +435,7 @@ module AbstractCore
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
             putMilestone(stage[i].id, InstructionMap::FlushOOO);
-            insMap.setKilled(stage[i].id);
+            //insMap.setKilled(stage[i].id);
         end
     endtask
 
@@ -619,7 +619,7 @@ module AbstractCore
          $error(" cancel at commit %d", opC.id);
             
             putMilestone(op.id, InstructionMap::FlushCommit);
-            insMap.setKilled(op.id);
+            //insMap.setKilled(op.id);
     endtask
 
 
@@ -648,7 +648,7 @@ module AbstractCore
 
 
     task automatic execReset();
-            insMap.cleanDescs();
+         //   insMap.cleanDescs();
     
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
