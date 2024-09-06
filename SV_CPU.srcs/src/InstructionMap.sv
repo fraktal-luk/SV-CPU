@@ -107,48 +107,40 @@ package Insmap;
         endclass
     
         InsId indexList[$];
-    
+            InsId specList[$];
+            InsId latestCommittedList[$];
+            InsId doneList[$];
+
         InstructionInfo content[InsId];
         InsRecord records[int];
     
-    
         InsId retiredArr[$];
-        //InsId retiredArrPre[$];
-    
         InsId killedArr[$];
-        //InsId killedArrPre[$];
-    
     
         string retiredArrStr;
         string killedArrStr;
+        
+        int specListSize;
+        int doneListSize;
+        
+        string specListStr;
+        string latestCommittedListStr;
+        string doneListStr;
     
         InsId lastRetired = -1;
-//        InsId lastRetiredPre = -1;
-//        InsId lastRetiredPrePre = -1;
-    
         InsId lastKilled = -1;
-//        InsId lastKilledPre = -1;
-//        InsId lastKilledPrePre = -1;
-    
+
+            InsId lastRemoved = -1;
+            //InsId lastKilled = -1;
+
         string lastRetiredStr;
-//        string lastRetiredStrPre;
-//        string lastRetiredStrPrePre;
-    
         string lastKilledStr;
-//        string lastKilledStrPre;
-//        string lastKilledStrPrePre;
-    
-    
+
         localparam int RECORD_ARRAY_SIZE = 24;
     
         MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
-//        MilestoneTag lastRecordArrPre[RECORD_ARRAY_SIZE];
-//        MilestoneTag lastRecordArrPrePre[RECORD_ARRAY_SIZE];
-    
         MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
-//        MilestoneTag lastKilledRecordArrPre[RECORD_ARRAY_SIZE];
-//        MilestoneTag lastKilledRecordArrPrePre[RECORD_ARRAY_SIZE];
-    
+
             
             InsId reissuedId = -1;
     
@@ -170,6 +162,7 @@ package Insmap;
         // insinfo
         function automatic void registerIndex(input InsId id);
             indexList.push_back(id);
+                specList.push_back(id);
             records[id] = new();
         endfunction
 
@@ -254,12 +247,49 @@ package Insmap;
         endfunction
 
 
+        
+            function automatic void commitCheck();
+                
+                confirmDone();
+                
+                
+            endfunction
 
-    
+
+
+            function automatic void confirmDone();
+                foreach (latestCommittedList[i]) begin
+                    ;
+                end
+            
+                latestCommittedList = '{};
+                
+                
+                while (doneList.size() > 100) begin
+                    void'(doneList.pop_front());
+                end
+            
+                while (specList.size() > 0 && specList[0] <= lastRetired) begin
+                    InsId specHead = specList.pop_front();
+                    doneList.push_back(specHead);
+                    latestCommittedList.push_back(specHead);
+                end 
+                
+                specListSize = specList.size();
+                doneListSize = doneList.size();
+                
+                $swrite(specListStr, "%p", specList);
+                $swrite(latestCommittedListStr, "%p", latestCommittedList);
+                $swrite(doneListStr, "%p", doneList);
+                
+            endfunction 
+
+
         // all
         function automatic void setRetired(input InsId id);
             assert (id != -1) else $fatal(2, "retired -1");
     
+
             retiredArr.push_back(id);
             $swrite(retiredArrStr, "%p", retiredArr);
             
@@ -289,9 +319,6 @@ package Insmap;
 
         // all
         function automatic void endCycle();
-            //retiredArrPre = retiredArr;
-            //killedArrPre = killedArr;
-        
             foreach (retiredArr[i]) checkOk(retiredArr[i]);
             foreach (killedArr[i]) checkOk(killedArr[i]);
     
@@ -301,22 +328,8 @@ package Insmap;
             retiredArrStr = "";
             killedArrStr = "";
             
-        
-            //lastRetiredPrePre = lastRetiredPre;
-            //lastRetiredPre = lastRetired;
-    
-            //lastKilledPrePre = lastKilledPre;
-            //lastKilledPre = lastKilled;
-    
-    
             setRecordArr(lastRecordArr, lastRetired);
-            //setRecordArr(lastRecordArrPre, lastRetiredPre);
-            //setRecordArr(lastRecordArrPrePre, lastRetiredPrePre);
-      
             setRecordArr(lastKilledRecordArr, lastKilled);
-            //setRecordArr(lastKilledRecordArrPre, lastKilledPre);
-            //setRecordArr(lastKilledRecordArrPrePre, lastKilledPrePre);
-    
         endfunction
 
 

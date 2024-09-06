@@ -512,11 +512,13 @@ module AbstractCore
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
             if (opC.active && !cancelRest) commitOp(opC);
-            else if (opC.active && cancelRest) cancelOp(opC);
+            else if (opC.active && cancelRest) cancelOp(opC); // TODO: assert this never happens
             else continue;
 
             if (breaksCommit(opC)) cancelRest = 1;
         end
+        
+        insMap.commitCheck();
     endtask
 
 
