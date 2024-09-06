@@ -114,11 +114,11 @@ package Insmap;
         InstructionInfo content[InsId];
         InsRecord records[int];
     
-        InsId retiredArr[$];
-        InsId killedArr[$];
+        //InsId retiredArr[$];
+        //InsId killedArr[$];
     
-        string retiredArrStr;
-        string killedArrStr;
+        //string retiredArrStr;
+        //string killedArrStr;
         
         int specListSize;
         int doneListSize;
@@ -162,7 +162,6 @@ package Insmap;
         // insinfo
         function automatic void registerIndex(input InsId id);
             indexList.push_back(id);
-                specList.push_back(id);
             records[id] = new();
         endfunction
 
@@ -183,6 +182,7 @@ package Insmap;
         function automatic void add(input OpSlot op);
             assert (op.active) else $error("Inactive op added to base");
             content[op.id] = initInsInfo(op);
+               specList.push_back(op.id);
         endfunction
     
         // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 
@@ -259,7 +259,7 @@ package Insmap;
 
             function automatic void confirmDone();
                 foreach (latestCommittedList[i]) begin
-                    ;
+                    checkOk(latestCommittedList[i]);
                 end
             
                 latestCommittedList = '{};
@@ -290,8 +290,8 @@ package Insmap;
             assert (id != -1) else $fatal(2, "retired -1");
     
 
-            retiredArr.push_back(id);
-            $swrite(retiredArrStr, "%p", retiredArr);
+//            retiredArr.push_back(id);
+//            $swrite(retiredArrStr, "%p", retiredArr);
             
             lastRetired = id;
             lastRetiredStr = disasm(get(id).bits);
@@ -299,34 +299,34 @@ package Insmap;
         
         // all
         function automatic void setKilled(input InsId id, input logic front = 0);
-            assert (id != -1) else $fatal(2, "killed -1");
+//            assert (id != -1) else $fatal(2, "killed -1");
         
-                if (front) return;
+//                if (front) return;
         
-            killedArr.push_back(id);
-            $swrite(killedArrStr, "%p", killedArr);
+////            killedArr.push_back(id);
+////            $swrite(killedArrStr, "%p", killedArr);
     
-            if (id <= lastKilled) return;
-            lastKilled = id;
-            if (content.exists(id))
-                lastKilledStr = disasm(get(id).bits);
-            else begin
-                lastKilledStr = "???";
-                $fatal(2, "Killed not added: %d", id);
-            end
+//            if (id <= lastKilled) return;
+//            lastKilled = id;
+//            if (content.exists(id))
+//                lastKilledStr = disasm(get(id).bits);
+//            else begin
+//                lastKilledStr = "???";
+//                $fatal(2, "Killed not added: %d", id);
+//            end
         endfunction
 
 
         // all
         function automatic void endCycle();
-            foreach (retiredArr[i]) checkOk(retiredArr[i]);
-            foreach (killedArr[i]) checkOk(killedArr[i]);
+            //foreach (retiredArr[i]) checkOk(retiredArr[i]);
+            //foreach (killedArr[i]) checkOk(killedArr[i]);
     
-            retiredArr.delete();
-            killedArr.delete();
+//            retiredArr.delete();
+//            killedArr.delete();
             
-            retiredArrStr = "";
-            killedArrStr = "";
+//            retiredArrStr = "";
+//            killedArrStr = "";
             
             setRecordArr(lastRecordArr, lastRetired);
             setRecordArr(lastKilledRecordArr, lastKilled);
@@ -571,7 +571,8 @@ package Insmap;
             else return checkRetired(id, tags);            
         endfunction
         
-            // UNUSED
+
+
             function automatic void assertReissue();
                   //  $display(" reissued is %d ", reissuedId);
                 assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
