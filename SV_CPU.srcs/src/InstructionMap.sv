@@ -34,24 +34,16 @@ package Insmap;
             ___,
         
             GenAddress,
-            
             FlushFront,
-            
-            PutFQ,
+                PutFQ,
             
             Rename,
-            
             RobEnter, RobComplete, RobFlush, RobExit,
-        
             BqEnter, BqFlush, BqExit,
-            
             SqEnter, SqFlush, SqExit,            
             LqEnter, LqFlush, LqExit,
             
             MemFwProduce, MemFwConsume,
-            
-            
-            WqEnter, WqExit, // committed write queue
             
             FlushOOO,
             
@@ -67,10 +59,7 @@ package Insmap;
             IqFlush,
             IqExit,
     
-            RqEnter,
-            RqFlush,
-            RqIssue,
-            RqExit,
+            RqEnter, RqFlush, RqIssue, RqExit,
     
               ReadArg, // TODO: by source type
     
@@ -88,12 +77,12 @@ package Insmap;
                 MemMissed,
             
             WriteResult,
-            //Complete,
             
             FlushCommit,
+            
             Retire,
             
-            Drain
+            WqEnter, WqExit // committed write queue
         } Milestone;
     
     
@@ -107,9 +96,10 @@ package Insmap;
         endclass
     
         InsId indexList[$];
-            InsId specList[$];
-            InsId latestCommittedList[$];
-            InsId doneList[$];
+
+        InsId specList[$];
+        InsId latestCommittedList[$];
+        InsId doneList[$];
 
         InstructionInfo content[InsId];
         InsRecord records[int];
@@ -123,9 +113,7 @@ package Insmap;
     
         InsId lastRetired = -1;
         InsId lastKilled = -1;
-
-            InsId lastRemoved = -1;
-            //InsId lastKilled = -1;
+        InsId lastRemoved = -1;
 
         string lastRetiredStr;
         string lastKilledStr;
@@ -135,9 +123,7 @@ package Insmap;
         MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
         MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
 
-            
-            InsId reissuedId = -1;
-    
+            InsId reissuedId = -1;    
     
         // ins info
         static function automatic InstructionInfo initInsInfo(input OpSlot op);
@@ -159,7 +145,6 @@ package Insmap;
             records[id] = new();
         endfunction
 
-        
         // ins info
         function automatic InstructionInfo get(input InsId id);
             assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
@@ -241,97 +226,63 @@ package Insmap;
         endfunction
 
 
+        function automatic void commitCheck(); 
+            confirmDone();
+        endfunction
+
+        function automatic void confirmDone();
+            logic SHOW_STRINGS = 0;
         
-            function automatic void commitCheck();
-                
-                confirmDone();
-                
-                
-            endfunction
+            int removed = -1;
+        
+            foreach (latestCommittedList[i])
+                checkOk(latestCommittedList[i]);
 
+            latestCommittedList = '{};
 
+            if (doneList.size() > 100) begin
+                while (doneList.size() > 100)
+                    removed = doneList.pop_front();
 
-            function automatic void confirmDone();
-                int removed = -1;
-            
-                foreach (latestCommittedList[i]) begin
-                    checkOk(latestCommittedList[i]);
+                // $display(" ......... %d,,  %d ", specList.size(), indexList.size());
+
+                while (indexList.size() > 0 && indexList[0] <= removed) begin
+                    int tmpIndex = indexList.pop_front();
+                    content.delete(tmpIndex);
+                    records.delete(tmpIndex);
                 end
-            
-                latestCommittedList = '{};
-                
-                
-                if (doneList.size() > 100) begin
-                    //$display(">>>> confirmDone %d", doneList[0]);
-                
-                    while (doneList.size() > 100) begin
-                        removed = doneList.pop_front();
-                    end
-                    
-                    // 
-                    
-                      //  $display("     indexList[0] = ", indexList[0]);
-                    while (indexList.size() > 0 && indexList[0] <= removed) begin
-                        int tmpIndex = indexList.pop_front();
-                        
-                        content.delete(tmpIndex);
-                        records.delete(tmpIndex);
-                    end
-                end
-                
-                
-                while (specList.size() > 0 && specList[0] <= lastRetired) begin
-                    InsId specHead = specList.pop_front();
-                    doneList.push_back(specHead);
-                    latestCommittedList.push_back(specHead);
-                end 
-                
-                specListSize = specList.size();
-                doneListSize = doneList.size();
-                
+            end
+
+            while (specList.size() > 0 && specList[0] <= lastRetired) begin
+                InsId specHead = specList.pop_front();
+                doneList.push_back(specHead);
+                latestCommittedList.push_back(specHead);
+            end
+
+            specListSize = specList.size();
+            doneListSize = doneList.size();
+
+            if (SHOW_STRINGS) begin
                 $swrite(specListStr, "%p", specList);
                 $swrite(latestCommittedListStr, "%p", latestCommittedList);
                 $swrite(doneListStr, "%p", doneList);
-                
-            endfunction 
+            end
+        endfunction 
 
 
         // all
         function automatic void setRetired(input InsId id);
             assert (id != -1) else $fatal(2, "retired -1");
-    
 
-//            retiredArr.push_back(id);
-//            $swrite(retiredArrStr, "%p", retiredArr);
-            
             lastRetired = id;
             lastRetiredStr = disasm(get(id).bits);
         endfunction
-        
-        // all
-//        function automatic void setKilled(input InsId id, input logic front = 0);
-
-//        endfunction
-
 
         // all
         function automatic void endCycle();
             setRecordArr(lastRecordArr, lastRetired);
             setRecordArr(lastKilledRecordArr, lastKilled);
         endfunction
-
-
-        // all
-//        function automatic void cleanDescs();
-//                $display(">>>> cleanDescs %d", indexList[0]);
-               
-////            while (indexList[0] < lastRetired - 10) begin
-////                content.delete(indexList[0]);
-////                records.delete(indexList[0]);
-////                void'(indexList.pop_front());
-////            end
-//        endfunction
-
 
         // CHECKS
 
@@ -342,39 +293,39 @@ package Insmap;
         // b. Killed in OOO
         // c. Retired
         typedef enum { EC_KilledFront, EC_KilledOOO, EC_KilledCommit, EC_Retired } ExecClass;
-    
+
         function automatic ExecClass determineClass(input MilestoneTag tags[$]);
             MilestoneTag retirement[$] = tags.find with (item.kind == Retire);
             MilestoneTag frontKill[$] = tags.find with (item.kind == FlushFront);
             MilestoneTag commitKill[$] = tags.find with (item.kind == FlushCommit);
-            
+
             assert (tags[0].kind == GenAddress) else $fatal(2, "Op not starting with GenAdress");
-            
+
             if (frontKill.size() > 0) return EC_KilledFront;
             if (commitKill.size() > 0) return EC_KilledCommit;
             if (retirement.size() > 0) return EC_Retired;
             return EC_KilledOOO;            
         endfunction
-    
+
         function automatic logic checkKilledFront(input InsId id, input MilestoneTag tags[$]);
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == GenAddress) else $error("ddkld");
             tag = tags.pop_front();
             assert (tag.kind == FlushFront) else $error(" ttt:   %p", tag);
-            
+
             assert (tags.size() == 0) else $error("   why not empty: %p", tags);
-            
+
             return 1;
         endfunction
-    
+
         function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$]);
             AbstractInstruction dec = get(id).dec;
-      
+
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == GenAddress) else $error("  k////");
             tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
-            
+
             // Has it entered the ROB or killed right after Rename?
             if (!has(tags, RobEnter)) begin
                 tag = tags.pop_front();
@@ -382,17 +333,16 @@ package Insmap;
                     $error("ROB not entered but not FlushOOO!");
                     return 0;
                 end
-                
+
                 assert (tags.size() == 0) else $error(" strange %d: %p", id, tags);
                 return 1;
             end
-                        
             assert (checkKilledIq(tags)) else $error("wrong k iq");
-    
+
             if (isStoreIns(dec)) assert (checkKilledStore(tags)) else $error("wrong kStore op");
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
             if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
-            
+
             return 1;        
         endfunction
 

@@ -65,7 +65,6 @@ module AbstractCore
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
-
     Word instructionCacheOut[FETCH_WIDTH];
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO,
@@ -149,7 +148,7 @@ module AbstractCore
 
 
     always @(posedge clk) begin
-            insMap.endCycle();
+        insMap.endCycle();
     
         activateEvent();
 
@@ -168,11 +167,8 @@ module AbstractCore
 
         // Complete + write regs
         handleCompletion();
-        
-            //csq_Mirror <= csq[0:$];
-        
-            $swrite(csqStr, "%p", csq);
-        
+
+        $swrite(csqStr, "%p", csq);
         updateBookkeeping();
     end
 
@@ -255,7 +251,6 @@ module AbstractCore
 
        if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
 
-       putMilestone(sqe.op.id, InstructionMap::Drain);
        putMilestone(sqe.op.id, InstructionMap::WqExit);
     endtask
 
@@ -435,13 +430,11 @@ module AbstractCore
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
             putMilestone(stage[i].id, InstructionMap::FlushOOO);
-            //insMap.setKilled(stage[i].id);
         end
     endtask
 
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
-                                    //registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds);
@@ -587,42 +580,17 @@ module AbstractCore
     endtask
 
 
-
-    task automatic cancelOp(input OpSlot opC);
-        InstructionInfo insInfo = insMap.get(opC.id);
-        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+        // TODO: remove
+        task automatic cancelOp(input OpSlot opC);
+            InstructionInfo insInfo = insMap.get(opC.id);
+            OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+                                
+            assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
+    
+            $error(" cancel at commit %d", opC.id);
                 
-        //    committedState.last <= op.id; 
-            
-        assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
-
-        //verifyOnCommit(op);
-        //checkUnimplementedInstruction(decAbs(op));
-
-        //updateInds(commitInds, op); // Crucial
-        //commitInds.renameG = insMap.get(op.id).inds.renameG;
-
-        //registerTracker.commit(insInfo.dec, op.id);
-        
-        
-        //if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
-        //if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
-
-        // Crucial state
-        //retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
-
-        //releaseQueues(op); // Crucial state
-
-//            coreDB.lastRetired = op;
-//            coreDB.nRetired++;
-            
-         $error(" cancel at commit %d", opC.id);
-            
             putMilestone(op.id, InstructionMap::FlushCommit);
-            //insMap.setKilled(op.id);
-    endtask
-
-
+        endtask
 
 
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
@@ -647,9 +615,7 @@ module AbstractCore
     endtask
 
 
-    task automatic execReset();
-         //   insMap.cleanDescs();
-    
+    task automatic execReset();    
         lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
@@ -735,7 +701,6 @@ module AbstractCore
     function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
-
 
 
 
