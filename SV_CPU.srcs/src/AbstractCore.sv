@@ -68,7 +68,8 @@ module AbstractCore
     Word instructionCacheOut[FETCH_WIDTH];
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO,
-              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+              lateEventInfo = EMPTY_EVENT_INFO,
+              lateEventInfoWaiting = EMPTY_EVENT_INFO;
     Events evts;
 
     BranchCheckpoint branchCP;
@@ -118,7 +119,6 @@ module AbstractCore
         assign TMP_readReqs = theExecBlock.readReqs;
         assign theExecBlock.readResps = TMP_readResps;
     
-            assign cmpA = instructionCacheOut === insIn;
 
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
@@ -196,18 +196,8 @@ module AbstractCore
     endtask
 
 
-    // Event processing
-
-    function automatic LateEvent getLateEvt(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word sr2 = getSysReg(2);
-        Word sr3 = getSysReg(3);
-        return getLateEvent(abs, op.adr, sr2, sr3);
-    endfunction
-
 
     task automatic activateEvent();
-    
         lateEventInfo <= EMPTY_EVENT_INFO;
     
         if (!csqEmpty) return;    
@@ -215,10 +205,15 @@ module AbstractCore
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
         if (lateEventInfoWaiting.op.active) begin
-            LateEvent lateEvt = getLateEvt(lateEventInfoWaiting.op);
-            modifyStateSync(sysRegs, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
+            Word sr2 = getSysReg(2);
+            Word sr3 = getSysReg(3);
+            OpSlot waitingOp = lateEventInfoWaiting.op;
+            AbstractInstruction abs = decAbs(waitingOp);
+            EventInfo lateEvt = getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
+            
+            modifyStateSync(sysRegs, waitingOp.adr, abs);               
             retiredTarget <= lateEvt.target;
-            lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, lateEvt.redirect, getSendSignal(decAbs(lateEventInfoWaiting.op)), getWrongSignal(decAbs(lateEventInfoWaiting.op)), lateEvt.target};
+            lateEventInfo <= lateEvt;
         end
         else if (lateEventInfoWaiting.reset) begin
             saveStateAsync(sysRegs, retiredTarget);
@@ -295,13 +290,12 @@ module AbstractCore
     assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
     assign oooLevels.iqMem = theIssueQueues.memQueue.num;
     assign oooLevels.iqSys = theIssueQueues.sysQueue.num;
-    
+
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
-                                                && theRob.allow && theSq.allow && theLq.allow;;
+    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
 
     function automatic IqLevels getBufferAccepts(input IqLevels levels);
         IqLevels res;
@@ -559,7 +553,7 @@ module AbstractCore
         end
         
         if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
-        if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) setLateEvent(op); // Crucial state
+        if (breaksCommit(op)) setLateEvent(op); // Crucial state
 
         // Crucial state
         retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
@@ -591,18 +585,15 @@ module AbstractCore
     endtask
 
 
-        function automatic EventInfo eventFromOp(input OpSlot op);
-            LateEvent evt = getLateEvt(op);
-            return '{op, 0, 0, evt.redirect, 0, 0, 'x}; // No target because write queue may be still updating sys regs (it depends on them) // evt.target};
-        endfunction
+    function automatic EventInfo eventFromOp(input OpSlot op);
+        return '{op, 0, 0, 1, 0, 0, 'x};
+    endfunction
 
-    task automatic setLateEvent(input OpSlot op);    
-        //LateEvent evt = getLateEvt(op);
-        lateEventInfoWaiting <= //'{op, 0, 0, evt.redirect, 0, 0, evt.target};
-                                eventFromOp(op);
+    task automatic setLateEvent(input OpSlot op);
+        lateEventInfoWaiting <= eventFromOp(op);
     endtask
 
-    task automatic execReset();    
+    task automatic execReset();
         lateEventInfoWaiting <= RESET_EVENT;
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
@@ -613,8 +604,8 @@ module AbstractCore
         retiredEmul.interrupt();
     endtask
 
-    
-    
+
+
     task automatic completePacket(input OpPacket p);
         if (!p.active) return;
         else begin

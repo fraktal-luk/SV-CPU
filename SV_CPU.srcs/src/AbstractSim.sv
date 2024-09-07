@@ -72,14 +72,6 @@ package AbstractSim;
     } StoreQueueEntry;
 
 
-    typedef struct {
-        Mword target;
-        logic redirect;
-        logic sig;
-        logic wrong;
-    } LateEvent;
-
-    const LateEvent EMPTY_LATE_EVENT = '{'x, 0, 0, 0};
 
 
     typedef struct {
@@ -88,9 +80,18 @@ package AbstractSim;
         Word value;
     } MemWriteInfo;
     
-    const MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
 
 
+        typedef struct {
+            logic redirect;
+            logic sigOk;
+            logic sigWrong;
+            Mword target;
+        } LateEvent;
+    
+        localparam LateEvent EMPTY_LATE_EVENT = '{0, 0, 0, 'x};
+    
     typedef struct {
         OpSlot op;
         logic interrupt;
@@ -633,14 +634,16 @@ package AbstractSim;
     ////////////////////////////////////////////
     // Core functions
 
-    function automatic LateEvent getLateEvent(input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
-        LateEvent res = '{target: 'x, redirect: 0, sig: 0, wrong: 0};
+    function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
+        LateEvent res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
+        EventInfo A_res = EMPTY_EVENT_INFO;
+        
         case (abs.def.o)
             O_sysStore: ;
             O_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
-                res.wrong = 1;
+                res.sigWrong = 1;
             end
             O_call: begin
                 res.target = IP_CALL;
@@ -670,13 +673,22 @@ package AbstractSim;
             O_send: begin
                 res.target = adr + 4;
                 res.redirect = 1;
-                res.sig = 1;
+                res.sigOk = 1;
             end
             default: ;                            
         endcase
 
-        return res;
+        A_res.op = op;
+
+        A_res.redirect = res.redirect;
+        A_res.sigOk = res.sigOk;
+        A_res.sigWrong = res.sigWrong;
+        A_res.target = res.target;
+
+        return A_res;
     endfunction
+
+
 
     function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
         case (abs.def.o)
