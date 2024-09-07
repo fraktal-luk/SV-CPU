@@ -63,6 +63,7 @@ module ReorderBuffer
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
     InsId lastIn = -1, lastOut = -1;
+    logic lastIsBreaking = 0;
     
     logic commitStalled = 0;
     
@@ -76,7 +77,10 @@ module ReorderBuffer
     always @(posedge AbstractCore.clk) begin
         automatic Row outRowVar;
 
-        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect)
+        if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
+            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            || lastIsBreaking
+            )
             arrayHeadRow <= EMPTY_ROW;
         else if (frontCompleted() && commitQ.size() <= 3*WIDTH - 2*WIDTH)
             arrayHeadRow <= readOutRow();
@@ -87,7 +91,8 @@ module ReorderBuffer
         outRow <= outRowVar;
 
         lastOut <= getLastOut(lastOut, outRowVar.records);
-    
+        lastIsBreaking <= isLastBreaking(lastOut, outRowVar.records);
+
         insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
 
         markCompleted();
@@ -110,7 +115,11 @@ module ReorderBuffer
     endfunction
 
     function automatic OpRecord tickRecord(input OpRecord rec);
-        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+        if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
+            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            || lastIsBreaking
+            )
+        begin
             if (rec.id != -1)
                 putMilestone(rec.id, InstructionMap::FlushCommit);
             return EMPTY_RECORD;
@@ -139,7 +148,10 @@ module ReorderBuffer
     function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH], input logic stall);
         Row res = EMPTY_ROW;
         
-        if (AbstractCore.interrupt || AbstractCore.reset || AbstractCore.lateEventInfoWaiting.redirect || lateEventInfo.redirect) begin
+        if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
+            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            || lastIsBreaking
+            ) begin
             foreach (q[i])
                 if (q[i].id != -1) putMilestone(q[i].id, InstructionMap::FlushCommit);
             q = '{};
@@ -268,5 +280,15 @@ module ReorderBuffer
                 
         return tmp;
     endfunction
-    
+
+    function automatic logic isLastBreaking(input InsId prev, input OpRecordA recs);
+        logic brk = 0;
+        
+        foreach (recs[i])
+            if  (recs[i].id != -1)
+                brk = breaksCommitId(recs[i].id);
+                
+        return brk;
+    endfunction
+
 endmodule

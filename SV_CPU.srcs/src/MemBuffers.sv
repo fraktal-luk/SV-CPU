@@ -112,7 +112,7 @@ module StoreQueue
     endtask
     
     
-    localparam logic SQ_RETAIN = 0;
+    localparam logic SQ_RETAIN = 1;//0;
     
     
     task automatic advance();

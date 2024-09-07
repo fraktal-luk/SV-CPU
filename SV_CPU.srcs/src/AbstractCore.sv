@@ -565,7 +565,7 @@ module AbstractCore
         end
         
         if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
-        if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
+        if (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op))) setLateEvent(op); // Crucial state
 
         // Crucial state
         retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
