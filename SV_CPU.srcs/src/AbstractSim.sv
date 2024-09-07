@@ -55,13 +55,13 @@ package AbstractSim;
         Word bits;
     } OpSlot;
 
-    const OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+    localparam OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
     
     typedef OpSlot OpSlotQueue[$];
     typedef OpSlot OpSlotA[RENAME_WIDTH];
     typedef OpSlot FetchStage[FETCH_WIDTH];
 
-    const FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
 
    
     // Write buffer
@@ -101,7 +101,10 @@ package AbstractSim;
         Word target;
     } EventInfo;
     
-    const EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
+    localparam EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
+    localparam EventInfo RESET_EVENT = '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
+    localparam EventInfo INT_EVENT =   '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+
 
     typedef struct {
         int iqRegular;
@@ -630,7 +633,7 @@ package AbstractSim;
     ////////////////////////////////////////////
     // Core functions
 
-    function automatic LateEvent getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword sr2, input Mword sr3);
+    function automatic LateEvent getLateEvent(input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
         LateEvent res = '{target: 'x, redirect: 0, sig: 0, wrong: 0};
         case (abs.def.o)
             O_sysStore: ;
@@ -652,20 +655,20 @@ package AbstractSim;
                 res.redirect = 1;
             end 
             O_sync: begin
-                res.target = op.adr + 4;
+                res.target = adr + 4;
                 res.redirect = 1;
             end
             
             O_replay: begin
-                res.target = op.adr;
+                res.target = adr;
                 res.redirect = 1;
             end 
             O_halt: begin                
-                res.target = op.adr + 4;
+                res.target = adr + 4;
                 res.redirect = 1;
             end
             O_send: begin
-                res.target = op.adr + 4;
+                res.target = adr + 4;
                 res.redirect = 1;
                 res.sig = 1;
             end

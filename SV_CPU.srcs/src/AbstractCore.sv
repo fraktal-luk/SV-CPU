@@ -79,8 +79,7 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-            StoreQueueEntry csq_Mirror[4] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-            string csqStr;
+        string csqStr;
             
         StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
@@ -119,10 +118,8 @@ module AbstractCore
         assign TMP_readReqs = theExecBlock.readReqs;
         assign theExecBlock.readResps = TMP_readResps;
     
-    
             assign cmpA = instructionCacheOut === insIn;
-            
-          
+
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -205,11 +202,11 @@ module AbstractCore
         AbstractInstruction abs = decAbs(op);
         Word sr2 = getSysReg(2);
         Word sr3 = getSysReg(3);
-        return getLateEvent(op, abs, sr2, sr3);
+        return getLateEvent(abs, op.adr, sr2, sr3);
     endfunction
 
+
     task automatic activateEvent();
-        LateEvent lateEvt;
     
         lateEventInfo <= EMPTY_EVENT_INFO;
     
@@ -217,11 +214,8 @@ module AbstractCore
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
-        if (!(lateEventInfoWaiting.op.active | lateEventInfoWaiting.reset | lateEventInfoWaiting.interrupt)) return;
-
-        lateEvt = getLateEvt(lateEventInfoWaiting.op);
-
         if (lateEventInfoWaiting.op.active) begin
+            LateEvent lateEvt = getLateEvt(lateEventInfoWaiting.op);
             modifyStateSync(sysRegs, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
             retiredTarget <= lateEvt.target;
             lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, lateEvt.redirect, getSendSignal(decAbs(lateEventInfoWaiting.op)), getWrongSignal(decAbs(lateEventInfoWaiting.op)), lateEvt.target};
@@ -229,21 +223,22 @@ module AbstractCore
         else if (lateEventInfoWaiting.reset) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_RESET;
-            lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
+            lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_INT;
-            lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+            lateEventInfo <= INT_EVENT;
         end
     endtask
+
 
     ////////////////
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
 
-           drainHead <= csq[0];
+       drainHead <= csq[0];
 
        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
 
@@ -332,7 +327,7 @@ module AbstractCore
 
     // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
-        return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
+        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
     endfunction
 
     // Helper (inline it?)
@@ -500,12 +495,11 @@ module AbstractCore
     task automatic advanceCommit();
         logic cancelRest = 0;
         // Don't commit anything more if event is being handled
-        if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
             if (opC.active && !cancelRest) commitOp(opC);
-            else if (opC.active && cancelRest) cancelOp(opC); // TODO: assert this never happens
+            else if (opC.active && cancelRest) $fatal(2, "Committing after break");//cancelOp(opC); // TODO: assert this never happens
             else continue;
 
             if (breaksCommit(opC)) cancelRest = 1;
@@ -580,30 +574,12 @@ module AbstractCore
     endtask
 
 
-        // TODO: remove
-        task automatic cancelOp(input OpSlot opC);
-            InstructionInfo insInfo = insMap.get(opC.id);
-            OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-                                
-            assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
-    
-            $error(" cancel at commit %d", opC.id);
-                
-            putMilestone(op.id, InstructionMap::FlushCommit);
-        endtask
-
-
     function automatic void updateInds(ref IndexSet inds, input OpSlot op);
         inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
         if (isBranchIns(decAbs(op))) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
         if (isLoadIns(decAbs(op))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
         if (isStoreIns(decAbs(op))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
-
-    task automatic setLateEvent(input OpSlot op);    
-        LateEvent evt = getLateEvt(op);
-        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, 0, 0, evt.target};
-    endtask
 
     task automatic releaseQueues(input OpSlot op);
         if (isBranchIns(decAbs(op))) begin // Br queue entry release
@@ -615,14 +591,25 @@ module AbstractCore
     endtask
 
 
+        function automatic EventInfo eventFromOp(input OpSlot op);
+            LateEvent evt = getLateEvt(op);
+            return '{op, 0, 0, evt.redirect, 0, 0, 'x}; // No target because write queue may be still updating sys regs (it depends on them) // evt.target};
+        endfunction
+
+    task automatic setLateEvent(input OpSlot op);    
+        //LateEvent evt = getLateEvt(op);
+        lateEventInfoWaiting <= //'{op, 0, 0, evt.redirect, 0, 0, evt.target};
+                                eventFromOp(op);
+    endtask
+
     task automatic execReset();    
-        lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
+        lateEventInfoWaiting <= RESET_EVENT;
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+        lateEventInfoWaiting <= INT_EVENT;
         retiredEmul.interrupt();
     endtask
 

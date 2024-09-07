@@ -39,10 +39,10 @@ package InsDefs;
 
     import Base::*;
 
-    const Word IP_RESET = 'h00000200;
-    const Word IP_ERROR = 'h00000100;
-    const Word IP_CALL = 'h00000180;
-    const Word IP_INT = 'h00000280;
+    localparam Word IP_RESET = 'h00000200;
+    localparam Word IP_ERROR = 'h00000100;
+    localparam Word IP_CALL = 'h00000180;
+    localparam Word IP_INT = 'h00000280;
 
     typedef string string3[3];
     typedef string string4[4];
