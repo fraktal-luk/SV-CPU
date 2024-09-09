@@ -511,9 +511,9 @@ module AbstractCore
         Word bits = fetchInstruction(TMP_getP(), trg); // DB
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
-        assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
+        assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits); // TODO: check at Frontend?
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
-
+        
         if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
 
@@ -526,11 +526,27 @@ module AbstractCore
     endtask
 
 
+    // Finish types:
+    // CommitNormal     - normal effects take place, resources are freed
+    // CommitException  - exceptional effects take place, resources are freed
+    // CommitHidden     - replay takes place, reources are freed
+    //
+    // Normal effects:      register tables, updated target
+    // Exceptional effects: fire event (update target, handle sys regs, redirect)
+    // Hidden effects:      like above but event is Refetch 
+    //
+    // Registers:
+    //     regular commit - write to tables, free previous table content
+    //     exc/hidden     -     free own mapping instead of writing it
+    //
+    // Store ops: if Exc or Hidden, SQ entry must be marked invalid on commit or not committed (ptr not moved, then flushed by event)
+    // 
+    
     task automatic commitOp(input OpSlot opC);
         InstructionInfo insInfo = insMap.get(opC.id);
         OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
                 
-            committedState.last <= op.id; 
+         //   committedState.last <= op.id; // UNUSED?
             
         assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
@@ -546,7 +562,7 @@ module AbstractCore
             Transaction tr = memTracker.findStore(op.id);
             StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};
             
-                committedState.lastWq <= op.id;
+              //  committedState.lastWq <= op.id;
             
             csq.push_back(sqe);
             putMilestone(op.id, InstructionMap::WqEnter);
@@ -584,10 +600,6 @@ module AbstractCore
         end
     endtask
 
-
-    function automatic EventInfo eventFromOp(input OpSlot op);
-        return '{op, 0, 0, 1, 0, 0, 'x};
-    endfunction
 
     task automatic setLateEvent(input OpSlot op);
         lateEventInfoWaiting <= eventFromOp(op);
@@ -715,14 +727,15 @@ module AbstractCore
     function automatic logic shouldFlushEvent(input InsId id);
         return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
     endfunction
-
-    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-        if (fe.id != -1) begin
-            int inds[$] = p.find with (item == fe.id);
-            return inds.size() != 0;
-        end
-        return 0;
-    endfunction
+        
+        // TODO: move to package?
+        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+            if (fe.id != -1) begin
+                int inds[$] = p.find with (item == fe.id);
+                return inds.size() != 0;
+            end
+            return 0;
+        endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];

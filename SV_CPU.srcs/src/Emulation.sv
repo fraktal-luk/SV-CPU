@@ -229,11 +229,6 @@ package Emulation;
     endfunction
 
 
-//    function automatic ExecEvent resolveBranch(input CpuState state, input AbstractInstruction abs, input Word adr);//OpSlot op);
-//        Word3 args = getArgs(state.intRegs, state.floatRegs, abs.sources, parsingMap[abs.fmt].typeSpec);
-//        return resolveBranch_Internal(abs, adr, args);
-//    endfunction
-
     function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Word adr, input Word3 vals);//OpSlot op);
         Word3 args = vals;
         bit redirect = 0;
@@ -420,6 +415,16 @@ package Emulation;
         endcase
     endfunction
 
+    
+        function automatic void modifySysRegsOnException(ref CpuState state, input Word adr, input AbstractInstruction abs);
+            state.target = IP_ERROR;
+
+            state.sysRegs[4] = state.sysRegs[1];
+            state.sysRegs[1] |= 1; // TODO: handle state register correctly
+            state.sysRegs[2] = adr;
+        endfunction
+
+
     function automatic Word computeResult(input CpuState state, input Word adr, input AbstractInstruction ins, input SimpleMem dataMem);
         Word res = 'x;
         FormatSpec fmtSpec = parsingMap[ins.fmt];
@@ -508,7 +513,7 @@ package Emulation;
                 performBranch(ins, adr, args);
             
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
-                performLoad(ins, args, dataMem);
+                performMem(ins, args, dataMem);
                 this.writeToDo = getMemWrite(ins, args);
             end
             
@@ -528,14 +533,23 @@ package Emulation;
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
 
-        local function automatic void performLoad(input AbstractInstruction ins, input Word3 vals, input SimpleMem mem);
+        local function automatic void performMem(input AbstractInstruction ins, input Word3 vals, input SimpleMem mem);
             Word adr = calculateEffectiveAddress(ins, vals);
-            Word result = getLoadValue(ins, adr, mem, this.coreState);
-
-            if (!isLoadIns(ins)) return;
-
-            if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
-            if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
+            
+            // TODO: handle exception if occurs
+            if (0) begin
+                modifySysRegs(this.coreState, adr, ins);
+                return;
+            end
+            
+            begin
+                Word result = getLoadValue(ins, adr, mem, this.coreState);
+    
+                if (!isLoadIns(ins)) return;
+    
+                if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
+                if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
+            end
         endfunction
 
 
@@ -573,7 +587,12 @@ package Emulation;
         
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Word3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
-            if (isStoreMemIns(ins)) res = '{1, calculateEffectiveAddress(ins, vals), vals[2]};
+            Word effAdr = calculateEffectiveAddress(ins, vals);
+            logic en = 1;
+            // TODO: set en = 0 if exception
+            if (0) en = 0;
+            
+            if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2]};
             return res;
         endfunction
 

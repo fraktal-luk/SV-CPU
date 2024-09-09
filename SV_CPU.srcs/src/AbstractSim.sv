@@ -717,13 +717,10 @@ package AbstractSim;
     endfunction
 
 
-    function automatic logic getWrongSignal(input AbstractInstruction ins);
-        return ins.def.o == O_undef;
+    function automatic EventInfo eventFromOp(input OpSlot op);
+        return '{op, 0, 0, 1, 0, 0, 'x};
     endfunction
 
-    function automatic logic getSendSignal(input AbstractInstruction ins);
-        return ins.def.o == O_send;
-    endfunction
 
     task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
         if (ins.def.o == O_halt) $error("halt not implemented");
