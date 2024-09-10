@@ -237,12 +237,12 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic OpPacket memToComplete(input OpPacket p);
-        if (p.status != ES_OK) return EMPTY_OP_PACKET;
+        if (!(p.status inside {ES_OK, ES_REDO})) return EMPTY_OP_PACKET;
         else return p;
     endfunction
 
     function automatic OpPacket memToReplay(input OpPacket p);
-        if (p.status != ES_OK) return p;
+        if (!(p.status inside {ES_OK, ES_REDO})) return p;
         else return EMPTY_OP_PACKET;
     endfunction
 

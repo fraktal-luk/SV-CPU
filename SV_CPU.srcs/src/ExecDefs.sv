@@ -25,6 +25,7 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
+        ES_REDO,
             ES_INVALID
     } ExecStatus;
     

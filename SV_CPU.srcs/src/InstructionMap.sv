@@ -18,12 +18,15 @@ package Insmap;
         Word result;
         Word actualResult;
         IndexSet inds;
-        int slot;
+        int slot; // UNUSED?
         InsDependencies deps;
         int physDest;
         
         Word argValues[3];
         logic argError;
+        
+        logic exception;
+        logic refetch;
         
     } InstructionInfo;
 
@@ -81,6 +84,8 @@ package Insmap;
             FlushCommit,
             
             Retire,
+                RetireException,
+                RetireRefetch,
             
             WqEnter, WqExit // committed write queue
         } Milestone;
@@ -135,6 +140,9 @@ package Insmap;
             res.physDest = -1;
     
             res.argError = 0;
+
+            res.exception = 0;
+            res.refetch = 0;
     
             return res;
         endfunction
@@ -205,6 +213,14 @@ package Insmap;
     
         function automatic void setArgError(input InsId id);
             content[id].argError = 1;
+        endfunction
+        
+        function automatic void setException(input InsId id);
+            content[id].exception = 1;
+        endfunction
+        
+        function automatic void setRefetch(input InsId id);
+            content[id].refetch = 1;
         endfunction
         ////////////
     

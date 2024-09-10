@@ -226,23 +226,46 @@ package AbstractSim;
                 return findDest(id);
             endfunction
     
-            function automatic void commit(input AbstractInstruction ins, InsId id);
+    
+                function automatic void commitMapping();
+                
+                endfunction
+                
+                function automatic void releaseRegister(input int p);                
+                    if (p == 0) return;
+                
+                    info[p] = REG_INFO_FREE;
+                    ready[p] = 0;
+                    regs[p] = 'x;
+                endfunction
+  
+            function automatic void commit(input AbstractInstruction ins, input InsId id, input logic normal);
                 int vDest = ins.dest;
                 int ind[$] = info.find_first_index with (item.owner == id);
                 int pDest = ind[0];
                 int pDestPrev = MapC[vDest];
-                            
+ 
                 if (ignoreV(vDest)) return;
                 
-                writersC[vDest] = id;
-    
-                info[pDest] = '{STABLE, -1};
-                MapC[vDest] = pDest;
-
-                if (pDestPrev == 0) return; 
-                info[pDestPrev] = REG_INFO_FREE;
-                ready[pDestPrev] = 0;
-                regs[pDestPrev] = 'x;
+                // Below is for normal commit
+                if (normal) begin
+                    writersC[vDest] = id;
+                    MapC[vDest] = pDest;
+                    info[pDest] = '{STABLE, -1};
+                end
+               
+                // Freeing
+                begin
+                    int pToFree = normal ? pDestPrev : pDest;
+                
+//                    if (pToFree == 0) return;
+                
+//                    info[pToFree] = REG_INFO_FREE;
+//                    ready[pToFree] = 0;
+//                    regs[pToFree] = 'x;
+                    
+                    releaseRegister(pToFree);
+                end
             endfunction
 
             function automatic void setReady(input InsId id);
@@ -322,9 +345,9 @@ package AbstractSim;
         endfunction
 
 
-        function automatic void commit(input AbstractInstruction abs, input InsId id);            
-            if (hasIntDest(abs)) ints.commit(abs, id);      
-            if (hasFloatDest(abs)) floats.commit(abs, id);
+        function automatic void commit(input AbstractInstruction abs, input InsId id, input abnormal);            
+            if (hasIntDest(abs)) ints.commit(abs, id, !abnormal);      
+            if (hasFloatDest(abs)) floats.commit(abs, id, !abnormal);
         endfunction
 
         function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Word value);
@@ -727,11 +750,13 @@ package AbstractSim;
     endtask
 
     // core logic
-    function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed);
+    function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed, input logic refetch, input logic exception);
         if (isBranchIns(ins))
             return executed;
-        else if (isSysIns(ins))
+        else if (isSysIns(ins) || exception)
             return 'x;
+        else if (refetch)
+            return prev;
         else
             return prev + 4;
     endfunction;

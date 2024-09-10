@@ -205,11 +205,17 @@ module AbstractCore
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
         if (lateEventInfoWaiting.op.active) begin
+            EventInfo lateEvt;
             Word sr2 = getSysReg(2);
             Word sr3 = getSysReg(3);
             OpSlot waitingOp = lateEventInfoWaiting.op;
+            logic refetch = insMap.get(waitingOp.id).refetch;
+            
             AbstractInstruction abs = decAbs(waitingOp);
-            EventInfo lateEvt = getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
+            
+            if (refetch) abs.def.o = O_replay;
+
+            lateEvt = getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
             
             modifyStateSync(sysRegs, waitingOp.adr, abs);               
             retiredTarget <= lateEvt.target;
@@ -478,11 +484,12 @@ module AbstractCore
 
 
     function automatic logic breaksCommit(input OpSlot op);
-        return (isSysIns(decAbs(op)) && !isStoreSysIns(decAbs(op)));
+        return breaksCommitId(op.id);
     endfunction
 
     function automatic logic breaksCommitId(input InsId id);
-        return (isSysIns(decId(id)) && !isStoreSysIns(decId(id)));
+        InstructionInfo insInfo = insMap.get(id);
+        return (isSysIns(insInfo.dec) && !isStoreSysIns(insInfo.dec) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
@@ -514,13 +521,20 @@ module AbstractCore
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits); // TODO: check at Frontend?
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
         
+        
+            if (insMap.get(op.id).refetch) return; 
+        
+        
+        // Only Normal commit 
         if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
             assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
-
+        
+        // Normal or Exceptional
         runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
         nextTrg = retiredEmul.coreState.target; // DB
-
+        
+        // Normal
         if (isBranchIns(decAbs(op))) // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask
@@ -545,41 +559,42 @@ module AbstractCore
     task automatic commitOp(input OpSlot opC);
         InstructionInfo insInfo = insMap.get(opC.id);
         OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-                
-         //   committedState.last <= op.id; // UNUSED?
-            
+        logic refetch = insInfo.refetch;
+        logic exception = insInfo.exception;
+        InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+        
         assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
         verifyOnCommit(op);
-        checkUnimplementedInstruction(decAbs(op));
+        checkUnimplementedInstruction(decAbs(op)); // All types of commit?
 
-        updateInds(commitInds, op); // Crucial
-        commitInds.renameG = insMap.get(op.id).inds.renameG;
+        updateInds(commitInds, op); // All types?
+        commitInds.renameG = insMap.get(op.id).inds.renameG; // Part of above
 
-        registerTracker.commit(insInfo.dec, op.id);
+        registerTracker.commit(insInfo.dec, op.id, refetch || exception); // Need to modify to handle Exceptional and Hidden
         
-        if (isStoreIns(decAbs(op))) begin
+        if (isStoreIns(decAbs(op)) && !exception && !refetch) begin
             Transaction tr = memTracker.findStore(op.id);
-            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};
-            
-              //  committedState.lastWq <= op.id;
-            
-            csq.push_back(sqe);
-            putMilestone(op.id, InstructionMap::WqEnter);
+            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};       
+            csq.push_back(sqe); // Normal
+            putMilestone(op.id, InstructionMap::WqEnter); // Normal
         end
         
-        if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
-        if (breaksCommit(op)) setLateEvent(op); // Crucial state
+        if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // All?
+        if (breaksCommit(op)) setLateEvent(op); // All types?
 
-        // Crucial state
-        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
+        // TODO: handle rfech and exception
+        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types? 
 
-        releaseQueues(op); // Crucial state
-
-            coreDB.lastRetired = op;
-            coreDB.nRetired++;
+        releaseQueues(op); // All
             
-            putMilestone(op.id, InstructionMap::Retire);
+            if (!refetch) begin
+                coreDB.lastRetired = op; // Normal, not Hidden, what about Exc?
+                coreDB.nRetired++;
+            end
+            
+            // Need to modify to serve all types of commit            
+            putMilestone(op.id, retireType);
             insMap.setRetired(op.id);
     endtask
 
