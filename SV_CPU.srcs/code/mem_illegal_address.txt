@@ -1,0 +1,12 @@
+; Unaligned access
+$start
+	
+	add_i r10, r0, 15
+	;ldi_i r11, r0, -1 ; address -1, illegal
+
+	
+
+$check
+	sys call
+$error
+    sys error

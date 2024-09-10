@@ -311,7 +311,7 @@ package Insmap;
         typedef enum { EC_KilledFront, EC_KilledOOO, EC_KilledCommit, EC_Retired } ExecClass;
 
         function automatic ExecClass determineClass(input MilestoneTag tags[$]);
-            MilestoneTag retirement[$] = tags.find with (item.kind == Retire);
+            MilestoneTag retirement[$] = tags.find with (item.kind inside {Retire, RetireRefetch, RetireException});
             MilestoneTag frontKill[$] = tags.find with (item.kind == FlushFront);
             MilestoneTag commitKill[$] = tags.find with (item.kind == FlushCommit);
 
@@ -400,7 +400,7 @@ package Insmap;
             assert (tag.kind == Rename) else $error(" where rename?:   %p", tag);
             
             
-            assert (has(tags, Retire)) else $error("No Retire");
+            //assert (has(tags, Retire)) else $error("No Retire");
     
             assert (!has(tags, FlushFront)) else $error("eeee");
             assert (!has(tags, FlushOOO)) else $error("22eeee");

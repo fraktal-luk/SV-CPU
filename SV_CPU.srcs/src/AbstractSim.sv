@@ -254,6 +254,8 @@ package AbstractSim;
                     info[pDest] = '{STABLE, -1};
                 end
                
+                 //   if (!normal) $error("Not udating table: id = %d, writer = %d", id, writersC[vDest]);
+               
                 // Freeing
                 begin
                     int pToFree = normal ? pDestPrev : pDest;
