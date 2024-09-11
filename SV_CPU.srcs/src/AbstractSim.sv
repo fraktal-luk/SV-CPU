@@ -714,6 +714,27 @@ package AbstractSim;
     endfunction
 
 
+    
+        function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
+            LateEvent res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
+            EventInfo A_res = EMPTY_EVENT_INFO;
+            
+            begin
+                res.target = IP_EXC;
+                res.redirect = 1;
+            end
+                          
+    
+            A_res.op = op;
+    
+            A_res.redirect = res.redirect;
+            A_res.sigOk = res.sigOk;
+            A_res.sigWrong = res.sigWrong;
+            A_res.target = res.target;
+    
+            return A_res;
+        endfunction
+
 
     function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
         case (abs.def.o)
@@ -733,6 +754,16 @@ package AbstractSim;
             O_retI: sysRegs[1] = sysRegs[5];
         endcase
     endfunction
+
+        function automatic void modifyStateSyncExc(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
+            begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[2] = adr;
+                
+                sysRegs[1] |= 1; // TODO: handle state register correctly
+            end
+        endfunction
+
 
     function automatic void saveStateAsync(ref Word sysRegs[32], input Word prevTarget);
         sysRegs[5] = sysRegs[1];

@@ -39,10 +39,12 @@ package InsDefs;
 
     import Base::*;
 
-    localparam Word IP_RESET = 'h00000200;
     localparam Word IP_ERROR = 'h00000100;
     localparam Word IP_CALL = 'h00000180;
+    localparam Word IP_RESET = 'h00000200;
     localparam Word IP_INT = 'h00000280;
+    localparam Word IP_EXC = 'h00000300;
+
 
     typedef string string3[3];
     typedef string string4[4];

@@ -410,14 +410,14 @@ package Emulation;
             end
             O_send: begin
                 state.target = adr + 4;
-            end
+            end          
             default: state.target = adr + 4;
         endcase
     endfunction
 
     
         function automatic void modifySysRegsOnException(ref CpuState state, input Word adr, input AbstractInstruction abs);
-            state.target = IP_ERROR;
+            state.target = IP_EXC;
 
             state.sysRegs[4] = state.sysRegs[1];
             state.sysRegs[1] |= 1; // TODO: handle state register correctly
@@ -533,12 +533,22 @@ package Emulation;
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
 
+
+
+        local function automatic logic exceptionCaused(input AbstractInstruction ins, input Word adr);
+            if (ins.def.o == O_sysLoad && adr > 31) return 1;
+            
+            return 0;
+        endfunction
+        
+
         local function automatic void performMem(input AbstractInstruction ins, input Word3 vals, input SimpleMem mem);
             Word adr = calculateEffectiveAddress(ins, vals);
             
             // TODO: handle exception if occurs
-            if (0) begin
-                modifySysRegs(this.coreState, adr, ins);
+            if (exceptionCaused(ins, adr)) begin
+                    $error("Exception: sys reg %d", adr);
+                modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end
             

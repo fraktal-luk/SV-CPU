@@ -210,14 +210,19 @@ module AbstractCore
             Word sr3 = getSysReg(3);
             OpSlot waitingOp = lateEventInfoWaiting.op;
             logic refetch = insMap.get(waitingOp.id).refetch;
+            logic exception = insMap.get(waitingOp.id).exception;
             
             AbstractInstruction abs = decAbs(waitingOp);
             
             if (refetch) abs.def.o = O_replay;
 
-            lateEvt = getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
+            lateEvt = exception ? 
+                        getLateEventExc(waitingOp, abs, waitingOp.adr, sr2, sr3) :
+                        getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
             
-            modifyStateSync(sysRegs, waitingOp.adr, abs);               
+            if (exception) modifyStateSyncExc(sysRegs, waitingOp.adr, abs);
+            else modifyStateSync(sysRegs, waitingOp.adr, abs);
+                         
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -525,16 +530,17 @@ module AbstractCore
             if (insMap.get(op.id).refetch) return; 
         
         
-        // Only Normal commit 
-        if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
-            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
-        
+        // Only Normal commit
+        if (!insMap.get(op.id).exception)
+            if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
+                assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
+            
         // Normal or Exceptional
         runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
         nextTrg = retiredEmul.coreState.target; // DB
         
-        // Normal
+        // Normal (branches don't cause exceptions so far, check for exc can be omitted)
         if (isBranchIns(decAbs(op))) // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask

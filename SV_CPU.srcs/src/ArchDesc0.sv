@@ -91,6 +91,9 @@ module ArchDesc0();
     const string INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys reti", "ja 0"};
     const string FAILING_INT_HANDLER[$]  = {"undef", "ja 0", "undef"};
 
+    const string EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys rete", "ja 0"};
+
+
     Section common;
     squeue tests;
     string emulTestName, simTestName;
@@ -103,7 +106,7 @@ module ArchDesc0();
         return line.size() == 1;
     endfunction
 
-    task automatic setPrograms(ref Word mem[4096], input Section testSec, input Section callSec, input Section intSec);
+    task automatic setPrograms(ref Word mem[4096], input Section testSec, input Section callSec, input Section intSec, input Section excSec);
         mem = '{default: 'x};
         writeProgram(mem, COMMON_ADR, common.words);          
         writeProgram(mem, 0, testSec.words);
@@ -111,6 +114,7 @@ module ArchDesc0();
         writeProgram(mem, IP_ERROR, processLines(DEFAULT_ERROR_HANDLER).words);
         writeProgram(mem, IP_CALL, callSec.words);
         writeProgram(mem, IP_INT, intSec.words);
+        writeProgram(mem, IP_EXC, excSec.words);
     endtask
 
     Emulator emulSig;
@@ -119,9 +123,9 @@ module ArchDesc0();
 
     typedef logic[7:0] DynamicDataMem[];
 
-    task automatic prepareTest(ref Word mem[4096], input string name, input Section callSec, input Section intSec);
+    task automatic prepareTest(ref Word mem[4096], input string name, input Section callSec, input Section intSec, input Section excSec);
         Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common/*commonSim*/, COMMON_ADR);
-        setPrograms(mem, testProg, callSec, intSec);
+        setPrograms(mem, testProg, callSec, intSec, excSec);
     endtask
 
 
@@ -138,7 +142,7 @@ module ArchDesc0();
             squeue lineParts = breakLine(tests[i]);
             if (!isValidTest(lineParts)) continue;
             emulTestName = lineParts[0];
-            #1 runTestEmul(lineParts[0], emul, processLines(DEFAULT_CALL_HANDLER), processLines(FAILING_INT_HANDLER));
+            #1 runTestEmul(lineParts[0], emul, processLines(DEFAULT_CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
             //#1;
         end
         #1;
@@ -148,7 +152,7 @@ module ArchDesc0();
         #1;
         
         emulTestName = "events";
-        runTestEmul("events", emul, processLines(CALL_HANDLER), processLines(FAILING_INT_HANDLER));
+        runTestEmul("events", emul, processLines(CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
         #1;
         
         emulTestName = "int";
@@ -202,8 +206,8 @@ module ArchDesc0();
 
 
     // Emul-only run
-    task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec, input Section intSec);
-        prepareTest(progMem, name, callSec, intSec);
+    task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec, input Section intSec, input Section excSec);
+        prepareTest(progMem, name, callSec, intSec, excSec);
 
         dataMem = '{default: 0};
         emul.reset();
@@ -213,7 +217,7 @@ module ArchDesc0();
     endtask
 
     task automatic runIntTestEmul(ref Emulator emul);
-        prepareTest(progMem, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER));
+        prepareTest(progMem, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
 
         dataMem = '{default: 0};
         emul.reset();
@@ -263,9 +267,9 @@ module ArchDesc0();
             foreach (tests[i]) begin
                 squeue lineParts = breakLine(tests[i]);
                 if (!isValidTest(lineParts)) continue;
-                runTestSim(lineParts[0], processLines(DEFAULT_CALL_HANDLER), processLines(FAILING_INT_HANDLER));
+                runTestSim(lineParts[0], processLines(DEFAULT_CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
             end
-            runTestSim("events", processLines(CALL_HANDLER), processLines(FAILING_INT_HANDLER));
+            runTestSim("events", processLines(CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
             runIntTestSim();
             
             $display("All tests done;");
@@ -283,9 +287,9 @@ module ArchDesc0();
         endtask
 
 
-        task automatic runTestSim(input string name, input Section callSec, input Section intSec);
+        task automatic runTestSim(input string name, input Section callSec, input Section intSec, input Section excSec);
             #CYCLE announce(name);
-            prepareTest(programMem.content, name, callSec, intSec);
+            prepareTest(programMem.content, name, callSec, intSec, excSec);
             TMP_setP(programMem.content);
             core.instructionCache.setProgram(programMem.content);
             core.dataCache.reset();
@@ -299,7 +303,7 @@ module ArchDesc0();
 
         task automatic runIntTestSim();
             #CYCLE announce("int");
-            prepareTest(programMem.content, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER));
+            prepareTest(programMem.content, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
             TMP_setP(programMem.content);
             core.instructionCache.setProgram(programMem.content);
             core.dataCache.reset();

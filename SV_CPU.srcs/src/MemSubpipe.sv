@@ -80,6 +80,12 @@ module MemSubpipe#(
     function automatic OpPacket updateE0(input OpPacket p, input Word adr);
         OpPacket res = p;
         
+        if (p.active && isLoadSysIns(decId(p.id)) && adr > 31) begin
+                $error("wrong read sys reg, id = %d", p.id);
+            insMap.setException(p.id);
+            return res;
+        end
+        
         if (p.active && isMemIns(decId(p.id)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
         
         res.result = adr;
