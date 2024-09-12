@@ -150,7 +150,7 @@ module AbstractCore
         activateEvent();
 
         drainWriteQueue();
-            TMP_WQ();        
+            //TMP_WQ();        
         advanceCommit();        
         putWrite();
 
@@ -247,8 +247,12 @@ module AbstractCore
        drainHead <= csq[0];
 
        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
+       
+       if (storeHead.op.active && isStoreIns(decAbs(storeHead.op)) && insMap.get(storeHead.op.id).exception) $fatal(2, "Store with excpetion in WQ!");
+
 
        if (sqe.op.id == -1) return;
+
 
        if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
 
@@ -481,12 +485,6 @@ module AbstractCore
     endtask
 
 
-        task automatic TMP_WQ();
-            OpSlotA ops = theSq.outGroup;
-            
-            // TODO
-        endtask
-
 
     function automatic logic breaksCommit(input OpSlot op);
         return breaksCommitId(op.id);
@@ -505,7 +503,7 @@ module AbstractCore
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
             if (opC.active && !cancelRest) commitOp(opC);
-            else if (opC.active && cancelRest) $fatal(2, "Committing after break");//cancelOp(opC); // TODO: assert this never happens
+            else if (opC.active && cancelRest) $fatal(2, "Committing after break");
             else continue;
 
             if (breaksCommit(opC)) cancelRest = 1;
@@ -589,7 +587,6 @@ module AbstractCore
         if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // All?
         if (breaksCommit(op)) setLateEvent(op); // All types?
 
-        // TODO: handle rfech and exception
         retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types? 
 
         releaseQueues(op); // All
@@ -681,6 +678,7 @@ module AbstractCore
     endfunction
 
     function automatic void setSysReg(input Word adr, input Word val);
+        assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
         sysRegs[adr] = val;
     endfunction
 

@@ -81,7 +81,13 @@ module MemSubpipe#(
         OpPacket res = p;
         
         if (p.active && isLoadSysIns(decId(p.id)) && adr > 31) begin
-                $error("wrong read sys reg, id = %d", p.id);
+                $error("wrong sys reg read, id = %d", p.id);
+            insMap.setException(p.id);
+            return res;
+        end
+        
+        if (p.active && isStoreSysIns(decId(p.id)) && adr > 31) begin
+                $error("wrong sys reg write, id = %d", p.id);
             insMap.setException(p.id);
             return res;
         end

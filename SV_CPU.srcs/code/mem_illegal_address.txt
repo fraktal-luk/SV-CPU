@@ -8,6 +8,12 @@ $start
 	add_i r12, r1, -37
 	jnz_i r12, $error
 
+	add_i r1, r0, 0
+	sts  r11, r0, 33
+
+	add_i r13, r1, -37
+	jnz_i r13, $error
+
 $check
 	sys call
 $error

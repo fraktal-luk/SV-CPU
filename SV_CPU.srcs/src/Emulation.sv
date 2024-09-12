@@ -257,10 +257,18 @@ package Emulation;
         assert (!$isunknown(value)) else $error("Writing unknown value!");
         state.floatRegs[regNum] = value;
     endfunction
-
-    function automatic void writeSysReg(ref CpuState state, input Word regNum, input Word value);
+    
+    // Return 1 if exc
+    function automatic logic writeSysReg(ref CpuState state, input AbstractInstruction ins, input Word regNum, input Word value);
         assert (!$isunknown(value)) else $error("Writing unknown value!");
+        
+        if (regNum > 31) begin
+                $error("sys wite %d", regNum);
+            return 1;
+        end
+        
         state.sysRegs[regNum] = value;
+        return 0;
     endfunction
 
 
@@ -537,6 +545,7 @@ package Emulation;
 
         local function automatic logic exceptionCaused(input AbstractInstruction ins, input Word adr);
             if (ins.def.o == O_sysLoad && adr > 31) return 1;
+            if (ins.def.o == O_sysStore && adr > 31) return 1;
             
             return 0;
         endfunction
@@ -545,7 +554,6 @@ package Emulation;
         local function automatic void performMem(input AbstractInstruction ins, input Word3 vals, input SimpleMem mem);
             Word adr = calculateEffectiveAddress(ins, vals);
             
-            // TODO: handle exception if occurs
             if (exceptionCaused(ins, adr)) begin
                     $error("Exception: sys reg %d", adr);
                 modifySysRegsOnException(this.coreState, this.ip, ins);
@@ -590,9 +598,16 @@ package Emulation;
         endfunction
 
         local function automatic void performSys(input Word adr, input AbstractInstruction ins, input Word3 vals);
-            if (isStoreSysIns(ins)) writeSysReg(this.coreState, vals[1], vals[2]);
-            modifyStatus(ins);
-            modifySysRegs(this.coreState, adr, ins);
+            if (isStoreSysIns(ins)) begin
+                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);
+                //modifyStatus(ins);
+                if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
+                else modifySysRegs(this.coreState, adr, ins);
+            end
+            else begin
+                modifyStatus(ins);
+                modifySysRegs(this.coreState, adr, ins);
+            end
         endfunction
         
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Word3 vals);
@@ -600,7 +615,7 @@ package Emulation;
             Word effAdr = calculateEffectiveAddress(ins, vals);
             logic en = 1;
             // TODO: set en = 0 if exception
-            if (0) en = 0;
+            if (exceptionCaused(ins, effAdr)) en = 0;
             
             if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2]};
             return res;
