@@ -263,7 +263,7 @@ package Emulation;
         assert (!$isunknown(value)) else $error("Writing unknown value!");
         
         if (regNum > 31) begin
-                $error("sys wite %d", regNum);
+               // $error("sys wite %d", regNum);
             return 1;
         end
         
@@ -555,7 +555,7 @@ package Emulation;
             Word adr = calculateEffectiveAddress(ins, vals);
             
             if (exceptionCaused(ins, adr)) begin
-                    $error("Exception: sys reg %d", adr);
+                   // $error("Exception: sys reg %d", adr);
                 modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end

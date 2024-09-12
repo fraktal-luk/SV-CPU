@@ -81,13 +81,13 @@ module MemSubpipe#(
         OpPacket res = p;
         
         if (p.active && isLoadSysIns(decId(p.id)) && adr > 31) begin
-                $error("wrong sys reg read, id = %d", p.id);
+               // $error("wrong sys reg read, id = %d", p.id);
             insMap.setException(p.id);
             return res;
         end
         
         if (p.active && isStoreSysIns(decId(p.id)) && adr > 31) begin
-                $error("wrong sys reg write, id = %d", p.id);
+              //  $error("wrong sys reg write, id = %d", p.id);
             insMap.setException(p.id);
             return res;
         end
@@ -193,10 +193,10 @@ module MemSubpipe#(
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
             if (writerOverlapId != writerInsideId) begin
-                $error("Cannot forward from last overlapping store!");
+               // $error("Cannot forward from last overlapping store!");
                 if (HANDLE_UNALIGNED) begin
                     res.status = ES_REDO;
-                    $error("setting refetch, id = %d", id);
+                   // $error("setting refetch, id = %d", id);
                     insMap.setRefetch(id);
                 end
             end
