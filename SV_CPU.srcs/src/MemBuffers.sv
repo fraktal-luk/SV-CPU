@@ -130,11 +130,19 @@ module StoreQueue
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
+                // Don't commit entry if this op has an exception
+//                if (content[startPointer % SIZE].id == AbstractCore.theRob.lastOut && insMap.get(content[startPointer % SIZE].id).exception) begin
+//                    $error( "Not commitin SQ enry becuase exc, %d ", thisId);
+//                    continue;
+//                end
+                
                 content[startPointer % SIZE].committed = 1;
+                startPointer = (startPointer+1) % (2*SIZE);
             end
-            else content[startPointer % SIZE] = EMPTY_ENTRY;
-
-            startPointer = (startPointer+1) % (2*SIZE);
+            else begin
+                content[startPointer % SIZE] = EMPTY_ENTRY;
+                startPointer = (startPointer+1) % (2*SIZE);
+            end
         end
         
         if (SQ_RETAIN && IS_STORE_QUEUE) begin

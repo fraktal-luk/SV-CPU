@@ -79,10 +79,10 @@ module AbstractCore
     
     // Store interface
         // Committed
-        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
+        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}};
         string csqStr;
             
-        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x};
+        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
     
     // Event control
@@ -141,7 +141,7 @@ module AbstractCore
 
     ///////////////////////////////////////////
 
-    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
+    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)) && !storeHead.cancel, storeHead.adr, storeHead.val};
 
 
     always @(posedge clk) begin
@@ -246,9 +246,9 @@ module AbstractCore
 
        drainHead <= csq[0];
 
-       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
+       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
        
-       if (storeHead.op.active && isStoreIns(decAbs(storeHead.op)) && insMap.get(storeHead.op.id).exception) $fatal(2, "Store with excpetion in WQ!");
+       //if (storeHead.op.active && isStoreIns(decAbs(storeHead.op)) && insMap.get(storeHead.op.id).exception) $fatal(2, "Store with excpetion in WQ!");
 
 
        if (sqe.op.id == -1) return;
@@ -261,7 +261,7 @@ module AbstractCore
 
     task automatic putWrite();            
         if (csq.size() < 4) begin
-            csq.push_back('{EMPTY_SLOT, 'x, 'x});
+            csq.push_back('{EMPTY_SLOT, 'x, 'x, 'x});
             csqEmpty <= 1;
         end
         else begin
@@ -577,9 +577,9 @@ module AbstractCore
 
         registerTracker.commit(insInfo.dec, op.id, refetch || exception); // Need to modify to handle Exceptional and Hidden
         
-        if (isStoreIns(decAbs(op)) && !exception && !refetch) begin
+        if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
-            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};       
+            StoreQueueEntry sqe = '{op, exception || refetch, tr.adrAny, tr.val};       
             csq.push_back(sqe); // Normal
             putMilestone(op.id, InstructionMap::WqEnter); // Normal
         end

@@ -67,6 +67,7 @@ package AbstractSim;
     // Write buffer
     typedef struct {
         OpSlot op;
+        logic cancel;
         Word adr;
         Word val;
     } StoreQueueEntry;
