@@ -24,7 +24,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
             putMilestone(stage[i].id, InstructionMap::FlushFront);
-            insMap.setKilled(stage[i].id,  1);
+            //insMap.setKilled(stage[i].id,  1);
         end
     endtask
 

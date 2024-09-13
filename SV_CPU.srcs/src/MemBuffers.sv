@@ -80,7 +80,7 @@ module StoreQueue
     
     task automatic flushAll();
         foreach (content[i]) begin
-            //if (content[i].committed) continue; 
+            if (content[i].committed) continue; 
             
             if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);
             
@@ -112,10 +112,16 @@ module StoreQueue
     endtask
     
     
+    localparam logic SQ_RETAIN = 1;//0;
+    
+    
     task automatic advance();
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT};
-        while (content[startPointer % SIZE].id != -1 && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut) begin
+        while (content[startPointer % SIZE].id != -1
+            && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut
+               )
+        begin
             InsId thisId = content[startPointer % SIZE].id;
             outGroup[nOut].id <= content[startPointer % SIZE].id;
             outGroup[nOut].active <= 1;
@@ -123,16 +129,23 @@ module StoreQueue
                 
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
 
-            if (0 && IS_STORE_QUEUE) begin 
-                //if (lateEventInfo.op.active && lateEventInfo.op.id) begin end
+            if (SQ_RETAIN && IS_STORE_QUEUE) begin
+                // Don't commit entry if this op has an exception
+//                if (content[startPointer % SIZE].id == AbstractCore.theRob.lastOut && insMap.get(content[startPointer % SIZE].id).exception) begin
+//                    $error( "Not commitin SQ enry becuase exc, %d ", thisId);
+//                    continue;
+//                end
+                
                 content[startPointer % SIZE].committed = 1;
+                startPointer = (startPointer+1) % (2*SIZE);
             end
-            else content[startPointer % SIZE] = EMPTY_ENTRY;
-
-            startPointer = (startPointer+1) % (2*SIZE);
+            else begin
+                content[startPointer % SIZE] = EMPTY_ENTRY;
+                startPointer = (startPointer+1) % (2*SIZE);
+            end
         end
         
-        if (0 && IS_STORE_QUEUE) begin
+        if (SQ_RETAIN && IS_STORE_QUEUE) begin
             if (AbstractCore.drainHead.op.active) begin
                     assert (AbstractCore.drainHead.op.id == content[drainPointer % SIZE].id) else $error("Not matching id drain %d/%d", AbstractCore.drainHead.op.id, content[drainPointer % SIZE].id);
             

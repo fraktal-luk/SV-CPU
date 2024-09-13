@@ -52,16 +52,24 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
+        typedef struct {
+            InsId last = -1;
+            InsId lastWq = -1;
+        } CommittedState;
+        
+        CommittedState committedState;
+
+
     // Exec
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
-
     Word instructionCacheOut[FETCH_WIDTH];
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO,
-              lateEventInfo = EMPTY_EVENT_INFO, lateEventInfoWaiting = EMPTY_EVENT_INFO;
+              lateEventInfo = EMPTY_EVENT_INFO,
+              lateEventInfoWaiting = EMPTY_EVENT_INFO;
     Events evts;
 
     BranchCheckpoint branchCP;
@@ -71,11 +79,10 @@ module AbstractCore
     
     // Store interface
         // Committed
-        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-            StoreQueueEntry csq_Mirror[4] = '{'{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x}};
-            string csqStr;
+        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}};
+        string csqStr;
             
-        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x};
+        StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
     
     // Event control
@@ -112,10 +119,7 @@ module AbstractCore
         assign TMP_readReqs = theExecBlock.readReqs;
         assign theExecBlock.readResps = TMP_readResps;
     
-    
-            assign cmpA = instructionCacheOut === insIn;
-            
-          
+
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -137,16 +141,16 @@ module AbstractCore
 
     ///////////////////////////////////////////
 
-    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)), storeHead.adr, storeHead.val};
+    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)) && !storeHead.cancel, storeHead.adr, storeHead.val};
 
 
     always @(posedge clk) begin
-            insMap.endCycle();
+        insMap.endCycle();
     
         activateEvent();
 
         drainWriteQueue();
-            TMP_WQ();        
+            //TMP_WQ();        
         advanceCommit();        
         putWrite();
 
@@ -160,11 +164,8 @@ module AbstractCore
 
         // Complete + write regs
         handleCompletion();
-        
-            //csq_Mirror <= csq[0:$];
-        
-            $swrite(csqStr, "%p", csq);
-        
+
+        $swrite(csqStr, "%p", csq);
         updateBookkeeping();
     end
 
@@ -195,65 +196,72 @@ module AbstractCore
     endtask
 
 
-    // Event processing
-
-    function automatic LateEvent getLateEvt(input OpSlot op);
-        AbstractInstruction abs = decAbs(op);
-        Word sr2 = getSysReg(2);
-        Word sr3 = getSysReg(3);
-        return getLateEvent(op, abs, sr2, sr3);
-    endfunction
 
     task automatic activateEvent();
-        LateEvent lateEvt;
-    
         lateEventInfo <= EMPTY_EVENT_INFO;
     
         if (!csqEmpty) return;    
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
-        if (!(lateEventInfoWaiting.op.active | lateEventInfoWaiting.reset | lateEventInfoWaiting.interrupt)) return;
-
-        lateEvt = getLateEvt(lateEventInfoWaiting.op);
-
         if (lateEventInfoWaiting.op.active) begin
-            modifyStateSync(sysRegs, lateEventInfoWaiting.op.adr, decAbs(lateEventInfoWaiting.op));               
+            EventInfo lateEvt;
+            Word sr2 = getSysReg(2);
+            Word sr3 = getSysReg(3);
+            OpSlot waitingOp = lateEventInfoWaiting.op;
+            logic refetch = insMap.get(waitingOp.id).refetch;
+            logic exception = insMap.get(waitingOp.id).exception;
+            
+            AbstractInstruction abs = decAbs(waitingOp);
+            
+            if (refetch) abs.def.o = O_replay;
+
+            lateEvt = exception ? 
+                        getLateEventExc(waitingOp, abs, waitingOp.adr, sr2, sr3) :
+                        getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
+            
+            if (exception) modifyStateSyncExc(sysRegs, waitingOp.adr, abs);
+            else modifyStateSync(sysRegs, waitingOp.adr, abs);
+                         
             retiredTarget <= lateEvt.target;
-            lateEventInfo <= '{lateEventInfoWaiting.op, 0, 0, lateEvt.redirect, getSendSignal(decAbs(lateEventInfoWaiting.op)), getWrongSignal(decAbs(lateEventInfoWaiting.op)), lateEvt.target};
+            lateEventInfo <= lateEvt;
         end
         else if (lateEventInfoWaiting.reset) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_RESET;
-            lateEventInfo <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
+            lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_INT;
-            lateEventInfo <= '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+            lateEventInfo <= INT_EVENT;
         end
     endtask
+
 
     ////////////////
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
 
-           drainHead <= csq[0];
+       drainHead <= csq[0];
 
-       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op))) setSysReg(storeHead.adr, storeHead.val);
+       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
+       
+       //if (storeHead.op.active && isStoreIns(decAbs(storeHead.op)) && insMap.get(storeHead.op.id).exception) $fatal(2, "Store with excpetion in WQ!");
+
 
        if (sqe.op.id == -1) return;
 
+
        if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
 
-       putMilestone(sqe.op.id, InstructionMap::Drain);
        putMilestone(sqe.op.id, InstructionMap::WqExit);
     endtask
 
     task automatic putWrite();            
         if (csq.size() < 4) begin
-            csq.push_back('{EMPTY_SLOT, 'x, 'x});
+            csq.push_back('{EMPTY_SLOT, 'x, 'x, 'x});
             csqEmpty <= 1;
         end
         else begin
@@ -297,13 +305,12 @@ module AbstractCore
     assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
     assign oooLevels.iqMem = theIssueQueues.memQueue.num;
     assign oooLevels.iqSys = theIssueQueues.sysQueue.num;
-    
+
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat)
-                                                && theRob.allow && theSq.allow && theLq.allow;;
+    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
 
     function automatic IqLevels getBufferAccepts(input IqLevels levels);
         IqLevels res;
@@ -329,7 +336,7 @@ module AbstractCore
 
     // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
-        return nI > FETCH_WIDTH && nF > FETCH_WIDTH;
+        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
     endfunction
 
     // Helper (inline it?)
@@ -427,13 +434,11 @@ module AbstractCore
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
             putMilestone(stage[i].id, InstructionMap::FlushOOO);
-            insMap.setKilled(stage[i].id);
         end
     endtask
 
     task automatic saveCP(input OpSlot op);
         BranchCheckpoint cp = new(op, renamedEmul.coreState, renamedEmul.tmpDataMem,
-                                    //registerTracker.wrTracker.intWritersR, registerTracker.wrTracker.floatWritersR,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds);
@@ -480,24 +485,31 @@ module AbstractCore
     endtask
 
 
-        task automatic TMP_WQ();
-            OpSlotA ops = theSq.outGroup;
-            
-            // TODO
-        endtask
+
+    function automatic logic breaksCommit(input OpSlot op);
+        return breaksCommitId(op.id);
+    endfunction
+
+    function automatic logic breaksCommitId(input InsId id);
+        InstructionInfo insInfo = insMap.get(id);
+        return (isSysIns(insInfo.dec) && !isStoreSysIns(insInfo.dec) || insInfo.refetch || insInfo.exception);
+    endfunction
 
 
     task automatic advanceCommit();
+        logic cancelRest = 0;
         // Don't commit anything more if event is being handled
-        if (interrupt || reset || lateEventInfoWaiting.redirect || lateEventInfo.redirect) return;
 
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
-            if (opC.active) commitOp(opC);
+            if (opC.active && !cancelRest) commitOp(opC);
+            else if (opC.active && cancelRest) $fatal(2, "Committing after break");
             else continue;
 
-            if (isSysIns(decAbs(opC)) && !isStoreSysIns(decAbs(opC))) break;
+            if (breaksCommit(opC)) cancelRest = 1;
         end
+        
+        insMap.commitCheck();
     endtask
 
 
@@ -509,54 +521,83 @@ module AbstractCore
         Word bits = fetchInstruction(TMP_getP(), trg); // DB
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
-        assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits);
+        assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits); // TODO: check at Frontend?
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
-
-        if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
-            assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
-
+        
+        
+            if (insMap.get(op.id).refetch) return; 
+        
+        
+        // Only Normal commit
+        if (!insMap.get(op.id).exception)
+            if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
+                assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
+            
+        // Normal or Exceptional
         runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
         nextTrg = retiredEmul.coreState.target; // DB
-
+        
+        // Normal (branches don't cause exceptions so far, check for exc can be omitted)
         if (isBranchIns(decAbs(op))) // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask
 
 
+    // Finish types:
+    // CommitNormal     - normal effects take place, resources are freed
+    // CommitException  - exceptional effects take place, resources are freed
+    // CommitHidden     - replay takes place, reources are freed
+    //
+    // Normal effects:      register tables, updated target
+    // Exceptional effects: fire event (update target, handle sys regs, redirect)
+    // Hidden effects:      like above but event is Refetch 
+    //
+    // Registers:
+    //     regular commit - write to tables, free previous table content
+    //     exc/hidden     -     free own mapping instead of writing it
+    //
+    // Store ops: if Exc or Hidden, SQ entry must be marked invalid on commit or not committed (ptr not moved, then flushed by event)
+    // 
+    
     task automatic commitOp(input OpSlot opC);
         InstructionInfo insInfo = insMap.get(opC.id);
         OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
-
+        logic refetch = insInfo.refetch;
+        logic exception = insInfo.exception;
+        InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+        
         assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
         verifyOnCommit(op);
-        checkUnimplementedInstruction(decAbs(op));
+        checkUnimplementedInstruction(decAbs(op)); // All types of commit?
 
-        updateInds(commitInds, op); // Crucial
-        commitInds.renameG = insMap.get(op.id).inds.renameG;
+        updateInds(commitInds, op); // All types?
+        commitInds.renameG = insMap.get(op.id).inds.renameG; // Part of above
 
-        registerTracker.commit(insInfo.dec, op.id);
+        registerTracker.commit(insInfo.dec, op.id, refetch || exception); // Need to modify to handle Exceptional and Hidden
         
         if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
-            StoreQueueEntry sqe = '{op, tr.adrAny, tr.val};        
-            csq.push_back(sqe);
-            putMilestone(op.id, InstructionMap::WqEnter);
+            StoreQueueEntry sqe = '{op, exception || refetch, tr.adrAny, tr.val};       
+            csq.push_back(sqe); // Normal
+            putMilestone(op.id, InstructionMap::WqEnter); // Normal
         end
         
-        if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // DB?
-        if (isSysIns(decAbs(op))) setLateEvent(op); // Crucial state
+        if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // All?
+        if (breaksCommit(op)) setLateEvent(op); // All types?
 
-        // Crucial state
-        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target);        
+        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types? 
 
-        releaseQueues(op); // Crucial state
-
-            coreDB.lastRetired = op;
-            coreDB.nRetired++;
+        releaseQueues(op); // All
             
-            putMilestone(op.id, InstructionMap::Retire);
+            if (!refetch) begin
+                coreDB.lastRetired = op; // Normal, not Hidden, what about Exc?
+                coreDB.nRetired++;
+            end
+            
+            // Need to modify to serve all types of commit            
+            putMilestone(op.id, retireType);
             insMap.setRetired(op.id);
     endtask
 
@@ -568,11 +609,6 @@ module AbstractCore
         if (isStoreIns(decAbs(op))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
 
-    task automatic setLateEvent(input OpSlot op);    
-        LateEvent evt = getLateEvt(op);
-        lateEventInfoWaiting <= '{op, 0, 0, evt.redirect, 0, 0, evt.target};
-    endtask
-
     task automatic releaseQueues(input OpSlot op);
         if (isBranchIns(decAbs(op))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
@@ -583,21 +619,23 @@ module AbstractCore
     endtask
 
 
+    task automatic setLateEvent(input OpSlot op);
+        lateEventInfoWaiting <= eventFromOp(op);
+    endtask
+
     task automatic execReset();
-            insMap.cleanDescs();
-    
-        lateEventInfoWaiting <= '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
+        lateEventInfoWaiting <= RESET_EVENT;
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
-        lateEventInfoWaiting <= '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+        lateEventInfoWaiting <= INT_EVENT;
         retiredEmul.interrupt();
     endtask
 
-    
-    
+
+
     task automatic completePacket(input OpPacket p);
         if (!p.active) return;
         else begin
@@ -640,6 +678,7 @@ module AbstractCore
     endfunction
 
     function automatic void setSysReg(input Word adr, input Word val);
+        assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
         sysRegs[adr] = val;
     endfunction
 
@@ -671,7 +710,6 @@ module AbstractCore
     function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
-
 
 
 
@@ -708,14 +746,15 @@ module AbstractCore
     function automatic logic shouldFlushEvent(input InsId id);
         return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
     endfunction
-
-    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-        if (fe.id != -1) begin
-            int inds[$] = p.find with (item == fe.id);
-            return inds.size() != 0;
-        end
-        return 0;
-    endfunction
+        
+        // TODO: move to package?
+        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+            if (fe.id != -1) begin
+                int inds[$] = p.find with (item == fe.id);
+                return inds.size() != 0;
+            end
+            return 0;
+        endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];

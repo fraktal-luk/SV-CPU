@@ -80,6 +80,18 @@ module MemSubpipe#(
     function automatic OpPacket updateE0(input OpPacket p, input Word adr);
         OpPacket res = p;
         
+        if (p.active && isLoadSysIns(decId(p.id)) && adr > 31) begin
+               // $error("wrong sys reg read, id = %d", p.id);
+            insMap.setException(p.id);
+            return res;
+        end
+        
+        if (p.active && isStoreSysIns(decId(p.id)) && adr > 31) begin
+              //  $error("wrong sys reg write, id = %d", p.id);
+            insMap.setException(p.id);
+            return res;
+        end
+        
         if (p.active && isMemIns(decId(p.id)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
         
         res.result = adr;
@@ -121,9 +133,9 @@ module MemSubpipe#(
         stateE2 = tickP(pE1);
         
         resultE2 = 'x;
-        if (stateE2.active) resultE2 = calcMemE2(stateE2.id, readResp, sqResp);
-        stateE2.result = resultE2;
-        result <= resultE2;
+        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.id, readResp, sqResp);
+        //stateE2.result = resultE2;
+        result <= stateE2.result;
         
         pE2 <= stateE2;
     endtask
@@ -165,7 +177,8 @@ module MemSubpipe#(
     endtask
 
     // TOPLEVEL
-    function automatic Word calcMemE2(input InsId id, input DataReadResp readResp, input OpPacket sqResp);
+    function automatic OpPacket calcMemE2(input OpPacket p, input InsId id, input DataReadResp readResp, input OpPacket sqResp);
+        OpPacket res = p;
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
 
@@ -179,7 +192,14 @@ module MemSubpipe#(
         Word memData = forwarded ? fwValue : readResp.result;
         Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
-            if (writerOverlapId != writerInsideId) $error("Cannot forward from last overlapping store!");
+            if (writerOverlapId != writerInsideId) begin
+               // $error("Cannot forward from last overlapping store!");
+                if (HANDLE_UNALIGNED) begin
+                    res.status = ES_REDO;
+                   // $error("setting refetch, id = %d", id);
+                    insMap.setRefetch(id);
+                end
+            end
             
             if (isLoadMemIns(decId(id)))  assert (forwarded === sqResp.active) else begin
                 InstructionInfo thisInfo, writerInfo;
@@ -198,7 +218,10 @@ module MemSubpipe#(
 
         insMap.setActualResult(id, data);
 
-        return data;
+        res.result = data;
+
+        return //data;
+                res;
     endfunction
 
     // Used once by Mem subpipes

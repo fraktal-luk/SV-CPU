@@ -24,6 +24,8 @@ loads_fp
 mem_sys
 mem_unaligned
 mem_unaligned2
+mem_unaligned3
+mem_illegal_address
 fp0
 use_lib0
 shifts
