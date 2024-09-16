@@ -3,7 +3,9 @@ package Asm;
     import Base::*;
     import InsDefs::*;
 
+    typedef string string4[4];
     typedef string squeue[$];
+
 
     typedef struct {
         bit ref21 = 0;
@@ -35,7 +37,7 @@ package Asm;
         InstructionDef def = getDef(parts[0]);
         
         string args[] = orderArgs(parts[1:3], parsingMap[fmt]);
-        Word4 vals;
+        //Word4 vals;
         CodeRef res;
 
         res.label = parseLabel(args[0:3], parsingMap[fmt].decoding);
@@ -47,7 +49,6 @@ package Asm;
             endcase            
         return res; 
     endfunction;
-
 
 
     function automatic string4 orderArgs(input string args[], input FormatSpec fmtSpec);
@@ -139,12 +140,12 @@ package Asm;
         case (field)
             "a": res[25:21] = value[4:0];
             "b": res[20:16] = value[4:0];
-            "c": res[9:5] = value[4:0];
-            "d": res[4:0] = value[4:0];
-            "X": res[9:0] = value[9:0];
-            "H": res[15:0] = value[15:0];
-            "J": res[20:0] = value[20:0];
-            "L": res[25:0] = value[25:0];
+            "c": res[9:5]   = value[4:0];
+            "d": res[4:0]   = value[4:0];
+            "X": res[9:0]   = value[9:0];
+            "H": res[15:0]  = value[15:0];
+            "J": res[20:0]  = value[20:0];
+            "L": res[25:0]  = value[25:0];
             " ", "0": ;
             default: $fatal("Invalid field: %s", field);
         endcase
@@ -184,20 +185,25 @@ package Asm;
         int sources[3];
     } AbstractInstruction;
 
+    localparam AbstractInstruction DEFAULT_ABS_INS = '{
+        mnemonic: "",
+        encoding: 'x,
+        fmt: F_none,
+        def: '{P_none, S_none, T_none, O_undef},
+        dest: 0,
+        sources: '{default: 0}
+    };
 
-    const AbstractInstruction DEFAULT_ABS_INS = '{"", 'x, none,
-                                '{P_none, S_none, T_none, O_undef},
-                                0, '{default: 0}};
 
     function automatic string decodeMnem(input Word w);
         Primary p = toPrimary(w[31:26]);
         Secondary s = toSecondary(w[15:10], p);
         Ternary t = toTernary(w[4:0], p, s);
-        
         InstructionDef def = '{p, s, t, O_undef};
 
         return findMnemonic(def);               
     endfunction
+
 
     function automatic AbstractInstruction decodeAbstract(input Word w);
         string s = decodeMnem(w);
@@ -216,7 +222,6 @@ package Asm;
         int sources[3];
 
         if ($isunknown(w)) begin
-            //$warning("Decoding unknown word");
             res.mnemonic = "unknown";
             return res;
         end
@@ -257,15 +262,12 @@ package Asm;
     
     function automatic string ins2str(input AbstractInstruction ins);
         string s;
-        int dest;
-        int sources[3];
+        int dest = ins.dest;
+        int sources[3] = ins.sources;
         string destStr;
         string sourcesStr[3];
 
         FormatSpec fmtSpec = parsingMap[ins.fmt];
-
-        dest = ins.dest;
-        sources = ins.sources;
                
         case (fmtSpec.typeSpec[0])
             "i": $swrite(destStr, "r%0d", dest);
@@ -304,6 +306,7 @@ package Asm;
         return s;
     endfunction
 
+
     function automatic string disasm(input Word w);        
         AbstractInstruction absIns = decodeAbstract(w);        
         return ins2str(absIns);
@@ -324,36 +327,27 @@ package Asm;
         return lines;
     endfunction
 
-    // UNUSED
-    function automatic bit writeFile(input string name, input squeue lines);
-        int file = $fopen(name, "w");
-        foreach (lines[i]) $fdisplay(file, lines[i]);  
-        $fclose(file);
-
-        return 1;
-    endfunction
 
     function bit isLetter(input logic[7:0] char);
-        return (char inside {["A":"Z"], ["A":"z"]});            
+        return (char inside {["A":"Z"], ["a":"z"]});
     endfunction
     
     function bit isDigit(input logic[7:0] char);
-        return (char inside {["0":"9"]});            
+        return (char inside {["0":"9"]});
     endfunction
 
     function bit isAlpha(input logic[7:0] char);
-        return (char inside {["A":"Z"], ["A":"z"], ["0":"9"], "_"});            
+        return (char inside {["A":"Z"], ["a":"z"], ["0":"9"], "_"});
     endfunction
 
     function bit isWhite(input logic[7:0] char);
-        return (char inside {" ", "\t"});            
+        return (char inside {" ", "\t"});
     endfunction
 
     function automatic squeue breakLine(input string line);
         squeue elems;
 
         for (int i = 0; i < line.len(); i = i) begin
-            
             if (line[i] inside {0, ";", "\n"}) begin
                 break;
             end
@@ -363,17 +357,15 @@ package Asm;
             else if (line[i] inside {"$", "@"}) begin
                 int iStart = i;
                 i++;
-                while (isAlpha(line[i])) begin
-                    i++;
-                end
+                while (isAlpha(line[i])) i++;
+                
                 elems.push_back(line.substr(iStart, i-1));
             end
             else if (isAlpha(line[i]) || line[i] == "-") begin
                 int iStart = i;
                 i++;
-                while (isAlpha(line[i])) begin
-                    i++;
-                end 
+                while (isAlpha(line[i])) i++;
+
                 elems.push_back(line.substr(iStart, i-1));
             end
             else if (line[i] == ",") begin
@@ -510,7 +502,22 @@ package Asm;
         
         return res;
     endfunction
-    
+
+    function automatic Section fillImports(input Section section, input int startAdr, input Section lib, input int libAdr);
+        Section res = section;
+        int adrDiff = libAdr - startAdr;
+        
+        foreach (section.imports[i]) begin
+            ImportRef imp = section.imports[i];
+            ExportRef exps[$] = lib.exports.find with (item.label == imp.label);
+            if (exps.size() == 0) continue;
+
+            res.words[imp.codeLine-1] = fillImport(res.words[imp.codeLine-1], adrDiff, imp, exps[0]); // CAREFUL: will get first found label
+        end 
+        
+        return res;
+    endfunction
+
 
     function automatic CodeLine analyzeCodeLine(input int line, input int codeLine, input squeue parts);
         CodeLine res;
@@ -573,30 +580,25 @@ package Asm;
         return res;
     endfunction
 
-    // UNUSED
-    function automatic squeue disasmBlock(input Word words[]);
-        squeue res;
-        string s;
-        foreach (words[i]) begin
-            $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
-            res.push_back(s);
-        end
-        return res;
-    endfunction
 
-    function automatic Section fillImports(input Section section, input int startAdr, input Section lib, input int libAdr);
-        Section res = section;
-        int adrDiff = libAdr - startAdr;
-        
-        foreach (section.imports[i]) begin
-            ImportRef imp = section.imports[i];
-            ExportRef exps[$] = lib.exports.find with (item.label == imp.label);
-            if (exps.size() == 0) continue;
+//        // UNUSED
+//        function automatic bit writeFile(input string name, input squeue lines);
+//            int file = $fopen(name, "w");
+//            foreach (lines[i]) $fdisplay(file, lines[i]);  
+//            $fclose(file);
+    
+//            return 1;
+//        endfunction
 
-            res.words[imp.codeLine-1] = fillImport(res.words[imp.codeLine-1], adrDiff, imp, exps[0]);
-        end 
-        
-        return res;
-    endfunction
+//        // UNUSED
+//        function automatic squeue disasmBlock(input Word words[]);
+//            squeue res;
+//            string s;
+//            foreach (words[i]) begin
+//                $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
+//                res.push_back(s);
+//            end
+//            return res;
+//        endfunction
 
 endpackage
