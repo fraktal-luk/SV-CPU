@@ -20,7 +20,7 @@ $start
 	sts	  r4 , r0, 4    ; w
 	ldi_i r12, r0, 4    ; x
 
-	sys sync
+	sys_sync
 	stf_i f1,  r0, 8    ; z
 	ldi_i r13, r0, 8    ; z
 	lds   r14, r0, 4    ; ??
@@ -31,6 +31,6 @@ $start
 	jnz_i r21, $error
 
 $check
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

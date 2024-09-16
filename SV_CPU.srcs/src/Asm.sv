@@ -6,7 +6,6 @@ package Asm;
     typedef string string4[4];
     typedef string squeue[$];
 
-
     typedef struct {
         bit ref21 = 0;
         bit ref26 = 0;
@@ -135,7 +134,7 @@ package Asm;
     endfunction
 
     
-    function automatic Word fillField(input Word w, input logic[7:0] field, input Word value);
+    function automatic Word fillField(input Word w, input byte field, input Word value);
         Word res = w;
         case (field)
             "a": res[25:21] = value[4:0];
@@ -328,19 +327,19 @@ package Asm;
     endfunction
 
 
-    function bit isLetter(input logic[7:0] char);
+    function bit isLetter(input byte char);
         return (char inside {["A":"Z"], ["a":"z"]});
     endfunction
     
-    function bit isDigit(input logic[7:0] char);
+    function bit isDigit(input byte char);
         return (char inside {["0":"9"]});
     endfunction
 
-    function bit isAlpha(input logic[7:0] char);
+    function bit isAlpha(input byte char);
         return (char inside {["A":"Z"], ["a":"z"], ["0":"9"], "_"});
     endfunction
 
-    function bit isWhite(input logic[7:0] char);
+    function bit isWhite(input byte char);
         return (char inside {" ", "\t"});
     endfunction
 
@@ -537,13 +536,6 @@ package Asm;
         foreach(partsExt[i])
             if (i < parts.size())
                 partsExt[i] = parts[i];
-
-        // TODO: get rid of this hack, define sys instructions like sys_call etc?
-        if (mnemonic == "sys") begin
-            mnemonic = {mnemonic,"_", parts[1]};
-            partsExt[0] = mnemonic;
-            partsExt[1] = "";
-        end
         
         res.ins = getIns(partsExt);      
         res.codeRef = getCodeRef(partsExt);

@@ -3,7 +3,7 @@ $start
    add_i r1, r0, 36
    add_i r2, r0, 57
    sti_i r1, r0, 16
-   sys sync
+   sys_sync
 
    ldi_i r10, r0, 16 ;
    ldi_i r11, r0, 16 ;
@@ -18,6 +18,6 @@ $start
 $check
 	;add_i r22, r21, -57
     ;jnz_i r22, $error
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

@@ -38,9 +38,9 @@ $R6
 
 
 $check	
-	sys call			
+	sys_call			
 $error
-    sys error
+    sys_error
 
 $L1	
 	ja $R1
@@ -55,4 +55,4 @@ $L5
 $L6
 	ja $R6
 
-	sys error
+	sys_error

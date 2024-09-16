@@ -3,7 +3,7 @@ $start
    add_i r1, r0, 36
    add_i r2, r0, 57
    sti_i r1, r0, 16
-   sys sync
+   sys_sync
 
    ; execute load dependent on a store whose address calculation is delayed 
    ldi_i r20, r0, 16 ; load 36 to r20
@@ -14,6 +14,6 @@ $start
 $check
 	add_i r22, r21, -57
     jnz_i r22, $error
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

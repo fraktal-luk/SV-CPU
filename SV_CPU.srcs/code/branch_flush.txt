@@ -5,7 +5,7 @@ $start
 	sti_i  r1, r0, 16
 	sti_i  r2, r0, 20
 
-	sys sync
+	sys_sync
 	ldi_i r10, r0, 16
 	jnz_i r10, $L1		; older jump must wait
 	jnz_i r1, $error    ; younger jump ready sooner
@@ -21,6 +21,6 @@ $L1
 	add_r r8, r0, r0  ;  change reg
 	jz_i  r8, $error  ;  jump on changed reg
 	
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

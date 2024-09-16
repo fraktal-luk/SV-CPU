@@ -8,7 +8,7 @@ $start
 	and_r r6, r0, r0
 	and_r r7, r0, r0
 	and_r r8, r0, r0
-	sys sync
+	sys_sync
 	
 	sti_i r2, r0, 40	; store data waits
 	ldi_i r6, r0, 40	; matched store from r2, SQ data miss
@@ -18,11 +18,11 @@ $start
 	add_i r10, r7, 1	; Another level of dependency
 	add_i r11, r10, 1   ; Yet another
 	add_i r12, r11, 1   ; Yet another
-	sys sync
+	sys_sync
 
 $check
 	add_i r13, r12, -203
 	jnz_i r13, $error
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

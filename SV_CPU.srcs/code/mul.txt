@@ -75,6 +75,6 @@ $main
 	add_i r5, r0, -1  ; res high s
 	jl 	  r31, $check_mul
 
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

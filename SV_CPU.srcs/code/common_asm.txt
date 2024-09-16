@@ -281,6 +281,6 @@ $ms32done
 @end
 
 @proc sendSignal
-	sys send
+	sys_send
 	jz_r r0, r0, r31	
 @end
