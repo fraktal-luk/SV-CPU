@@ -327,6 +327,10 @@ package AbstractSim;
             function automatic void restoreReset();
                 MapR = MapC;
                 writersR = '{default: -1};
+
+                foreach (info[i])
+                    if (info[i].state == STABLE)
+                        regs[i] = 0;
             endfunction           
         endclass
 
