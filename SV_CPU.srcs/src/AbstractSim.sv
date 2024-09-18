@@ -10,10 +10,6 @@ package AbstractSim;
     // Arch specific
     typedef Word Mword;
 
-    // Sim outside core
-    typedef Word Ptype[4096];
-
-
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
 
@@ -37,9 +33,7 @@ package AbstractSim;
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
 
-            localparam int TRACKED_ID = //12601;
-                                        //12085;
-                                        -2;
+        localparam int TRACKED_ID = -2;
 
 
 ////////////////////////////

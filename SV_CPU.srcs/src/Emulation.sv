@@ -17,7 +17,7 @@ package Emulation;
 //            return 1;
 //        endfunction
 
-    function automatic void writeArrayW(ref logic[7:0] mem[], input Word adr, input Word val);
+    function automatic void writeArrayW(ref Mbyte mem[], input Word adr, input Word val);
         mem[adr+0] = val[31:24];
         mem[adr+1] = val[23:16];
         mem[adr+2] = val[15:8];
@@ -84,7 +84,7 @@ package Emulation;
 
 
     class SimpleMem;
-        logic [7:0] bytes[4096];
+        Mbyte bytes[4096];
         
         function automatic void reset();
             this.bytes = '{default: 0};
@@ -103,7 +103,7 @@ package Emulation;
         
         function automatic Word loadW(input Word adr);
             Word res = 0;
-            logic [7:0] read[4];
+            Mbyte read[4];
             foreach (read[i])
                 res = (res << 8) | this.bytes[adr + i];
             return res;
@@ -120,7 +120,7 @@ package Emulation;
         endfunction
         
         function automatic void storeW(input Word adr, input Word value);
-            logic [7:0] read[4];
+            Mbyte read[4];
             Word write = value;
             foreach (read[i]) begin
                 this.bytes[adr + i] = write[31:24];
