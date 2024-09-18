@@ -29,6 +29,8 @@ module AbstractCore
 
     // DB
     CoreDB coreDB();
+    Word dbProgMem[4096];
+
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
@@ -518,7 +520,7 @@ module AbstractCore
 
         Word trg = retiredEmul.coreState.target; // DB
         Word nextTrg;
-        Word bits = fetchInstruction(TMP_getP(), trg); // DB
+        Word bits = fetchInstruction(dbProgMem, trg); // DB
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits); // TODO: check at Frontend?
