@@ -15,8 +15,8 @@ module AbstractCore
 )
 (
     input logic clk,
-    output logic insReq, output Word insAdr, input Word insIn[FETCH_WIDTH],
-    output logic readReq[LOAD_WIDTH], output Word readAdr[LOAD_WIDTH], input Word readIn[LOAD_WIDTH],
+    //output logic insReq,// output Word insAdr,// input Word insIn[FETCH_WIDTH],
+    //output logic readReq[LOAD_WIDTH], output Word readAdr[LOAD_WIDTH], input Word readIn[LOAD_WIDTH],
     output logic writeReq, output Word writeAdr, output Word writeOut,
     
     input logic interrupt,
@@ -45,6 +45,8 @@ module AbstractCore
     int cycleCtr = 0;
 
     always @(posedge clk) cycleCtr++;
+
+    Word insAdr;
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
@@ -76,7 +78,8 @@ module AbstractCore
 
     BranchCheckpoint branchCP;
 
-    MemWriteInfo readInfo = EMPTY_WRITE_INFO; // Exec
+    // UNUSED
+    //MemWriteInfo readInfo = EMPTY_WRITE_INFO; // Exec
 
     
     // Store interface
@@ -771,8 +774,8 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    assign readReq[0] = TMP_readReqs[0].active;
-    assign readAdr[0] = TMP_readReqs[0].adr;
+    //assign readReq[0] = TMP_readReqs[0].active;
+    //assign readAdr[0] = TMP_readReqs[0].adr;
 
     assign writeReq = writeInfo.req;
     assign writeAdr = writeInfo.adr;

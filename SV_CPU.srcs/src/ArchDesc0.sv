@@ -9,52 +9,52 @@ import Insmap::*;
 
 module ArchDesc0();
 
-    class ProgramMemory #(parameter WIDTH = 4);
-        typedef Word Line[4];
+            class ProgramMemory #(parameter WIDTH = 4);
+                typedef Word Line[WIDTH];
+                
+                Word content[4096];
+                
+                function void clear();
+                    this.content = '{default: 'x};
+                endfunction
+                
+                function Line read(input Word adr);
+                    Line res;
+                    Word truncatedAdr = adr & ~(4*WIDTH-1);
+                    
+                    foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
+                    return res;
+                endfunction
         
-        Word content[4096];
-        
-        function void clear();
-            this.content = '{default: 'x};
-        endfunction
-        
-        function Line read(input Word adr);
-            Line res;
-            Word truncatedAdr = adr & ~(4*WIDTH-1);
+            endclass
             
-            foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
-            return res;
-        endfunction
-
-    endclass
-    
-    
-    class DataMemory;        
-        Mbyte content[4096];
+            
+            class DataMemory;        
+                Mbyte content[4096];
+                
+                function void setContent(Word arr[]);
+                    foreach (arr[i]) content[i] = arr[i];
+                endfunction
+                
+                function void clear();
+                    content = '{default: '0};
+                endfunction;
+                
+                function automatic Word read(input Word adr);
+                    Word res = 0;
+                    for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
+                    return res;
+                endfunction
         
-        function void setContent(Word arr[]);
-            foreach (arr[i]) content[i] = arr[i];
-        endfunction
-        
-        function void clear();
-            content = '{default: '0};
-        endfunction;
-        
-        function automatic Word read(input Word adr);
-            Word res = 0;
-            for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
-            return res;
-        endfunction
-
-        function automatic void write(input Word adr, input Word value);
-            Word data = value;            
-            for (int i = 0; i < 4; i++) begin
-                content[adr + i] = data[31:24];
-                data <<= 8;
-            end        
-        endfunction    
-        
-    endclass
+                function automatic void write(input Word adr, input Word value);
+                    Word data = value;            
+                    for (int i = 0; i < 4; i++) begin
+                        content[adr + i] = data[31:24];
+                        data <<= 8;
+                    end        
+                endfunction    
+                
+            endclass
     ////////////////////////////////////////////////////////////////
 
 
@@ -84,8 +84,6 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-
-
     Section common;
     squeue tests;
     string emulTestName, simTestName;
@@ -93,7 +91,6 @@ module ArchDesc0();
     Emulator emulSig;
     Word progMem[4096];
     Mbyte dataMem[] = new[4096]('{default: 0});
-
 
 
     function automatic logic isValidTest(input squeue line);
@@ -127,7 +124,6 @@ module ArchDesc0();
 
     task automatic runEmul();
         Emulator emul = new();
-        
         emulSig = emul;
         #1;
 
@@ -147,40 +143,12 @@ module ArchDesc0();
     endtask
 
 
-    task automatic performEmul(ref Emulator emul, ref DynamicDataMem dmem);
-        for (int iter = 0; 1; iter++) begin
-            emul.executeStep(progMem);
-            
-            if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
-            if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
-            if (emul.status.send == 1) break;
-
-            if (emul.writeToDo.active) writeArrayW(dmem, emul.writeToDo.adr, emul.writeToDo.value);
-            emul.drain();
-
-            emulSig = emul;
-            #1;
-        end
-        emulSig = emul;
-    endtask
-
-        
-        task automatic resetAll(ref Emulator emul);
-            dataMem = '{default: 0};
-            emul.reset();
-            #1;
-        endtask
-
-
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec, input Section intSec, input Section excSec);
         emulTestName = name;
         prepareTest(progMem, name, callSec, intSec, excSec);
         
         resetAll(emul);
-//        dataMem = '{default: 0};
-//        emul.reset();
-//        #1;
         
         performEmul(emul, dataMem);
     endtask
@@ -191,10 +159,7 @@ module ArchDesc0();
         writeProgram(progMem, 0, processLines({"undef", "ja 0"}).words);
         
         resetAll(emul);
-//        dataMem = '{default: 0};
-//        emul.reset();
-//        #1;
-        
+
         for (int iter = 0; 1; iter++) begin
             emul.executeStep(progMem);
             
@@ -215,10 +180,7 @@ module ArchDesc0();
         prepareTest(progMem, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
 
         resetAll(emul);
-//        dataMem = '{default: 0};
-//        emul.reset();
-//        #1;
-        
+
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
                 emul.interrupt();
@@ -240,25 +202,42 @@ module ArchDesc0();
         emulSig = emul;
     endtask
 
+
+    task automatic performEmul(ref Emulator emul, ref DynamicDataMem dmem);
+        for (int iter = 0; 1; iter++) begin
+            emul.executeStep(progMem);
+            
+            if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
+            if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
+            if (emul.status.send == 1) break;
+
+            if (emul.writeToDo.active) writeArrayW(dmem, emul.writeToDo.adr, emul.writeToDo.value);
+            emul.drain();
+
+            emulSig = emul;
+            #1;
+        end
+        emulSig = emul;
+    endtask
+
+    task automatic resetAll(ref Emulator emul);
+        dataMem = '{default: 0};
+        emul.reset();
+        #1;
+    endtask
+
     //////////////////////////////////////////////////////
     ////////////////////////////////////////////////
 
     // Core sim
     generate
-        typedef ProgramMemory#(4) ProgMem;
-        typedef DataMemory DataMem;
-
-        ProgMem programMem;
-        DataMem dmem;
-        ProgMem::Line icacheOut;
-        
-        Word fetchAdr;
+        Word programMem[4096];
 
         logic reset = 0, int0 = 0, done, wrong;
-        
-        logic readEns[4], writeEn;
-        Word writeAdr, readAdrs[4], readValues[4], writeValue;
-        
+
+        Word fetchAdr;       
+        logic writeEn;
+        Word writeAdr, writeValue;
         
         task automatic runSim();
             #CYCLE;
@@ -271,77 +250,58 @@ module ArchDesc0();
             runIntTestSim();
             
             $display("All tests done;");
-            
                 // Now assure that a pullback and reissue has happened because of mem replay 
                 core.insMap.assertReissue();
-            
             $stop(2);
         endtask
         
         
-        task announce(input string name);
-            simTestName = name;
-            $display("> RUN: %s", name);
-        endtask
-
-
-            task automatic startSim();
-                TMP_setP(programMem.content);
-                
-                core.instructionCache.setProgram(programMem.content);
-                core.dataCache.reset();
-                
-                #CYCLE;
-                reset <= 1;
-                #CYCLE;
-                reset <= 0;
-                #CYCLE;
-            endtask
-
-            task automatic awaitResult(); 
-                wait (done | wrong);
-                if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
-                #CYCLE;
-            endtask
-
         task automatic runTestSim(input string name, input Section callSec, input Section intSec, input Section excSec);
             #CYCLE announce(name);
-            prepareTest(programMem.content, name, callSec, intSec, excSec);
+            prepareTest(programMem, name, callSec, intSec, excSec);
             
             startSim();
             
             awaitResult();
-            
-//            wait (done | wrong);
-//            if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
-//            #CYCLE;
         endtask
 
         task automatic runIntTestSim();
             #CYCLE announce("int");
-            prepareTest(programMem.content, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
+            prepareTest(programMem, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
             
             startSim();
 
+            // The part that differs from regular sim test
             wait (fetchAdr == IP_CALL);
             #CYCLE; // TODO: should be wait for clock instead of delay?
             pulseInt0();
 
             awaitResult();
-
-//            wait (done | wrong);
-//            if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
-//            #CYCLE;
         endtask
 
 
-        
-//        task pulseReset();
-//            reset <= 1;
-//            #CYCLE;
-//            reset <= 0;
-//            #CYCLE;
-//        endtask
+        task announce(input string name);
+            simTestName = name;
+            $display("> RUN: %s", name);
+        endtask
+
+        task automatic startSim();
+            core.dbProgMem = programMem; // NOTE: duplication - remove?
+            core.instructionCache.setProgram(programMem);
+            core.dataCache.reset();
+            
+            #CYCLE;
+            reset <= 1;
+            #CYCLE;
+            reset <= 0;
+            #CYCLE;
+        endtask
+
+        task automatic awaitResult(); 
+            wait (done | wrong);
+            if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
+            #CYCLE;
+        endtask
 
         task pulseInt0();
             int0 <= 1;
@@ -350,28 +310,13 @@ module ArchDesc0();
             #CYCLE;
         endtask
 
-        initial begin
-            programMem = new();
-            dmem = new();
-            dmem.clear();
-        end
-        
-        
         initial runSim();
 
-        
-        always_ff @(posedge clk) icacheOut <= programMem.read(fetchAdr);
-        
-        always @(posedge clk) begin
-            if (readEns[0]) readValues[0] <= dmem.read(readAdrs[0]);
-            if (writeEn) dmem.write(writeAdr, writeValue);
-            if (reset) dmem.clear();
-        end
+        assign fetchAdr = core.insAdr; 
                 
         AbstractCore core(
             .clk(clk),
-            .insReq(), .insAdr(fetchAdr), .insIn(icacheOut),
-            .readReq(readEns), .readAdr(readAdrs), .readIn(readValues),
+
             .writeReq(writeEn), .writeAdr(writeAdr), .writeOut(writeValue),
             
             .interrupt(int0),
@@ -381,11 +326,5 @@ module ArchDesc0();
         );
 
     endgenerate
-
-
-    function static void TMP_setP(input Word p[4096]);
-        core.dbProgMem = p;
-    endfunction
-
     
 endmodule
