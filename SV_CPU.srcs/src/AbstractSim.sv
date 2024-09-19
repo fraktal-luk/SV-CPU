@@ -10,6 +10,7 @@ package AbstractSim;
     // Arch specific
     typedef Word Mword;
 
+    // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
 
@@ -33,6 +34,7 @@ package AbstractSim;
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
 
+    // DB specific
         localparam int TRACKED_ID = -2;
 
 
@@ -40,7 +42,7 @@ package AbstractSim;
     // Core structures
 
     typedef int InsId;  // Implem detail
-    typedef InsId IdQueue[$]; // Implet detail
+    typedef InsId IdQueue[$]; // Implem detail
 
     typedef struct {
         logic active;
@@ -51,41 +53,28 @@ package AbstractSim;
 
     localparam OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
     
-    typedef OpSlot OpSlotQueue[$];
+    //typedef OpSlot OpSlotQueue[$];
     typedef OpSlot OpSlotA[RENAME_WIDTH];
+    
+    // TODO: move to Frontend?
     typedef OpSlot FetchStage[FETCH_WIDTH];
-
     localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
 
    
-    // Write buffer
-    typedef struct {
-        OpSlot op;
-        logic cancel;
-        Word adr;
-        Word val;
-    } StoreQueueEntry;
 
 
 
 
-    typedef struct {
-        logic req;
-        Word adr;
-        Word value;
-    } MemWriteInfo;
+
+
+//        typedef struct {
+//            logic redirect;
+//            logic sigOk;
+//            logic sigWrong;
+//            Mword target;
+//        } LateEvent;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
-
-
-        typedef struct {
-            logic redirect;
-            logic sigOk;
-            logic sigWrong;
-            Mword target;
-        } LateEvent;
-    
-        localparam LateEvent EMPTY_LATE_EVENT = '{0, 0, 0, 'x};
+//        localparam LateEvent EMPTY_LATE_EVENT = '{0, 0, 0, 'x};
     
     typedef struct {
         OpSlot op;
@@ -659,8 +648,8 @@ package AbstractSim;
     // Core functions
 
     function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
-        LateEvent res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
-        EventInfo A_res = EMPTY_EVENT_INFO;
+        //LateEvent A_res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
+        EventInfo res = EMPTY_EVENT_INFO;
         
         case (abs.def.o)
             O_sysStore: ;
@@ -702,36 +691,39 @@ package AbstractSim;
             default: ;                            
         endcase
 
-        A_res.op = op;
+        res.op = op;
 
-        A_res.redirect = res.redirect;
-        A_res.sigOk = res.sigOk;
-        A_res.sigWrong = res.sigWrong;
-        A_res.target = res.target;
+       // A_res.op = res.op;
 
-        return A_res;
+//        A_res.redirect = res.redirect;
+//        A_res.sigOk = res.sigOk;
+//        A_res.sigWrong = res.sigWrong;
+//        A_res.target = res.target;
+
+        return res;
     endfunction
 
 
     
         function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
-            LateEvent res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
-            EventInfo A_res = EMPTY_EVENT_INFO;
+            //LateEvent A_res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
+            EventInfo res = EMPTY_EVENT_INFO;
             
             begin
                 res.target = IP_EXC;
                 res.redirect = 1;
             end
                           
+            res.op = op;
+            
+          //  A_res.op = res.op;
     
-            A_res.op = op;
+//            A_res.redirect = res.redirect;
+//            A_res.sigOk = res.sigOk;
+//            A_res.sigWrong = res.sigWrong;
+//            A_res.target = res.target;
     
-            A_res.redirect = res.redirect;
-            A_res.sigOk = res.sigOk;
-            A_res.sigWrong = res.sigWrong;
-            A_res.target = res.target;
-    
-            return A_res;
+            return res;
         endfunction
 
 

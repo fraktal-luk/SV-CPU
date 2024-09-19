@@ -22,6 +22,25 @@ package ExecDefs;
     localparam Poison EMPTY_POISON = '{default: -1};
     
 
+
+    // Write buffer
+    typedef struct {
+        OpSlot op;
+        logic cancel;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
+
+    typedef struct {
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+
+
+
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
