@@ -7,6 +7,7 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
+import ControlHandling::*;
 
 
 
@@ -15,8 +16,6 @@ module AbstractCore
 )
 (
     input logic clk,
-    //output logic insReq,// output Word insAdr,// input Word insIn[FETCH_WIDTH],
-    //output logic readReq[LOAD_WIDTH], output Word readAdr[LOAD_WIDTH], input Word readIn[LOAD_WIDTH],
     output logic writeReq, output Word writeAdr, output Word writeOut,
     
     input logic interrupt,

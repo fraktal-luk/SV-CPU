@@ -22,22 +22,21 @@ package ExecDefs;
     localparam Poison EMPTY_POISON = '{default: -1};
     
 
-
-    // Write buffer
     typedef struct {
-        OpSlot op;
-        logic cancel;
-        Word adr;
-        Word val;
-    } StoreQueueEntry;
+        logic regular[DISPATCH_WIDTH];
+        logic float[DISPATCH_WIDTH];
+        logic branch[DISPATCH_WIDTH];
+        logic mem[DISPATCH_WIDTH];
+        logic sys[DISPATCH_WIDTH];
+    } RoutingInfo;
 
-    typedef struct {
-        logic req;
-        Word adr;
-        Word value;
-    } MemWriteInfo;
-    
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+    const RoutingInfo DEFAULT_ROUTING_INFO = '{
+        regular: '{default: 0},
+        float: '{default: 0},
+        branch: '{default: 0},
+        mem: '{default: 0},
+        sys: '{default: 0}
+    };
 
 
 
@@ -446,6 +445,10 @@ package ExecDefs;
     endfunction;
 
 
+
+
+
+//////////////////
     typedef struct {
         logic active;
         Word adr;
@@ -457,25 +460,24 @@ package ExecDefs;
         Word result;
     } DataReadResp;
 
-
-    localparam int DISPATCH_WIDTH = $size(OpSlotA);
+    // Write buffer
+    typedef struct {
+        OpSlot op;
+        logic cancel;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
 
     typedef struct {
-        logic regular[DISPATCH_WIDTH];
-        logic float[DISPATCH_WIDTH];
-        logic branch[DISPATCH_WIDTH];
-        logic mem[DISPATCH_WIDTH];
-        logic sys[DISPATCH_WIDTH];
-    } RoutingInfo;
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
 
-    const RoutingInfo DEFAULT_ROUTING_INFO = '{
-        regular: '{default: 0},
-        float: '{default: 0},
-        branch: '{default: 0},
-        mem: '{default: 0},
-        sys: '{default: 0}
-    };
 
+   
 //////////////////
 // Cache specific
 

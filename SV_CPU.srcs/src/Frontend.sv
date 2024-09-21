@@ -11,6 +11,9 @@ import Insmap::*;
 module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
     typedef Word FetchGroup[FETCH_WIDTH];
+    typedef OpSlot FetchStage[FETCH_WIDTH];
+    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+
 
     int fqSize = 0;
 
@@ -19,6 +22,11 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fetchCtr = 0;
     OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+
+    function automatic logic anyActiveFetch(input FetchStage s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
 
     task automatic markKilledFrontStage(ref FetchStage stage);
         foreach (stage[i]) begin
