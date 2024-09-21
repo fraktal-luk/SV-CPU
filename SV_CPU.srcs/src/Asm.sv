@@ -573,24 +573,4 @@ package Asm;
     endfunction
 
 
-//        // UNUSED
-//        function automatic bit writeFile(input string name, input squeue lines);
-//            int file = $fopen(name, "w");
-//            foreach (lines[i]) $fdisplay(file, lines[i]);  
-//            $fclose(file);
-    
-//            return 1;
-//        endfunction
-
-//        // UNUSED
-//        function automatic squeue disasmBlock(input Word words[]);
-//            squeue res;
-//            string s;
-//            foreach (words[i]) begin
-//                $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
-//                res.push_back(s);
-//            end
-//            return res;
-//        endfunction
-
 endpackage

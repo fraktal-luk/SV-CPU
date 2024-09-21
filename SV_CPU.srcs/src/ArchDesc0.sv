@@ -28,6 +28,19 @@ module ArchDesc0();
     typedef Mbyte DynamicDataMem[];
 
 
+    const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
+
+    const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
+
+    const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
+    const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
+
+    const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
+    const Section FAILING_SECTION = processLines(FAILING_HANDLER);
+
+    const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
+
+
 
     localparam CYCLE = 10;
 
@@ -62,17 +75,6 @@ module ArchDesc0();
     endtask
 
 
-        const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
-
-        const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
-
-        const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
-        const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
-
-        const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
-        const Section FAILING_SECTION = processLines(FAILING_HANDLER);
-
-        const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
     task automatic prepareTest(ref Word mem[4096], input string name, input Section callSec, input Section intSec, input Section excSec);
         Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common, COMMON_ADR);
@@ -112,14 +114,17 @@ module ArchDesc0();
         emulTestName = name;
         prepareTest(progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
+            saveProgramToFile({"ZZZ_", name, ".txt"}, progMem);
+            
+        
         resetAll(emul);
         
         performEmul(emul, dataMem);
     endtask
-    
+
+
     task automatic runErrorTestEmul(ref Emulator emul);
         emulTestName = "err signal";
-
         writeProgram(progMem, 0, FAILING_SECTION.words);
         
         resetAll(emul);
@@ -290,5 +295,31 @@ module ArchDesc0();
         );
 
     endgenerate
+
+
     
+    task automatic saveProgramToFile(input string fname, input Word progMem[4096]);
+        int file = $fopen(fname, "w");
+        squeue lines = disasmBlock(progMem);
+        foreach (lines[i]) begin
+            $fdisplay(file, lines[i]);
+        end  
+        $fclose(file);
+    endtask
+
+    localparam int DISASM_LIMIT = 64;
+
+    function automatic squeue disasmBlock(input Word words[]);
+        squeue res;
+        string s;
+        foreach (words[i]) begin
+            $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
+            res.push_back(s);
+            
+            if (i == DISASM_LIMIT) break;
+        end
+        return res;
+    endfunction
+
+
 endmodule
