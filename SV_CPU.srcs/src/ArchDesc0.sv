@@ -9,55 +9,6 @@ import Insmap::*;
 
 module ArchDesc0();
 
-            class ProgramMemory #(parameter WIDTH = 4);
-                typedef Word Line[WIDTH];
-                
-                Word content[4096];
-                
-                function void clear();
-                    this.content = '{default: 'x};
-                endfunction
-                
-                function Line read(input Word adr);
-                    Line res;
-                    Word truncatedAdr = adr & ~(4*WIDTH-1);
-                    
-                    foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
-                    return res;
-                endfunction
-        
-            endclass
-            
-            
-            class DataMemory;        
-                Mbyte content[4096];
-                
-                function void setContent(Word arr[]);
-                    foreach (arr[i]) content[i] = arr[i];
-                endfunction
-                
-                function void clear();
-                    content = '{default: '0};
-                endfunction;
-                
-                function automatic Word read(input Word adr);
-                    Word res = 0;
-                    for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
-                    return res;
-                endfunction
-        
-                function automatic void write(input Word adr, input Word value);
-                    Word data = value;            
-                    for (int i = 0; i < 4; i++) begin
-                        content[adr + i] = data[31:24];
-                        data <<= 8;
-                    end        
-                endfunction    
-                
-            endclass
-    ////////////////////////////////////////////////////////////////
-
-
     localparam int ITERATION_LIMIT = 2000;
     localparam Word COMMON_ADR = 1024;
 
@@ -65,12 +16,13 @@ module ArchDesc0();
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "undef"};
 
     const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "undef"};
-    const string CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
+    const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
 
-    const string INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
-    const string FAILING_INT_HANDLER[$]  = {"undef", "ja 0", "undef"};
+    const string DEFAULT_INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
 
-    const string EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
+    const string FAILING_HANDLER[$]  = {"undef", "ja 0", "undef"};
+
+    const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
 
     typedef Mbyte DynamicDataMem[];
@@ -98,21 +50,33 @@ module ArchDesc0();
         return line.size() == 1;
     endfunction
 
-    task automatic setPrograms(ref Word mem[4096], input Section testSec, input Section callSec, input Section intSec, input Section excSec);
+    task automatic setPrograms(ref Word mem[4096], input Section testSec, input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec);
         mem = '{default: 'x};
         writeProgram(mem, COMMON_ADR, common.words);          
         writeProgram(mem, 0, testSec.words);
-        writeProgram(mem, IP_RESET, processLines(DEFAULT_RESET_HANDLER).words);
-        writeProgram(mem, IP_ERROR, processLines(DEFAULT_ERROR_HANDLER).words);
+        writeProgram(mem, IP_RESET, resetSec.words);
+        writeProgram(mem, IP_ERROR, errorSec.words);
         writeProgram(mem, IP_CALL, callSec.words);
         writeProgram(mem, IP_INT, intSec.words);
         writeProgram(mem, IP_EXC, excSec.words);
     endtask
 
 
+        const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
+
+        const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
+
+        const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
+        const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
+
+        const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
+        const Section FAILING_SECTION = processLines(FAILING_HANDLER);
+
+        const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
+
     task automatic prepareTest(ref Word mem[4096], input string name, input Section callSec, input Section intSec, input Section excSec);
         Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common, COMMON_ADR);
-        setPrograms(mem, testProg, callSec, intSec, excSec);
+        setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endtask
 
 
@@ -130,13 +94,13 @@ module ArchDesc0();
         foreach (tests[i]) begin
             squeue lineParts = breakLine(tests[i]);
             if (!isValidTest(lineParts)) continue;
-            runTestEmul(lineParts[0], emul, processLines(DEFAULT_CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
+            runTestEmul(lineParts[0], emul, DEFAULT_CALL_SECTION);
             #1;
         end
 
         runErrorTestEmul(emul);
         #1;
-        runTestEmul("events", emul, processLines(CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
+        runTestEmul("events", emul, TESTED_CALL_SECTION);
         #1;
         runIntTestEmul(emul);
         #1;      
@@ -144,9 +108,9 @@ module ArchDesc0();
 
 
     // Emul-only run
-    task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec, input Section intSec, input Section excSec);
+    task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
         emulTestName = name;
-        prepareTest(progMem, name, callSec, intSec, excSec);
+        prepareTest(progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
         resetAll(emul);
         
@@ -156,7 +120,7 @@ module ArchDesc0();
     task automatic runErrorTestEmul(ref Emulator emul);
         emulTestName = "err signal";
 
-        writeProgram(progMem, 0, processLines({"undef", "ja 0"}).words);
+        writeProgram(progMem, 0, FAILING_SECTION.words);
         
         resetAll(emul);
 
@@ -177,7 +141,7 @@ module ArchDesc0();
 
     task automatic runIntTestEmul(ref Emulator emul);
         emulTestName = "int";
-        prepareTest(progMem, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
+        prepareTest(progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
 
         resetAll(emul);
 
@@ -244,9 +208,9 @@ module ArchDesc0();
             foreach (tests[i]) begin
                 squeue lineParts = breakLine(tests[i]);
                 if (!isValidTest(lineParts)) continue;
-                runTestSim(lineParts[0], processLines(DEFAULT_CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
+                runTestSim(lineParts[0], DEFAULT_CALL_SECTION);
             end
-            runTestSim("events", processLines(CALL_HANDLER), processLines(FAILING_INT_HANDLER), processLines(EXC_HANDLER));
+            runTestSim("events", TESTED_CALL_SECTION);
             runIntTestSim();
             
             $display("All tests done;");
@@ -256,9 +220,9 @@ module ArchDesc0();
         endtask
         
         
-        task automatic runTestSim(input string name, input Section callSec, input Section intSec, input Section excSec);
+        task automatic runTestSim(input string name, input Section callSec);
             #CYCLE announce(name);
-            prepareTest(programMem, name, callSec, intSec, excSec);
+            prepareTest(programMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
             startSim();
             
@@ -267,7 +231,7 @@ module ArchDesc0();
 
         task automatic runIntTestSim();
             #CYCLE announce("int");
-            prepareTest(programMem, "events2", processLines(CALL_HANDLER), processLines(INT_HANDLER), processLines(EXC_HANDLER));
+            prepareTest(programMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
             
             startSim();
 
