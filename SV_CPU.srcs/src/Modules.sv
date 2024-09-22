@@ -216,6 +216,10 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedFloatP[1]
     );
 
+    assign readReqs[1] = EMPTY_READ_REQ;
+    assign readReqs[3] = EMPTY_READ_REQ;
+
+
     always @(posedge AbstractCore.clk) begin
        doneSys <= tickP(theIssueQueues.issuedSysP[0]);
     end

@@ -10,6 +10,7 @@ package AbstractSim;
     // Arch specific
     typedef Word Mword;
 
+
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;

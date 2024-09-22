@@ -16,7 +16,6 @@ module AbstractCore
 )
 (
     input logic clk,
-    output logic writeReq, output Word writeAdr, output Word writeOut,
     
     input logic interrupt,
     input logic reset,
@@ -45,7 +44,9 @@ module AbstractCore
 
     always @(posedge clk) cycleCtr++;
 
+
     Word insAdr;
+    Word instructionCacheOut[FETCH_WIDTH];
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
@@ -55,37 +56,25 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
-        typedef struct {
-            InsId last = -1;
-            InsId lastWq = -1;
-        } CommittedState;
-        
-        CommittedState committedState;
 
-
-    // Exec
+    // Exec TODO: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
 
-    Word instructionCacheOut[FETCH_WIDTH];
-
-    EventInfo branchEventInfo = EMPTY_EVENT_INFO,
-              lateEventInfo = EMPTY_EVENT_INFO,
-              lateEventInfoWaiting = EMPTY_EVENT_INFO;
-    Events evts;
+    EventInfo branchEventInfo = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfo = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+        Events evts;
 
     BranchCheckpoint branchCP;
 
-    // UNUSED
-    //MemWriteInfo readInfo = EMPTY_WRITE_INFO; // Exec
 
-    
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}};
         string csqStr;
-            
+
         StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
     
@@ -96,33 +85,17 @@ module AbstractCore
 
     OpSlotA robOut;
 
-    ///////////////////////////
-        DataReadReq TMP_readReqs[N_MEM_PORTS];
-        DataReadResp TMP_readResps[N_MEM_PORTS];
-                
-        Word TMP_readAddresses[N_MEM_PORTS];
-        Word TMP_readData[N_MEM_PORTS];
-        
-        logic TMP_writeReqs[2];
-        Word TMP_writeAddresses[2];
-        Word TMP_writeData[2];
+    DataReadReq TMP_readReqs[N_MEM_PORTS];
+    DataReadResp TMP_readResps[N_MEM_PORTS];
+    
+    MemWriteInfo TMP_writeInfos[2];
 
-        logic cmpA, cmpB, cmpC, cmpD;
-            
+    ///////////////////////////
+
     InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
     DataL1        dataCache(clk, 
                             TMP_readReqs, TMP_readResps,
-                            TMP_writeReqs, TMP_writeAddresses, TMP_writeData);
-    
-        assign TMP_readAddresses[0] = theExecBlock.mem0.effAdr;
-        
-        assign TMP_writeReqs[0] = writeInfo.req;
-        assign TMP_writeAddresses[0] = writeInfo.adr;
-        assign TMP_writeData[0] = writeInfo.value;
-    
-        assign TMP_readReqs = theExecBlock.readReqs;
-        assign theExecBlock.readResps = TMP_readResps;
-    
+                            TMP_writeInfos);
 
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
@@ -145,7 +118,18 @@ module AbstractCore
 
     ///////////////////////////////////////////
 
-    assign writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)) && !storeHead.cancel, storeHead.adr, storeHead.val};
+    logic cmpA, cmpB, cmpC, cmpD;
+
+    //////////////////////////////////////////
+
+
+    assign TMP_readReqs = theExecBlock.readReqs;
+    assign theExecBlock.readResps = TMP_readResps;
+
+    assign TMP_writeInfos[0] = writeInfo;
+    assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
+
+    always_comb writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)) && !storeHead.cancel, storeHead.adr, storeHead.val};
 
 
     always @(posedge clk) begin
@@ -154,7 +138,7 @@ module AbstractCore
         activateEvent();
 
         drainWriteQueue();
-            //TMP_WQ();        
+
         advanceCommit();        
         putWrite();
 
@@ -247,16 +231,11 @@ module AbstractCore
 
     task automatic drainWriteQueue();
        StoreQueueEntry sqe = csq.pop_front();
-
        drainHead <= csq[0];
 
        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
-       
-       //if (storeHead.op.active && isStoreIns(decAbs(storeHead.op)) && insMap.get(storeHead.op.id).exception) $fatal(2, "Store with excpetion in WQ!");
-
 
        if (sqe.op.id == -1) return;
-
 
        if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
 
@@ -527,10 +506,8 @@ module AbstractCore
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits); // TODO: check at Frontend?
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
-        
-        
-            if (insMap.get(op.id).refetch) return; 
-        
+
+        if (insMap.get(op.id).refetch) return;
         
         // Only Normal commit
         if (!insMap.get(op.id).exception)
@@ -646,8 +623,8 @@ module AbstractCore
             OpSlot os = getOpSlotFromPacket(p);
             writeResult(os, p.result);
             
-            coreDB.lastCompleted = os;
-            coreDB.nCompleted++;
+//            coreDB.lastCompleted = os;
+//            coreDB.nCompleted++;
         end
     endtask
     
@@ -751,34 +728,16 @@ module AbstractCore
         return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
     endfunction
         
-        // TODO: move to package?
-        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.id != -1) begin
-                int inds[$] = p.find with (item == fe.id);
-                return inds.size() != 0;
-            end
-            return 0;
-        endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
-        
         foreach (memStage0[p])
             if (checkMemDep(poison, memStage0[p]) && memStage0[p].status != ES_OK) return 1;
-        
         return 0;
     endfunction
 
 
-
     assign insAdr = theFrontend.ipStage[0].adr;
-
-    //assign readReq[0] = TMP_readReqs[0].active;
-    //assign readAdr[0] = TMP_readReqs[0].adr;
-
-    assign writeReq = writeInfo.req;
-    assign writeAdr = writeInfo.adr;
-    assign writeOut = writeInfo.value;
 
     assign sig = lateEventInfo.sigOk;
     assign wrong = lateEventInfo.sigWrong;

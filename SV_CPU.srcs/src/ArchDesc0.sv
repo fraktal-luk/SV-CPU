@@ -282,11 +282,15 @@ module ArchDesc0();
         initial runSim();
 
         assign fetchAdr = core.insAdr; 
-                
+        assign writeEn = core.writeInfo.req;
+        assign writeAdr = core.writeInfo.adr;
+        assign writeValue = core.writeInfo.value;
+        
+        
         AbstractCore core(
             .clk(clk),
 
-            .writeReq(writeEn), .writeAdr(writeAdr), .writeOut(writeValue),
+            //.writeReq(writeEn), .writeAdr(writeAdr), .writeOut(writeValue),
             
             .interrupt(int0),
             .reset(reset),
