@@ -132,26 +132,27 @@ module AbstractCore
     always_comb writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)) && !storeHead.cancel, storeHead.adr, storeHead.val};
 
 
+
+
     always @(posedge clk) begin
         insMap.endCycle();
     
-        activateEvent();
+        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, 
 
-        drainWriteQueue();
+        drainWriteQueue(); // csq, drainHead, sysRegs, memTracker     
+        advanceCommit();  // retiredEmul, commitInds, registerTracker, csq, memTracker, lateInfoWaiting, retiredTarget, branchCheckpointQueue, branchTargetQueue
+        putWrite(); // csq, csqEmpty, storeHead
 
-        advanceCommit();        
-        putWrite();
-
-        if (reset) execReset();
-        else if (interrupt) execInterrupt();
+        if (reset) execReset(); // lateEventInfoWaiting, late emul
+        else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
-            redirectRest();
+            redirectRest();     // stageRename1, retiredEmul?,  renamedEmul, renameInds, registerTracker, memTracker, branchTargetQueue, branchCheckpointQueue, 
         else
-            runInOrderPartRe();
+            runInOrderPartRe(); // stageRename1,                renamedEmul, renameInds, registerTracker, memTracker, branchTargetQueue, branchCheckpointQueue
 
-        // Complete + write regs
-        handleCompletion();
+
+        handleCompletion(); // registerTracker
 
         $swrite(csqStr, "%p", csq);
         updateBookkeeping();
@@ -254,7 +255,7 @@ module AbstractCore
         storeHead <= csq[3];
     endtask
 
-
+  
     task automatic renameGroup(input OpSlotA ops);
         if (anyActive(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
@@ -400,7 +401,7 @@ module AbstractCore
             BranchCheckpoint causingCP = foundCP[0];
         
             rollbackToCheckpoint(causingCP); // Rename stage
-        
+                
             flushOooBuffersPartial(branchEventInfo.op);  
             
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
@@ -440,7 +441,7 @@ module AbstractCore
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, op.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
         deps = registerTracker.getArgDeps(ins); // For insMap
-
+                
         runInEmulator(renamedEmul, op.adr, op.bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
@@ -551,23 +552,24 @@ module AbstractCore
         assert (op.id == opC.id) else $error("no match: %d / %d", op.id, opC.id);
 
         verifyOnCommit(op);
+
         checkUnimplementedInstruction(decAbs(op)); // All types of commit?
 
         updateInds(commitInds, op); // All types?
         commitInds.renameG = insMap.get(op.id).inds.renameG; // Part of above
-
+            
         registerTracker.commit(insInfo.dec, op.id, refetch || exception); // Need to modify to handle Exceptional and Hidden
-        
+            
         if (isStoreIns(decAbs(op))) begin
             Transaction tr = memTracker.findStore(op.id);
             StoreQueueEntry sqe = '{op, exception || refetch, tr.adrAny, tr.val};       
             csq.push_back(sqe); // Normal
             putMilestone(op.id, InstructionMap::WqEnter); // Normal
         end
-        
+            
         if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // All?
         if (breaksCommit(op)) setLateEvent(op); // All types?
-
+            
         retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types? 
 
         releaseQueues(op); // All
@@ -622,9 +624,6 @@ module AbstractCore
         else begin
             OpSlot os = getOpSlotFromPacket(p);
             writeResult(os, p.result);
-            
-//            coreDB.lastCompleted = os;
-//            coreDB.nCompleted++;
         end
     endtask
     
