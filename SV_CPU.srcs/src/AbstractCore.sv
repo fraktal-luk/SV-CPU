@@ -72,8 +72,10 @@ module AbstractCore
 
     // Store interface
         // Committed
-        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}};
-        string csqStr;
+        StoreQueueEntry csq[$] = '{'{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}  
+                                   //         , '{EMPTY_SLOT, 'x, 'x, 'x}, '{EMPTY_SLOT, 'x, 'x, 'x}
+                                   };
+        string csqStr, csqIdStr;
 
         StoreQueueEntry storeHead = '{EMPTY_SLOT, 'x, 'x, 'x}, drainHead = '{EMPTY_SLOT, 'x, 'x, 'x};
         MemWriteInfo writeInfo; // Committed
@@ -132,6 +134,10 @@ module AbstractCore
     always_comb writeInfo = '{storeHead.op.active && isStoreMemIns(decAbs(storeHead.op)) && !storeHead.cancel, storeHead.adr, storeHead.val};
 
 
+        int CSQ_size_pre = -1;
+        int CSQ_size_afterDrain = -1;
+        int CSQ_size_afterRetires = -1;
+        int CSQ_size_afterPuts = -1;
 
 
     always @(posedge clk) begin
@@ -139,9 +145,15 @@ module AbstractCore
     
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, 
 
-        drainWriteQueue(); // csq, drainHead, sysRegs, memTracker     
+            CSQ_size_pre = csq.size();
+
+        
+            // CSQ: pushes store ops into it 
         advanceCommit();  // retiredEmul, commitInds, registerTracker, csq, memTracker, lateInfoWaiting, retiredTarget, branchCheckpointQueue, branchTargetQueue
-        putWrite(); // csq, csqEmpty, storeHead
+
+            // CSQ: removes first element
+        putWrite(); // csq, csqEmpty, storeHead, sysRegs
+
 
         if (reset) execReset(); // lateEventInfoWaiting, late emul
         else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
@@ -155,6 +167,12 @@ module AbstractCore
         handleCompletion(); // registerTracker
 
         $swrite(csqStr, "%p", csq);
+        
+        begin
+            automatic int csqIds[$];
+            foreach (csq[i]) csqIds.push_back(csq[i].op.id);
+            $swrite(csqIdStr, "%p", csqIds);
+        end
         updateBookkeeping();
     end
 
@@ -230,21 +248,18 @@ module AbstractCore
 
     ////////////////
 
-    task automatic drainWriteQueue();
-       StoreQueueEntry sqe = csq.pop_front();
-       drainHead <= csq[0];
-
-       if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
-
-       if (sqe.op.id == -1) return;
-
-       if (isStoreIns(decAbs(sqe.op))) memTracker.drain(sqe.op);  // TODO: remove condition? Always satisfied for any CSQ op.
-
-       putMilestone(sqe.op.id, InstructionMap::WqExit);
-    endtask
-
-    task automatic putWrite();            
-        if (csq.size() < 4) begin
+    task automatic putWrite();
+        StoreQueueEntry sqe = drainHead;
+        
+        if (sqe.op.id != -1) begin
+            memTracker.drain(sqe.op);
+            putMilestone(sqe.op.id, InstructionMap::WqExit);
+        end
+        void'(csq.pop_front());
+                
+        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
+        
+        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
             csq.push_back('{EMPTY_SLOT, 'x, 'x, 'x});
             csqEmpty <= 1;
         end
@@ -252,7 +267,10 @@ module AbstractCore
             csqEmpty <= 0;
         end
         
-        storeHead <= csq[3];
+        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
+        
+        drainHead <= csq[0];
+        storeHead <= csq[1];
     endtask
 
   
