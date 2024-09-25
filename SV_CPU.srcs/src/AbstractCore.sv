@@ -65,6 +65,7 @@ module AbstractCore
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+          //  EventInfo lateEventInfoWaiting_A = EMPTY_EVENT_INFO;
         Events evts;
 
     BranchCheckpoint branchCP;
@@ -140,20 +141,27 @@ module AbstractCore
         int CSQ_size_afterPuts = -1;
 
 
+      //  always_comb cmpA = (lateEventInfoWaiting_A === lateEventInfoWaiting);
+
+
     always @(posedge clk) begin
         insMap.endCycle();
-    
-        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, 
 
-            CSQ_size_pre = csq.size();
+          //  cmpA <= 0;
+          //  cmpB <= 0;
+            cmpC <= 0;
+            cmpD <= 0;
 
-        
-            // CSQ: pushes store ops into it 
-        advanceCommit();  // retiredEmul, commitInds, registerTracker, csq, memTracker, lateInfoWaiting, retiredTarget, branchCheckpointQueue, branchTargetQueue
 
-            // CSQ: removes first element
+        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs,  
+
+        advanceCommit();  // retiredEmul,  lateEventInfoWaiting, retiredTarget, commitInds, registerTracker, csq, memTracker, branchCheckpointQueue, branchTargetQueue
+
+
+
         putWrite(); // csq, csqEmpty, storeHead, sysRegs
 
+            performSysStore();  // sysRegs
 
         if (reset) execReset(); // lateEventInfoWaiting, late emul
         else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
@@ -210,7 +218,13 @@ module AbstractCore
         if (!csqEmpty) return;    
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+          //  lateEventInfoWaiting_A <= EMPTY_EVENT_INFO;
+        
+        fireLateEvent();
+    endtask
 
+    task automatic fireLateEvent();
+    
         if (lateEventInfoWaiting.op.active) begin
             EventInfo lateEvt;
             Word sr2 = getSysReg(2);
@@ -232,18 +246,29 @@ module AbstractCore
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
+            
+                       // cmpB <= 1;
+
         end
         else if (lateEventInfoWaiting.reset) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
+            
+                      //  cmpB <= 1;
+
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
+            
+                       // cmpB <= 1;
+
         end
     endtask
+
+
 
 
     ////////////////
@@ -267,10 +292,12 @@ module AbstractCore
             csqEmpty <= 0;
         end
         
-        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
-        
         drainHead <= csq[0];
         storeHead <= csq[1];
+    endtask
+
+    task automatic performSysStore();
+        if (storeHead.op.active && isStoreSysIns(decAbs(storeHead.op)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
     endtask
 
   
@@ -504,11 +531,25 @@ module AbstractCore
 
         foreach (robOut[i]) begin
             OpSlot opC = robOut[i];
-            if (opC.active && !cancelRest) commitOp(opC);
-            else if (opC.active && cancelRest) $fatal(2, "Committing after break");
-            else continue;
+            OpSlot opP;
+           
+            if (opC.active !== 1) continue;
+            if (cancelRest) $fatal(2, "Committing after break");
+            
+            opP = TMP_properOp(opC);
 
-            if (breaksCommit(opC)) cancelRest = 1;
+            
+            commitOp(opC);
+            
+//            if (opC.active && !cancelRest) commitOp(opC);
+//            else if (opC.active && cancelRest) $fatal(2, "Committing after break");
+//            else continue;
+
+            if (breaksCommit(opC)) begin
+                setLateEvent(opP);
+                cancelRest = 1;
+                    cmpD <= 1;
+            end
         end
         
         insMap.commitCheck();
@@ -544,6 +585,13 @@ module AbstractCore
     endtask
 
 
+        function automatic OpSlot TMP_properOp(input OpSlot opC);
+            InstructionInfo insInfo = insMap.get(opC.id);
+            OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+            return op;
+        endfunction
+
+
     // Finish types:
     // CommitNormal     - normal effects take place, resources are freed
     // CommitException  - exceptional effects take place, resources are freed
@@ -562,7 +610,8 @@ module AbstractCore
     
     task automatic commitOp(input OpSlot opC);
         InstructionInfo insInfo = insMap.get(opC.id);
-        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+        OpSlot op = //'{1, insInfo.id, insInfo.adr, insInfo.bits};
+                    TMP_properOp(opC);
         logic refetch = insInfo.refetch;
         logic exception = insInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
@@ -573,9 +622,7 @@ module AbstractCore
 
         checkUnimplementedInstruction(decAbs(op)); // All types of commit?
 
-        updateInds(commitInds, op); // All types?
-        commitInds.renameG = insMap.get(op.id).inds.renameG; // Part of above
-            
+
         registerTracker.commit(insInfo.dec, op.id, refetch || exception); // Need to modify to handle Exceptional and Hidden
             
         if (isStoreIns(decAbs(op))) begin
@@ -586,9 +633,6 @@ module AbstractCore
         end
             
         if (isStoreIns(decAbs(op)) || isLoadIns(decAbs(op))) memTracker.remove(op); // All?
-        if (breaksCommit(op)) setLateEvent(op); // All types?
-            
-        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types? 
 
         releaseQueues(op); // All
             
@@ -600,6 +644,20 @@ module AbstractCore
             // Need to modify to serve all types of commit            
             putMilestone(op.id, retireType);
             insMap.setRetired(op.id);
+            
+        
+        // Elements related to crucial signals: 
+
+        updateInds(commitInds, op); // All types?
+        commitInds.renameG = insMap.get(op.id).inds.renameG; // Part of above
+
+        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types?
+        
+        if (breaksCommit(op)) begin
+            //setLateEvent_A(op); // All types?
+                cmpC <= 1;
+        end
+
     endtask
 
 
@@ -620,18 +678,24 @@ module AbstractCore
     endtask
 
 
+//        task automatic setLateEvent_A(input OpSlot op);
+//            lateEventInfoWaiting_A <= eventFromOp(op);
+//        endtask
+
     task automatic setLateEvent(input OpSlot op);
         lateEventInfoWaiting <= eventFromOp(op);
     endtask
 
     task automatic execReset();
         lateEventInfoWaiting <= RESET_EVENT;
+            //lateEventInfoWaiting_A <= RESET_EVENT;
         performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
     endtask
 
     task automatic execInterrupt();
         $display(">> Interrupt !!!");
         lateEventInfoWaiting <= INT_EVENT;
+           // lateEventInfoWaiting_A <= INT_EVENT;
         retiredEmul.interrupt();
     endtask
 
