@@ -146,15 +146,21 @@ module AbstractCore
 
         advanceCommit();  // retiredEmul,  lateEventInfoWaiting, retiredTarget, commitInds, registerTracker, csq, memTracker, branchCheckpointQueue, branchTargetQueue
 
+//        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs,  
+
+//            if (reset) execReset(); // lateEventInfoWaiting, late emul
+//            else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
+
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs,  
 
+    
         begin // CAREFUL: putting this bfore advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, storeHead, sysRegs
             performSysStore();  // sysRegs
         end
 
-        if (reset) execReset(); // lateEventInfoWaiting, late emul
-        else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
+//        if (reset) execReset(); // lateEventInfoWaiting, late emul
+//        else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectRest();     // stageRename1, retiredEmul?,  renamedEmul, renameInds, registerTracker, memTracker, branchTargetQueue, branchCheckpointQueue, 
@@ -201,6 +207,9 @@ module AbstractCore
 
 
     task automatic activateEvent();
+        if (reset) execReset(); // lateEventInfoWaiting, late emul
+        else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
+
         lateEventInfo <= EMPTY_EVENT_INFO;
     
         if (!csqEmpty) return;    
@@ -246,6 +255,16 @@ module AbstractCore
         end
     endtask
 
+    task automatic execReset();
+        lateEventInfoWaiting <= RESET_EVENT;
+        performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
+    endtask
+
+    task automatic execInterrupt();
+        $display(">> Interrupt !!!");
+        lateEventInfoWaiting <= INT_EVENT;
+        retiredEmul.interrupt();
+    endtask
 
 
     ////////////////
@@ -646,17 +665,6 @@ module AbstractCore
 
     task automatic setLateEvent(input OpSlot op);
         lateEventInfoWaiting <= eventFromOp(op);
-    endtask
-
-    task automatic execReset();
-        lateEventInfoWaiting <= RESET_EVENT;
-        performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target);
-    endtask
-
-    task automatic execInterrupt();
-        $display(">> Interrupt !!!");
-        lateEventInfoWaiting <= INT_EVENT;
-        retiredEmul.interrupt();
     endtask
 
 
