@@ -144,23 +144,14 @@ module AbstractCore
     always @(posedge clk) begin
         insMap.endCycle();
 
-        advanceCommit();  // retiredEmul,  lateEventInfoWaiting, retiredTarget, commitInds, registerTracker, csq, memTracker, branchCheckpointQueue, branchTargetQueue
-
-//        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs,  
-
-//            if (reset) execReset(); // lateEventInfoWaiting, late emul
-//            else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
-
+        advanceCommit(); // retiredEmul,  lateEventInfoWaiting, retiredTarget, commitInds, registerTracker, csq, memTracker, branchCheckpointQueue, branchTargetQueue
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs,  
 
-    
-        begin // CAREFUL: putting this bfore advanceCommit() + activateEvent() has an effect on cycles 
+        begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, storeHead, sysRegs
             performSysStore();  // sysRegs
         end
 
-//        if (reset) execReset(); // lateEventInfoWaiting, late emul
-//        else if (interrupt) execInterrupt(); // lateEventInfoWaiting, late emul
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectRest();     // stageRename1, retiredEmul?,  renamedEmul, renameInds, registerTracker, memTracker, branchTargetQueue, branchCheckpointQueue, 
@@ -313,17 +304,6 @@ module AbstractCore
         if (isBranchIns(decAbs(op))) branchTargetQueue.push_back('{op.id, 'z});
     endtask
 
-    // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPartRe();
-        renameGroup(theFrontend.stageRename0);
-        stageRename1 <= theFrontend.stageRename0;
-        
-        foreach (stageRename1[i]) begin
-            OpSlot op = stageRename1[i];
-            if (op.active) addToQueues(op);
-        end 
-    endtask
-
 
     assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
     assign oooLevels.iqFloat = theIssueQueues.floatQueue.num;
@@ -374,12 +354,99 @@ module AbstractCore
     endfunction
 
 
+
+
+    // Frontend, rename and everything before getting to OOO queues
+    task automatic runInOrderPartRe();
+        renameGroup(theFrontend.stageRename0);
+        stageRename1 <= theFrontend.stageRename0;
+        
+        foreach (stageRename1[i]) begin
+            OpSlot op = stageRename1[i];
+            if (op.active) addToQueues(op);
+        end 
+    endtask
+
+
+
+    task automatic redirectRest();
+        stageRename1 <= '{default: EMPTY_SLOT};
+        markKilledRenameStage(stageRename1);
+
+        if (lateEventInfo.redirect) begin
+            //rollbackToStable(); // Rename stage
+            renameInds = commitInds;
+
+            
+            renamedEmul.setLike(retiredEmul);
+            
+            
+            //flushOooBuffersAll();
+            flushBranchCheckpointQueueAll();
+            flushBranchTargetQueueAll();
+            
+            if (lateEventInfo.reset) registerTracker.restoreReset();
+            else registerTracker.restoreStable();
+            registerTracker.flushAll();
+            
+            memTracker.flushAll();
+            
+            if (lateEventInfo.reset) begin
+                sysRegs = SYS_REGS_INITIAL;
+                renamedEmul.reset();
+                retiredEmul.reset();
+            end
+        end
+        else if (branchEventInfo.redirect) begin
+            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == branchEventInfo.op.id);
+            BranchCheckpoint causingCP = foundCP[0];
+        
+            renameInds = causingCP.inds;
+        
+            //rollbackToCheckpoint(causingCP); // Rename stage
+            renamedEmul.coreState = causingCP.state;
+            renamedEmul.tmpDataMem.copyFrom(causingCP.mem);
+               
+            //flushOooBuffersPartial(branchEventInfo.op);  
+
+            flushBranchCheckpointQueuePartial(branchEventInfo.op);
+            flushBranchTargetQueuePartial(branchEventInfo.op);
+
+            registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
+            registerTracker.flush(branchEventInfo.op);
+            
+            memTracker.flush(branchEventInfo.op);
+        end
+        
+    endtask
+
+
     // $$Bufs
     // write queue is not flushed!
-    task automatic flushOooBuffersAll();        
-        flushBranchCheckpointQueueAll();
-        flushBranchTargetQueueAll();
-    endtask
+
+//    task automatic flushOooBuffersAll();        
+//        flushBranchCheckpointQueueAll();
+//        flushBranchTargetQueueAll();
+//    endtask
+
+//    task automatic flushOooBuffersPartial(input OpSlot op);
+//        flushBranchCheckpointQueuePartial(op);
+//        flushBranchTargetQueuePartial(op);
+//    endtask
+
+//    task automatic rollbackToCheckpoint(input BranchCheckpoint single);
+//        renamedEmul.coreState = single.state;
+//        renamedEmul.tmpDataMem.copyFrom(single.mem);
+//        renameInds = single.inds;
+//    endtask
+
+//    task automatic rollbackToStable();    
+//        renamedEmul.setLike(retiredEmul);
+//        renameInds = commitInds;
+//    endtask
+
+
+
     
     task automatic flushBranchCheckpointQueueAll();
         while (branchCheckpointQueue.size() > 0) void'(branchCheckpointQueue.pop_back());
@@ -397,60 +464,8 @@ module AbstractCore
         while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > op.id) void'(branchTargetQueue.pop_back());
     endtask
 
-    task automatic flushOooBuffersPartial(input OpSlot op);
-        flushBranchCheckpointQueuePartial(op);
-        flushBranchTargetQueuePartial(op);
-    endtask
-
-    task automatic rollbackToCheckpoint(input BranchCheckpoint single);
-        renamedEmul.coreState = single.state;
-        renamedEmul.tmpDataMem.copyFrom(single.mem);
-        renameInds = single.inds;
-    endtask
-
-    task automatic rollbackToStable();    
-        renamedEmul.setLike(retiredEmul);
-        renameInds = commitInds;
-    endtask
 
 
-    task automatic redirectRest();
-        stageRename1 <= '{default: EMPTY_SLOT};
-        markKilledRenameStage(stageRename1);
-
-        if (lateEventInfo.redirect) begin
-            rollbackToStable(); // Rename stage
-
-            flushOooBuffersAll();
-            
-            if (lateEventInfo.reset)
-                registerTracker.restoreReset();
-            else
-                registerTracker.restoreStable();
-                    
-            registerTracker.flushAll();
-            memTracker.flushAll();
-            
-            if (lateEventInfo.reset) begin
-                sysRegs = SYS_REGS_INITIAL;
-                renamedEmul.reset();
-                retiredEmul.reset();
-            end
-        end
-        else if (branchEventInfo.redirect) begin
-            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == branchEventInfo.op.id);
-            BranchCheckpoint causingCP = foundCP[0];
-        
-            rollbackToCheckpoint(causingCP); // Rename stage
-                
-            flushOooBuffersPartial(branchEventInfo.op);  
-            
-            registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
-            registerTracker.flush(branchEventInfo.op);
-            memTracker.flush(branchEventInfo.op);
-        end
-        
-    endtask
 
     
     // Frontend/Rename
@@ -487,15 +502,14 @@ module AbstractCore
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
-        updateInds(renameInds, op); // Crucial state
 
         physDest = registerTracker.reserve(ins, op.id);
         
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(op, ins, argVals); // DB
-
-        if (isBranchIns(decAbs(op))) begin
-            saveCP(op); // Crucial state
-        end
+        
+        if (isBranchIns(decAbs(op))) saveCP(op); // Crucial state
+        
+        updateInds(renameInds, op); // Crucial state
 
         insMap.setResult(op.id, result);
         insMap.setTarget(op.id, target);
@@ -507,6 +521,7 @@ module AbstractCore
         insMap.setSlot(op.id, currentSlot);
 
         coreDB.lastRenamed = op;
+
     endtask
 
 
