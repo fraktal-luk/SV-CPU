@@ -149,6 +149,8 @@ module ExecBlock(ref InstructionMap insMap,
     OpPacket toBq[N_MEM_PORTS]; // TODO: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
     OpPacket fromSq[N_MEM_PORTS];
+    OpPacket fromLq[N_MEM_PORTS];
+    OpPacket fromBq[N_MEM_PORTS];
 
 
     // Int 0
@@ -280,6 +282,8 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_OP_PACKET};
     assign toSq = toLq;
+
+    assign toBq = '{0: branch0.pE0_E, default: EMPTY_OP_PACKET};
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
