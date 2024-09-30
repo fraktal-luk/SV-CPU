@@ -39,6 +39,8 @@ module ReorderBuffer
     } Row;
 
 
+    OpSlotA outGroupPrev = '{default: EMPTY_SLOT};
+
     OpRecord commitQ[$:3*WIDTH];
     OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
 
@@ -76,6 +78,8 @@ module ReorderBuffer
     
     always @(posedge AbstractCore.clk) begin
         automatic Row outRowVar;
+
+            outGroupPrev <= outGroup;
 
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
             || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect

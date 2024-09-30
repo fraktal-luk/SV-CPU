@@ -22,6 +22,24 @@ package ExecDefs;
     localparam Poison EMPTY_POISON = '{default: -1};
     
 
+    typedef struct {
+        logic regular[DISPATCH_WIDTH];
+        logic float[DISPATCH_WIDTH];
+        logic branch[DISPATCH_WIDTH];
+        logic mem[DISPATCH_WIDTH];
+        logic sys[DISPATCH_WIDTH];
+    } RoutingInfo;
+
+    const RoutingInfo DEFAULT_ROUTING_INFO = '{
+        regular: '{default: 0},
+        float: '{default: 0},
+        branch: '{default: 0},
+        mem: '{default: 0},
+        sys: '{default: 0}
+    };
+
+
+
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
@@ -130,7 +148,7 @@ package ExecDefs;
         
         return map2poison(old);
     endfunction
-        
+
 
     // poison operations:
     // add producer - done when generating wakeup from mem ops
@@ -233,6 +251,8 @@ package ExecDefs;
     endfunction
 
 
+    typedef ForwardingElement FEQ[$];
+
 
     //////////////////////////////////////////
     // IQ and Exec0
@@ -248,11 +268,6 @@ package ExecDefs;
         return res;
     endfunction
 
-    //////////////////////////////////
-    // Arg handling - beginning of Exec0
-
-    typedef ForwardingElement FEQ[$];
-
 
     function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
         return !(fe.id == -1) && fe.id === producer;
@@ -262,7 +277,6 @@ package ExecDefs;
         FEQ res = feInt.find with (matchProducer(item, producer));
         if (res.size() == 0)
             res = feMem.find with (matchProducer(item, producer));
-
         return res;
     endfunction
 
@@ -275,7 +289,6 @@ package ExecDefs;
         assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ii.actualResult === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.actualResult, result, ii, disasm(ii.bits));
     endfunction
-    
 
 
     function automatic Word getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
@@ -288,7 +301,6 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found1[0].result);
-        
             return ii.actualResult;
         end
         
@@ -296,7 +308,6 @@ package ExecDefs;
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found0[0].result);
-        
             return ii.actualResult;
         end
 
@@ -314,7 +325,6 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found1[0].result);
-        
             return ii.actualResult;
         end
         
@@ -322,7 +332,6 @@ package ExecDefs;
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found0[0].result);
-        
             return ii.actualResult;
         end
 
@@ -356,9 +365,6 @@ package ExecDefs;
             res.push_back( $isunknown(argV[i]) ? 'z : argV[i].and() );
         return res;
     endfunction
-
-    ////////////////////////////////////////////////////
-
 
     // IQs
     function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
@@ -427,36 +433,48 @@ package ExecDefs;
     endfunction;
 
 
+        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+            if (fe.id != -1) begin
+                int inds[$] = p.find with (item == fe.id);
+                return inds.size() != 0;
+            end
+            return 0;
+        endfunction
+
+
+//////////////////
     typedef struct {
         logic active;
         Word adr;
     } DataReadReq;
 
+    localparam DataReadReq EMPTY_READ_REQ = '{1, 'x};
 
     typedef struct {
         logic active;
         Word result;
     } DataReadResp;
 
+    localparam DataReadResp EMPTY_READ_RESP = '{1, 'x};
 
-    localparam int DISPATCH_WIDTH = $size(OpSlotA);
+    // Write buffer
+    typedef struct {
+        OpSlot op;
+        logic cancel;
+        Word adr;
+        Word val;
+    } StoreQueueEntry;
 
     typedef struct {
-        logic regular[DISPATCH_WIDTH];
-        logic float[DISPATCH_WIDTH];
-        logic branch[DISPATCH_WIDTH];
-        logic mem[DISPATCH_WIDTH];
-        logic sys[DISPATCH_WIDTH];
-    } RoutingInfo;
+        logic req;
+        Word adr;
+        Word value;
+    } MemWriteInfo;
+    
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
 
-    const RoutingInfo DEFAULT_ROUTING_INFO = '{
-        regular: '{default: 0},
-        float: '{default: 0},
-        branch: '{default: 0},
-        mem: '{default: 0},
-        sys: '{default: 0}
-    };
 
+   
 //////////////////
 // Cache specific
 

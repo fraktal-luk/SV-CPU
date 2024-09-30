@@ -23,7 +23,7 @@ $start
 	and_r r0, r0, r0
 	and_r r0, r0, r0
 	and_r r0, r0, r0
-	sys sync
+	sys_sync
 	
 	ldi_i r11, r0, 32
 	ldi_i r12, r0, 36
@@ -56,6 +56,6 @@ $start
 	jnz_i r18, $error
 	   
 $check
-	sys call
+	sys_call
 $error
-    sys error
+    sys_error

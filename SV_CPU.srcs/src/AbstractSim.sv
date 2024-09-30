@@ -10,10 +10,8 @@ package AbstractSim;
     // Arch specific
     typedef Word Mword;
 
-    // Sim outside core
-    typedef Word Ptype[4096];
 
-
+    // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
 
@@ -28,25 +26,26 @@ package AbstractSim;
     localparam int SQ_SIZE = 80;
     localparam int BQ_SIZE = 32;
 
-    localparam FETCH_WIDTH = 4;
-    localparam RENAME_WIDTH = 4;
-    localparam LOAD_WIDTH = FETCH_WIDTH; // TODO: change this
+    localparam int FETCH_WIDTH = 4;
+    localparam int RENAME_WIDTH = 4;
+    
+    localparam int DISPATCH_WIDTH = RENAME_WIDTH;
+
 
     localparam logic IN_ORDER = 0;
 
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
 
-            localparam int TRACKED_ID = //12601;
-                                        //12085;
-                                        -2;
+    // DB specific
+        localparam int TRACKED_ID = -2;
 
 
 ////////////////////////////
     // Core structures
 
     typedef int InsId;  // Implem detail
-    typedef InsId IdQueue[$]; // Implet detail
+    typedef InsId IdQueue[$]; // Implem detail
 
     typedef struct {
         logic active;
@@ -57,42 +56,9 @@ package AbstractSim;
 
     localparam OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
     
-    typedef OpSlot OpSlotQueue[$];
     typedef OpSlot OpSlotA[RENAME_WIDTH];
-    typedef OpSlot FetchStage[FETCH_WIDTH];
-
-    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
-
-   
-    // Write buffer
-    typedef struct {
-        OpSlot op;
-        logic cancel;
-        Word adr;
-        Word val;
-    } StoreQueueEntry;
-
-
-
-
-    typedef struct {
-        logic req;
-        Word adr;
-        Word value;
-    } MemWriteInfo;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
 
-
-        typedef struct {
-            logic redirect;
-            logic sigOk;
-            logic sigWrong;
-            Mword target;
-        } LateEvent;
-    
-        localparam LateEvent EMPTY_LATE_EVENT = '{0, 0, 0, 'x};
-    
     typedef struct {
         OpSlot op;
         logic interrupt;
@@ -107,7 +73,7 @@ package AbstractSim;
     localparam EventInfo RESET_EVENT = '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
     localparam EventInfo INT_EVENT =   '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
 
-
+    // TODO: move swh else?
     typedef struct {
         int iqRegular;
         int iqFloat;
@@ -116,11 +82,11 @@ package AbstractSim;
         int iqSys;
     } IqLevels;
 
-    // not really used yet
-    typedef struct {
-        OpSlot late;
-        OpSlot exec;
-    } Events;
+        // not really used yet
+        typedef struct {
+            OpSlot late;
+            OpSlot exec;
+        } Events;
 
     typedef struct {
         InsId id;
@@ -136,7 +102,6 @@ package AbstractSim;
     } IndexSet;
 
     //////////////////////////////////////
-
 
 
     // Defs for tracking, insMap
@@ -180,17 +145,15 @@ package AbstractSim;
 
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
-
             
-            // TODO: move to RegisterDomain after moving functiona for num free etc.
-            typedef enum {FREE, SPECULATIVE, STABLE
-            } PhysRegState;
-            
-            typedef struct {
-                PhysRegState state;
-                InsId owner;
-            } PhysRegInfo;
-            
+        // TODO: move to RegisterDomain after moving functiona for num free etc.
+        typedef enum {FREE, SPECULATIVE, STABLE
+        } PhysRegState;
+        
+        typedef struct {
+            PhysRegState state;
+            InsId owner;
+        } PhysRegInfo;    
 
         class RegisterDomain#(
             parameter int N_REGS = N_REGS_INT,
@@ -223,22 +186,16 @@ package AbstractSim;
                     info[pDest] = '{SPECULATIVE, id};
                     MapR[vDest] = pDest;
                 end
-                
                 return findDest(id);
             endfunction
     
-    
-                function automatic void commitMapping();
-                
-                endfunction
-                
-                function automatic void releaseRegister(input int p);                
-                    if (p == 0) return;
-                
-                    info[p] = REG_INFO_FREE;
-                    ready[p] = 0;
-                    regs[p] = 'x;
-                endfunction
+
+            function automatic void releaseRegister(input int p);                
+                if (p == 0) return;
+                info[p] = REG_INFO_FREE;
+                ready[p] = 0;
+                regs[p] = 'x;
+            endfunction
   
             function automatic void commit(input AbstractInstruction ins, input InsId id, input logic normal);
                 int vDest = ins.dest;
@@ -248,27 +205,17 @@ package AbstractSim;
  
                 if (ignoreV(vDest)) return;
                 
-                // Below is for normal commit
                 if (normal) begin
                     writersC[vDest] = id;
                     MapC[vDest] = pDest;
                     info[pDest] = '{STABLE, -1};
-                end
-               
-                 //   if (!normal) $error("Not udating table: id = %d, writer = %d", id, writersC[vDest]);
-               
-                // Freeing
-                begin
-                    int pToFree = normal ? pDestPrev : pDest;
-                
-//                    if (pToFree == 0) return;
-                
-//                    info[pToFree] = REG_INFO_FREE;
-//                    ready[pToFree] = 0;
-//                    regs[pToFree] = 'x;
                     
-                    releaseRegister(pToFree);
+                    releaseRegister(pDestPrev);
                 end
+                else begin
+                    releaseRegister(pDest);
+                end
+
             endfunction
 
             function automatic void setReady(input InsId id);
@@ -302,7 +249,6 @@ package AbstractSim;
                     ready[pDest] = 0;
                     regs[pDest] = 'x;
                 end
-
                 // Restoring map is separate
             endfunction
 
@@ -315,7 +261,6 @@ package AbstractSim;
                     ready[pDest] = 0;
                     regs[pDest] = 'x;
                 end
-                
                 // Restoring map is separate
             endfunction
 
@@ -333,6 +278,10 @@ package AbstractSim;
             function automatic void restoreReset();
                 MapR = MapC;
                 writersR = '{default: -1};
+
+                foreach (info[i])
+                    if (info[i].state == STABLE)
+                        regs[i] = 0;
             endfunction           
         endclass
 
@@ -427,7 +376,6 @@ package AbstractSim;
         endfunction
 
 
-
         function automatic int getNumFreeInt();
             int freeInds[$] = ints.info.find_index with (item.state == FREE);
             int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
@@ -464,7 +412,7 @@ package AbstractSim;
         return (wa >= wb && aEnd <= bEnd);
     endfunction
     
-    
+
      
     typedef struct {
         InsId owner;
@@ -593,206 +541,11 @@ package AbstractSim;
 
 //////////////////
 // General
-    function automatic logic anyActiveFetch(input FetchStage s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
 
     function automatic logic anyActive(input OpSlotA s);
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
 
-    // Op classiication - UNUSED
-    
-    function automatic logic writesIntReg(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return hasIntDest(abs);
-    endfunction
-
-    function automatic logic writesFloatReg(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return hasFloatDest(abs);
-    endfunction
-
-    function automatic logic isBranchOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isBranchIns(abs);
-    endfunction
-
-    function automatic logic isStoreMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreMemIns(abs);
-    endfunction
-
-    function automatic logic isStoreSysOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreSysIns(abs);
-    endfunction
-
-    function automatic logic isLoadMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isLoadMemIns(abs);
-    endfunction
-
-    function automatic logic isLoadOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isLoadIns(abs);
-    endfunction
-
-    function automatic logic isStoreOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isStoreIns(abs);
-    endfunction
-
-    function automatic logic isMemOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isMemIns(abs);
-    endfunction
-
-    function automatic logic isSysOp(input OpSlot op);
-        AbstractInstruction abs = decodeAbstract(op.bits);
-        return isSysIns(abs);
-    endfunction
-    /////////////////////////////////////////////////
-
-
-    ////////////////////////////////////////////
-    // Core functions
-
-    function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
-        LateEvent res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
-        EventInfo A_res = EMPTY_EVENT_INFO;
-        
-        case (abs.def.o)
-            O_sysStore: ;
-            O_undef: begin
-                res.target = IP_ERROR;
-                res.redirect = 1;
-                res.sigWrong = 1;
-            end
-            O_call: begin
-                res.target = IP_CALL;
-                res.redirect = 1;
-            end
-            O_retE: begin
-                res.target = sr2;
-                res.redirect = 1;
-            end 
-            O_retI: begin
-                res.target = sr3;
-                res.redirect = 1;
-            end 
-            O_sync: begin
-                res.target = adr + 4;
-                res.redirect = 1;
-            end
-            
-            O_replay: begin
-                res.target = adr;
-                res.redirect = 1;
-            end 
-            O_halt: begin                
-                res.target = adr + 4;
-                res.redirect = 1;
-            end
-            O_send: begin
-                res.target = adr + 4;
-                res.redirect = 1;
-                res.sigOk = 1;
-            end
-            default: ;                            
-        endcase
-
-        A_res.op = op;
-
-        A_res.redirect = res.redirect;
-        A_res.sigOk = res.sigOk;
-        A_res.sigWrong = res.sigWrong;
-        A_res.target = res.target;
-
-        return A_res;
-    endfunction
-
-
-    
-        function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
-            LateEvent res = '{redirect: 0, sigOk: 0, sigWrong: 0, target: 'x};
-            EventInfo A_res = EMPTY_EVENT_INFO;
-            
-            begin
-                res.target = IP_EXC;
-                res.redirect = 1;
-            end
-                          
-    
-            A_res.op = op;
-    
-            A_res.redirect = res.redirect;
-            A_res.sigOk = res.sigOk;
-            A_res.sigWrong = res.sigWrong;
-            A_res.target = res.target;
-    
-            return A_res;
-        endfunction
-
-
-    function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
-        case (abs.def.o)
-            O_undef: begin
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr + 4;
-                
-                sysRegs[1] |= 1; // TODO: handle state register correctly
-            end
-            O_call: begin                    
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr + 4;
-                
-                sysRegs[1] |= 1; // TODO: handle state register correctly
-            end
-            O_retE: sysRegs[1] = sysRegs[4];
-            O_retI: sysRegs[1] = sysRegs[5];
-        endcase
-    endfunction
-
-        function automatic void modifyStateSyncExc(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
-            begin
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr;
-                
-                sysRegs[1] |= 1; // TODO: handle state register correctly
-            end
-        endfunction
-
-
-    function automatic void saveStateAsync(ref Word sysRegs[32], input Word prevTarget);
-        sysRegs[5] = sysRegs[1];
-        sysRegs[3] = prevTarget;
-        
-        sysRegs[1] |= 2; // TODO: handle state register correctly
-    endfunction
-
-
-    function automatic EventInfo eventFromOp(input OpSlot op);
-        return '{op, 0, 0, 1, 0, 0, 'x};
-    endfunction
-
-
-    task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
-        if (ins.def.o == O_halt) $error("halt not implemented");
-    endtask
-
-    // core logic
-    function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed, input logic refetch, input logic exception);
-        if (isBranchIns(ins))
-            return executed;
-        else if (isSysIns(ins) || exception)
-            return 'x;
-        else if (refetch)
-            return prev;
-        else
-            return prev + 4;
-    endfunction;
 
 endpackage

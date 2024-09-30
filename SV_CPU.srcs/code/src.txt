@@ -1,7 +1,7 @@
 $start
 	or_i  r5, r0, 15 ; initial value
 	ldi_i  r9, r0, 140
-	sys sync
+	sys_sync
 	add_r r5, r5, r5
 	
 	jz_i r8, $label
@@ -20,8 +20,8 @@ $start
 	jl r7, $start
 	jnz_i r8, $start
 	jz_i r8, $start
-	sys halt
-	sys replay
+	sys_halt
+	sys_replay
 	jnz_i r9, $start ;shl_i r9, r6, -20
 	sti_i r8, r7, 222
 $label

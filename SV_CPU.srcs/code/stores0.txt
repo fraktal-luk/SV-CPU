@@ -34,4 +34,4 @@ $start
 	sti_i r0, r2, 44
 
 $check
-	sys call
+	sys_call

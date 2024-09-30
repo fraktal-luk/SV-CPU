@@ -20,8 +20,8 @@ $start
 	jl r7, $start
 	jnz_i r8, $start
 	jz_i r8, $start
-	sys halt
-	sys replay
+	sys_halt
+	sys_replay
 	jnz_i r9, $start ;shl_i r9, r6, -20
 	sti_i r8, r7, 222
 $label

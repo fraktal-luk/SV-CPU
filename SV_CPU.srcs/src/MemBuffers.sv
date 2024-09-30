@@ -50,8 +50,7 @@ module StoreQueue
     int size;
     logic allow;
     
-    assign size = //(endPointer - startPointer + 2*SIZE) % (2*SIZE);
-                  (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
+    assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
     assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
     QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
@@ -66,6 +65,7 @@ module StoreQueue
         advance();
 
         if (IS_STORE_QUEUE) handleForwards();
+        if (IS_LOAD_QUEUE)  handleHazards();
     
         update();
     
@@ -81,16 +81,9 @@ module StoreQueue
     task automatic flushAll();
         foreach (content[i]) begin
             if (content[i].committed) continue; 
-            
-            if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);
-            
-            //if (lateEventInfo.reset || lateEventInfo.interrupt || lateEventInfo.op.id < content[i].id)
+            if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);            
             content[i] = EMPTY_ENTRY;
         end
-//        for (int i = 0; i < SIZE; i++)
-//            if (content[i].id != -1) putMilestone(content[i % SIZE].id, QUEUE_FLUSH);
-
-//        content = '{default: EMPTY_ENTRY};
         endPointer = startPointer;
     endtask
 
@@ -112,7 +105,7 @@ module StoreQueue
     endtask
     
     
-    localparam logic SQ_RETAIN = 1;//0;
+    localparam logic SQ_RETAIN = 1;
     
     
     task automatic advance();
@@ -130,12 +123,6 @@ module StoreQueue
             putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
-                // Don't commit entry if this op has an exception
-//                if (content[startPointer % SIZE].id == AbstractCore.theRob.lastOut && insMap.get(content[startPointer % SIZE].id).exception) begin
-//                    $error( "Not commitin SQ enry becuase exc, %d ", thisId);
-//                    continue;
-//                end
-                
                 content[startPointer % SIZE].committed = 1;
                 startPointer = (startPointer+1) % (2*SIZE);
             end
@@ -199,7 +186,8 @@ module StoreQueue
     
     task automatic updateEntry(input int index, input OpPacket p);
         if (IS_BRANCH_QUEUE) begin
-        
+            content[index].adr = branchEventInfo.target;
+            content[index].adrReady = 1;
         end
         
         if (IS_STORE_QUEUE) begin
@@ -213,7 +201,7 @@ module StoreQueue
         end       
     endtask
     
-    
+
     task automatic handleForwards();
         foreach (theExecBlock.toLq[p]) begin
             logic active = theExecBlock.toLq[p].active;
@@ -229,7 +217,23 @@ module StoreQueue
         end
     endtask
     
-    
+
+    task automatic handleHazards();
+        foreach (theExecBlock.toSq[p]) begin
+            logic active = theExecBlock.toSq[p].active;
+            Word adr = theExecBlock.toSq[p].result;
+            MatchStatus st;
+
+            theExecBlock.fromLq[p] <= EMPTY_OP_PACKET;
+            
+            if (active !== 1) continue;
+            if (!isStoreMemIns(decId(theExecBlock.toSq[p].id))) continue;
+            
+            theExecBlock.fromLq[p] <= scanForHazards(theExecBlock.toLq[p].id, adr);
+        end
+    endtask
+
+
     function automatic OpPacket scanQueue_P(input InsId id, input Word adr);
         // TODO: don't include sys stores in adr matching 
         QueueEntry found[$] = content.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
@@ -248,8 +252,26 @@ module StoreQueue
         end
 
     endfunction
-    
+
+
+    function automatic OpPacket scanForHazards(input InsId id, input Word adr);
+        // TODO: don't include sys stores in adr matching 
+        int found[$] = content.find_index with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
+       
+        if (found.size() == 0) return EMPTY_OP_PACKET;
+                
+        // else: we have a match and the matching loads are incorrect
+        foreach (found[i]) begin
+            content[found[i]].valReady = 'x;
+        end
+        
+        begin // 'active' indicates that some match has happened without furthr details
+            OpPacket res = EMPTY_OP_PACKET;
+            res.active = 1;            
+            return res;
+        end
+
+    endfunction
+   
     
 endmodule
-
-

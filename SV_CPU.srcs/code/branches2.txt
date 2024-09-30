@@ -55,11 +55,11 @@ $start
 	ja -4
 $L1
 	ja -4
-    sys error
-    sys error
-    sys error
+    sys_error
+    sys_error
+    sys_error
 	
 $L2
-	sys call			
+	sys_call			
 $error
-    sys error
+    sys_error

@@ -11,13 +11,9 @@ import ExecDefs::*;
 
 module DataL1(
                 input logic clk,
-                
                 input DataReadReq readReqs[N_MEM_PORTS],
                 output DataReadResp readResps[N_MEM_PORTS],
-                
-                input logic writeReqs[2],
-                input Word writeAddresses[2],
-                input Word writeData[2]
+                input MemWriteInfo TMP_writeReqs[2]
               );
 
 
@@ -70,10 +66,12 @@ module DataL1(
         Mbyte writing[4];
         
         foreach (writing[i])
-            writing[i] = writeData[0] >> 8*(3-i);
+            writing[i] = //writeData[0] >> 8*(3-i);
+                         TMP_writeReqs[0].value >> 8*(3-i);
         
         foreach (writing[i])
-            if (writeReqs[0]) content[writeAddresses[0] + i] <= writing[i];
+            //if (writeReqs[0]) content[writeAddresses[0] + i] <= writing[i];
+            if (TMP_writeReqs[0].req) content[TMP_writeReqs[0].adr + i] <= writing[i];
 
     endtask
 

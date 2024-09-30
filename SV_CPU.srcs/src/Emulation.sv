@@ -1,25 +1,23 @@
-`timescale 1ns / 1ps
-
 
 package Emulation;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
 
-        // UNUSED
-        function automatic logic cmpMems(input Word a[4096], input Word b[4096]);
-            foreach (a[i]) begin
-                if (a[i] === b[i]) continue;
+//        // UNUSED
+//        function automatic logic cmpMems(input Word a[4096], input Word b[4096]);
+//            foreach (a[i]) begin
+//                if (a[i] === b[i]) continue;
                 
-                $error("Difference at [%d]: %h / %h", i, a[i], b[i]);
-                return 0;
-            end
+//                $error("Difference at [%d]: %h / %h", i, a[i], b[i]);
+//                return 0;
+//            end
             
-            $display("   mem match!");
-            return 1;
-        endfunction
+//            $display("   mem match!");
+//            return 1;
+//        endfunction
 
-    function automatic void writeArrayW(ref logic[7:0] mem[], input Word adr, input Word val);
+    function automatic void writeArrayW(ref Mbyte mem[], input Word adr, input Word val);
         mem[adr+0] = val[31:24];
         mem[adr+1] = val[23:16];
         mem[adr+2] = val[15:8];
@@ -86,7 +84,7 @@ package Emulation;
 
 
     class SimpleMem;
-        logic [7:0] bytes[4096];
+        Mbyte bytes[4096];
         
         function automatic void reset();
             this.bytes = '{default: 0};
@@ -105,7 +103,7 @@ package Emulation;
         
         function automatic Word loadW(input Word adr);
             Word res = 0;
-            logic [7:0] read[4];
+            Mbyte read[4];
             foreach (read[i])
                 res = (res << 8) | this.bytes[adr + i];
             return res;
@@ -122,7 +120,7 @@ package Emulation;
         endfunction
         
         function automatic void storeW(input Word adr, input Word value);
-            logic [7:0] read[4];
+            Mbyte read[4];
             Word write = value;
             foreach (read[i]) begin
                 this.bytes[adr + i] = write[31:24];
@@ -262,10 +260,7 @@ package Emulation;
     function automatic logic writeSysReg(ref CpuState state, input AbstractInstruction ins, input Word regNum, input Word value);
         assert (!$isunknown(value)) else $error("Writing unknown value!");
         
-        if (regNum > 31) begin
-               // $error("sys wite %d", regNum);
-            return 1;
-        end
+        if (regNum > 31) return 1;
         
         state.sysRegs[regNum] = value;
         return 0;
@@ -308,9 +303,9 @@ package Emulation;
             O_intMulHU: result = (Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
             O_intMulHS: result = (Dword'($signed(vals[0])) * Dword'($signed(vals[1]))) >> 32;
             O_intDivU:  result = $unsigned(vals[0]) / $unsigned(vals[1]);
-            O_intDivS:  result = divSigned(vals[0], vals[1]);
+            O_intDivS:  result = divSignedW(vals[0], vals[1]);
             O_intRemU:  result = $unsigned(vals[0]) % $unsigned(vals[1]);
-            O_intRemS:  result = remSigned(vals[0], vals[1]);
+            O_intRemS:  result = remSignedW(vals[0], vals[1]);
             
             O_intShiftLogical: begin                
                 if ($signed(vals[1]) >= 0) result = $unsigned(vals[0]) << vals[1];
@@ -361,14 +356,6 @@ package Emulation;
         writeIntReg(state, ins.dest, adr + 4);
     endfunction
 
-    function automatic void performAsyncEvent(ref CpuState state, input Word trg, input Word prevTarget);
-        state.sysRegs[5] = state.sysRegs[1];
-        state.sysRegs[1] |= 2; // TODO: handle state register correctly
-        state.sysRegs[3] = prevTarget;//state.target;
-
-        state.target = trg;
-    endfunction
-
 
     typedef struct {
         int dummy;
@@ -377,6 +364,13 @@ package Emulation;
         bit send;
     } CoreStatus;
 
+    function automatic void performAsyncEvent(ref CpuState state, input Word trg, input Word prevTarget);
+        state.sysRegs[5] = state.sysRegs[1];
+        state.sysRegs[1] |= 2; // TODO: handle state register correctly
+        state.sysRegs[3] = prevTarget;//state.target;
+
+        state.target = trg;
+    endfunction
 
     function automatic void modifySysRegs(ref CpuState state, input Word adr, input AbstractInstruction abs);
         case (abs.def.o)
@@ -424,13 +418,13 @@ package Emulation;
     endfunction
 
     
-        function automatic void modifySysRegsOnException(ref CpuState state, input Word adr, input AbstractInstruction abs);
-            state.target = IP_EXC;
+    function automatic void modifySysRegsOnException(ref CpuState state, input Word adr, input AbstractInstruction abs);
+        state.target = IP_EXC;
 
-            state.sysRegs[4] = state.sysRegs[1];
-            state.sysRegs[1] |= 1; // TODO: handle state register correctly
-            state.sysRegs[2] = adr;
-        endfunction
+        state.sysRegs[4] = state.sysRegs[1];
+        state.sysRegs[1] |= 1; // TODO: handle state register correctly
+        state.sysRegs[2] = adr;
+    endfunction
 
 
     function automatic Word computeResult(input CpuState state, input Word adr, input AbstractInstruction ins, input SimpleMem dataMem);
@@ -492,11 +486,11 @@ package Emulation;
         endfunction 
         
         
-        function automatic CoreStatus checkStatus();
-            CoreStatus res;
+//        function automatic CoreStatus checkStatus();
+//            CoreStatus res;
             
-            return res; // DUMMY
-        endfunction 
+//            return res; // DUMMY
+//        endfunction 
         
         // Clear mem write and signals to send
         function automatic void drain();
@@ -613,9 +607,9 @@ package Emulation;
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Word3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Word effAdr = calculateEffectiveAddress(ins, vals);
-            logic en = 1;
-            // TODO: set en = 0 if exception
-            if (exceptionCaused(ins, effAdr)) en = 0;
+            
+            logic en = !exceptionCaused(ins, effAdr);//1;
+            //if (exceptionCaused(ins, effAdr)) en = 0;
             
             if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2]};
             return res;

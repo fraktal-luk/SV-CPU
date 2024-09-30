@@ -1,20 +1,20 @@
 $start
 	add_r r20, r0, r0	; clear r20
-	sys call			; call should set r20 to 55 and return
+	sys_call			; call should set r20 to 55 and return
 	add_i r20, r20, -55
 	jnz_i r20, $error
 	
-	sys call			; call should set r20 to 55 and return
+	sys_call			; call should set r20 to 55 and return
 	add_i r20, r20, -55
 	jnz_i r20, $error
 	
-	sys call			; call should set r20 to 55 and return
+	sys_call			; call should set r20 to 55 and return
 	add_i r20, r20, -55
 	jnz_i r20, $error
 	jz_i  r20, $check
 	
 $error
-	sys error
+	sys_error
 $check
 	jl r31, $sendSignal ; sys send
 	ja 0				; infinite loop
