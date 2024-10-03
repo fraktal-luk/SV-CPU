@@ -7,13 +7,17 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 
+import Queues::*;
+
 
 module StoreQueue
 #(
     parameter logic IS_LOAD_QUEUE = 0,
     parameter logic IS_BRANCH_QUEUE = 0,
     
-    parameter int SIZE = 32
+    parameter int SIZE = 32,
+    
+    type HELPER = QueueHelper
 )
 (
     ref InstructionMap insMap,
@@ -30,6 +34,10 @@ module StoreQueue
     localparam InstructionMap::Milestone QUEUE_ENTER = IS_BRANCH_QUEUE ? InstructionMap::BqEnter : IS_LOAD_QUEUE ? InstructionMap::LqEnter : InstructionMap::SqEnter;
     localparam InstructionMap::Milestone QUEUE_FLUSH = IS_BRANCH_QUEUE ? InstructionMap::BqFlush : IS_LOAD_QUEUE ? InstructionMap::LqFlush : InstructionMap::SqFlush;
     localparam InstructionMap::Milestone QUEUE_EXIT = IS_BRANCH_QUEUE ? InstructionMap::BqExit : IS_LOAD_QUEUE ? InstructionMap::LqExit : InstructionMap::SqExit;
+
+
+    typedef HELPER::Entry QEntry;
+    localparam QEntry EMPTY_QENTRY = HELPER::EMPTY_QENTRY;
 
 
     typedef struct {
@@ -54,6 +62,7 @@ module StoreQueue
     assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
     QueueEntry content[SIZE] = '{default: EMPTY_ENTRY};
+    QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
 
 
     typedef enum {
@@ -62,6 +71,8 @@ module StoreQueue
     
 
     always @(posedge AbstractCore.clk) begin
+            HELPER::print();
+    
         advance();
 
         if (IS_STORE_QUEUE) handleForwards();
@@ -150,10 +161,12 @@ module StoreQueue
         foreach (wrInputs[p]) begin
             logic applies;
             if (wrInputs[p].active !== 1) continue;
-            applies =
-                  IS_LOAD_QUEUE && isLoadIns(decId(wrInputs[p].id))
-              ||  IS_BRANCH_QUEUE && isBranchIns(decId(wrInputs[p].id))
-              ||  IS_STORE_QUEUE && isStoreIns(decId(wrInputs[p].id));
+//            applies =
+//                  IS_LOAD_QUEUE && isLoadIns(decId(wrInputs[p].id))
+//              ||  IS_BRANCH_QUEUE && isBranchIns(decId(wrInputs[p].id))
+//              ||  IS_STORE_QUEUE && isStoreIns(decId(wrInputs[p].id));
+        
+            applies = HELPER::applies(decId(wrInputs[p].id));
         
             if (!applies) continue;
             
@@ -177,6 +190,9 @@ module StoreQueue
 
             if (applies) begin
                 content[endPointer % SIZE] = '{inGroup[i].id, 0, 0, 0, 'x, 'x};
+                    content_N[endPointer % SIZE] = HELPER::newEntry(inGroup[i]);
+
+                
                 putMilestone(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
@@ -185,6 +201,7 @@ module StoreQueue
 
     
     task automatic updateEntry(input int index, input OpPacket p);
+    
         if (IS_BRANCH_QUEUE) begin
             content[index].adr = branchEventInfo.target;
             content[index].adrReady = 1;
