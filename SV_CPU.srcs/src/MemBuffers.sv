@@ -70,13 +70,11 @@ module StoreQueue
     } MatchStatus;
     
 
-    always @(posedge AbstractCore.clk) begin
-            HELPER::print();
-    
+    always @(posedge AbstractCore.clk) begin    
         advance();
 
-        if (IS_STORE_QUEUE) handleForwards();
-        if (IS_LOAD_QUEUE)  handleHazards();
+        if (IS_STORE_QUEUE) handleForwardsS();
+        if (IS_LOAD_QUEUE)  handleHazardsL();
     
         update();
     
@@ -94,6 +92,7 @@ module StoreQueue
             if (content[i].committed) continue; 
             if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);            
             content[i] = EMPTY_ENTRY;
+                content_N[i] = EMPTY_QENTRY;
         end
         endPointer = startPointer;
     endtask
@@ -108,6 +107,7 @@ module StoreQueue
             if (content[p % SIZE].id > causingId) begin
                 putMilestone(content[p % SIZE].id, QUEUE_FLUSH);
                 content[p % SIZE] = EMPTY_ENTRY;
+                    content_N[p % SIZE] = EMPTY_QENTRY;
             end
             else if (content[p % SIZE].id == -1) break;
             else endPointer = (p+1) % (2*SIZE);   
@@ -135,10 +135,12 @@ module StoreQueue
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
                 content[startPointer % SIZE].committed = 1;
+                //    content_N[startPointer % SIZE].committed = 1;
                 startPointer = (startPointer+1) % (2*SIZE);
             end
             else begin
                 content[startPointer % SIZE] = EMPTY_ENTRY;
+                    content_N[startPointer % SIZE] = EMPTY_QENTRY;
                 startPointer = (startPointer+1) % (2*SIZE);
             end
         end
@@ -148,6 +150,7 @@ module StoreQueue
                     assert (AbstractCore.drainHead.op.id == content[drainPointer % SIZE].id) else $error("Not matching id drain %d/%d", AbstractCore.drainHead.op.id, content[drainPointer % SIZE].id);
             
                 content[drainPointer % SIZE] = EMPTY_ENTRY;
+                    content_N[drainPointer % SIZE] = EMPTY_QENTRY;
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
         end
@@ -161,11 +164,7 @@ module StoreQueue
         foreach (wrInputs[p]) begin
             logic applies;
             if (wrInputs[p].active !== 1) continue;
-//            applies =
-//                  IS_LOAD_QUEUE && isLoadIns(decId(wrInputs[p].id))
-//              ||  IS_BRANCH_QUEUE && isBranchIns(decId(wrInputs[p].id))
-//              ||  IS_STORE_QUEUE && isStoreIns(decId(wrInputs[p].id));
-        
+
             applies = HELPER::applies(decId(wrInputs[p].id));
         
             if (!applies) continue;
@@ -173,7 +172,7 @@ module StoreQueue
             begin
                int found[$] = content.find_index with (item.id == wrInputs[p].id);
                if (found.size() == 1) updateEntry(found[0], wrInputs[p]);
-               else $error("Sth wrong with SQ update [%d], found(%d) %p // %p", wrInputs[p].id, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].id));
+               else $error("Sth wrong with Q update [%d], found(%d) %p // %p", wrInputs[p].id, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].id));
             end
         end 
     endtask
@@ -183,10 +182,7 @@ module StoreQueue
         if (!anyActive(inGroup)) return;
     
         foreach (inGroup[i]) begin
-            logic applies = 
-                  IS_LOAD_QUEUE && isLoadIns(decAbs(inGroup[i]))
-              ||  IS_BRANCH_QUEUE && isBranchIns(decAbs(inGroup[i]))
-              ||  IS_STORE_QUEUE && isStoreIns(decAbs(inGroup[i]));
+            logic applies = HELPER::applies(decAbs(inGroup[i]));
 
             if (applies) begin
                 content[endPointer % SIZE] = '{inGroup[i].id, 0, 0, 0, 'x, 'x};
@@ -203,23 +199,37 @@ module StoreQueue
     task automatic updateEntry(input int index, input OpPacket p);
     
         if (IS_BRANCH_QUEUE) begin
-            content[index].adr = branchEventInfo.target;
-            content[index].adrReady = 1;
+            updateEntryB(index, p, branchEventInfo);
         end
         
         if (IS_STORE_QUEUE) begin
-            content[index].adrReady = 1;
-            content[index].adr = p.result;
+            updateEntryS(index, p, branchEventInfo);
         end
         
         if (IS_LOAD_QUEUE) begin
-            content[index].adrReady = 1;
-            content[index].adr = p.result;
-        end       
+            updateEntryL(index, p, branchEventInfo);
+        end
+        
+        HELPER::updateEntry(content_N[index], p, branchEventInfo);  
     endtask
     
+        task automatic updateEntryB(input int index, input OpPacket p, input EventInfo brInfo);
+            content[index].adr = brInfo.target;
+            content[index].adrReady = 1;
+        endtask
 
-    task automatic handleForwards();
+        task automatic updateEntryS(input int index, input OpPacket p, input EventInfo brInfo);
+            content[index].adrReady = 1;
+            content[index].adr = p.result;
+        endtask
+        
+        task automatic updateEntryL(input int index, input OpPacket p, input EventInfo brInfo);
+            content[index].adrReady = 1;
+            content[index].adr = p.result;
+        endtask
+   
+
+    task automatic handleForwardsS();
         foreach (theExecBlock.toLq[p]) begin
             logic active = theExecBlock.toLq[p].active;
             Word adr = theExecBlock.toLq[p].result;
@@ -235,7 +245,7 @@ module StoreQueue
     endtask
     
 
-    task automatic handleHazards();
+    task automatic handleHazardsL();
         foreach (theExecBlock.toSq[p]) begin
             logic active = theExecBlock.toSq[p].active;
             Word adr = theExecBlock.toSq[p].result;
@@ -276,7 +286,7 @@ module StoreQueue
         int found[$] = content.find_index with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
        
         if (found.size() == 0) return EMPTY_OP_PACKET;
-                
+
         // else: we have a match and the matching loads are incorrect
         foreach (found[i]) begin
             content[found[i]].valReady = 'x;

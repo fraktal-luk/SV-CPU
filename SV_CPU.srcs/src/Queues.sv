@@ -8,7 +8,7 @@ package Queues;
     
     import AbstractSim::*;
     import Insmap::*;
-
+    import ExecDefs::*;
 
 
     class QueueHelper;
@@ -18,9 +18,6 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{'x};
 
-        static function automatic print();
-            //$display("a haha");
-        endfunction
         
     endclass
 
@@ -28,14 +25,16 @@ package Queues;
     class StoreQueueHelper;
         typedef struct {
             InsId id;
-            logic x;
+            logic error;
+            logic adrReady;
+            Mword adr;
+            logic valReady;
+            Mword val;
+            logic committed;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x};   
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x};
     
-        static function automatic print();
-            //$display("SQ!!!");
-        endfunction
         
         static function automatic logic applies(input AbstractInstruction ins);
             return isStoreIns(ins);
@@ -44,7 +43,16 @@ package Queues;
         static function automatic Entry newEntry(input OpSlot op);
             Entry res = EMPTY_QENTRY;
             res.id = op.id;
+            res.error = 0;
+            res.adrReady = 0;
+            res.valReady = 0;
+            res.committed = 0;
             return res;
+        endfunction
+        
+        static function void updateEntry(ref Entry entry, input OpPacket p, input EventInfo brInfo);
+            entry.adrReady = 1;
+            entry.adr = p.result;            
         endfunction
     endclass
 
@@ -52,15 +60,12 @@ package Queues;
     class LoadQueueHelper;
         typedef struct {
             InsId id;
-            Word first;
-            logic second;
+            logic error;
+            logic adrReady;
+            Mword adr;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, '0, 'x};
-
-        static function automatic print();
-            //$display("LQ!!!");
-        endfunction
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x};
 
         static function automatic logic applies(input AbstractInstruction ins);
             return isLoadIns(ins);
@@ -69,23 +74,28 @@ package Queues;
         static function automatic Entry newEntry(input OpSlot op);
             Entry res = EMPTY_QENTRY;
             res.id = op.id;
+            res.adrReady = 0;
+            res.error = 0;
             return res;
-        endfunction   
+        endfunction
+        
+        static function void updateEntry(ref Entry entry, input OpPacket p, input EventInfo brInfo);
+            entry.adrReady = 1;
+            entry.adr = p.result;
+        endfunction  
     endclass
     
     
     class BranchQueueHelper;
         typedef struct {
             InsId id;
-            Word x;
-            Word y;
+            logic predictedTaken;
+            logic taken;
+            Mword linkAdr;
+            Mword target;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'z};
-
-        static function automatic print();
-            //$display("BQ!!!");
-        endfunction
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x};
 
         static function automatic logic applies(input AbstractInstruction ins);
             return isBranchIns(ins);
@@ -95,7 +105,13 @@ package Queues;
             Entry res = EMPTY_QENTRY;
             res.id = op.id;
             return res;
-        endfunction      
+        endfunction
+        
+        static function void updateEntry(ref Entry entry, input OpPacket p, input EventInfo brInfo);
+            entry.taken = brInfo.op.active;
+            entry.target = brInfo.target;
+        endfunction
+          
     endclass
 
 
