@@ -89,8 +89,12 @@ module StoreQueue
     
     task automatic flushAll();
         foreach (content[i]) begin
+            //QueueEntry elem = content[i];
+            InsId thisId = content_N[i].id;
+                assert (content_N[i].id == content[i].id) else $error("flush: wrong id");
+        
             if (content[i].committed) continue; 
-            if (content[i].id != -1) putMilestone(content[i].id, QUEUE_FLUSH);            
+            if (thisId != -1) putMilestone(thisId, QUEUE_FLUSH);            
             content[i] = EMPTY_ENTRY;
                 content_N[i] = EMPTY_QENTRY;
         end
@@ -104,12 +108,16 @@ module StoreQueue
         
         endPointer = startPointer;
         for (int i = 0; i < SIZE; i++) begin
-            if (content[p % SIZE].id > causingId) begin
-                putMilestone(content[p % SIZE].id, QUEUE_FLUSH);
+            //QueueEntry elem = content[p % SIZE];
+            InsId thisId = content_N[p % SIZE].id;
+               assert (content_N[p % SIZE].id == content[p % SIZE].id) else $error("flush: wrong id");
+        
+            if (thisId > causingId) begin
+                putMilestone(thisId, QUEUE_FLUSH);
                 content[p % SIZE] = EMPTY_ENTRY;
                     content_N[p % SIZE] = EMPTY_QENTRY;
             end
-            else if (content[p % SIZE].id == -1) break;
+            else if (thisId == -1) break;
             else endPointer = (p+1) % (2*SIZE);   
             p++;
         end
@@ -119,19 +127,29 @@ module StoreQueue
     localparam logic SQ_RETAIN = 1;
     
     
+    
+    function automatic logic isCommittable(input InsId id);
+        return id != -1 && id <= AbstractCore.theRob.lastOut;
+    endfunction
+    
+    
     task automatic advance();
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT};
-        while (content[startPointer % SIZE].id != -1
-            && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut
+
+        while (isCommittable(content_N[startPointer % SIZE].id)
+//                content[startPointer % SIZE].id != -1
+//            && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut
                )
         begin
-            InsId thisId = content[startPointer % SIZE].id;
-            outGroup[nOut].id <= content[startPointer % SIZE].id;
+            //QueueEntry elem = content[startPointer % SIZE];
+            InsId thisId = content_N[startPointer % SIZE].id;
+            outGroup[nOut].id <= thisId;
+                assert (content_N[startPointer % SIZE].id == thisId) else $error("not matching id");
             outGroup[nOut].active <= 1;
             nOut++;
                 
-            putMilestone(content[startPointer % SIZE].id, QUEUE_EXIT);
+            putMilestone(thisId, QUEUE_EXIT);
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
                 content[startPointer % SIZE].committed = 1;
