@@ -65,13 +65,15 @@ module StoreQueue
     QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
 
 
-    typedef enum {
-        NO_LOAD, NO_MATCH, SINGLE_EXACT, SINGLE_INEXACT, MULTIPLE
-    } MatchStatus;
+//    typedef enum {
+//        NO_LOAD, NO_MATCH, SINGLE_EXACT, SINGLE_INEXACT, MULTIPLE
+//    } MatchStatus;
     
 
     always @(posedge AbstractCore.clk) begin    
         advance();
+
+          //  HELPER::TMP_scan(content_N);
 
         if (IS_STORE_QUEUE) handleForwardsS();
         if (IS_LOAD_QUEUE)  handleHazardsL();
@@ -79,21 +81,19 @@ module StoreQueue
         update();
     
         if (lateEventInfo.redirect)
-           flushAll();
+            flushAll();
         else if (branchEventInfo.redirect)
-           flushPartial(); 
+            flushPartial(); 
         else
             writeInput(inGroup);
     end
 
     
     task automatic flushAll();
-        foreach (content[i]) begin
-            //QueueEntry elem = content[i];
-            InsId thisId = content_N[i].id;
-                assert (content_N[i].id == content[i].id) else $error("flush: wrong id");
-        
-            if (content[i].committed) continue; 
+        foreach (content_N[i]) begin
+            InsId thisId = content_N[i].id;        
+            //if (content[i].committed) continue; 
+            if (HELPER::isCommitted(content_N[i])) continue; 
             if (thisId != -1) putMilestone(thisId, QUEUE_FLUSH);            
             content[i] = EMPTY_ENTRY;
                 content_N[i] = EMPTY_QENTRY;
@@ -108,10 +108,7 @@ module StoreQueue
         
         endPointer = startPointer;
         for (int i = 0; i < SIZE; i++) begin
-            //QueueEntry elem = content[p % SIZE];
-            InsId thisId = content_N[p % SIZE].id;
-               assert (content_N[p % SIZE].id == content[p % SIZE].id) else $error("flush: wrong id");
-        
+            InsId thisId = content_N[p % SIZE].id;        
             if (thisId > causingId) begin
                 putMilestone(thisId, QUEUE_FLUSH);
                 content[p % SIZE] = EMPTY_ENTRY;
@@ -137,15 +134,10 @@ module StoreQueue
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT};
 
-        while (isCommittable(content_N[startPointer % SIZE].id)
-//                content[startPointer % SIZE].id != -1
-//            && content[startPointer % SIZE].id <= AbstractCore.theRob.lastOut
-               )
+        while (isCommittable(content_N[startPointer % SIZE].id))
         begin
-            //QueueEntry elem = content[startPointer % SIZE];
             InsId thisId = content_N[startPointer % SIZE].id;
             outGroup[nOut].id <= thisId;
-                assert (content_N[startPointer % SIZE].id == thisId) else $error("not matching id");
             outGroup[nOut].active <= 1;
             nOut++;
                 
@@ -153,7 +145,7 @@ module StoreQueue
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
                 content[startPointer % SIZE].committed = 1;
-                //    content_N[startPointer % SIZE].committed = 1;
+                HELPER::setCommitted(content_N[startPointer % SIZE]);
                 startPointer = (startPointer+1) % (2*SIZE);
             end
             else begin
@@ -165,7 +157,8 @@ module StoreQueue
         
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
             if (AbstractCore.drainHead.op.active) begin
-                    assert (AbstractCore.drainHead.op.id == content[drainPointer % SIZE].id) else $error("Not matching id drain %d/%d", AbstractCore.drainHead.op.id, content[drainPointer % SIZE].id);
+                //    assert (AbstractCore.drainHead.op.id == content[drainPointer % SIZE].id) else $error("Not matching id drain %d/%d", AbstractCore.drainHead.op.id, content[drainPointer % SIZE].id);
+                assert (AbstractCore.drainHead.op.id == content_N[drainPointer % SIZE].id) else $error("Not matching n id drain %d/%d", AbstractCore.drainHead.op.id, content_N[drainPointer % SIZE].id);
             
                 content[drainPointer % SIZE] = EMPTY_ENTRY;
                     content_N[drainPointer % SIZE] = EMPTY_QENTRY;
@@ -251,14 +244,21 @@ module StoreQueue
         foreach (theExecBlock.toLq[p]) begin
             logic active = theExecBlock.toLq[p].active;
             Word adr = theExecBlock.toLq[p].result;
-            MatchStatus st;
+            OpPacket resa, resb;
+
+            //MatchStatus st;
 
             theExecBlock.fromSq[p] <= EMPTY_OP_PACKET;
             
             if (active !== 1) continue;
             if (!isLoadMemIns(decId(theExecBlock.toLq[p].id))) continue;
             
-            theExecBlock.fromSq[p] <= scanQueue_P(theExecBlock.toLq[p].id, adr);
+            resa = scanQueue_P(theExecBlock.toLq[p].id, adr);
+            theExecBlock.fromSq[p] <= resa;
+            
+            resb = HELPER::scanQueue(content_N, theExecBlock.toLq[p].id, adr);
+            
+             assert (resa === resb) else $error("sq no match");
         end
     endtask
     
@@ -267,24 +267,36 @@ module StoreQueue
         foreach (theExecBlock.toSq[p]) begin
             logic active = theExecBlock.toSq[p].active;
             Word adr = theExecBlock.toSq[p].result;
-            MatchStatus st;
+            OpPacket resa, resb;
+            
+            //MatchStatus st;
 
             theExecBlock.fromLq[p] <= EMPTY_OP_PACKET;
             
             if (active !== 1) continue;
             if (!isStoreMemIns(decId(theExecBlock.toSq[p].id))) continue;
             
-            theExecBlock.fromLq[p] <= scanForHazards(theExecBlock.toLq[p].id, adr);
+            resa = scanForHazards(theExecBlock.toLq[p].id, adr);
+            resb = HELPER::scanQueue(content_N, theExecBlock.toLq[p].id, adr);
+            
+                assert (resa === resb) else $error("lq no match");
+            
+            theExecBlock.fromLq[p] <= resa;
+            
         end
     endtask
 
 
     function automatic OpPacket scanQueue_P(input InsId id, input Word adr);
+        typedef StoreQueueHelper::Entry SqEntry;
         // TODO: don't include sys stores in adr matching 
         QueueEntry found[$] = content.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
+        
+            IntQueue found_N = //content_N.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
+                                 HELPER::TMP_scan(content_N, id, adr);
        
         if (found.size() == 0) return EMPTY_OP_PACKET;
-        else if (found.size() == 1) begin        
+        else if (found.size() == 1) begin 
             if (wordInside(adr, found[0].adr)) return '{1, found[0].id, ES_OK, EMPTY_POISON, 'x, found[0].val};
             else return '{1, found[0].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
         end
@@ -308,6 +320,7 @@ module StoreQueue
         // else: we have a match and the matching loads are incorrect
         foreach (found[i]) begin
             content[found[i]].valReady = 'x;
+               HELPER::setError(content_N[found[i]]);
         end
         
         begin // 'active' indicates that some match has happened without furthr details
@@ -318,5 +331,7 @@ module StoreQueue
 
     endfunction
    
+   
+
     
 endmodule
