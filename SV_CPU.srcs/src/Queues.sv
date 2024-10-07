@@ -157,19 +157,24 @@ package Queues;
                endfunction
                
                 static function automatic OpPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Word adr);
-                    int found[$] = entries.find_index with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
-                   
+                    Entry found[$] = entries.find with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
+                    
                     if (found.size() == 0) return EMPTY_OP_PACKET;
             
                     // else: we have a match and the matching loads are incorrect
                     foreach (found[i]) begin
                        // content_N[found[i]].valReady = 'x;
-                           setError(entries[found[i]]);
+                           setError(found[i]);
                     end
                     
                     begin // 'active' indicates that some match has happened without furthr details
                         OpPacket res = EMPTY_OP_PACKET;
-                        res.active = 1;            
+                        
+                        Entry oldestFound[$] = found.min with (item.id);
+                        
+                        res.active = 1; 
+                        res.id = oldestFound[0].id;
+                                   
                         return res;
                     end
             

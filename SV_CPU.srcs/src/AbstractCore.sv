@@ -569,7 +569,10 @@ module AbstractCore
 
         releaseQueues(op); // All
             
-        if (!refetch) begin
+        if (refetch) begin
+            coreDB.lastRefetched = op;
+        end
+        else begin
             coreDB.lastRetired = op; // Normal, not Hidden, what about Exc?
             coreDB.nRetired++;
         end

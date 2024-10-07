@@ -190,7 +190,8 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedMemP[0],
             readReqs[0],
             readResps[0],
-            fromSq[0]
+            fromSq[0],
+            fromLq[0]
     );
 
 
@@ -203,7 +204,8 @@ module ExecBlock(ref InstructionMap insMap,
         issuedReplayQueue,
             readReqs[2],
             readResps[2],
-            fromSq[2]
+            fromSq[2],
+            fromLq[2]
     );
 
 
@@ -427,8 +429,8 @@ module CoreDB();
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
 
-    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr;
+    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
     string bqStr;
     always @(posedge AbstractCore.clk) begin
@@ -440,6 +442,7 @@ module CoreDB();
         assign lastRenamedStr = disasm(lastRenamed.bits);
         assign lastCompletedStr = disasm(lastCompleted.bits);
         assign lastRetiredStr = disasm(lastRetired.bits);
+        assign lastRefetchedStr = disasm(lastRefetched.bits);
 
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;
