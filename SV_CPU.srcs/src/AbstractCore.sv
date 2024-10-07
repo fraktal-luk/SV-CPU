@@ -217,7 +217,7 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
         else if (lateEventInfoWaiting.reset) begin
-            saveStateAsync(sysRegs, retiredTarget); // TODO: check if should be removed 
+               // saveStateAsync(sysRegs, retiredTarget); // TODO: check if should be removed 
             sysRegs = SYS_REGS_INITIAL;
             
             retiredTarget <= IP_RESET;
@@ -225,8 +225,8 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             
             // TODO: maybe this should be at the moment of setting lateEventInfoWaiting because it is this way for synchronous events (performing op in commitOp)  
-                performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target); // TODO: remove?
-                retiredEmul.reset();
+               // performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target); // TODO: remove?
+            retiredEmul.reset();
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
@@ -236,8 +236,8 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             
             // TODO: [same as the reset case] 
-                $display(">> Interrupt !!!");
-                retiredEmul.interrupt();
+            $display(">> Interrupt !!!");
+            retiredEmul.interrupt();
         end
     endtask
 
@@ -684,7 +684,6 @@ module AbstractCore
             return EMPTY_OP_PACKET;
         end
     
-        // TODO: check whether op is nonempty before putting milestone on it?
         if (shouldFlushEvent(op.id)) begin 
             putMilestone(op.id, InstructionMap::FlushExec);
             return EMPTY_OP_PACKET;

@@ -7,6 +7,7 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
+import Queues::*;
 
 
 module RegularSubpipe(
@@ -74,6 +75,8 @@ module BranchSubpipe(
 
     OpPacket stage0, stage0_E;
     
+        BranchQueueHelper::Entry inputEntry = BranchQueueHelper::EMPTY_QENTRY;;
+    
     assign stage0 = setResult(pE0, result);
     assign stage0_E = setResult(pE0_E, result);
 
@@ -81,6 +84,8 @@ module BranchSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
+        
+            inputEntry <= AbstractCore.theBq.getEntry(p0_E);
         
         pE0 <= performBranchE0(tickP(p1));
         
@@ -377,7 +382,7 @@ module ExecBlock(ref InstructionMap insMap,
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
+        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target};
     endtask
 
 

@@ -42,7 +42,7 @@ package Queues;
             return isStoreIns(ins);
         endfunction
 
-        static function automatic Entry newEntry(input OpSlot op);
+        static function automatic Entry newEntry(input InstructionMap imap, input OpSlot op);
             Entry res = EMPTY_QENTRY;
             res.id = op.id;
             res.error = 0;
@@ -52,9 +52,14 @@ package Queues;
             return res;
         endfunction
         
-        static function void updateEntry(ref Entry entry, input OpPacket p, input EventInfo brInfo);
+        static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
+            InstructionInfo ii = imap.get(p.id);
+            
             entry.adrReady = 1;
-            entry.adr = p.result;            
+            entry.adr = p.result;
+            
+            entry.valReady = 1;
+            entry.val = ii.argValues[2];
         endfunction
         
             static function void setCommitted(ref Entry entry);
@@ -118,7 +123,7 @@ package Queues;
             return isLoadIns(ins);
         endfunction
 
-        static function automatic Entry newEntry(input OpSlot op);
+        static function automatic Entry newEntry(input InstructionMap imap, input OpSlot op);
             Entry res = EMPTY_QENTRY;
             res.id = op.id;
             res.adrReady = 0;
@@ -126,7 +131,7 @@ package Queues;
             return res;
         endfunction
         
-        static function void updateEntry(ref Entry entry, input OpPacket p, input EventInfo brInfo);
+        static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
             entry.adrReady = 1;
             entry.adr = p.result;
         endfunction
@@ -152,7 +157,6 @@ package Queues;
                endfunction
                
                 static function automatic OpPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Word adr);
-                    // TODO: don't include sys stores in adr matching 
                     int found[$] = entries.find_index with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
                    
                     if (found.size() == 0) return EMPTY_OP_PACKET;
@@ -178,25 +182,51 @@ package Queues;
             InsId id;
             logic predictedTaken;
             logic taken;
+            logic condReady;
+            logic trgReady;
             Mword linkAdr;
-            Mword target;
+            Mword predictedTarget;
+            Mword realTarget;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
 
         static function automatic logic applies(input AbstractInstruction ins);
             return isBranchIns(ins);
         endfunction
 
-        static function automatic Entry newEntry(input OpSlot op);
+        static function automatic Entry newEntry(input InstructionMap imap, input OpSlot op);
             Entry res = EMPTY_QENTRY;
+            InstructionInfo ii = imap.get(op.id);
+            AbstractInstruction abs = ii.dec;
+            
             res.id = op.id;
+            
+                res.predictedTaken = 0;
+
+                res.condReady = 0;
+                res.trgReady = isBranchImmIns(abs);
+                
+                res.linkAdr = ii.adr + 4;
+                //res.predictedTarget = ii.adr + 4;
+                
+                // If imm, real target is known
+                if (isBranchImmIns(abs))
+                    res.realTarget = ii.adr + ii.argValues[1];
+                
             return res;
         endfunction
         
-        static function void updateEntry(ref Entry entry, input OpPacket p, input EventInfo brInfo);
+        
+        static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
+            InstructionInfo ii = imap.get(p.id);
+            
             entry.taken = brInfo.op.active;
-            entry.target = brInfo.target;
+            
+            entry.condReady = 1;
+            entry.trgReady = 1;
+            
+            entry.realTarget = brInfo.target;
         endfunction
 
             static function void setCommitted(ref Entry entry);

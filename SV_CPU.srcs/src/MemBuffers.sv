@@ -145,7 +145,7 @@ module StoreQueue
             
             begin
                int found[$] = content_N.find_index with (item.id == wrInputs[p].id);
-               if (found.size() == 1) HELPER::updateEntry(content_N[found[0]], wrInputs[p], branchEventInfo);
+               if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
                else $error("Sth wrong with Q update [%d], found(%d) %p // %p", wrInputs[p].id, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].id));
             end
         end 
@@ -157,7 +157,7 @@ module StoreQueue
     
         foreach (inGroup[i]) begin
             if (HELPER::applies(decAbs(inGroup[i]))) begin
-                content_N[endPointer % SIZE] = HELPER::newEntry(inGroup[i]);                
+                content_N[endPointer % SIZE] = HELPER::newEntry(insMap, inGroup[i]);                
                 putMilestone(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
@@ -198,5 +198,21 @@ module StoreQueue
         end
     endtask
 
+    
+    function automatic QEntry getEntry(input OpPacket p);
+        QEntry res = EMPTY_QENTRY;
+        int found[$];
+        
+        if (p.id == -1) return res;
+        
+        found = content_N.find_index with (item.id == p.id);
+
+        
+        if (found.size() == 0) return res;
+        if (found.size() > 1) $fatal(2, "Multipple entries with same id!");
+        
+        res = content_N[found[0]];
+        return res;
+    endfunction;
     
 endmodule
