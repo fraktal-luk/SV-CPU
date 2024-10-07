@@ -7,6 +7,7 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
+import Queues::*;
 
 
 module RegularSubpipe(
@@ -74,6 +75,8 @@ module BranchSubpipe(
 
     OpPacket stage0, stage0_E;
     
+        BranchQueueHelper::Entry inputEntry = BranchQueueHelper::EMPTY_QENTRY;;
+    
     assign stage0 = setResult(pE0, result);
     assign stage0_E = setResult(pE0_E, result);
 
@@ -81,6 +84,8 @@ module BranchSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
+        
+            inputEntry <= AbstractCore.theBq.getEntry(p0_E);
         
         pE0 <= performBranchE0(tickP(p1));
         
@@ -185,7 +190,8 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedMemP[0],
             readReqs[0],
             readResps[0],
-            fromSq[0]
+            fromSq[0],
+            fromLq[0]
     );
 
 
@@ -198,7 +204,8 @@ module ExecBlock(ref InstructionMap insMap,
         issuedReplayQueue,
             readReqs[2],
             readResps[2],
-            fromSq[2]
+            fromSq[2],
+            fromLq[2]
     );
 
 
@@ -377,7 +384,7 @@ module ExecBlock(ref InstructionMap insMap,
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target}; // TODO: use function to create it
+        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target};
     endtask
 
 
@@ -422,8 +429,8 @@ module CoreDB();
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
 
-    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr;
+    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
+    string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
     string bqStr;
     always @(posedge AbstractCore.clk) begin
@@ -435,6 +442,7 @@ module CoreDB();
         assign lastRenamedStr = disasm(lastRenamed.bits);
         assign lastCompletedStr = disasm(lastCompleted.bits);
         assign lastRetiredStr = disasm(lastRetired.bits);
+        assign lastRefetchedStr = disasm(lastRefetched.bits);
 
     logic cmp0, cmp1;
     Word cmpw0, cmpw1, cmpw2, cmpw3;

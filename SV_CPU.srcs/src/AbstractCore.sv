@@ -9,6 +9,7 @@ import Insmap::*;
 import ExecDefs::*;
 import ControlHandling::*;
 
+import Queues::*;
 
 
 module AbstractCore
@@ -100,11 +101,11 @@ module AbstractCore
     OpSlotA sqOut, lqOut, bqOut;
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
-    StoreQueue#(.SIZE(SQ_SIZE))
+    StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
         theSq(insMap, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq);
-    StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE))
+    StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
         theLq(insMap, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLq);
-    StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE))
+    StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
         theBq(insMap, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq);
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
@@ -216,7 +217,7 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
         else if (lateEventInfoWaiting.reset) begin
-            saveStateAsync(sysRegs, retiredTarget); // TODO: check if should be removed 
+               // saveStateAsync(sysRegs, retiredTarget); // TODO: check if should be removed 
             sysRegs = SYS_REGS_INITIAL;
             
             retiredTarget <= IP_RESET;
@@ -224,8 +225,8 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             
             // TODO: maybe this should be at the moment of setting lateEventInfoWaiting because it is this way for synchronous events (performing op in commitOp)  
-                performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target); // TODO: remove?
-                retiredEmul.reset();
+               // performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target); // TODO: remove?
+            retiredEmul.reset();
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
@@ -235,8 +236,8 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             
             // TODO: [same as the reset case] 
-                $display(">> Interrupt !!!");
-                retiredEmul.interrupt();
+            $display(">> Interrupt !!!");
+            retiredEmul.interrupt();
         end
     endtask
 
@@ -568,7 +569,10 @@ module AbstractCore
 
         releaseQueues(op); // All
             
-        if (!refetch) begin
+        if (refetch) begin
+            coreDB.lastRefetched = op;
+        end
+        else begin
             coreDB.lastRetired = op; // Normal, not Hidden, what about Exc?
             coreDB.nRetired++;
         end
@@ -683,7 +687,6 @@ module AbstractCore
             return EMPTY_OP_PACKET;
         end
     
-        // TODO: check whether op is nonempty before putting milestone on it?
         if (shouldFlushEvent(op.id)) begin 
             putMilestone(op.id, InstructionMap::FlushExec);
             return EMPTY_OP_PACKET;

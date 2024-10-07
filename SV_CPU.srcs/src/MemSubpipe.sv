@@ -21,7 +21,8 @@ module MemSubpipe#(
     output DataReadReq readReq,
     input DataReadResp readResp,
     
-    input OpPacket sqResp
+    input OpPacket sqResp,
+    input OpPacket lqResp
 );
     Word result = 'x;
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
@@ -133,7 +134,7 @@ module MemSubpipe#(
         stateE2 = tickP(pE1);
         
         resultE2 = 'x;
-        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.id, readResp, sqResp);
+        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.id, readResp, sqResp, lqResp);
         //stateE2.result = resultE2;
         result <= stateE2.result;
         
@@ -177,7 +178,7 @@ module MemSubpipe#(
     endtask
 
     // TOPLEVEL
-    function automatic OpPacket calcMemE2(input OpPacket p, input InsId id, input DataReadResp readResp, input OpPacket sqResp);
+    function automatic OpPacket calcMemE2(input OpPacket p, input InsId id, input DataReadResp readResp, input OpPacket sqResp, input OpPacket lqResp);
         OpPacket res = p;
         AbstractInstruction abs = decId(id);
         Word3 args = getAndVerifyArgs(id);
@@ -198,6 +199,13 @@ module MemSubpipe#(
                     res.status = ES_REDO;
                    // $error("setting refetch, id = %d", id);
                     insMap.setRefetch(id);
+                end
+            end
+            
+            // Resp from LQ indicating that a younger load has a hazard
+            if (isStoreMemIns(decId(id))) begin
+                if (lqResp.active) begin
+                    insMap.setRefetch(lqResp.id);
                 end
             end
             

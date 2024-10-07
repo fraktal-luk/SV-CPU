@@ -144,7 +144,20 @@ package Emulation;
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
     endfunction
-    
+
+        function automatic logic isBranchImmIns(input AbstractInstruction ins);
+            return ins.mnemonic inside {"ja", "jl", "jz_i", "jnz_i"};
+        endfunction
+
+        function automatic logic isBranchAlwaysIns(input AbstractInstruction ins);
+            return ins.mnemonic inside {"ja", "jl"};
+        endfunction
+
+        function automatic logic isBranchRegIns(input AbstractInstruction ins);
+            return ins.mnemonic inside {"jz_r", "jnz_r"};
+        endfunction       
+        
+
     function automatic logic isMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD, O_floatLoadW, O_floatStoreW};
     endfunction
