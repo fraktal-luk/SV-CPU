@@ -11,18 +11,18 @@ package Insmap;
 
     typedef struct {
         InsId id;
-        Word adr;
+        Mword adr;
         Word bits;
-        Word target;
+        Mword target;
         AbstractInstruction dec;
-        Word result;
-        Word actualResult;
+        Mword result;
+        Mword actualResult;
         IndexSet inds;
         int slot; // UNUSED?
         InsDependencies deps;
         int physDest;
         
-        Word argValues[3];
+        Mword argValues[3];
         logic argError;
         
         logic exception;
@@ -179,15 +179,15 @@ package Insmap;
             content[op.id].dec = decodeAbstract(op.bits);
         endfunction
     
-        function automatic void setTarget(input InsId id, input Word trg);
+        function automatic void setTarget(input InsId id, input Mword trg);
             content[id].target = trg;
         endfunction
     
-        function automatic void setResult(input InsId id, input Word res);
+        function automatic void setResult(input InsId id, input Mword res);
             content[id].result = res;
         endfunction
     
-        function automatic void setActualResult(input InsId id, input Word res);
+        function automatic void setActualResult(input InsId id, input Mword res);
             content[id].actualResult = res;
         endfunction
     
@@ -207,7 +207,7 @@ package Insmap;
             content[id].physDest = dest;
         endfunction
       
-        function automatic void setArgValues(input InsId id, input Word vals[3]);
+        function automatic void setArgValues(input InsId id, input Mword vals[3]);
             content[id].argValues = vals;
         endfunction
     
@@ -252,7 +252,7 @@ package Insmap;
             int removed = -1;
         
             foreach (latestCommittedList[i])
-                checkOk(latestCommittedList[i]);
+                void'(checkOk(latestCommittedList[i]));
 
             latestCommittedList = '{};
 

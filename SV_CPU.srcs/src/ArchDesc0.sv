@@ -10,7 +10,7 @@ import Insmap::*;
 module ArchDesc0();
 
     localparam int ITERATION_LIMIT = 2000;
-    localparam Word COMMON_ADR = 1024;
+    localparam Mword COMMON_ADR = 1024;
 
     const string DEFAULT_RESET_HANDLER[$] = {"ja -512",   "ja 0", "undef"};
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "undef"};
@@ -204,9 +204,9 @@ module ArchDesc0();
 
         logic reset = 0, int0 = 0, done, wrong;
 
-        Word fetchAdr;       
+        Mword fetchAdr;       
         logic writeEn;
-        Word writeAdr, writeValue;
+        Mword writeAdr, writeValue;
         
         task automatic runSim();
             #CYCLE;

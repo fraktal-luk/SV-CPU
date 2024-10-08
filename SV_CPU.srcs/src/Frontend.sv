@@ -37,11 +37,11 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endtask
 
 
-    task automatic registerNewTarget(input int fCtr, input Word target);
+    task automatic registerNewTarget(input int fCtr, input Mword target);
         int slotPosition = (target/4) % FETCH_WIDTH;
-        Word baseAdr = target & ~(4*FETCH_WIDTH-1);
+        Mword baseAdr = target & ~(4*FETCH_WIDTH-1);
         for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
-            Word adr = baseAdr + 4*i;
+            Mword adr = baseAdr + 4*i;
             InsId index = fCtr + i;
             insMap.registerIndex(index);
             putMilestone(index, InstructionMap::GenAddress);
@@ -51,8 +51,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     function automatic FetchStage setActive(input FetchStage s, input logic on, input int ctr);
         FetchStage res = s;
-        Word firstAdr = res[0].adr;
-        Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
+        Mword firstAdr = res[0].adr;
+        Mword baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
 
         if (!on) return EMPTY_STAGE;
 
@@ -87,7 +87,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endtask
 
     task automatic redirectFront();
-        Word target;
+        Mword target;
 
         if (lateEventInfo.redirect)         target = lateEventInfo.target;
         else if (branchEventInfo.redirect)  target = branchEventInfo.target;
@@ -109,7 +109,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     task automatic fetchAndEnqueue();
         FetchStage fetchStage0ua, ipStageU;
         if (AbstractCore.fetchAllow) begin
-            Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
+            Mword target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
             ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
             fetchCtr <= fetchCtr + FETCH_WIDTH;
             

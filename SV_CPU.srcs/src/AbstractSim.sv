@@ -7,10 +7,6 @@ package AbstractSim;
     import Emulation::*;
 
 
-    // Arch specific
-    typedef Word Mword;
-
-
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
@@ -50,7 +46,7 @@ package AbstractSim;
     typedef struct {
         logic active;
         InsId id;
-        Word adr;
+        Mword adr;
         Word bits;
     } OpSlot;
 
@@ -66,7 +62,7 @@ package AbstractSim;
         logic redirect;
         logic sigOk;
         logic sigWrong;
-        Word target;
+        Mword target;
     } EventInfo;
     
     localparam EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
@@ -90,7 +86,7 @@ package AbstractSim;
 
     typedef struct {
         InsId id;
-        Word target;
+        Mword target;
     } BranchTargetEntry;
 
     typedef struct {
@@ -164,7 +160,7 @@ package AbstractSim;
     
         
             PhysRegInfo info[N_REGS] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
-            Word regs[N_REGS] = '{0: 0, default: 'x};
+            Mword regs[N_REGS] = '{0: 0, default: 'x};
             logic ready[N_REGS] = '{0: 1, default: '0};
             
             int MapR[32] = '{default: 0};
@@ -223,7 +219,7 @@ package AbstractSim;
                 ready[pDest] = 1;
             endfunction;
     
-            function automatic void writeValue(input AbstractInstruction ins, input InsId id, input Word value);
+            function automatic void writeValue(input AbstractInstruction ins, input InsId id, input Mword value);
                 int pDest = findDest(id);
                 if (ignoreV(ins.dest)) return;
                 regs[pDest] = value;
@@ -302,7 +298,7 @@ package AbstractSim;
             if (hasFloatDest(abs)) floats.commit(abs, id, !abnormal);
         endfunction
 
-        function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Word value);
+        function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Mword value);
             if (hasIntDest(abs)) begin
                 ints.setReady(id);
                 ints.writeValue(abs, id, value);
@@ -393,19 +389,18 @@ package AbstractSim;
     endclass
 
 
-
-    function automatic logic wordOverlap(input Word wa, input Word wb);
-        Word aEnd = wa + 4; // Exclusive end
-        Word bEnd = wb + 4; // Exclusive end
+    function automatic logic wordOverlap(input Mword wa, input Mword wb);
+        Mword aEnd = wa + 4; // Exclusive end
+        Mword bEnd = wb + 4; // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
         if (wb >= aEnd || wa >= bEnd) return 0;
         else return 1;
     endfunction
 
-    function automatic logic wordInside(input Word wa, input Word wb);
-        Word aEnd = wa + 4; // Exclusive end
-        Word bEnd = wb + 4; // Exclusive end
+    function automatic logic wordInside(input Mword wa, input Mword wb);
+        Mword aEnd = wa + 4; // Exclusive end
+        Mword bEnd = wb + 4; // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
        
@@ -413,12 +408,11 @@ package AbstractSim;
     endfunction
     
 
-     
     typedef struct {
         InsId owner;
-        Word adr;
-        Word val;
-        Word adrAny; 
+        Mword adr;
+        Mword val;
+        Mword adrAny; 
     } Transaction;
 
 
@@ -428,18 +422,18 @@ package AbstractSim;
         Transaction loads[$];
         Transaction committedStores[$]; // Not included in transactions
         
-        function automatic void add(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
-            Word effAdr = calculateEffectiveAddress(ins, argVals);
+        function automatic void add(input OpSlot op, input AbstractInstruction ins, input Mword argVals[3]);
+            Mword effAdr = calculateEffectiveAddress(ins, argVals);
     
             if (isStoreMemIns(ins)) begin 
-                Word value = argVals[2];
+                Mword value = argVals[2];
                 addStore(op, effAdr, value);
             end
             if (isLoadMemIns(ins)) begin
                 addLoad(op, effAdr, 'x);
             end
             if (isStoreSysIns(ins)) begin 
-                Word value = argVals[2];
+                Mword value = argVals[2];
                 addStoreSys(op, effAdr, value);
             end
             if (isLoadSysIns(ins)) begin
@@ -447,27 +441,25 @@ package AbstractSim;
             end
         endfunction
 
-        
-        function automatic void addStore(input OpSlot op, input Word adr, input Word val);
+        function automatic void addStore(input OpSlot op, input Mword adr, input Mword val);
             transactions.push_back('{op.id, adr, val, adr});
             stores.push_back('{op.id, adr, val, adr});
         endfunction
 
-        function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
+        function automatic void addLoad(input OpSlot op, input Mword adr, input Mword val);            
             transactions.push_back('{op.id, adr, val, adr});
             loads.push_back('{op.id, adr, val, adr});
         endfunction
 
-        function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
+        function automatic void addStoreSys(input OpSlot op, input Mword adr, input Mword val);
             transactions.push_back('{op.id, 'x, val, adr});
             stores.push_back('{op.id, 'x, val, adr});
         endfunction
 
-        function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
+        function automatic void addLoadSys(input OpSlot op, input Mword adr, input Mword val);            
             transactions.push_back('{op.id, 'x, val, adr});
             loads.push_back('{op.id, 'x, val, adr});
         endfunction
-
 
         function automatic void remove(input OpSlot op);
             assert (transactions[0].owner == op.id) begin
@@ -524,7 +516,7 @@ package AbstractSim;
                 return (writers.size() == 0) ? -1 : writers[$].owner;
             endfunction
 
-        function automatic Word getStoreValue(input InsId id);
+        function automatic Mword getStoreValue(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
             Transaction writers[$] = allStores.find with (item.owner == id);
             return writers[0].val;

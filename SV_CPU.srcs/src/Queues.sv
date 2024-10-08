@@ -79,12 +79,12 @@ package Queues;
                 return entry.error;
             endfunction
 
-               static function automatic IntQueue TMP_scan(ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-                   IntQueue res = entries.find_index with (item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
-                   return res;
-               endfunction
+//               static function automatic IntQueue TMP_scan(ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
+//                   IntQueue res = entries.find_index with (item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
+//                   return res;
+//               endfunction
                
-            static function automatic OpPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Word adr);
+            static function automatic OpPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
                 typedef StoreQueueHelper::Entry SqEntry;
                 // TODO: don't include sys stores in adr matching 
                 Entry found[$] = entries.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
@@ -152,11 +152,11 @@ package Queues;
                 return entry.error;
             endfunction
             
-               static function automatic IntQueue TMP_scan(ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
+//               static function automatic IntQueue TMP_scan(ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
                
-               endfunction
+//               endfunction
                
-                static function automatic OpPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Word adr);
+                static function automatic OpPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
                     Entry found[$] = entries.find with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
                     
                     if (found.size() == 0) return EMPTY_OP_PACKET;
@@ -249,11 +249,11 @@ package Queues;
                 return 0;
             endfunction
             
-               static function automatic IntQueue TMP_scan(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
+//               static function automatic IntQueue TMP_scan(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
                
-               endfunction
+//               endfunction
                
-                static function automatic OpPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Word adr);
+                static function automatic OpPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
 
                     
                     begin // 'active' indicates that some match has happened without furthr details

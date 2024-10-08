@@ -10,7 +10,7 @@ package ControlHandling;
 
 
 
-    function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
+    function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword adr, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
         
         case (abs.def.o)
@@ -59,7 +59,7 @@ package ControlHandling;
     endfunction
 
     
-    function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
+    function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Mword adr, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
         
         res.target = IP_EXC;
@@ -71,7 +71,7 @@ package ControlHandling;
     endfunction
 
 
-    function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
+    function automatic void modifyStateSync(ref Mword sysRegs[32], input Mword adr, input AbstractInstruction abs);
         case (abs.def.o)
             O_undef: begin
                 sysRegs[4] = sysRegs[1];
@@ -90,7 +90,7 @@ package ControlHandling;
         endcase
     endfunction
 
-    function automatic void modifyStateSyncExc(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
+    function automatic void modifyStateSyncExc(ref Mword sysRegs[32], input Mword adr, input AbstractInstruction abs);
         begin
             sysRegs[4] = sysRegs[1];
             sysRegs[2] = adr;
@@ -100,7 +100,7 @@ package ControlHandling;
     endfunction
 
 
-    function automatic void saveStateAsync(ref Word sysRegs[32], input Word prevTarget);
+    function automatic void saveStateAsync(ref Mword sysRegs[32], input Mword prevTarget);
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
         
@@ -118,7 +118,7 @@ package ControlHandling;
     endtask
 
     // core logic
-    function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed, input logic refetch, input logic exception);
+    function automatic Mword getCommitTarget(input AbstractInstruction ins, input Mword prev, input Mword executed, input logic refetch, input logic exception);
         if (isBranchIns(ins))
             return executed;
         else if (isSysIns(ins) || exception)

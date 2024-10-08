@@ -44,7 +44,7 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
 
-    Word insAdr;
+    Mword insAdr;
     Word instructionCacheOut[FETCH_WIDTH];
 
     // Overall
@@ -76,8 +76,8 @@ module AbstractCore
         MemWriteInfo writeInfo; // Committed
     
     // Event control
-        Word sysRegs[32];
-        Word retiredTarget = 0;
+        Mword sysRegs[32];
+        Mword retiredTarget = 0;
 
 
     OpSlotA robOut;
@@ -195,8 +195,8 @@ module AbstractCore
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.op.active) begin
             EventInfo lateEvt;
-            Word sr2 = getSysReg(2);
-            Word sr3 = getSysReg(3);
+            Mword sr2 = getSysReg(2);
+            Mword sr3 = getSysReg(3);
             OpSlot waitingOp = lateEventInfoWaiting.op;
             logic refetch = insMap.get(waitingOp.id).refetch;
             logic exception = insMap.get(waitingOp.id).exception;
@@ -420,9 +420,9 @@ module AbstractCore
 
     task automatic renameOp(input OpSlot op, input int currentSlot);
         AbstractInstruction ins = decAbs(op);
-        Word result, target;
+        Mword result, target;
         InsDependencies deps;
-        Word argVals[3];
+        Mword argVals[3];
         int physDest = -1;
         
         // For insMap and mem queues
@@ -497,8 +497,8 @@ module AbstractCore
     task automatic verifyOnCommit(input OpSlot op);
         InstructionInfo info = insMap.get(op.id);
 
-        Word trg = retiredEmul.coreState.target; // DB
-        Word nextTrg;
+        Mword trg = retiredEmul.coreState.target; // DB
+        Mword nextTrg;
         Word bits = fetchInstruction(dbProgMem, trg); // DB
 
         assert (trg === op.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, op.adr);
@@ -641,16 +641,16 @@ module AbstractCore
     endfunction;
 
 
-    function automatic Word getSysReg(input Word adr);
+    function automatic Mword getSysReg(input Mword adr);
         return sysRegs[adr];
     endfunction
 
-    function automatic void setSysReg(input Word adr, input Word val);
+    function automatic void setSysReg(input Mword adr, input Mword val);
         assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
         sysRegs[adr] = val;
     endfunction
 
-    task automatic writeResult(input OpSlot op, input Word value);
+    task automatic writeResult(input OpSlot op, input Mword value);
         if (!op.active) return;
         putMilestone(op.id, InstructionMap::WriteResult);
         registerTracker.writeValue(decAbs(op), op.id, value);
@@ -669,7 +669,7 @@ module AbstractCore
         return insMap.get(id).dec;
     endfunction
 
-    function automatic Word getAdr(input InsId id);
+    function automatic Mword getAdr(input InsId id);
         if (id == -1) return 'x;     
         return insMap.get(id).adr;
     endfunction

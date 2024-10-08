@@ -24,7 +24,7 @@ module MemSubpipe#(
     input OpPacket sqResp,
     input OpPacket lqResp
 );
-    Word result = 'x;
+    Mword result = 'x;
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
     OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
@@ -33,7 +33,7 @@ module MemSubpipe#(
     OpPacket stage0, stage0_E;
     
     logic readActive = 0;
-    Word effAdr = 'x, storeValue = 'x;
+    Mword effAdr = 'x, storeValue = 'x;
 
     assign stage0 = setResult(pE2, result);
     assign stage0_E = setResult(pE2_E, result);
@@ -78,7 +78,7 @@ module MemSubpipe#(
 
     /////////////////////////////////////////////////////////////////////////////////////
     
-    function automatic OpPacket updateE0(input OpPacket p, input Word adr);
+    function automatic OpPacket updateE0(input OpPacket p, input Mword adr);
         OpPacket res = p;
         
         if (p.active && isLoadSysIns(decId(p.id)) && adr > 31) begin
@@ -102,8 +102,8 @@ module MemSubpipe#(
     
     
     task automatic performE0();
-        Word adr;
-        Word val;
+        Mword adr;
+        Mword val;
     
         stateE0 = tickP(p1);
 
@@ -129,7 +129,7 @@ module MemSubpipe#(
     endtask
     
     task automatic performE2();
-        Word resultE2;
+        Mword resultE2;
     
         stateE2 = tickP(pE1);
         
@@ -143,22 +143,22 @@ module MemSubpipe#(
 
 
 
-    function automatic Word getEffectiveAddress(input InsId id);
+    function automatic Mword getEffectiveAddress(input InsId id);
         if (id == -1) return 'x;
         
         begin
             AbstractInstruction abs = decId(id);
-            Word3 args = getAndVerifyArgs(id);
+            Mword3 args = getAndVerifyArgs(id);
             return calculateEffectiveAddress(abs, args);
         end
     endfunction
 
-    function automatic Word getStoreValue(input InsId id);
+    function automatic Mword getStoreValue(input InsId id);
         if (id == -1) return 'x;
         
         begin
             AbstractInstruction abs = decId(id);
-            Word3 args = getAndVerifyArgs(id);
+            Mword3 args = getAndVerifyArgs(id);
             return args[2];
         end
     endfunction
@@ -166,7 +166,7 @@ module MemSubpipe#(
 
 
 
-    task automatic performStore_Dummy(input InsId id, input Word adr, input Word val);
+    task automatic performStore_Dummy(input InsId id, input Mword adr, input Mword val);
         AbstractInstruction abs = decId(id);
         
         if (isStoreMemIns(abs)) begin
@@ -181,7 +181,7 @@ module MemSubpipe#(
     function automatic OpPacket calcMemE2(input OpPacket p, input InsId id, input DataReadResp readResp, input OpPacket sqResp, input OpPacket lqResp);
         OpPacket res = p;
         AbstractInstruction abs = decId(id);
-        Word3 args = getAndVerifyArgs(id);
+        Mword3 args = getAndVerifyArgs(id);
 
         InsId writerAllId = AbstractCore.memTracker.checkWriter(id);
             InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(id);
@@ -189,9 +189,9 @@ module MemSubpipe#(
         
         logic forwarded = (writerAllId !== -1);
         
-        Word fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        Word memData = forwarded ? fwValue : readResp.result;
-        Word data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+        Mword fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
+        Mword memData = forwarded ? fwValue : readResp.result;
+        Mword data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
             if (writerOverlapId != writerInsideId) begin
                // $error("Cannot forward from last overlapping store!");
@@ -233,7 +233,7 @@ module MemSubpipe#(
     endfunction
 
     // Used once by Mem subpipes
-    function automatic void checkStoreValue(input InsId id, input Word adr, input Word value);
+    function automatic void checkStoreValue(input InsId id, input Mword adr, input Mword value);
         Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == id);
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
     endfunction

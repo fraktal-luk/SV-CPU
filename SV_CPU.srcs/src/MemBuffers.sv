@@ -168,7 +168,7 @@ module StoreQueue
     task automatic handleForwardsS();
         foreach (theExecBlock.toLq[p]) begin
             logic active = theExecBlock.toLq[p].active;
-            Word adr = theExecBlock.toLq[p].result;
+            Mword adr = theExecBlock.toLq[p].result;
             OpPacket resa, resb;
 
             theExecBlock.fromSq[p] <= EMPTY_OP_PACKET;
@@ -185,7 +185,7 @@ module StoreQueue
     task automatic handleHazardsL();
         foreach (theExecBlock.toSq[p]) begin
             logic active = theExecBlock.toSq[p].active;
-            Word adr = theExecBlock.toSq[p].result;
+            Mword adr = theExecBlock.toSq[p].result;
             OpPacket resa, resb;
             
             theExecBlock.fromLq[p] <= EMPTY_OP_PACKET;

@@ -47,7 +47,7 @@ module DataL1(
     Translation translations[N_MEM_PORTS];        
 
 
-    Word readData[N_MEM_PORTS] = '{default: 'x};
+    Mword readData[N_MEM_PORTS] = '{default: 'x};
 
 
     always @(posedge clk) begin
@@ -75,7 +75,7 @@ module DataL1(
 
     endtask
 
-
+    // TODO: change to larger size
     task automatic handleReads();
         foreach (accesses[p]) begin
             accesses[p] <= analyzeAccess(readReqs[p].adr);
@@ -84,7 +84,7 @@ module DataL1(
     
         foreach (readData[p]) begin
             logic[7:0] selected[4];
-            Word val;       
+            Mword val;       
             
             foreach (selected[i])
                 selected[i] = content[readReqs[p].adr + i];

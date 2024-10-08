@@ -16,7 +16,7 @@ module RegularSubpipe(
     input EventInfo lateEventInfo,
     input OpPacket opP
 );
-    Word result = 'x;
+    Mword result = 'x;
 
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
     OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
@@ -68,7 +68,7 @@ module BranchSubpipe(
     input EventInfo lateEventInfo,
     input OpPacket opP
 );
-    Word result = 'x;
+    Mword result = 'x;
 
     OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
     OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
@@ -328,12 +328,12 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
     // TOPLEVEL
-    function automatic Word calcRegularOp(input InsId id);
+    function automatic Mword calcRegularOp(input InsId id);
         AbstractInstruction abs = decId(id);
                                 
-        Word3 args = getAndVerifyArgs(id);
-        Word adr = getAdr(id);
-        Word result = calculateResult(abs, args, adr);
+        Mword3 args = getAndVerifyArgs(id);
+        Mword adr = getAdr(id);
+        Mword result = calculateResult(abs, args, adr);
         
         insMap.setActualResult(id, result);
         
@@ -362,10 +362,10 @@ module ExecBlock(ref InstructionMap insMap,
         putMilestone(id, InstructionMap::ExecRedirect);
     endtask
 
-    function automatic Word getBranchResult(input logic active, input InsId id);
+    function automatic Mword getBranchResult(input logic active, input InsId id);
         if (!active) return 'x;
         else begin
-            Word adr = getAdr(id);
+            Mword adr = getAdr(id);
             return adr + 4;
         end
     endfunction
@@ -373,14 +373,14 @@ module ExecBlock(ref InstructionMap insMap,
     task automatic setBranchInCore(input InsId id);
         OpSlot wholeOp = getOpSlotFromId(id);
         AbstractInstruction abs = decId(id);
-        Word3 args = getAndVerifyArgs(id);
-        Word adr = getAdr(id);
+        Mword3 args = getAndVerifyArgs(id);
+        Mword adr = getAdr(id);
 
         ExecEvent evt = resolveBranch(abs, adr, args);
         BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == id);
         
         int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);
-        Word trg = evt.redirect ? evt.target : adr + 4;
+        Mword trg = evt.redirect ? evt.target : adr + 4;
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
@@ -390,10 +390,10 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     // Used before Exec0 to get final values
-    function automatic Word3 getAndVerifyArgs(input InsId id);
+    function automatic Mword3 getAndVerifyArgs(input InsId id);
         InsDependencies deps = insMap.get(id).deps;
-        Word3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        Word3 argsM = insMap.get(id).argValues;
+        Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
+        Mword3 argsM = insMap.get(id).argValues;
         
         if (argsP !== argsM) insMap.setArgError(id);
         
@@ -402,9 +402,9 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     // Used once
-    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+    function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
         ForwardsByStage_0 fws = allByStage;
-        Word res[3];
+        Mword res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                     
         foreach (deps.types[i]) begin
@@ -445,6 +445,6 @@ module CoreDB();
         assign lastRefetchedStr = disasm(lastRefetched.bits);
 
     logic cmp0, cmp1;
-    Word cmpw0, cmpw1, cmpw2, cmpw3;
+    Mword cmpmw0, cmpmw1, cmpmw2, cmpmw3;
    
 endmodule

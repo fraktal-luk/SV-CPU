@@ -17,19 +17,19 @@ package Emulation;
 //            return 1;
 //        endfunction
 
-    function automatic void writeArrayW(ref Mbyte mem[], input Word adr, input Word val);
+    function automatic void writeArrayW(ref Mbyte mem[], input Mword adr, input Word val);
         mem[adr+0] = val[31:24];
         mem[adr+1] = val[23:16];
         mem[adr+2] = val[15:8];
         mem[adr+3] = val[7:0];
     endfunction
 
-    function automatic void writeProgram(ref Word mem[4096], input Word adr, input Word prog[]);
+    function automatic void writeProgram(ref Word mem[4096], input Mword adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 
-    function automatic Word fetchInstruction(input Word progMem[], input Word adr);
+    function automatic Word fetchInstruction(input Word progMem[], input Mword adr);
         assert (adr % 4 == 0) else $error("Fetching unaligned adr");
         assert (adr/4 < progMem.size()) else $error("Fetch adr OOB");
         return progMem[adr/4];
@@ -37,28 +37,28 @@ package Emulation;
 
 
     typedef struct {
-        Word intRegs[32], floatRegs[32], sysRegs[32];
-        Word target;
+        Mword intRegs[32], floatRegs[32], sysRegs[32];
+        Mword target;
     } CpuState;
 
-    const Word SYS_REGS_INITIAL[32] = '{
+    const Mword SYS_REGS_INITIAL[32] = '{
         0: -1,
         default: 0
     };
 
-    function automatic CpuState initialState(input Word trg);
+    function automatic CpuState initialState(input Mword trg);
         return '{intRegs: '{default: 0}, floatRegs: '{default: 0}, sysRegs: SYS_REGS_INITIAL, target: trg};
     endfunction
 
     typedef struct {
-       Word target;
+       Mword target;
        logic redirect;
     } ExecEvent;
 
     typedef struct {
         bit active;
-        Word adr;
-        Word value;
+        Mword adr;
+        Mword value;
     } MemoryWrite;
 
     const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, value: 'x};
@@ -67,7 +67,7 @@ package Emulation;
         logic wrInt;
         logic wrFloat;
         int dest;
-        Word value;
+        Mword value;
     } RegisterWrite;
 
     const RegisterWrite DEFAULT_REG_WRITE = '{wrInt: 0, wrFloat: 0, dest: -1, value: 'x};
@@ -76,7 +76,7 @@ package Emulation;
         int error;
         RegisterWrite regWrite;          
         MemoryWrite memWrite;
-        Word target;
+        Mword target;
     } ExecResult;
 
     const ExecResult DEFAULT_EXEC_RESULT = '{error: 0, regWrite: DEFAULT_REG_WRITE, memWrite: DEFAULT_MEM_WRITE, target: 'x};
@@ -95,14 +95,14 @@ package Emulation;
         endfunction
         
         
-        function automatic Word loadB(input Word adr);
-            Word res = 0;
+        function automatic Mword loadB(input Mword adr);
+            Mword res = 0;
             res[7:0] = this.bytes[adr];
             return res;
         endfunction
         
-        function automatic Word loadW(input Word adr);
-            Word res = 0;
+        function automatic Mword loadW(input Mword adr);
+            Mword res = 0;
             Mbyte read[4];
             foreach (read[i])
                 res = (res << 8) | this.bytes[adr + i];
@@ -115,13 +115,13 @@ package Emulation;
 //        endfunction
         
         
-        function automatic void storeB(input Word adr, input Word value);
+        function automatic void storeB(input Mword adr, input Mword value);
             this.bytes[adr] = value[7:0];
         endfunction
         
-        function automatic void storeW(input Word adr, input Word value);
+        function automatic void storeW(input Mword adr, input Mword value);
             Mbyte read[4];
-            Word write = value;
+            Mword write = value;
             foreach (read[i]) begin
                 this.bytes[adr + i] = write[31:24];
                 write <<= 8;                
@@ -240,10 +240,10 @@ package Emulation;
     endfunction
 
 
-    function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Word adr, input Word3 vals);//OpSlot op);
-        Word3 args = vals;
+    function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);//OpSlot op);
+        Mword3 args = vals;
         bit redirect = 0;
-        Word brTarget = (abs.mnemonic inside {"jz_r", "jnz_r"}) ? args[1] : adr + args[1];
+        Mword brTarget = (abs.mnemonic inside {"jz_r", "jnz_r"}) ? args[1] : adr + args[1];
 
         case (abs.mnemonic)
             "ja", "jl": redirect = 1;
@@ -258,19 +258,19 @@ package Emulation;
     endfunction
 
 
-    function automatic void writeIntReg(ref CpuState state, input Word regNum, input Word value);
+    function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);
         if (regNum == 0) return;
         assert (!$isunknown(value)) else $error("Writing unknown value! reg %d", regNum);
         state.intRegs[regNum] = value;
     endfunction
 
-    function automatic void writeFloatReg(ref CpuState state, input Word regNum, input Word value);
+    function automatic void writeFloatReg(ref CpuState state, input int regNum, input Mword value);
         assert (!$isunknown(value)) else $error("Writing unknown value!");
         state.floatRegs[regNum] = value;
     endfunction
     
     // Return 1 if exc
-    function automatic logic writeSysReg(ref CpuState state, input AbstractInstruction ins, input Word regNum, input Word value);
+    function automatic logic writeSysReg(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
         assert (!$isunknown(value)) else $error("Writing unknown value!");
         
         if (regNum > 31) return 1;
@@ -280,27 +280,27 @@ package Emulation;
     endfunction
 
 
-    function automatic Word getArgValue(input Word intRegs[32], input Word floatRegs[32], input int src, input byte spec);
+    function automatic Mword getArgValue(input Mword intRegs[32], input Mword floatRegs[32], input int src, input byte spec);
         case (spec)
-           "i": return Word'(intRegs[src]);
-           "f": return Word'(floatRegs[src]);
-           "c": return Word'(src);
+           "i": return (intRegs[src]);
+           "f": return (floatRegs[src]);
+           "c": return Mword'(src);
            "0": return 0;
            default: $fatal("Wrong arg spec");    
         endcase;    
     
     endfunction
 
-    function automatic Word3 getArgs(input Word intRegs[32], input Word floatRegs[32], input int sources[3], input string typeSpec);
-        Word3 res;        
+    function automatic Mword3 getArgs(input Mword intRegs[32], input Mword floatRegs[32], input int sources[3], input string typeSpec);
+        Mword3 res;        
         foreach (sources[i]) res[i] = getArgValue(intRegs, floatRegs, sources[i], typeSpec[i+2]);
         
         return res;
     endfunction
 
 
-   function automatic Word calculateResult(input AbstractInstruction ins, input Word3 vals, input Word ip);
-        Word result;
+   function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
+        Mword result;
         case (ins.def.o)
             //O_jump: result = ip + 4; // link adr
             
@@ -347,12 +347,12 @@ package Emulation;
         return result;
     endfunction
 
-    function automatic Word calculateEffectiveAddress(input AbstractInstruction ins, input Word3 vals);
+    function automatic Mword calculateEffectiveAddress(input AbstractInstruction ins, input Mword3 vals);
         return (ins.def.o inside {O_sysLoad, O_sysStore}) ? vals[1] : vals[0] + vals[1];
     endfunction
 
-    function automatic Word getLoadValue(input AbstractInstruction ins, input Word adr, input SimpleMem mem, inout CpuState state);
-        Word result;
+    function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input SimpleMem mem, inout CpuState state);
+        Mword result;
 
         case (ins.def.o)
             O_intLoadW: result = mem.loadW(adr);
@@ -365,7 +365,7 @@ package Emulation;
         return result;
     endfunction
 
-    function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Word adr);
+    function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Mword adr);
         writeIntReg(state, ins.dest, adr + 4);
     endfunction
 
@@ -377,7 +377,7 @@ package Emulation;
         bit send;
     } CoreStatus;
 
-    function automatic void performAsyncEvent(ref CpuState state, input Word trg, input Word prevTarget);
+    function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
         state.sysRegs[5] = state.sysRegs[1];
         state.sysRegs[1] |= 2; // TODO: handle state register correctly
         state.sysRegs[3] = prevTarget;//state.target;
@@ -385,7 +385,7 @@ package Emulation;
         state.target = trg;
     endfunction
 
-    function automatic void modifySysRegs(ref CpuState state, input Word adr, input AbstractInstruction abs);
+    function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
         case (abs.def.o)
             O_sysStore: begin
                 state.target = adr + 4;
@@ -431,7 +431,7 @@ package Emulation;
     endfunction
 
     
-    function automatic void modifySysRegsOnException(ref CpuState state, input Word adr, input AbstractInstruction abs);
+    function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs);
         state.target = IP_EXC;
 
         state.sysRegs[4] = state.sysRegs[1];
@@ -440,10 +440,10 @@ package Emulation;
     endfunction
 
 
-    function automatic Word computeResult(input CpuState state, input Word adr, input AbstractInstruction ins, input SimpleMem dataMem);
-        Word res = 'x;
+    function automatic Mword computeResult(input CpuState state, input Mword adr, input AbstractInstruction ins, input SimpleMem dataMem);
+        Mword res = 'x;
         FormatSpec fmtSpec = parsingMap[ins.fmt];
-        Word3 args = getArgs(state.intRegs, state.floatRegs, ins.sources, fmtSpec.typeSpec);
+        Mword3 args = getArgs(state.intRegs, state.floatRegs, ins.sources, fmtSpec.typeSpec);
 
         if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
             res = calculateResult(ins, args, adr);
@@ -452,7 +452,7 @@ package Emulation;
             res = adr + 4;
         
         if (isMemIns(ins) || isLoadSysIns(ins)) begin
-            Word adr = calculateEffectiveAddress(ins, args);
+            Mword adr = calculateEffectiveAddress(ins, args);
             res = getLoadValue(ins, adr, dataMem, state);
         end
         
@@ -461,7 +461,7 @@ package Emulation;
 
 
     class Emulator;
-        Word ip;
+        Mword ip;
         string str;
         CoreStatus status;
         CpuState coreState;
@@ -491,7 +491,7 @@ package Emulation;
         
         function automatic void executeStep(input Word progMem[]);
             ExecResult execRes;
-            Word adr = this.coreState.target;
+            Mword adr = this.coreState.target;
             Word bits = fetchInstruction(progMem, adr);
             AbstractInstruction absIns = decodeAbstract(bits);
 
@@ -511,10 +511,10 @@ package Emulation;
             this.status.send = 0;
         endfunction
 
-        function automatic ExecResult processInstruction(input Word adr, input AbstractInstruction ins, ref SimpleMem dataMem);
+        function automatic ExecResult processInstruction(input Mword adr, input AbstractInstruction ins, ref SimpleMem dataMem);
             ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.fmt];
-            Word3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
+            Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
             this.ip = adr;
             this.str = disasm(ins.encoding);
@@ -542,24 +542,21 @@ package Emulation;
         endfunction
 
 
-        local function automatic void performCalculation(input Word adr, input AbstractInstruction ins, input Word3 vals);
-            Word result = calculateResult(ins, vals, adr);
+        local function automatic void performCalculation(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
+            Mword result = calculateResult(ins, vals, adr);
             if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
 
-
-
-        local function automatic logic exceptionCaused(input AbstractInstruction ins, input Word adr);
+        local function automatic logic exceptionCaused(input AbstractInstruction ins, input Mword adr);
             if (ins.def.o == O_sysLoad && adr > 31) return 1;
             if (ins.def.o == O_sysStore && adr > 31) return 1;
             
             return 0;
         endfunction
         
-
-        local function automatic void performMem(input AbstractInstruction ins, input Word3 vals, input SimpleMem mem);
-            Word adr = calculateEffectiveAddress(ins, vals);
+        local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals, input SimpleMem mem);
+            Mword adr = calculateEffectiveAddress(ins, vals);
             
             if (exceptionCaused(ins, adr)) begin
                    // $error("Exception: sys reg %d", adr);
@@ -568,7 +565,7 @@ package Emulation;
             end
             
             begin
-                Word result = getLoadValue(ins, adr, mem, this.coreState);
+                Mword result = getLoadValue(ins, adr, mem, this.coreState);
     
                 if (!isLoadIns(ins)) return;
     
@@ -577,17 +574,15 @@ package Emulation;
             end
         endfunction
 
-
-        local function automatic void performBranch(input AbstractInstruction ins, input Word ip, input Word3 vals);
+        local function automatic void performBranch(input AbstractInstruction ins, input Mword ip, input Mword3 vals);
             ExecEvent evt = resolveBranch(ins, ip, vals);
-            Word trg = evt.redirect ? evt.target : ip + 4;
+            Mword trg = evt.redirect ? evt.target : ip + 4;
             
             if (!isBranchIns(ins)) return;
 
             performLink(this.coreState, ins, ip);
             this.coreState.target = trg;
         endfunction 
-
 
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
@@ -604,7 +599,7 @@ package Emulation;
             endcase
         endfunction
 
-        local function automatic void performSys(input Word adr, input AbstractInstruction ins, input Word3 vals);
+        local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             if (isStoreSysIns(ins)) begin
                 logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);
                 //modifyStatus(ins);
@@ -617,12 +612,10 @@ package Emulation;
             end
         endfunction
         
-        local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Word3 vals);
+        local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
-            Word effAdr = calculateEffectiveAddress(ins, vals);
-            
-            logic en = !exceptionCaused(ins, effAdr);//1;
-            //if (exceptionCaused(ins, effAdr)) en = 0;
+            Mword effAdr = calculateEffectiveAddress(ins, vals);            
+            logic en = !exceptionCaused(ins, effAdr);
             
             if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2]};
             return res;
@@ -634,8 +627,7 @@ package Emulation;
         
     endclass
 
-
-    function automatic void runInEmulator(ref Emulator emul, input Word adr, input Word bits);
+    function automatic void runInEmulator(ref Emulator emul, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
         ExecResult res = emul.processInstruction(adr, ins, emul.tmpDataMem);
     endfunction

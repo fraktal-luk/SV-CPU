@@ -53,12 +53,12 @@ package ExecDefs;
         ExecStatus status;
         Poison poison;
             logic TMP_pullback; // For poison dev
-        Word result;
+        Mword result;
     } OpPacket;
     
     localparam OpPacket EMPTY_OP_PACKET = '{0, -1, ES_OK, EMPTY_POISON, 'x, 'x};
 
-    function automatic OpPacket setResult(input OpPacket p, input Word result);
+    function automatic OpPacket setResult(input OpPacket p, input Mword result);
         OpPacket res = p;            
         res.result = result;
         
@@ -285,13 +285,13 @@ package ExecDefs;
         return res;
     endfunction
 
-    function automatic void verifyForward(input InstructionInfo ii, input int source, input Word result);
+    function automatic void verifyForward(input InstructionInfo ii, input int source, input Mword result);
         assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ii.actualResult === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.actualResult, result, ii, disasm(ii.bits));
     endfunction
 
 
-    function automatic Word getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
+    function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
                                            input InsId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
@@ -315,7 +315,7 @@ package ExecDefs;
     endfunction
 
 
-    function automatic Word getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
+    function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
                                            input InsId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
                        
@@ -445,14 +445,14 @@ package ExecDefs;
 //////////////////
     typedef struct {
         logic active;
-        Word adr;
+        Mword adr;
     } DataReadReq;
 
     localparam DataReadReq EMPTY_READ_REQ = '{1, 'x};
 
     typedef struct {
         logic active;
-        Word result;
+        Mword result;
     } DataReadResp;
 
     localparam DataReadResp EMPTY_READ_RESP = '{1, 'x};
@@ -461,14 +461,14 @@ package ExecDefs;
     typedef struct {
         OpSlot op;
         logic cancel;
-        Word adr;
-        Word val;
+        Mword adr;
+        Mword val;
     } StoreQueueEntry;
 
     typedef struct {
         logic req;
-        Word adr;
-        Word value;
+        Mword adr;
+        Mword value;
     } MemWriteInfo;
     
     localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
