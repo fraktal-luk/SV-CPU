@@ -5,6 +5,7 @@ package AbstractSim;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
+    import UopList::*;
 
 
     // Uarch specific
