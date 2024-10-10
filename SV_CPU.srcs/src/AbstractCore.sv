@@ -130,7 +130,7 @@ module AbstractCore
         insMap.endCycle();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue, branchTargetQueue
-        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs  
+        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, storeHead, drainHead
@@ -184,8 +184,15 @@ module AbstractCore
 
 
     task automatic activateEvent();
-        if (reset) lateEventInfoWaiting <= RESET_EVENT;
-        else if (interrupt) lateEventInfoWaiting <= INT_EVENT;
+        if (reset) begin
+            lateEventInfoWaiting <= RESET_EVENT;
+                retiredEmul.reset();
+        end
+        else if (interrupt) begin
+            lateEventInfoWaiting <= INT_EVENT;
+                $display(">> Interrupt !!!");
+                retiredEmul.interrupt();
+        end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
     
@@ -226,7 +233,7 @@ module AbstractCore
             
             // TODO: maybe this should be at the moment of setting lateEventInfoWaiting because it is this way for synchronous events (performing op in commitOp)  
                // performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target); // TODO: remove?
-            retiredEmul.reset();
+            //retiredEmul.reset();
         end
         else if (lateEventInfoWaiting.interrupt) begin
             saveStateAsync(sysRegs, retiredTarget);
@@ -236,8 +243,8 @@ module AbstractCore
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
             
             // TODO: [same as the reset case] 
-            $display(">> Interrupt !!!");
-            retiredEmul.interrupt();
+//            $display(">> Interrupt !!!");
+//            retiredEmul.interrupt();
         end
     endtask
 
@@ -505,20 +512,21 @@ module AbstractCore
         assert (bits === op.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, op.bits); // TODO: check at Frontend?
         assert (info.argError === 0) else $fatal(2, "Arg error on op %d", op.id);
 
-        if (insMap.get(op.id).refetch) return;
+        if (info.refetch) return;
         
         // Only Normal commit
-        if (!insMap.get(op.id).exception)
+        if (!info.exception)
             if (hasIntDest(decAbs(op)) || hasFloatDest(decAbs(op))) // DB
                 assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", op, disasm(op.bits), info.actualResult, info.result);
             
         // Normal or Exceptional
         runInEmulator(retiredEmul, op.adr, op.bits);
         retiredEmul.drain();
+    
         nextTrg = retiredEmul.coreState.target; // DB
-        
+    
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
-        if (isBranchIns(decAbs(op))) // DB
+        if (!info.exception && isBranchIns(decAbs(op))) // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", op.id, branchTargetQueue[0].target, nextTrg);
     endtask
 
