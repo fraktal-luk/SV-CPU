@@ -8,117 +8,41 @@ package ControlHandling;
     import AbstractSim::*;
     
 
-
-        function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Mword adr, input Mword sr2, input Mword sr3);
-            EventInfo res = EMPTY_EVENT_INFO;
-            
-            case (abs.def.o)
-                O_sysStore: ;
-                O_undef: begin
-                    res.target = IP_ERROR;
-                    res.redirect = 1;
-                    res.sigWrong = 1;
-                end
-                O_call: begin
-                    res.target = IP_CALL;
-                    res.redirect = 1;
-                end
-                O_retE: begin
-                    res.target = sr2;
-                    res.redirect = 1;
-                end 
-                O_retI: begin
-                    res.target = sr3;
-                    res.redirect = 1;
-                end 
-                O_sync: begin
-                    res.target = adr + 4;
-                    res.redirect = 1;
-                end
-                
-                O_replay: begin
-                    res.target = adr;
-                    res.redirect = 1;
-                end 
-                O_halt: begin                
-                    res.target = adr + 4;
-                    res.redirect = 1;
-                end
-                O_send: begin
-                    res.target = adr + 4;
-                    res.redirect = 1;
-                    res.sigOk = 1;
-                end
-                default: ;                            
-            endcase
-    
-            res.op = op;
-    
-            return res;
-        endfunction
-    
-        
-        function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Mword adr, input Mword sr2, input Mword sr3);
-            EventInfo res = EMPTY_EVENT_INFO;
-            
-            res.target = IP_EXC;
-            res.redirect = 1;
-    
-            res.op = op;
-    
-            return res;
-        endfunction
-
-
-
-    function automatic EventInfo getLateEvent_N(input ControlOp cOp, input OpSlot op, input AbstractInstruction abs, input Mword adr, input Mword sr2, input Mword sr3, input logic exc, input logic refetch);
+    function automatic EventInfo getLateEvent(input ControlOp cOp, input Mword adr, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
         
-            if (exc) begin
-                assert (cOp == CO_exception) else $error("exc not");
+        case (cOp)
+            CO_exception: begin
+                res.target = IP_EXC;
+                res.redirect = 1;
             end
-            
-            if (refetch) begin
-                assert (cOp == CO_refetch) else $error("refe not");
-            end
-            
-        if (exc) begin
-            return getLateEventExc(op, abs, adr, sr2, sr3);
-        end
-        
-        case (abs.def.o)
-            O_sysStore: ;
-            O_undef: begin
+            CO_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
                 res.sigWrong = 1;
             end
-            O_call: begin
+            CO_call: begin
                 res.target = IP_CALL;
                 res.redirect = 1;
             end
-            O_retE: begin
+            CO_retE: begin
                 res.target = sr2;
                 res.redirect = 1;
             end 
-            O_retI: begin
+            CO_retI: begin
+                   assert (cOp == CO_retI) else $fatal(2, "huhuhu!");
                 res.target = sr3;
                 res.redirect = 1;
             end 
-            O_sync: begin
+            CO_sync: begin
                 res.target = adr + 4;
                 res.redirect = 1;
             end
-            
-            O_replay: begin
+            CO_refetch: begin
                 res.target = adr;
                 res.redirect = 1;
             end 
-            O_halt: begin                
-                res.target = adr + 4;
-                res.redirect = 1;
-            end
-            O_send: begin
+            CO_send: begin
                 res.target = adr + 4;
                 res.redirect = 1;
                 res.sigOk = 1;
@@ -126,74 +50,38 @@ package ControlHandling;
             default: ;                            
         endcase
 
-        res.op = op;
         res.cOp = cOp;
 
         return res;
     endfunction
 
 
-
-
-        function automatic void modifyStateSync(ref Mword sysRegs[32], input Mword adr, input AbstractInstruction abs);
-            case (abs.def.o)
-                O_undef: begin
-                    sysRegs[4] = sysRegs[1];
-                    sysRegs[2] = adr + 4;
-                    
-                    sysRegs[1] |= 1; // TODO: handle state register correctly
-                end
-                O_call: begin                    
-                    sysRegs[4] = sysRegs[1];
-                    sysRegs[2] = adr + 4;
-                    
-                    sysRegs[1] |= 1; // TODO: handle state register correctly
-                end
-                O_retE: sysRegs[1] = sysRegs[4];
-                O_retI: sysRegs[1] = sysRegs[5];
-            endcase
-        endfunction
-    
-        function automatic void modifyStateSyncExc(ref Mword sysRegs[32], input Mword adr, input AbstractInstruction abs);
-            begin
+    function automatic void modifyStateSync(input ControlOp cOp, ref Mword sysRegs[32], input Mword adr);
+        case (cOp)
+            CO_exception: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 
                 sysRegs[1] |= 1; // TODO: handle state register correctly
             end
-        endfunction
-
-
-    function automatic void modifyStateSync_N(input ControlOp cOp, ref Mword sysRegs[32], input Mword adr, input AbstractInstruction abs, input logic exc, input logic refetch);
-
-            if (exc) begin
-                assert (cOp == CO_exception) else $error("exc not.");
-            end
-
-            if (refetch) begin
-                assert (cOp == CO_refetch) else $error("refe not.");
-            end
-           
-        if (exc) begin
-            modifyStateSyncExc(sysRegs, adr, abs);
-            return;
-        end
-        
-        case (abs.def.o)
-            O_undef: begin
+            CO_undef: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
                 sysRegs[1] |= 1; // TODO: handle state register correctly
             end
-            O_call: begin                    
+            CO_call: begin                  
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
                 sysRegs[1] |= 1; // TODO: handle state register correctly
             end
-            O_retE: sysRegs[1] = sysRegs[4];
-            O_retI: sysRegs[1] = sysRegs[5];
+            CO_retE: begin
+                sysRegs[1] = sysRegs[4];
+            end
+            CO_retI: begin
+                sysRegs[1] = sysRegs[5];
+            end
         endcase
     endfunction
     

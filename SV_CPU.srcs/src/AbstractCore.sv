@@ -411,20 +411,12 @@ module AbstractCore
 
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.op.active) begin
-            EventInfo lateEvt;
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            OpSlot waitingOp = lateEventInfoWaiting.op;
-            logic refetch = insMap.get(waitingOp.id).refetch;
-            logic exception = insMap.get(waitingOp.id).exception;
-            
-            AbstractInstruction abs = decAbs(waitingOp);
-            
-            if (refetch) abs.def.o = O_replay;
+            Mword waitingAdr = lateEventInfoWaiting.op.adr;
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting.cOp, waitingAdr, sr2, sr3);
 
-            lateEvt = getLateEvent_N(lateEventInfoWaiting.cOp, waitingOp, abs, waitingOp.adr, sr2, sr3, exception, refetch);
-            modifyStateSync_N(lateEventInfoWaiting.cOp, sysRegs, waitingOp.adr, abs, exception, refetch);
-            
+            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
