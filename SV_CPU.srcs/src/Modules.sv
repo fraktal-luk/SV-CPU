@@ -384,7 +384,7 @@ module ExecBlock(ref InstructionMap insMap,
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target};
+        AbstractCore.branchEventInfo <= '{wholeOp, CO_none, 0, 0, evt.redirect, 0, 0, evt.target};
     endtask
 
 

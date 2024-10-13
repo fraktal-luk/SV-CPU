@@ -56,8 +56,36 @@ package AbstractSim;
     typedef OpSlot OpSlotA[RENAME_WIDTH];
     
 
+    typedef enum {
+        CO_none,
+        
+        CO_reset,
+        CO_int,
+        
+        CO_undef,
+        
+        CO_error,
+        CO_send,
+        CO_call,
+        
+        CO_exception,
+        
+        CO_sync,
+        CO_refetch,
+        
+        CO_retE,
+        CO_retI,
+        
+        CO_break,
+        
+        
+            CO_dummy
+        
+    } ControlOp;
+    
     typedef struct {
         OpSlot op;
+        ControlOp cOp;
         logic interrupt;
         logic reset;
         logic redirect;
@@ -66,9 +94,9 @@ package AbstractSim;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
-    localparam EventInfo RESET_EVENT = '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
-    localparam EventInfo INT_EVENT =   '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, CO_none, 0, 0, 0, '0, '0, 'x};
+    localparam EventInfo RESET_EVENT =      '{EMPTY_SLOT, CO_reset, 0, 1, 1, 0, 0, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{EMPTY_SLOT, CO_int, 1, 0, 1, 0, 0, IP_INT};
 
     // TODO: move swh else?
     typedef struct {

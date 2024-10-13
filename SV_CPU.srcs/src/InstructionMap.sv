@@ -31,6 +31,12 @@ package Insmap;
     } InstructionInfo;
 
 
+        typedef struct {
+            int id;
+            logic dummy;
+        } MopRecord;
+
+
     class InstructionMap;
    
         typedef enum {
@@ -129,6 +135,23 @@ package Insmap;
         MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
 
             InsId reissuedId = -1;    
+    
+            int renamedM = 0;
+            
+            int committedM = 0;
+            
+            MopRecord mopRecords[$];
+            
+            
+            function automatic void alloc();
+                //mopRecords.push_back('{renamedM, 'x});
+            endfunction
+
+            function automatic void dealloc();
+                //while (mopRecords.size() > 0 && mopRecords[0].id <= renamedM)
+                //    void'(mopRecords.pop_front());
+            endfunction
+           
     
         // ins info
         static function automatic InstructionInfo initInsInfo(input OpSlot op);

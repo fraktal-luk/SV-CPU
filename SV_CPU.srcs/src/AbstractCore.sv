@@ -114,7 +114,6 @@ module AbstractCore
 
     //////////////////////////////////////////
 
-
     assign TMP_readReqs = theExecBlock.readReqs;
     assign theExecBlock.readResps = TMP_readResps;
 
@@ -137,7 +136,6 @@ module AbstractCore
             performSysStore();  // sysRegs
         end
 
-
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectRest();     // stageRename1, renameInds, renamedEmul, registerTracker, memTracker,   branchTargetQueue, branchCheckpointQueue
         else
@@ -147,12 +145,12 @@ module AbstractCore
 
         updateBookkeeping();
 
-            begin
-                automatic int csqIds[$];
-                foreach (csq[i]) csqIds.push_back(csq[i].op.id);
-                $swrite(csqIdStr, "%p", csqIds);
-                $swrite(csqStr, "%p", csq);
-            end
+        begin
+            automatic int csqIds[$];
+            foreach (csq[i]) csqIds.push_back(csq[i].op.id);
+            $swrite(csqIdStr, "%p", csqIds);
+            $swrite(csqStr, "%p", csq);
+        end
     end
 
 
@@ -179,73 +177,6 @@ module AbstractCore
         // Overall DB
             coreDB.insMapSize = insMap.size();
             coreDB.trSize = memTracker.transactions.size();
-    endtask
-
-
-
-    task automatic activateEvent();
-        if (reset) begin
-            lateEventInfoWaiting <= RESET_EVENT;
-                retiredEmul.reset();
-        end
-        else if (interrupt) begin
-            lateEventInfoWaiting <= INT_EVENT;
-                $display(">> Interrupt !!!");
-                retiredEmul.interrupt();
-        end
-
-        lateEventInfo <= EMPTY_EVENT_INFO;
-    
-        if (csqEmpty) fireLateEvent();
-    endtask
-
-    task automatic fireLateEvent();
-        if (lateEventInfoWaiting.op.active) begin
-            EventInfo lateEvt;
-            Mword sr2 = getSysReg(2);
-            Mword sr3 = getSysReg(3);
-            OpSlot waitingOp = lateEventInfoWaiting.op;
-            logic refetch = insMap.get(waitingOp.id).refetch;
-            logic exception = insMap.get(waitingOp.id).exception;
-            
-            AbstractInstruction abs = decAbs(waitingOp);
-            
-            if (refetch) abs.def.o = O_replay;
-
-            lateEvt = exception ? 
-                        getLateEventExc(waitingOp, abs, waitingOp.adr, sr2, sr3) :
-                        getLateEvent(waitingOp, abs, waitingOp.adr, sr2, sr3);
-            
-            if (exception) modifyStateSyncExc(sysRegs, waitingOp.adr, abs);
-            else modifyStateSync(sysRegs, waitingOp.adr, abs);
-                         
-            retiredTarget <= lateEvt.target;
-            lateEventInfo <= lateEvt;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        end
-        else if (lateEventInfoWaiting.reset) begin
-               // saveStateAsync(sysRegs, retiredTarget); // TODO: check if should be removed 
-            sysRegs = SYS_REGS_INITIAL;
-            
-            retiredTarget <= IP_RESET;
-            lateEventInfo <= RESET_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-            
-            // TODO: maybe this should be at the moment of setting lateEventInfoWaiting because it is this way for synchronous events (performing op in commitOp)  
-               // performAsyncEvent(retiredEmul.coreState, IP_RESET, retiredEmul.coreState.target); // TODO: remove?
-            //retiredEmul.reset();
-        end
-        else if (lateEventInfoWaiting.interrupt) begin
-            saveStateAsync(sysRegs, retiredTarget);
-            
-            retiredTarget <= IP_INT;
-            lateEventInfo <= INT_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-            
-            // TODO: [same as the reset case] 
-//            $display(">> Interrupt !!!");
-//            retiredEmul.interrupt();
-        end
     endtask
 
 
@@ -293,13 +224,11 @@ module AbstractCore
 
     function automatic IqLevels getBufferAccepts(input IqLevels levels);
         IqLevels res;
-     
         res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.iqBranch = levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.iqMem = levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
         res.iqSys = levels.iqSys <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-
         return res;
     endfunction
 
@@ -311,7 +240,6 @@ module AbstractCore
                 && acc.iqMem
                 && acc.iqSys;
     endfunction
-
 
     // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
@@ -328,7 +256,6 @@ module AbstractCore
     endfunction
 
 
-
     task automatic renameGroup(input OpSlotA ops);
         if (anyActive(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
@@ -336,6 +263,11 @@ module AbstractCore
         foreach (ops[i]) begin
             if (ops[i].active !== 1) continue;
             renameOp(ops[i], i);
+                
+                insMap.alloc();
+                insMap.renamedM++;
+                
+                
             putMilestone(ops[i].id, InstructionMap::Rename);
         end
     endtask
@@ -477,22 +409,83 @@ module AbstractCore
     endfunction
 
 
+    task automatic fireLateEvent();
+        if (lateEventInfoWaiting.op.active) begin
+            EventInfo lateEvt;
+            Mword sr2 = getSysReg(2);
+            Mword sr3 = getSysReg(3);
+            OpSlot waitingOp = lateEventInfoWaiting.op;
+            logic refetch = insMap.get(waitingOp.id).refetch;
+            logic exception = insMap.get(waitingOp.id).exception;
+            
+            AbstractInstruction abs = decAbs(waitingOp);
+            
+            if (refetch) abs.def.o = O_replay;
+
+            lateEvt = getLateEvent_N(lateEventInfoWaiting.cOp, waitingOp, abs, waitingOp.adr, sr2, sr3, exception, refetch);
+            modifyStateSync_N(lateEventInfoWaiting.cOp, sysRegs, waitingOp.adr, abs, exception, refetch);
+            
+                         
+            retiredTarget <= lateEvt.target;
+            lateEventInfo <= lateEvt;
+            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        end
+        else if (lateEventInfoWaiting.reset) begin
+            sysRegs = SYS_REGS_INITIAL;
+            
+            retiredTarget <= IP_RESET;
+            lateEventInfo <= RESET_EVENT;
+            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        end
+        else if (lateEventInfoWaiting.interrupt) begin
+            saveStateAsync(sysRegs, retiredTarget);
+            
+            retiredTarget <= IP_INT;
+            lateEventInfo <= INT_EVENT;
+            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        end
+    endtask
+
+
+    task automatic activateEvent();
+        if (reset) begin
+            lateEventInfoWaiting <= RESET_EVENT;
+                retiredEmul.reset();
+        end
+        else if (interrupt) begin
+            lateEventInfoWaiting <= INT_EVENT;
+                $display(">> Interrupt !!!");
+                retiredEmul.interrupt();
+        end
+
+        lateEventInfo <= EMPTY_EVENT_INFO;
+    
+        if (csqEmpty) fireLateEvent();
+    endtask
+
+
     task automatic advanceCommit();
         logic cancelRest = 0;
         // Don't commit anything more if event is being handled
 
         foreach (robOut[i]) begin
             OpSlot opP;
+            logic refetch, exception;
            
             if (robOut[i].active !== 1) continue;
             if (cancelRest) $fatal(2, "Committing after break");
             
             opP = TMP_properOp(robOut[i]);
+            refetch = insMap.get(opP.id).refetch;
+            exception = insMap.get(opP.id).exception;
 
             commitOp(opP);
+                
+                insMap.dealloc();
+                insMap.committedM++;
             
             if (breaksCommit(opP)) begin
-                lateEventInfoWaiting <= eventFromOp(opP);
+                lateEventInfoWaiting <= eventFromOp(opP, decAbs(opP), refetch, exception);
                 cancelRest = 1;
             end
         end
@@ -589,12 +582,11 @@ module AbstractCore
         putMilestone(op.id, retireType);
         insMap.setRetired(op.id);
         
-        // Elements related to crucial signals: 
-
+        // Elements related to crucial signals:
         updateInds(commitInds, op); // All types?
         commitInds.renameG = insMap.get(op.id).inds.renameG; // Part of above
 
-        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception); // All types?
+        retiredTarget <= getCommitTarget(decAbs(op), retiredTarget, branchTargetQueue[0].target, refetch, exception);
     endtask
 
 
@@ -687,8 +679,6 @@ module AbstractCore
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
 
-
-
     function automatic OpPacket tickP(input OpPacket op);        
         if (shouldFlushPoison(op.poison)) begin
             putMilestone(op.id, InstructionMap::FlushPoison);
@@ -712,7 +702,6 @@ module AbstractCore
     function automatic logic shouldFlushEvent(input InsId id);
         return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
     endfunction
-        
 
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
