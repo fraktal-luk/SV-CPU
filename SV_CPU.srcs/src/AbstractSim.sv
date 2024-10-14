@@ -84,21 +84,20 @@ package AbstractSim;
     } ControlOp;
     
     typedef struct {
-            logic active;
-            InsId id;
-        //OpSlot op;
+        logic active;
+        InsId id;
         ControlOp cOp;
-        logic interrupt;
-        logic reset;
+        //    logic interrupt;
+        //    logic reset;
         logic redirect;
         logic sigOk;
         logic sigWrong;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none, 0, 0, 0, '0, '0, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, 0, 1, 1, 0, 0, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int, 1, 0, 1, 0, 0, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, 0, 0, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, 0, 0, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, 0, 0, IP_INT};
 
     // TODO: move swh else?
     typedef struct {

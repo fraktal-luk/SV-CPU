@@ -123,11 +123,11 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
                                               AbstractCore.instructionCacheOut);
         
         foreach (ipStageU[i]) if (ipStageU[i].active) begin
-            insMap.add(ipStageU[i]);
+            insMap.add(ipStageU[i].id, ipStageU[i].adr, ipStageU[i].bits);
         end
 
         foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
-            insMap.setEncoding(fetchStage0ua[i]);
+            insMap.setEncoding(fetchStage0ua[i].id, fetchStage0ua[i].bits);
         end
 
         fetchStage1 <= fetchStage0ua;

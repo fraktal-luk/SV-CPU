@@ -371,7 +371,6 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
     task automatic setBranchInCore(input InsId id);
-        //OpSlot wholeOp = getOpSlotFromId(id);
         AbstractInstruction abs = decId(id);
         Mword3 args = getAndVerifyArgs(id);
         Mword adr = getAdr(id);
@@ -384,7 +383,7 @@ module ExecBlock(ref InstructionMap insMap,
         
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{1, id, CO_none, 0, 0, evt.redirect, 0, 0, evt.target};
+        AbstractCore.branchEventInfo <= '{1, id, CO_none, /*0, 0,*/ evt.redirect, 0, 0, evt.target};
     endtask
 
 
@@ -428,8 +427,9 @@ endmodule
 module CoreDB();
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
-
-    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
+        
+        // TODO: remove
+        OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
     string bqStr;

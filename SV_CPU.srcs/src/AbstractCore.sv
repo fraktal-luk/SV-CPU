@@ -267,7 +267,6 @@ module AbstractCore
                 insMap.alloc();
                 insMap.renamedM++;
                 
-                
             putMilestone(ops[i].id, InstructionMap::Rename);
         end
     endtask
@@ -289,7 +288,7 @@ module AbstractCore
             flushBranchCheckpointQueueAll();
             flushBranchTargetQueueAll();
             
-            if (lateEventInfo.reset) registerTracker.restoreReset();
+            if (lateEventInfo.cOp == CO_reset) registerTracker.restoreReset(); // TODO: try remove and handle with restoreStable
             else registerTracker.restoreStable();
             registerTracker.flushAll();
             
@@ -326,11 +325,11 @@ module AbstractCore
         while (branchTargetQueue.size() > 0) void'(branchTargetQueue.pop_back());
     endtask
  
-    task automatic flushBranchCheckpointQueuePartial(input InsId id);//input OpSlot op);
+    task automatic flushBranchCheckpointQueuePartial(input InsId id);
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > id) void'(branchCheckpointQueue.pop_back());
     endtask    
 
-    task automatic flushBranchTargetQueuePartial(input InsId id);//input OpSlot op);
+    task automatic flushBranchTargetQueuePartial(input InsId id);
         while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > id) void'(branchTargetQueue.pop_back());
     endtask
 
@@ -399,9 +398,9 @@ module AbstractCore
     endtask
 
 
-    function automatic logic breaksCommit(input OpSlot op);
-        return breaksCommitId(op.id);
-    endfunction
+//    function automatic logic breaksCommit(input OpSlot op);
+//        return breaksCommitId(op.id);
+//    endfunction
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
@@ -410,42 +409,27 @@ module AbstractCore
 
 
     task automatic fireLateEvent();
-
         if (lateEventInfoWaiting.active !== 1) return;
-            
 
-        if (//lateEventInfoWaiting.reset) begin
-            lateEventInfoWaiting.cOp == CO_reset) begin
-             //   assert (lateEventInfoWaiting.cOp == CO_reset) else $fatal(2, "no reset?");
-        
+        if (lateEventInfoWaiting.cOp == CO_reset) begin        
             sysRegs = SYS_REGS_INITIAL;
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
-        else if (//lateEventInfoWaiting.interrupt) begin
-                 lateEventInfoWaiting.cOp == CO_int) begin
-            //   assert (lateEventInfoWaiting.cOp == CO_int) else $fatal(2, "no interrupt?");
-        
+        else if (lateEventInfoWaiting.cOp == CO_int) begin
             saveStateAsync(sysRegs, retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end  
-        else //if (lateEventInfoWaiting.op.active) begin
-                begin
+        else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-           //     Mword waitingAdr_N = lateEventInfoWaiting.op.adr;
             Mword waitingAdr = getAdr(lateEventInfoWaiting.id);
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting.cOp, waitingAdr, sr2, sr3);
-                
-                lateEvt.active = 1;
-                lateEvt.id = lateEventInfoWaiting.id;
-                
-            //    assert (waitingAdr_N === waitingAdr) else $fatal(2, "not argeing adr");
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, waitingAdr, sr2, sr3);
 
             modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
                          
@@ -494,7 +478,7 @@ module AbstractCore
                 insMap.dealloc();
                 insMap.committedM++;
             
-            if (breaksCommit(opP)) begin
+            if (breaksCommitId(opP.id)) begin
                 lateEventInfoWaiting <= eventFromOp(opP, decAbs(opP), refetch, exception);
                 cancelRest = 1;
             end

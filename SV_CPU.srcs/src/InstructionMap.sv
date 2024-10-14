@@ -154,11 +154,15 @@ package Insmap;
            
     
         // ins info
-        static function automatic InstructionInfo initInsInfo(input OpSlot op);
+        static function automatic InstructionInfo initInsInfo(//input OpSlot op,
+                                                                input InsId id,
+                                                                input Mword adr,
+                                                                input Word bits
+                                                                );
             InstructionInfo res;
-            res.id = op.id;
-            res.adr = op.adr;
-            res.bits = op.bits;
+            res.id = id;
+            res.adr = adr;
+            res.bits = bits;
     
             res.physDest = -1;
     
@@ -189,17 +193,21 @@ package Insmap;
         
         
         /////// insinfo
-        function automatic void add(input OpSlot op);
-            assert (op.active) else $error("Inactive op added to base");
-            content[op.id] = initInsInfo(op);
-               specList.push_back(op.id);
+        function automatic void add(//input OpSlot op,
+                                    input InsId id,
+                                    input Mword adr,
+                                    input Word bits
+        );
+            //assert (op.active) else $error("Inactive op added to base");
+            content[id] = initInsInfo(/*op,*/ id, adr, bits);
+               specList.push_back(id);
         endfunction
     
         // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 
-        function automatic void setEncoding(input OpSlot op);
-            assert (op.active) else $error("encoding set for inactive op");
-            content[op.id].bits = op.bits;
-            content[op.id].dec = decodeAbstract(op.bits);
+        function automatic void setEncoding(input InsId id, input Word bits /* input OpSlot op*/);
+            //assert (op.active) else $error("encoding set for inactive op");
+            content[id].bits = bits;
+            content[id].dec = decodeAbstract(bits);
         endfunction
     
         function automatic void setTarget(input InsId id, input Mword trg);

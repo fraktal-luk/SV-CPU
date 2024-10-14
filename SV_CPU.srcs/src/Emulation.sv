@@ -240,7 +240,7 @@ package Emulation;
     endfunction
 
 
-    function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);//OpSlot op);
+    function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);
         Mword3 args = vals;
         bit redirect = 0;
         Mword brTarget = (abs.mnemonic inside {"jz_r", "jnz_r"}) ? args[1] : adr + args[1];

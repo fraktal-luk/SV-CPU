@@ -82,8 +82,7 @@ module ReorderBuffer
             outGroupPrev <= outGroup;
 
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            //|| AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
-                || AbstractCore.lateEventInfoWaiting.active
+            || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
             arrayHeadRow <= EMPTY_ROW;
@@ -121,8 +120,7 @@ module ReorderBuffer
 
     function automatic OpRecord tickRecord(input OpRecord rec);
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            //|| AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
-                || AbstractCore.lateEventInfoWaiting.active
+            || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
         begin
@@ -155,8 +153,7 @@ module ReorderBuffer
         Row res = EMPTY_ROW;
         
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            //|| AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
-                || AbstractCore.lateEventInfoWaiting.active
+            || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             ) begin
             foreach (q[i])

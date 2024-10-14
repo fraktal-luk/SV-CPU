@@ -8,10 +8,10 @@ package ControlHandling;
     import AbstractSim::*;
     
 
-    function automatic EventInfo getLateEvent(input ControlOp cOp, input Mword adr, input Mword sr2, input Mword sr3);
+    function automatic EventInfo getLateEvent(input EventInfo info, input Mword adr, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
         
-        case (cOp)
+        case (info.cOp)
             CO_exception: begin
                 res.target = IP_EXC;
                 res.redirect = 1;
@@ -30,7 +30,6 @@ package ControlHandling;
                 res.redirect = 1;
             end 
             CO_retI: begin
-                   assert (cOp == CO_retI) else $fatal(2, "huhuhu!");
                 res.target = sr3;
                 res.redirect = 1;
             end 
@@ -49,8 +48,10 @@ package ControlHandling;
             end
             default: ;                            
         endcase
-        
-        res.cOp = cOp;
+
+        res.active = 1;
+        res.id = info.id;
+        res.cOp = info.cOp;
 
         return res;
     endfunction
@@ -96,7 +97,7 @@ package ControlHandling;
 
 
     function automatic EventInfo eventFromOp(input OpSlot op, input AbstractInstruction abs, input logic refetch, input logic exception);
-        EventInfo res = '{1, op.id, CO_none, 0, 0, 1, 0, 0, 'x};
+        EventInfo res = '{1, op.id, CO_none, /*0, 0,*/ 1, 0, 0, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;
