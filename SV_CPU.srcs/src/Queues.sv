@@ -11,7 +11,7 @@ package Queues;
     import ExecDefs::*;
 
 
-            typedef int IntQueue[$];
+        typedef int IntQueue[$];
 
     class QueueHelper;
         typedef struct {
@@ -20,7 +20,6 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{'x};
 
-        
     endclass
 
 
@@ -42,9 +41,9 @@ package Queues;
             return isStoreIns(ins);
         endfunction
 
-        static function automatic Entry newEntry(input InstructionMap imap, input OpSlot op);
+        static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
-            res.id = op.id;
+            res.id = id;
             res.error = 0;
             res.adrReady = 0;
             res.valReady = 0;
@@ -78,20 +77,12 @@ package Queues;
             static function logic isError(input Entry entry);
                 return entry.error;
             endfunction
-
-//               static function automatic IntQueue TMP_scan(ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-//                   IntQueue res = entries.find_index with (item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
-//                   return res;
-//               endfunction
                
             static function automatic OpPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
                 typedef StoreQueueHelper::Entry SqEntry;
                 // TODO: don't include sys stores in adr matching 
                 Entry found[$] = entries.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
-                
-                  //  IntQueue found_N = //content_N.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
-                  //                       HELPER::TMP_scan(content_N, id, adr);
-               
+
                 if (found.size() == 0) return EMPTY_OP_PACKET;
                 else if (found.size() == 1) begin 
                     if (wordInside(adr, found[0].adr)) return '{1, found[0].id, ES_OK, EMPTY_POISON, 'x, found[0].val};
@@ -123,9 +114,9 @@ package Queues;
             return isLoadIns(ins);
         endfunction
 
-        static function automatic Entry newEntry(input InstructionMap imap, input OpSlot op);
+        static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
-            res.id = op.id;
+            res.id = id;
             res.adrReady = 0;
             res.error = 0;
             return res;
@@ -151,11 +142,7 @@ package Queues;
             static function logic isError(input Entry entry);
                 return entry.error;
             endfunction
-            
-//               static function automatic IntQueue TMP_scan(ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
-               
-//               endfunction
-               
+
                 static function automatic OpPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
                     Entry found[$] = entries.find with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
                     
@@ -163,8 +150,7 @@ package Queues;
             
                     // else: we have a match and the matching loads are incorrect
                     foreach (found[i]) begin
-                       // content_N[found[i]].valReady = 'x;
-                           setError(found[i]);
+                        setError(found[i]);
                     end
                     
                     begin // 'active' indicates that some match has happened without furthr details
@@ -200,12 +186,12 @@ package Queues;
             return isBranchIns(ins);
         endfunction
 
-        static function automatic Entry newEntry(input InstructionMap imap, input OpSlot op);
+        static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
-            InstructionInfo ii = imap.get(op.id);
+            InstructionInfo ii = imap.get(id);
             AbstractInstruction abs = ii.dec;
             
-            res.id = op.id;
+            res.id = id;
             
                 res.predictedTaken = 0;
 
@@ -248,21 +234,16 @@ package Queues;
             static function logic isError(input Entry entry);
                 return 0;
             endfunction
-            
-//               static function automatic IntQueue TMP_scan(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
-               
-//               endfunction
-               
-                static function automatic OpPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
 
-                    
-                    begin // 'active' indicates that some match has happened without furthr details
-                        OpPacket res = EMPTY_OP_PACKET;
-                        //res.active = 1;            
-                        return res;
-                    end
-            
-                endfunction
+
+            static function automatic OpPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
+
+                begin // 'active' indicates that some match has happened without furthr details
+                    OpPacket res = EMPTY_OP_PACKET;
+                    return res;
+                end
+        
+            endfunction
 
                  
     endclass

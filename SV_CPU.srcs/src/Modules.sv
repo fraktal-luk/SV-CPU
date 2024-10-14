@@ -151,7 +151,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     OpPacket toLq[N_MEM_PORTS];
     OpPacket toSq[N_MEM_PORTS];
-    OpPacket toBq[N_MEM_PORTS]; // TODO: Customize this width in MemBuffer (or make whole new module for BQ)?  
+    OpPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
     OpPacket fromSq[N_MEM_PORTS];
     OpPacket fromLq[N_MEM_PORTS];
@@ -376,7 +376,7 @@ module ExecBlock(ref InstructionMap insMap,
         Mword adr = getAdr(id);
 
         ExecEvent evt = resolveBranch(abs, adr, args);
-        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == id);
+        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == id);
         
         int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);
         Mword trg = evt.redirect ? evt.target : adr + 4;
@@ -428,14 +428,14 @@ module CoreDB();
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
         
-        // TODO: remove
+        // Remove?
         OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
     string bqStr;
     always @(posedge AbstractCore.clk) begin
         automatic int ids[$];
-        foreach (AbstractCore.branchCheckpointQueue[i]) ids.push_back(AbstractCore.branchCheckpointQueue[i].op.id);
+        foreach (AbstractCore.branchCheckpointQueue[i]) ids.push_back(AbstractCore.branchCheckpointQueue[i].id);
         $swrite(bqStr, "%p", ids);
     end
 

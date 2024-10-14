@@ -242,7 +242,7 @@ module ArchDesc0();
 
             // The part that differs from regular sim test
             wait (fetchAdr == IP_CALL);
-            #CYCLE; // TODO: should be wait for clock instead of delay?
+            #CYCLE; // FUTURE: should be wait for clock instead of delay?
             pulseInt0();
 
             awaitResult();

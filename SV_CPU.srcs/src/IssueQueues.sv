@@ -422,12 +422,12 @@ module IssueQueueComplex(
         RoutingInfo res = DEFAULT_ROUTING_INFO;
         
         foreach (gr[i]) begin
-            OpSlot op = gr[i];
+            InsId id = gr[i].id;
             
-            if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) res.mem[i] = 1;
-            else if (isSysIns(decAbs(op))) res.sys[i] = 1;
-            else if (isBranchIns(decAbs(op))) res.branch[i] = 1;
-            else if (isFloatCalcIns(decAbs(op))) res.float[i] = 1;
+            if (isLoadIns(decId(id)) || isStoreIns(decId(id))) res.mem[i] = 1;
+            else if (isSysIns(decId(id))) res.sys[i] = 1;
+            else if (isBranchIns(decId(id))) res.branch[i] = 1;
+            else if (isFloatCalcIns(decId(id))) res.float[i] = 1;
             else res.regular[i] = 1;
         end
         

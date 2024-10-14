@@ -70,7 +70,7 @@ package Insmap;
     
             RqEnter, RqFlush, RqIssue, RqExit,
     
-              ReadArg, // TODO: by source type
+              ReadArg, // FUTURE: by source type
     
               ExecRedirect,            
     
@@ -81,7 +81,7 @@ package Insmap;
             WriteMemAddress,
             WriteMemValue,
             
-            // TODO: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
+            // FUTURE: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
                 MemConfirmed,
                 MemMissed,
             
@@ -154,7 +154,7 @@ package Insmap;
            
     
         // ins info
-        static function automatic InstructionInfo initInsInfo(//input OpSlot op,
+        static function automatic InstructionInfo initInsInfo(
                                                                 input InsId id,
                                                                 input Mword adr,
                                                                 input Word bits
@@ -193,8 +193,7 @@ package Insmap;
         
         
         /////// insinfo
-        function automatic void add(//input OpSlot op,
-                                    input InsId id,
+        function automatic void add(input InsId id,
                                     input Mword adr,
                                     input Word bits
         );
@@ -204,8 +203,7 @@ package Insmap;
         endfunction
     
         // CAREFUL: temporarily here: decode and store to avoid repeated decoding later 
-        function automatic void setEncoding(input InsId id, input Word bits /* input OpSlot op*/);
-            //assert (op.active) else $error("encoding set for inactive op");
+        function automatic void setEncoding(input InsId id, input Word bits);
             content[id].bits = bits;
             content[id].dec = decodeAbstract(bits);
         endfunction

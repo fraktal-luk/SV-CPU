@@ -379,8 +379,8 @@ package Emulation;
 
     function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
         state.sysRegs[5] = state.sysRegs[1];
-        state.sysRegs[1] |= 2; // TODO: handle state register correctly
-        state.sysRegs[3] = prevTarget;//state.target;
+        state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
+        state.sysRegs[3] = prevTarget;
 
         state.target = trg;
     endfunction
@@ -394,14 +394,14 @@ package Emulation;
                 state.target = IP_ERROR;
 
                 state.sysRegs[4] = state.sysRegs[1];
-                state.sysRegs[1] |= 1; // TODO: handle state register correctly
+                state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 state.sysRegs[2] = adr + 4;
             end
             O_call: begin                    
                 state.target = IP_CALL;
 
                 state.sysRegs[4] = state.sysRegs[1];
-                state.sysRegs[1] |= 1; // TODO: handle state register correctly
+                state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 state.sysRegs[2] = adr + 4;
             end
             O_sync: begin
@@ -435,7 +435,7 @@ package Emulation;
         state.target = IP_EXC;
 
         state.sysRegs[4] = state.sysRegs[1];
-        state.sysRegs[1] |= 1; // TODO: handle state register correctly
+        state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
         state.sysRegs[2] = adr;
     endfunction
 

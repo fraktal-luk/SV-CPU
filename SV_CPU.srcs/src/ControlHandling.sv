@@ -63,19 +63,19 @@ package ControlHandling;
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 
-                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
             end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
-                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
             end
             CO_call: begin                  
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
-                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
             end
             CO_retE: begin
                 sysRegs[1] = sysRegs[4];
@@ -92,12 +92,12 @@ package ControlHandling;
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
         
-        sysRegs[1] |= 2; // TODO: handle state register correctly
+        sysRegs[1] |= 2; // FUTURE: handle state register correctly
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input OpSlot op, input AbstractInstruction abs, input logic refetch, input logic exception);
-        EventInfo res = '{1, op.id, CO_none, /*0, 0,*/ 1, 0, 0, 'x};
+    function automatic EventInfo eventFromOp(input InsId id, input AbstractInstruction abs, input logic refetch, input logic exception);
+        EventInfo res = '{1, id, CO_none, /*0, 0,*/ 1, 0, 0, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;

@@ -459,11 +459,14 @@ package ExecDefs;
 
     // Write buffer
     typedef struct {
-        OpSlot op;
+        logic active;
+        InsId id;
         logic cancel;
         Mword adr;
         Mword val;
     } StoreQueueEntry;
+
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x};
 
     typedef struct {
         logic req;

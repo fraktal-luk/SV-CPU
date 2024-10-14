@@ -126,8 +126,8 @@ module StoreQueue
         end
         
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
-            if (AbstractCore.drainHead.op.active) begin
-                assert (AbstractCore.drainHead.op.id == content_N[drainPointer % SIZE].id) else $error("Not matching n id drain %d/%d", AbstractCore.drainHead.op.id, content_N[drainPointer % SIZE].id);            
+            if (AbstractCore.drainHead.active) begin
+                assert (AbstractCore.drainHead.id == content_N[drainPointer % SIZE].id) else $error("Not matching n id drain %d/%d", AbstractCore.drainHead.id, content_N[drainPointer % SIZE].id);            
                 content_N[drainPointer % SIZE] = EMPTY_QENTRY;
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
@@ -156,8 +156,8 @@ module StoreQueue
         if (!anyActive(inGroup)) return;
     
         foreach (inGroup[i]) begin
-            if (HELPER::applies(decAbs(inGroup[i]))) begin
-                content_N[endPointer % SIZE] = HELPER::newEntry(insMap, inGroup[i]);                
+            if (HELPER::applies(decId(inGroup[i].id))) begin
+                content_N[endPointer % SIZE] = HELPER::newEntry(insMap, inGroup[i].id);                
                 putMilestone(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end

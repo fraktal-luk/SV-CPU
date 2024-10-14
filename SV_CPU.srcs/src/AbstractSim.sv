@@ -87,8 +87,6 @@ package AbstractSim;
         logic active;
         InsId id;
         ControlOp cOp;
-        //    logic interrupt;
-        //    logic reset;
         logic redirect;
         logic sigOk;
         logic sigWrong;
@@ -99,7 +97,6 @@ package AbstractSim;
     localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, 0, 0, IP_RESET};
     localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, 0, 0, IP_INT};
 
-    // TODO: move swh else?
     typedef struct {
         int iqRegular;
         int iqFloat;
@@ -108,11 +105,6 @@ package AbstractSim;
         int iqSys;
     } IqLevels;
 
-        // not really used yet
-        typedef struct {
-            OpSlot late;
-            OpSlot exec;
-        } Events;
 
     typedef struct {
         InsId id;
@@ -144,11 +136,11 @@ package AbstractSim;
 
     class BranchCheckpoint;
     
-        function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
+        function new(input InsId id, input CpuState state, input SimpleMem mem, 
                     input int intWr[32], input int floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet);
-            this.op = op;
+            this.id = id;
             this.state = state;
             this.mem = new();
             this.mem.copyFrom(mem);
@@ -159,7 +151,7 @@ package AbstractSim;
             this.inds = indexSet;
         endfunction
 
-        OpSlot op;
+        InsId id;
         CpuState state;
         SimpleMem mem;
         int intWriters[32];
@@ -172,7 +164,7 @@ package AbstractSim;
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
             
-        // TODO: move to RegisterDomain after moving functiona for num free etc.
+        // FUTURE: move to RegisterDomain after moving functiona for num free etc.
         typedef enum {FREE, SPECULATIVE, STABLE
         } PhysRegState;
         
@@ -313,7 +305,7 @@ package AbstractSim;
 
 
         RegisterDomain#(N_REGS_INT, 1) ints = new();
-        RegisterDomain#(N_REGS_INT, 0) floats = new(); // TODO: change to FP reg num
+        RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
 
           
         function automatic int reserve(input AbstractInstruction abs, input InsId id);
@@ -452,62 +444,62 @@ package AbstractSim;
         Transaction loads[$];
         Transaction committedStores[$]; // Not included in transactions
         
-        function automatic void add(input OpSlot op, input AbstractInstruction ins, input Mword argVals[3]);
+        function automatic void add(input InsId id, input AbstractInstruction ins, input Mword argVals[3]);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
     
             if (isStoreMemIns(ins)) begin 
                 Mword value = argVals[2];
-                addStore(op, effAdr, value);
+                addStore(id, effAdr, value);
             end
             if (isLoadMemIns(ins)) begin
-                addLoad(op, effAdr, 'x);
+                addLoad(id, effAdr, 'x);
             end
             if (isStoreSysIns(ins)) begin 
                 Mword value = argVals[2];
-                addStoreSys(op, effAdr, value);
+                addStoreSys(id, effAdr, value);
             end
             if (isLoadSysIns(ins)) begin
-                addLoadSys(op, effAdr, 'x);
+                addLoadSys(id, effAdr, 'x);
             end
         endfunction
 
-        function automatic void addStore(input OpSlot op, input Mword adr, input Mword val);
-            transactions.push_back('{op.id, adr, val, adr});
-            stores.push_back('{op.id, adr, val, adr});
+        function automatic void addStore(input InsId id, input Mword adr, input Mword val);
+            transactions.push_back('{id, adr, val, adr});
+            stores.push_back('{id, adr, val, adr});
         endfunction
 
-        function automatic void addLoad(input OpSlot op, input Mword adr, input Mword val);            
-            transactions.push_back('{op.id, adr, val, adr});
-            loads.push_back('{op.id, adr, val, adr});
+        function automatic void addLoad(input InsId id, input Mword adr, input Mword val);            
+            transactions.push_back('{id, adr, val, adr});
+            loads.push_back('{id, adr, val, adr});
         endfunction
 
-        function automatic void addStoreSys(input OpSlot op, input Mword adr, input Mword val);
-            transactions.push_back('{op.id, 'x, val, adr});
-            stores.push_back('{op.id, 'x, val, adr});
+        function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
+            transactions.push_back('{id, 'x, val, adr});
+            stores.push_back('{id, 'x, val, adr});
         endfunction
 
-        function automatic void addLoadSys(input OpSlot op, input Mword adr, input Mword val);            
-            transactions.push_back('{op.id, 'x, val, adr});
-            loads.push_back('{op.id, 'x, val, adr});
+        function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
+            transactions.push_back('{id, 'x, val, adr});
+            loads.push_back('{id, 'x, val, adr});
         endfunction
 
-        function automatic void remove(input OpSlot op);
-            assert (transactions[0].owner == op.id) begin
+        function automatic void remove(input InsId id);
+            assert (transactions[0].owner == id) begin
                 void'(transactions.pop_front());
-                if (stores.size() != 0 && stores[0].owner == op.id) begin
+                if (stores.size() != 0 && stores[0].owner == id) begin
                     Transaction store = (stores.pop_front());
                     committedStores.push_back(store);                       
                 end
-                if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
+                if (loads.size() != 0 && loads[0].owner == id) void'(loads.pop_front());
             end
             else $error("Incorrect transaction commit");
         endfunction
 
-        function automatic void drain(input OpSlot op);
-            assert (committedStores[0].owner == op.id) begin
+        function automatic void drain(input InsId id);
+            assert (committedStores[0].owner == id) begin
                 void'(committedStores.pop_front());
             end
-            else $error("Incorrect transaction drain: %d but found %d", op.id, committedStores[0].owner);
+            else $error("Incorrect transaction drain: %d but found %d", id, committedStores[0].owner);
         endfunction
 
         function automatic void flushAll();
