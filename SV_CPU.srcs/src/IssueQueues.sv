@@ -217,7 +217,7 @@ module IssueQueue
 
     task automatic flushIq();
         if (lateEventInfo.redirect) flushOpQueueAll();
-        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
+        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.id);
     endtask
 
     task automatic flushOpQueueAll();
@@ -227,9 +227,9 @@ module IssueQueue
         end
     endtask
 
-    task automatic flushOpQueuePartial(input OpSlot op);
+    task automatic flushOpQueuePartial(input InsId id);
         foreach (array[i]) begin
-            if (array[i].id > op.id) begin
+            if (array[i].id > id) begin
                 if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
                 array[i] = EMPTY_ENTRY;
             end

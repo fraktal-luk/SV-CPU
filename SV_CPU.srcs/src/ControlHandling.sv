@@ -49,7 +49,7 @@ package ControlHandling;
             end
             default: ;                            
         endcase
-
+        
         res.cOp = cOp;
 
         return res;
@@ -96,7 +96,7 @@ package ControlHandling;
 
 
     function automatic EventInfo eventFromOp(input OpSlot op, input AbstractInstruction abs, input logic refetch, input logic exception);
-        EventInfo res = '{op, CO_none, 0, 0, 1, 0, 0, 'x};
+        EventInfo res = '{1, op.id, CO_none, 0, 0, 1, 0, 0, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;

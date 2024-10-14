@@ -82,7 +82,8 @@ module ReorderBuffer
             outGroupPrev <= outGroup;
 
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            //|| AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+                || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
             arrayHeadRow <= EMPTY_ROW;
@@ -120,7 +121,8 @@ module ReorderBuffer
 
     function automatic OpRecord tickRecord(input OpRecord rec);
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            //|| AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+                || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
         begin
@@ -153,7 +155,8 @@ module ReorderBuffer
         Row res = EMPTY_ROW;
         
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            //|| AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+                || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             ) begin
             foreach (q[i])
@@ -187,9 +190,9 @@ module ReorderBuffer
     
     task automatic flushArrayPartial();
         logic clear = 0;
-        int causingGroup = insMap.get(branchEventInfo.op.id).inds.renameG;
-        int causingSlot = insMap.get(branchEventInfo.op.id).slot;
-        InsId causingId = branchEventInfo.op.id;
+        int causingGroup = insMap.get(branchEventInfo.id).inds.renameG;
+        int causingSlot = insMap.get(branchEventInfo.id).slot;
+        InsId causingId = branchEventInfo.id;
         int p = startPointer;
                     
         for (int i = 0; i < DEPTH; i++) begin

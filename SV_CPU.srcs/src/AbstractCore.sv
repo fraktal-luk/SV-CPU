@@ -298,19 +298,19 @@ module AbstractCore
             renameInds = commitInds;
         end
         else if (branchEventInfo.redirect) begin
-            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == branchEventInfo.op.id);
+            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == branchEventInfo.id);
             BranchCheckpoint causingCP = foundCP[0];
 
             renamedEmul.coreState = causingCP.state;
             renamedEmul.tmpDataMem.copyFrom(causingCP.mem);
 
-            flushBranchCheckpointQueuePartial(branchEventInfo.op);
-            flushBranchTargetQueuePartial(branchEventInfo.op);
+            flushBranchCheckpointQueuePartial(branchEventInfo.id);
+            flushBranchTargetQueuePartial(branchEventInfo.id);
 
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
-            registerTracker.flush(branchEventInfo.op);
+            registerTracker.flush(branchEventInfo.id);
             
-            memTracker.flush(branchEventInfo.op);
+            memTracker.flush(branchEventInfo.id);
             
             renameInds = causingCP.inds;
         end
@@ -326,12 +326,12 @@ module AbstractCore
         while (branchTargetQueue.size() > 0) void'(branchTargetQueue.pop_back());
     endtask
  
-    task automatic flushBranchCheckpointQueuePartial(input OpSlot op);
-        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > op.id) void'(branchCheckpointQueue.pop_back());
+    task automatic flushBranchCheckpointQueuePartial(input InsId id);//input OpSlot op);
+        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].op.id > id) void'(branchCheckpointQueue.pop_back());
     endtask    
 
-    task automatic flushBranchTargetQueuePartial(input OpSlot op);
-        while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > op.id) void'(branchTargetQueue.pop_back());
+    task automatic flushBranchTargetQueuePartial(input InsId id);//input OpSlot op);
+        while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > id) void'(branchTargetQueue.pop_back());
     endtask
 
 
@@ -410,11 +410,42 @@ module AbstractCore
 
 
     task automatic fireLateEvent();
-        if (lateEventInfoWaiting.op.active) begin
+
+        if (lateEventInfoWaiting.active !== 1) return;
+            
+
+        if (//lateEventInfoWaiting.reset) begin
+            lateEventInfoWaiting.cOp == CO_reset) begin
+             //   assert (lateEventInfoWaiting.cOp == CO_reset) else $fatal(2, "no reset?");
+        
+            sysRegs = SYS_REGS_INITIAL;
+            
+            retiredTarget <= IP_RESET;
+            lateEventInfo <= RESET_EVENT;
+            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        end
+        else if (//lateEventInfoWaiting.interrupt) begin
+                 lateEventInfoWaiting.cOp == CO_int) begin
+            //   assert (lateEventInfoWaiting.cOp == CO_int) else $fatal(2, "no interrupt?");
+        
+            saveStateAsync(sysRegs, retiredTarget);
+            
+            retiredTarget <= IP_INT;
+            lateEventInfo <= INT_EVENT;
+            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        end  
+        else //if (lateEventInfoWaiting.op.active) begin
+                begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            Mword waitingAdr = lateEventInfoWaiting.op.adr;
+           //     Mword waitingAdr_N = lateEventInfoWaiting.op.adr;
+            Mword waitingAdr = getAdr(lateEventInfoWaiting.id);
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting.cOp, waitingAdr, sr2, sr3);
+                
+                lateEvt.active = 1;
+                lateEvt.id = lateEventInfoWaiting.id;
+                
+            //    assert (waitingAdr_N === waitingAdr) else $fatal(2, "not argeing adr");
 
             modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
                          
@@ -422,20 +453,7 @@ module AbstractCore
             lateEventInfo <= lateEvt;
             lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
-        else if (lateEventInfoWaiting.reset) begin
-            sysRegs = SYS_REGS_INITIAL;
-            
-            retiredTarget <= IP_RESET;
-            lateEventInfo <= RESET_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        end
-        else if (lateEventInfoWaiting.interrupt) begin
-            saveStateAsync(sysRegs, retiredTarget);
-            
-            retiredTarget <= IP_INT;
-            lateEventInfo <= INT_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        end
+
     endtask
 
 
@@ -692,7 +710,7 @@ module AbstractCore
 
 
     function automatic logic shouldFlushEvent(input InsId id);
-        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.op.id);
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.id);
     endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);

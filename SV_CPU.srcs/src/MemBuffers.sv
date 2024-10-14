@@ -79,7 +79,7 @@ module StoreQueue
 
     
     task automatic flushPartial();
-        InsId causingId = branchEventInfo.op.id;
+        InsId causingId = branchEventInfo.id;
         int p = startPointer;
         
         endPointer = startPointer;

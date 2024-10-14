@@ -84,7 +84,9 @@ package AbstractSim;
     } ControlOp;
     
     typedef struct {
-        OpSlot op;
+            logic active;
+            InsId id;
+        //OpSlot op;
         ControlOp cOp;
         logic interrupt;
         logic reset;
@@ -94,9 +96,9 @@ package AbstractSim;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, CO_none, 0, 0, 0, '0, '0, 'x};
-    localparam EventInfo RESET_EVENT =      '{EMPTY_SLOT, CO_reset, 0, 1, 1, 0, 0, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{EMPTY_SLOT, CO_int, 1, 0, 1, 0, 0, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none, 0, 0, 0, '0, '0, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, 0, 1, 1, 0, 0, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int, 1, 0, 1, 0, 0, IP_INT};
 
     // TODO: move swh else?
     typedef struct {
@@ -265,8 +267,8 @@ package AbstractSim;
             endfunction;
 
 
-            function automatic void flush(input OpSlot op);
-                int inds[$] = info.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+            function automatic void flush(input InsId id);
+                int inds[$] = info.find_index with (item.state == SPECULATIVE && item.owner > id);
 
                 foreach (inds[i]) begin
                     int pDest = inds[i];
@@ -374,9 +376,9 @@ package AbstractSim;
         
  
  
-        function automatic void flush(input OpSlot op);
-            ints.flush(op);
-            floats.flush(op);
+        function automatic void flush(input InsId id);
+            ints.flush(id);
+            floats.flush(id);
         endfunction
         
         function automatic void flushAll();
@@ -515,10 +517,10 @@ package AbstractSim;
             loads.delete();
         endfunction
 
-        function automatic void flush(input OpSlot op);
-            while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
-            while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
-            while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
+        function automatic void flush(input InsId id);
+            while (transactions.size() != 0 && transactions[$].owner > id) void'(transactions.pop_back());
+            while (stores.size() != 0 && stores[$].owner > id) void'(stores.pop_back());
+            while (loads.size() != 0 && loads[$].owner > id) void'(loads.pop_back());
         endfunction
 
         function automatic InsId checkWriter(input InsId id);

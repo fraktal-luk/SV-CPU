@@ -122,13 +122,13 @@ module ReplayQueue(
 
     task automatic flush();
         foreach (content[i]) begin
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && content[i].id > branchEventInfo.op.id)) begin
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && content[i].id > branchEventInfo.id)) begin
                 if (content[i].used) putMilestone(content[i].id, InstructionMap::RqFlush);
                 content[i] = EMPTY_ENTRY;
             end
         end
         
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && selected.id > branchEventInfo.op.id)) begin
+        if (lateEventInfo.redirect || (branchEventInfo.redirect && selected.id > branchEventInfo.id)) begin
             selected = EMPTY_ENTRY;
         end
     endtask

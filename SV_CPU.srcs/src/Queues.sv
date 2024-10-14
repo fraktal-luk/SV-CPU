@@ -226,7 +226,7 @@ package Queues;
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
             InstructionInfo ii = imap.get(p.id);
             
-            entry.taken = brInfo.op.active;
+            entry.taken = brInfo.active;
             
             entry.condReady = 1;
             entry.trgReady = 1;
