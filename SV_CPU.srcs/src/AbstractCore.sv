@@ -120,16 +120,15 @@ module AbstractCore
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
 
 
-    function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && isStoreMemIns(decId(sqe.id)) && !sqe.cancel, sqe.adr, sqe.val};
-        return res;
-    endfunction
-
 
     always @(posedge clk) begin
         insMap.endCycle();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue, branchTargetQueue
+        
+
+        
+        
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
@@ -145,6 +144,14 @@ module AbstractCore
         handleCompletion(); // registerTracker
 
         updateBookkeeping();
+        
+        
+        
+                        insMap.commitCheck();
+
+        
+            insMap.insBase.setDbStr();
+            insMap.dbStr = insMap.insBase.dbStr;
     end
 
 
@@ -176,20 +183,24 @@ module AbstractCore
 
     ////////////////
 
+    function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
+        MemWriteInfo res = '{sqe.active && isStoreMemIns(decId(sqe.id)) && !sqe.cancel, sqe.adr, sqe.val};
+        return res;
+    endfunction
+
     task automatic putWrite();
         StoreQueueEntry sqe = drainHead;
         
         if (sqe.id != -1) begin
             memTracker.drain(sqe.id);
-            putMilestone(sqe.id, InstructionMap::WqExit);
+            putMilestoneC(sqe.id, InstructionMap::WqExit);
         end
         void'(csq.pop_front());
 
         assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
  
         if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq.push_back(//'{0, -1, 'x, 'x, 'x});
-                          EMPTY_SQE);
+            csq.push_back(EMPTY_SQE);
             csqEmpty <= 1;
         end
         else begin
@@ -263,7 +274,7 @@ module AbstractCore
                 insMap.alloc();
                 insMap.renamedM++;
                 
-            putMilestone(ops[i].id, InstructionMap::Rename);
+            putMilestoneM(ops[i].id, InstructionMap::Rename);
         end
     endtask
 
@@ -335,7 +346,7 @@ module AbstractCore
     task automatic markKilledRenameStage(ref OpSlotA stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
-            putMilestone(stage[i].id, InstructionMap::FlushOOO);
+            putMilestoneM(stage[i].id, InstructionMap::FlushOOO);
         end
     endtask
 
@@ -379,14 +390,15 @@ module AbstractCore
             saveCP(id); // Crucial state
         end
 
-        insMap.setResult(id, result);
-        insMap.setTarget(id, target);
-        insMap.setDeps(id, deps);
-        insMap.setPhysDest(id, physDest);
-        insMap.setArgValues(id, argVals);
-        
-        insMap.setInds(id, renameInds);
-        insMap.setSlot(id, currentSlot);
+        insMap.setRenamed(id,
+                            result,
+                            target,
+                            deps,
+                            physDest,
+                            argVals,
+                            renameInds,
+                            currentSlot
+                            );
 
             coreDB.lastRenamed = TMP_properOp(id);
 
@@ -476,7 +488,6 @@ module AbstractCore
             end
         end
         
-        insMap.commitCheck();
     endtask
 
 
@@ -561,7 +572,7 @@ module AbstractCore
         end
         
         // Need to modify to serve all types of commit            
-        putMilestone(id, retireType);
+        putMilestoneM(id, retireType);
         insMap.setRetired(id);
         
         // Elements related to crucial signals:
@@ -576,7 +587,7 @@ module AbstractCore
         Transaction tr = memTracker.findStore(id);
         StoreQueueEntry sqe = '{1, id, exception || refetch, tr.adrAny, tr.val};       
         csq.push_back(sqe); // Normal
-        putMilestone(id, InstructionMap::WqEnter); // Normal 
+        putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
 
@@ -626,9 +637,22 @@ module AbstractCore
     endfunction
  
 
+    function automatic void putMilestoneF(input InsId id, input InstructionMap::Milestone kind);
+        insMap.putMilestoneF(id, kind, cycleCtr);
+    endfunction
+
+    function automatic void putMilestoneM(input InsId id, input InstructionMap::Milestone kind);
+        insMap.putMilestoneM(id, kind, cycleCtr);
+    endfunction
+
+    function automatic void putMilestoneC(input InsId id, input InstructionMap::Milestone kind);
+        insMap.putMilestoneC(id, kind, cycleCtr);
+    endfunction
+
     function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestone(id, kind, cycleCtr);
     endfunction
+
 
     function automatic OpPacket tickP(input OpPacket op);        
         if (shouldFlushPoison(op.poison)) begin

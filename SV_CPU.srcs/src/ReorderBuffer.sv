@@ -125,7 +125,7 @@ module ReorderBuffer
             )
         begin
             if (rec.id != -1)
-                putMilestone(rec.id, InstructionMap::FlushCommit);
+                putMilestoneM(rec.id, InstructionMap::FlushCommit);
             return EMPTY_RECORD;
         end
         else
@@ -157,7 +157,7 @@ module ReorderBuffer
             || lastIsBreaking
             ) begin
             foreach (q[i])
-                if (q[i].id != -1) putMilestone(q[i].id, InstructionMap::FlushCommit);
+                if (q[i].id != -1) putMilestoneM(q[i].id, InstructionMap::FlushCommit);
             q = '{};
         end
         
@@ -177,7 +177,7 @@ module ReorderBuffer
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
             foreach (row[c])
-                putMilestone(row[c].id, InstructionMap::RobFlush);
+                putMilestoneM(row[c].id, InstructionMap::RobFlush);
         end
 
         endPointer = startPointer;
@@ -197,7 +197,7 @@ module ReorderBuffer
             for (int c = 0; c < WIDTH; c++) begin
                 if (row[c].id == causingId) endPointer = (p+1) % (2*DEPTH);
                 if (row[c].id > causingId) begin
-                    putMilestone(row[c].id, InstructionMap::RobFlush);
+                    putMilestoneM(row[c].id, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
                 end
             end
@@ -213,7 +213,7 @@ module ReorderBuffer
             for (int c = 0; c < WIDTH; c++)
                 if (array[r].records[c].id == p.id) begin
                     array[r].records[c].completed = 1;
-                    putMilestone(p.id, InstructionMap::RobComplete);
+                    putMilestoneM(p.id, InstructionMap::RobComplete);
                 end
     endtask
     
@@ -236,7 +236,7 @@ module ReorderBuffer
         Row row = array[startPointer % DEPTH];
         
         foreach (row.records[i])
-            if (row.records[i].id != -1) putMilestone(row.records[i].id, InstructionMap::RobExit);
+            if (row.records[i].id != -1) putMilestoneM(row.records[i].id, InstructionMap::RobExit);
 
         array[startPointer % DEPTH] = EMPTY_ROW;
         startPointer = (startPointer+1) % (2*DEPTH);
@@ -260,7 +260,7 @@ module ReorderBuffer
         endPointer = (endPointer+1) % (2*DEPTH);
         
         foreach (rec[i])
-            putMilestone(rec[i].id, InstructionMap::RobEnter);
+            putMilestoneM(rec[i].id, InstructionMap::RobEnter);
     endtask
     
     function automatic logic frontCompleted();

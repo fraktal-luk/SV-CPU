@@ -220,7 +220,7 @@ module MemSubpipe#(
             
         if (forwarded && isLoadMemIns(decId(id))) begin
               //  assert (writerInsideId == sqResp.id) else $error("SQ id not matchinf memTracker id");
-            putMilestone(writerAllId, InstructionMap::MemFwProduce);
+            putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
             putMilestone(id, InstructionMap::MemFwConsume);
         end
 

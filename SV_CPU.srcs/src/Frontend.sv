@@ -31,8 +31,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     task automatic markKilledFrontStage(ref FetchStage stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
-            putMilestone(stage[i].id, InstructionMap::FlushFront);
-            //insMap.setKilled(stage[i].id,  1);
+            putMilestoneF(stage[i].id, InstructionMap::FlushFront);
         end
     endtask
 
@@ -44,7 +43,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             Mword adr = baseAdr + 4*i;
             InsId index = fCtr + i;
             insMap.registerIndex(index);
-            putMilestone(index, InstructionMap::GenAddress);
+            putMilestoneF(index, InstructionMap::GenAddress);
         end
     endtask
 
@@ -119,8 +118,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         ipStageU = setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
 
         fetchStage0 <= ipStageU;
-        fetchStage0ua = setWords(fetchStage0, //AbstractCore.insIn);
-                                              AbstractCore.instructionCacheOut);
+        fetchStage0ua = setWords(fetchStage0, AbstractCore.instructionCacheOut);
         
         foreach (ipStageU[i]) if (ipStageU[i].active) begin
             insMap.add(ipStageU[i].id, ipStageU[i].adr, ipStageU[i].bits);

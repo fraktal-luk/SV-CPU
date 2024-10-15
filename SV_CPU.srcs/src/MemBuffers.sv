@@ -71,7 +71,7 @@ module StoreQueue
         foreach (content_N[i]) begin
             InsId thisId = content_N[i].id;        
             if (HELPER::isCommitted(content_N[i])) continue; 
-            if (thisId != -1) putMilestone(thisId, QUEUE_FLUSH);            
+            if (thisId != -1) putMilestoneM(thisId, QUEUE_FLUSH);            
             content_N[i] = EMPTY_QENTRY;
         end
         endPointer = startPointer;
@@ -86,7 +86,7 @@ module StoreQueue
         for (int i = 0; i < SIZE; i++) begin
             InsId thisId = content_N[p % SIZE].id;        
             if (thisId > causingId) begin
-                putMilestone(thisId, QUEUE_FLUSH);
+                putMilestoneM(thisId, QUEUE_FLUSH);
                 content_N[p % SIZE] = EMPTY_QENTRY;
             end
             else if (thisId == -1) break;
@@ -113,7 +113,7 @@ module StoreQueue
             outGroup[nOut].active <= 1;
             nOut++;
                 
-            putMilestone(thisId, QUEUE_EXIT);
+            putMilestoneM(thisId, QUEUE_EXIT);
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
                 HELPER::setCommitted(content_N[startPointer % SIZE]);
@@ -158,7 +158,7 @@ module StoreQueue
         foreach (inGroup[i]) begin
             if (HELPER::applies(decId(inGroup[i].id))) begin
                 content_N[endPointer % SIZE] = HELPER::newEntry(insMap, inGroup[i].id);                
-                putMilestone(inGroup[i].id, QUEUE_ENTER);
+                putMilestoneM(inGroup[i].id, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
         end
