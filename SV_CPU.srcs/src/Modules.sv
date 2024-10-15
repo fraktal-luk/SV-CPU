@@ -432,6 +432,9 @@ module CoreDB();
         OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
+        string csqStr, csqIdStr;
+
+
     string bqStr;
     always @(posedge AbstractCore.clk) begin
         automatic int ids[$];

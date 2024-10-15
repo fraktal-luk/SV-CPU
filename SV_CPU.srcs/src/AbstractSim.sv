@@ -88,8 +88,8 @@ package AbstractSim;
         InsId id;
         ControlOp cOp;
         logic redirect;
-        logic sigOk;
-        logic sigWrong;
+            logic sigOk;
+            logic sigWrong;
         Mword target;
     } EventInfo;
     

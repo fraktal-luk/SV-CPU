@@ -203,11 +203,10 @@ module IssueQueue
         int nInserted = 0;
 
         foreach (inGroup[i]) begin
-            OpSlot op = inGroup[i];
-            if (op.active && inMask[i]) begin
+            if (inGroup[i].active && inMask[i]) begin
                 int location = locs[nInserted];
-                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
-                putMilestone(op.id, InstructionMap::IqEnter);
+                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: inGroup[i].id};
+                putMilestone(inGroup[i].id, InstructionMap::IqEnter);
 
                 nInserted++;          
             end
