@@ -184,7 +184,8 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && isStoreMemIns(decId(sqe.id)) && !sqe.cancel, sqe.adr, sqe.val};
+        logic isSys = sqe.sys;
+        MemWriteInfo res = '{sqe.active && !isSys && !sqe.cancel, sqe.adr, sqe.val};
         return res;
     endfunction
 
@@ -213,7 +214,16 @@ module AbstractCore
     endtask
 
     task automatic performSysStore();
-        if (storeHead.active && isStoreSysIns(decId(storeHead.id)) && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
+           
+           if (!storeHead.active) return;
+         
+       begin  
+           logic isSys = //isStoreSysIns(decId(storeHead.id));
+                         storeHead.sys;
+           // assert (isSys === storeHead.sys) else $error("wrong ! %d ", storeHead.id);
+            
+            if (storeHead.active && isSys && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
+        end
     endtask
 
 
@@ -269,7 +279,7 @@ module AbstractCore
     
         foreach (ops[i]) begin
             if (ops[i].active !== 1) continue;
-            renameOp(ops[i].id, i);
+            renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
                 
                 insMap.alloc();
                 insMap.renamedM++;
@@ -363,9 +373,9 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot);
-        InstructionInfo ii = insMap.get(id);
-        AbstractInstruction ins = decId(id);
+    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits);
+        //InstructionInfo ii = insMap.get(id);
+        AbstractInstruction ins = decodeAbstract(bits);
         Mword result, target;
         InsDependencies deps;
         Mword argVals[3];
@@ -373,10 +383,10 @@ module AbstractCore
         
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
-        result = computeResult(renamedEmul.coreState, ii.adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
+        result = computeResult(renamedEmul.coreState, adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
         deps = registerTracker.getArgDeps(ins); // For insMap
                 
-        runInEmulator(renamedEmul, ii.adr, ii.bits);
+        runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
@@ -385,10 +395,12 @@ module AbstractCore
         
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
         
-        if (isBranchIns(decId(id))) begin
+        if (isBranchIns(ins)) begin
             addToBtq(id);
             saveCP(id); // Crucial state
         end
+
+        insMap.addM(id, adr, bits);
 
         insMap.setRenamed(id,
                             result,
@@ -585,7 +597,7 @@ module AbstractCore
     
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);
         Transaction tr = memTracker.findStore(id);
-        StoreQueueEntry sqe = '{1, id, exception || refetch, tr.adrAny, tr.val};       
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysIns(decId(id)), tr.adrAny, tr.val};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
