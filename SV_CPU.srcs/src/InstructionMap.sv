@@ -8,7 +8,6 @@ package Insmap;
     import AbstractSim::*;
     
 
-
     typedef struct {
         InsId id;
         Mword adr;
@@ -30,40 +29,37 @@ package Insmap;
         
     } InstructionInfo;
 
-
         typedef struct {
             int id;
             logic dummy;
         } MopRecord;
 
 
+    function automatic InstructionInfo initInsInfo(
+                                                    input InsId id,
+                                                    input Mword adr,
+                                                    input Word bits
+                                                    );
+        InstructionInfo res;
+        res.id = id;
+        res.adr = adr;
+        res.bits = bits;
 
-        function automatic InstructionInfo initInsInfo(
-                                                        input InsId id,
-                                                        input Mword adr,
-                                                        input Word bits
-                                                        );
-            InstructionInfo res;
-            res.id = id;
-            res.adr = adr;
-            res.bits = bits;
-    
-                res.dec = decodeAbstract(bits);
-    
-            res.physDest = -1;
-    
-            res.argError = 0;
+        res.dec = decodeAbstract(bits);
 
-            res.exception = 0;
-            res.refetch = 0;
-    
-            return res;
-        endfunction
+        res.physDest = -1;
 
+        res.argError = 0;
+
+        res.exception = 0;
+        res.refetch = 0;
+
+        return res;
+    endfunction
     
     
     class InstructionBase;
-            InstructionInfo infos[InsId];
+        InstructionInfo infos[InsId];
         InsId ids[$];
         
         InsId first = -1;
@@ -77,8 +73,6 @@ package Insmap;
         
         
         function automatic void addM(input InsId id, input InstructionInfo ii);
-        
-              //      $error("addM %d", id);
             ids.push_back(id);
             infos[id] = ii;
         endfunction
@@ -117,10 +111,9 @@ package Insmap;
         
         
         function automatic void checkOp(input InsId id);
-            
-            
            // $error("CheckOp: %d", id);
         endfunction 
+        
         
         function automatic logic hasOp(input InsId id);
             int found[$] = ids.find_first_index with (item == id);
@@ -152,8 +145,8 @@ package Insmap;
 
     class InstructionMap;
    
-            InstructionBase insBase = new();        
-            string dbStr;
+        InstructionBase insBase = new();        
+        string dbStr;
    
         typedef enum {
             ___,
@@ -227,8 +220,6 @@ package Insmap;
         InsId specList[$];
         InsId latestCommittedList[$];
         InsId doneList[$];
-
-        //InstructionInfo content[InsId];
         
         
         InsRecord records[int];
@@ -262,12 +253,11 @@ package Insmap;
             
             
             function automatic void alloc();
-                //mopRecords.push_back('{renamedM, 'x});
+
             endfunction
 
             function automatic void dealloc();
-                //while (mopRecords.size() > 0 && mopRecords[0].id <= renamedM)
-                //    void'(mopRecords.pop_front());
+
             endfunction
 
 
@@ -279,42 +269,34 @@ package Insmap;
 
         // ins info
         function automatic InstructionInfo get(input InsId id);
-            //assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
-            //return content[id];
             assert (insBase.infos.exists(id)) else $fatal(2, "wrong id %d", id);
             return insBase.infos[id];
         endfunction
     
         // ins info
         function automatic int size();
-            return //content.size();
-                    insBase.infos.size();
+            return insBase.infos.size();
         endfunction
         
         
         /////// insinfo
-        function automatic void add(input InsId id,
-                                    input Mword adr,
-                                    input Word bits
+        
+        // DEPREC
+        function automatic void add(input InsId id, input Mword adr, input Word bits
         );
-           // content[id] = initInsInfo(id, adr, bits);
-               // insBase.add(id, adr, bits);
-            
-             // specList.push_back(id);
+
         endfunction
 
+        // DEPREC
         function automatic void setEncoding(input InsId id, input Word bits);
-          //  content[id].bits = bits;
-          //  content[id].dec = decodeAbstract(bits);
-                
-               // insBase.setEncoding(id, bits, decodeAbstract(bits));
+
         endfunction
     
 
 
         function automatic void addM(input InsId id, input Mword adr, input Word bits);
             insBase.addM(id, initInsInfo(id, adr, bits));
-              specList.push_back(id);
+            specList.push_back(id);
         endfunction
 
        
@@ -327,73 +309,52 @@ package Insmap;
                                             input IndexSet renameInds,
                                             input int slot
                                             );
-//            content[id].target = target;
-//            content[id].result = result;
-//            content[id].deps = deps;
-//            content[id].physDest = physDest;
-//            content[id].argValues = argValues;
-//            content[id].inds = renameInds;
-//            content[id].slot = slot;
-            
             insBase.setRenamed(id, result, target, deps, physDest, argValues, renameInds, slot);
-            
-              //  assert (content[id] === insBase.infos[id]) else $fatal(2, "differs info:\n%p,\n%p", content[id], insBase.infos[id]);
         endfunction
 
 
         function automatic void setActualResult(input InsId id, input Mword res);
-           // content[id].actualResult = res;
-                insBase.infos[id].actualResult = res;
+            insBase.infos[id].actualResult = res;
         endfunction
 
         function automatic void setArgError(input InsId id);
-           // content[id].argError = 1;
-                insBase.infos[id].argError = 1;
+            insBase.infos[id].argError = 1;
         endfunction
         
         function automatic void setException(input InsId id);
-           // content[id].exception = 1;
-               insBase.infos[id].exception = 1;
+            insBase.infos[id].exception = 1;
         endfunction
         
         function automatic void setRefetch(input InsId id);
-           // content[id].refetch = 1;
-                insBase.infos[id].refetch = 1;
+            insBase.infos[id].refetch = 1;
         endfunction
         ////////////
 
 
 
         // milestones
+        
+        // DEPREC - may be reused in future
         function automatic void putMilestoneF(input InsId id, input Milestone kind, input int cycle);
+        endfunction
+        
+        // For Mops
+        function automatic void putMilestoneM(input InsId id, input Milestone kind, input int cycle);
+            if (id == -1) return;
+            records[id].tags.push_back('{kind, cycle});   
+        endfunction
+        
+        // For uops
+        function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
         endfunction
-
-        function automatic void putMilestoneM(input InsId id, input Milestone kind, input int cycle);
-            if (id == -1) return;
-                begin
-                    InsId found[$] = insBase.ids.find with (item == id);
-                    assert (found.size() == 1) else $error("not exist M: %d, %p", id, kind);
-                end
-            records[id].tags.push_back('{kind, cycle});   
-        endfunction
-
+        
+        // For committed
         function automatic void putMilestoneC(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
             records[id].tags.push_back('{kind, cycle});
         endfunction
-
-        function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
-            if (id == -1) return;
-                begin
-                    InsId found[$] = insBase.ids.find with (item == id);
-                    assert (found.size() == 1) else $error("not exist: %d, %p", id, kind);
-                end
-            records[id].tags.push_back('{kind, cycle});
-        endfunction
-
-
 
         // milestones (helper)
         function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
@@ -408,9 +369,8 @@ package Insmap;
 
         function automatic void commitCheck(); 
             confirmDone();
-            
-               insBase.removeUpToM(insBase.retiredPrev);
-               insBase.retiredPrev = insBase.retired;
+            insBase.removeUpToM(insBase.retiredPrev);
+            insBase.retiredPrev = insBase.retired;
         endfunction
 
         function automatic void confirmDone();
@@ -428,9 +388,6 @@ package Insmap;
 
                 while (indexList.size() > 0 && indexList[0] <= removed) begin
                     int tmpIndex = indexList.pop_front();
-                   // if (content.exists(tmpIndex)) content.delete(tmpIndex);
-                      //  insBase.remove(tmpIndex);
-                    
                     records.delete(tmpIndex);
                 end
             end
@@ -459,12 +416,11 @@ package Insmap;
             lastRetired = id;
             lastRetiredStr = disasm(get(id).bits);
             
-                insBase.retireUpToM(id);
+            insBase.retireUpToM(id);
         endfunction
 
         // all
-        function automatic void endCycle();        
-
+        function automatic void endCycle();
             setRecordArr(lastRecordArr, lastRetired);
             setRecordArr(lastKilledRecordArr, lastKilled);
         endfunction
@@ -473,8 +429,8 @@ package Insmap;
 
         // Different area: checking
 
-        // 3 main categories:
-        // a. Killed in Front
+        // 3(*) main categories:
+        // DEPREC: a. Killed in Front
         // b. Killed in OOO
         // c. Retired
         typedef enum { EC_KilledFront, EC_KilledOOO, EC_KilledCommit, EC_Retired } ExecClass;
@@ -484,22 +440,16 @@ package Insmap;
             MilestoneTag frontKill[$] = tags.find with (item.kind == FlushFront);
             MilestoneTag commitKill[$] = tags.find with (item.kind == FlushCommit);
 
-            assert (tags[0].kind == GenAddress) else $fatal(2, "Op not starting with GenAdress");
-
             if (frontKill.size() > 0) return EC_KilledFront;
             if (commitKill.size() > 0) return EC_KilledCommit;
             if (retirement.size() > 0) return EC_Retired;
             return EC_KilledOOO;            
         endfunction
-
+        
+        // DEPREC
         function automatic logic checkKilledFront(input InsId id, input MilestoneTag tags[$]);
             MilestoneTag tag = tags.pop_front();
-            assert (tag.kind == GenAddress) else $error("ddkld");
-            tag = tags.pop_front();
-            assert (tag.kind == FlushFront) else $error(" ttt:   %p", tag);
-
-            assert (tags.size() == 0) else $error("   why not empty: %p", tags);
-
+            $fatal(2, "shouldnt enter, %d", id);
             return 1;
         endfunction
 
@@ -507,8 +457,6 @@ package Insmap;
             AbstractInstruction dec = get(id).dec;
 
             MilestoneTag tag = tags.pop_front();
-            assert (tag.kind == GenAddress) else $error("  k////");
-            tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
 
             // Has it entered the ROB or killed right after Rename?
@@ -535,23 +483,7 @@ package Insmap;
             AbstractInstruction dec = get(id).dec;
       
             MilestoneTag tag = tags.pop_front();
-            assert (tag.kind == GenAddress) else $error("  k////");
-            tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
-            
-//            // Has it entered the ROB or killed right after Rename?
-//            if (!has(tags, RobEnter)) begin
-//                tag = tags.pop_front();
-//                assert (tag.kind == FlushOOO) else begin
-//                    $error("ROB not entered but not FlushOOO!");
-//                    return 0;
-//                end
-                
-//                assert (tags.size() == 0) else $error(" strange %d: %p", id, tags);
-//                return 1;
-//            end
-                        
-            //assert (checkKilledIq(tags)) else $error("wrong k iq");
     
             if (isStoreIns(dec)) assert (checkKilledStore(tags)) else $error("wrong kStore op");
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
@@ -564,8 +496,6 @@ package Insmap;
             AbstractInstruction dec = get(id).dec;
         
             MilestoneTag tag = tags.pop_front();
-            assert (tag.kind == GenAddress) else $error("  ////");
-            tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename?:   %p", tag);
                 
             assert (!has(tags, FlushFront)) else $error("eeee");
@@ -677,28 +607,11 @@ package Insmap;
             MilestoneTag found[$] = q.find_first with (item.kind == m);
             return found.size() > 0;
         endfunction
-    
-    
-            int doneAll = 0;
-            int doneNotBase = 0;
-    
+
+
         function automatic logic checkOk(input InsId id);
             MilestoneTag tags[$] = records[id].tags;
             ExecClass eclass = determineClass(tags);
-                
-               
-               doneAll++;
-               if (!insBase.hasOp(id)) begin
-                  doneNotBase++;
-                  
-                  //$display("Done %d/%d", doneNotBase, doneAll);
-               end
-               else begin
-                   //InstructionInfo iiA = content[id];
-                  // InstructionInfo iiB = insBase.infos[id];
-                   
-                  // assert (iiA === iiB) else $fatal(2, "unequal infos\n%p\n%p", iiA, iiB);
-               end
             
             if (eclass == EC_KilledFront) return checkKilledFront(id, tags);
             else if (eclass == EC_KilledCommit) return checkKilledCommit(id, tags);
@@ -706,7 +619,6 @@ package Insmap;
             else return checkRetired(id, tags);            
         endfunction
         
-
 
             function automatic void assertReissue();
                 assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
