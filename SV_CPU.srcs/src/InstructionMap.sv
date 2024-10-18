@@ -228,7 +228,7 @@ package Insmap;
         InsId latestCommittedList[$];
         InsId doneList[$];
 
-        InstructionInfo content[InsId];
+        //InstructionInfo content[InsId];
         
         
         InsRecord records[int];
@@ -279,10 +279,10 @@ package Insmap;
 
         // ins info
         function automatic InstructionInfo get(input InsId id);
-            assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
-            return content[id];
-            //assert (insBase.infos.exists(id)) else $fatal(2, "wrong id %d", id);
-            //return insBase.infos[id];
+            //assert (content.exists(id)) else $fatal(2, "wrong id %d", id);
+            //return content[id];
+            assert (insBase.infos.exists(id)) else $fatal(2, "wrong id %d", id);
+            return insBase.infos[id];
         endfunction
     
         // ins info
@@ -297,15 +297,15 @@ package Insmap;
                                     input Mword adr,
                                     input Word bits
         );
-            content[id] = initInsInfo(id, adr, bits);
+           // content[id] = initInsInfo(id, adr, bits);
                // insBase.add(id, adr, bits);
             
-               specList.push_back(id);
+             // specList.push_back(id);
         endfunction
 
         function automatic void setEncoding(input InsId id, input Word bits);
-            content[id].bits = bits;
-            content[id].dec = decodeAbstract(bits);
+          //  content[id].bits = bits;
+          //  content[id].dec = decodeAbstract(bits);
                 
                // insBase.setEncoding(id, bits, decodeAbstract(bits));
         endfunction
@@ -314,7 +314,7 @@ package Insmap;
 
         function automatic void addM(input InsId id, input Mword adr, input Word bits);
             insBase.addM(id, initInsInfo(id, adr, bits));
-
+              specList.push_back(id);
         endfunction
 
        
@@ -327,13 +327,13 @@ package Insmap;
                                             input IndexSet renameInds,
                                             input int slot
                                             );
-            content[id].target = target;
-            content[id].result = result;
-            content[id].deps = deps;
-            content[id].physDest = physDest;
-            content[id].argValues = argValues;
-            content[id].inds = renameInds;
-            content[id].slot = slot;
+//            content[id].target = target;
+//            content[id].result = result;
+//            content[id].deps = deps;
+//            content[id].physDest = physDest;
+//            content[id].argValues = argValues;
+//            content[id].inds = renameInds;
+//            content[id].slot = slot;
             
             insBase.setRenamed(id, result, target, deps, physDest, argValues, renameInds, slot);
             
@@ -342,22 +342,22 @@ package Insmap;
 
 
         function automatic void setActualResult(input InsId id, input Mword res);
-            content[id].actualResult = res;
+           // content[id].actualResult = res;
                 insBase.infos[id].actualResult = res;
         endfunction
 
         function automatic void setArgError(input InsId id);
-            content[id].argError = 1;
+           // content[id].argError = 1;
                 insBase.infos[id].argError = 1;
         endfunction
         
         function automatic void setException(input InsId id);
-            content[id].exception = 1;
+           // content[id].exception = 1;
                insBase.infos[id].exception = 1;
         endfunction
         
         function automatic void setRefetch(input InsId id);
-            content[id].refetch = 1;
+           // content[id].refetch = 1;
                 insBase.infos[id].refetch = 1;
         endfunction
         ////////////
@@ -428,7 +428,7 @@ package Insmap;
 
                 while (indexList.size() > 0 && indexList[0] <= removed) begin
                     int tmpIndex = indexList.pop_front();
-                    if (content.exists(tmpIndex)) content.delete(tmpIndex);
+                   // if (content.exists(tmpIndex)) content.delete(tmpIndex);
                       //  insBase.remove(tmpIndex);
                     
                     records.delete(tmpIndex);
@@ -592,6 +592,7 @@ package Insmap;
         endfunction
     
             function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
+                  //  $display("Store reissued %d, %p", id, tags[$]);
                 if (reissuedId != -1) return;
                 
                 begin
@@ -693,10 +694,10 @@ package Insmap;
                   //$display("Done %d/%d", doneNotBase, doneAll);
                end
                else begin
-                   InstructionInfo iiA = content[id];
-                   InstructionInfo iiB = insBase.infos[id];
+                   //InstructionInfo iiA = content[id];
+                  // InstructionInfo iiB = insBase.infos[id];
                    
-                   assert (iiA === iiB) else $fatal(2, "unequal infos\n%p\n%p", iiA, iiB);
+                  // assert (iiA === iiB) else $fatal(2, "unequal infos\n%p\n%p", iiA, iiB);
                end
             
             if (eclass == EC_KilledFront) return checkKilledFront(id, tags);

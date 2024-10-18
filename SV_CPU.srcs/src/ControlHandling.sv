@@ -96,8 +96,8 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input AbstractInstruction abs, input logic refetch, input logic exception);
-        EventInfo res = '{1, id, CO_none, /*0, 0,*/ 1, 0, 0, 'x};
+    function automatic EventInfo eventFromOp(input InsId id, input AbstractInstruction abs, input Mword adr, input logic refetch, input logic exception);
+        EventInfo res = '{1, id, CO_none, /*0, 0,*/ 1, 0, 0, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;

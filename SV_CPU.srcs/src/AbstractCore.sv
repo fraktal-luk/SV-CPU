@@ -445,7 +445,8 @@ module AbstractCore
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            Mword waitingAdr = getAdr(lateEventInfoWaiting.id);
+            Mword waitingAdr = //getAdr(lateEventInfoWaiting.id);
+                                lateEventInfoWaiting.adr;
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, waitingAdr, sr2, sr3);
 
             modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
@@ -495,7 +496,7 @@ module AbstractCore
                 insMap.committedM++;
             
             if (breaksCommitId(theId)) begin
-                lateEventInfoWaiting <= eventFromOp(theId, decId(theId), refetch, exception);
+                lateEventInfoWaiting <= eventFromOp(theId, decId(theId), getAdr(theId), refetch, exception);
                 cancelRest = 1;
             end
         end
