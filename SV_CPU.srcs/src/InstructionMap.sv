@@ -216,7 +216,6 @@ package Insmap;
         endclass
     
         InsId indexList[$];
-
         InsId specList[$];
         InsId latestCommittedList[$];
         InsId doneList[$];
@@ -263,8 +262,8 @@ package Insmap;
 
         // insinfo
         function automatic void registerIndex(input InsId id);
-            indexList.push_back(id);
-            records[id] = new();
+//            indexList.push_back(id);
+//            records[id] = new();
         endfunction
 
         // ins info
@@ -296,6 +295,10 @@ package Insmap;
 
         function automatic void addM(input InsId id, input Mword adr, input Word bits);
             insBase.addM(id, initInsInfo(id, adr, bits));
+            
+                indexList.push_back(id);
+                records[id] = new();
+            
             specList.push_back(id);
         endfunction
 
@@ -353,7 +356,7 @@ package Insmap;
         // For committed
         function automatic void putMilestoneC(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
-            records[id].tags.push_back('{kind, cycle});
+            //records[id].tags.push_back('{kind, cycle});
         endfunction
 
         // milestones (helper)
@@ -369,8 +372,6 @@ package Insmap;
 
         function automatic void commitCheck(); 
             confirmDone();
-            insBase.removeUpToM(insBase.retiredPrev);
-            insBase.retiredPrev = insBase.retired;
         endfunction
 
         function automatic void confirmDone();
@@ -386,10 +387,10 @@ package Insmap;
             if (doneList.size() > 100) begin
                 while (doneList.size() > 100) removed = doneList.pop_front();
 
-                while (indexList.size() > 0 && indexList[0] <= removed) begin
-                    int tmpIndex = indexList.pop_front();
-                    records.delete(tmpIndex);
-                end
+//                while (indexList.size() > 0 && indexList[0] <= removed) begin
+//                    int tmpIndex = indexList.pop_front();
+//                    records.delete(tmpIndex);
+//                end
             end
 
             while (specList.size() > 0 && specList[0] <= lastRetired) begin
@@ -397,6 +398,16 @@ package Insmap;
                 doneList.push_back(specHead);
                 latestCommittedList.push_back(specHead);
             end
+
+
+
+                while (indexList.size() > 0 && indexList[0] <= insBase.retiredPrev) begin
+                    int tmpIndex = indexList.pop_front();
+                    records.delete(tmpIndex);      
+                end
+
+            insBase.removeUpToM(insBase.retiredPrev);
+            insBase.retiredPrev = insBase.retired;
 
             specListSize = specList.size();
             doneListSize = doneList.size();
@@ -419,10 +430,17 @@ package Insmap;
             insBase.retireUpToM(id);
         endfunction
 
+
+            int sizeA = 0;
+            int sizeB = 0;
+
         // all
         function automatic void endCycle();
-            setRecordArr(lastRecordArr, lastRetired);
-            setRecordArr(lastKilledRecordArr, lastKilled);
+                sizeA = specList.size();
+                sizeB = insBase.ids.size();
+        
+            //setRecordArr(lastRecordArr, lastRetired);
+            //setRecordArr(lastKilledRecordArr, lastKilled);
         endfunction
 
         // CHECKS
