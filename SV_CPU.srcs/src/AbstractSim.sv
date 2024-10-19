@@ -47,11 +47,12 @@ package AbstractSim;
     typedef struct {
         logic active;
         InsId id;
+            InsId mid;
         Mword adr;
         Word bits;
     } OpSlot;
 
-    localparam OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
+    localparam OpSlot EMPTY_SLOT = '{'0, -1, -1, 'x, 'x};
     
     typedef OpSlot OpSlotA[RENAME_WIDTH];
     

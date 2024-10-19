@@ -278,7 +278,14 @@ module AbstractCore
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
     
         foreach (ops[i]) begin
+            InsId newMid = -1; 
+            
             if (ops[i].active !== 1) continue;
+            
+            insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
+
+            newMid = insMap.i2m(ops[i].id);
+
             renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
                 
                 insMap.alloc();
@@ -290,9 +297,17 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
+        OpSlotA st0 = theFrontend.stageRename0;
+    
         renameGroup(theFrontend.stageRename0);
       
-        stageRename1 <= theFrontend.stageRename0;
+        foreach (st0[i]) begin
+            if (!theFrontend.stageRename0[i].active) continue;
+            st0[i].mid = insMap.i2m(st0[i].id);
+        end
+      
+        stageRename1 <= //theFrontend.stageRename0;
+                        st0;
     endtask
 
     task automatic redirectRest();
@@ -374,7 +389,6 @@ module AbstractCore
 
 
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits);
-        //InstructionInfo ii = insMap.get(id);
         AbstractInstruction ins = decodeAbstract(bits);
         Mword result, target;
         InsDependencies deps;
@@ -400,7 +414,7 @@ module AbstractCore
             saveCP(id); // Crucial state
         end
 
-        insMap.addM(id, adr, bits);
+//        insMap.addM(id, adr, bits);
 
         insMap.setRenamed(id,
                             result,
@@ -537,7 +551,7 @@ module AbstractCore
 
     function automatic OpSlot TMP_properOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        OpSlot op = '{1, insInfo.id, insInfo.adr, insInfo.bits};
+        OpSlot op = '{1, insInfo.id, insMap.i2m(insInfo.id), insInfo.adr, insInfo.bits};
         return op;
     endfunction
 

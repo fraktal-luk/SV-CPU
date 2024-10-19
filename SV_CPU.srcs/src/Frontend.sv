@@ -93,7 +93,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         else $fatal(2, "Should never get here");
 
         if (ipStage[0].id != -1) markKilledFrontStage(ipStage);
-        ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+        ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT};
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;
 
@@ -109,7 +109,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         FetchStage fetchStage0ua, ipStageU;
         if (AbstractCore.fetchAllow) begin
             Mword target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
-            ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+            ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT};
             fetchCtr <= fetchCtr + FETCH_WIDTH;
             
             registerNewTarget(fetchCtr + FETCH_WIDTH, target);

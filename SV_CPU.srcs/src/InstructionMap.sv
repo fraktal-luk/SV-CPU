@@ -58,22 +58,47 @@ package Insmap;
     endfunction
     
     
+    
+        typedef struct {
+            InsId mid;
+            InsId iid;
+            int nUops;
+            InsId firstUop;
+        } MopDescriptor;
+    
+    
     class InstructionBase;
         InstructionInfo infos[InsId];
         InsId ids[$];
+        InsId mids[$];
+        InsId uids[$];
         
-        InsId first = -1;
-        InsId last = -1;
-        int size = 0;
+        MopDescriptor mopDescriptors[$];
         
+        
+        InsId lastM = -1;
+        InsId lastU = -1;
+                
         InsId retired = -1;
         InsId retiredPrev = -1;
-        
+
+        InsId retiredM = -1;
+        InsId retiredPrevM = -1;
+       
         string dbStr;
-        
-        
+
+
         function automatic void addM(input InsId id, input InstructionInfo ii);
+                lastM++;
+                lastU++;
+        
+            mids.push_back(lastM);
+            uids.push_back(lastU);
+        
             ids.push_back(id);
+            
+                mopDescriptors.push_back('{lastM, id, 1, lastU});
+            
             infos[id] = ii;
         endfunction
 
@@ -96,36 +121,58 @@ package Insmap;
         endfunction
 
 
+            function automatic InsId m2i(input InsId mid);
+                int found[$] = mids.find_first_index with (item == mid);
+                assert (found.size() > 0) else $fatal(2, "unknown mid");
+                return ids[found[0]];
+            endfunction
+    
+            function automatic InsId i2m(input InsId id);
+                int found[$] = ids.find_first_index with (item == id);
+                assert (found.size() > 0) else $fatal(2, "unknown id");
+                return mids[found[0]];
+            endfunction
+
+
+
         function automatic void retireUpToM(input InsId id);
             retired = id;
+                retiredM = i2m(id);
         endfunction
 
 
-        function automatic void removeUpToM(input InsId id);
+        function automatic IdQueue removeUpToM(input InsId id);
+            IdQueue res;
+            
             while (ids.size() > 0 && ids[0] <= id) begin
                 InsId frontId = ids[0];
-                checkOp(ids.pop_front());
-                infos.delete(frontId);
+                void'(ids.pop_front());
+                void'(mids.pop_front());
+                void'(uids.pop_front());
+                void'(mopDescriptors.pop_front());
+                res.push_back(frontId);
             end
+            
+            return res;
         endfunction
         
         
         function automatic void checkOp(input InsId id);
-           // $error("CheckOp: %d", id);
+
         endfunction 
         
         
-        function automatic logic hasOp(input InsId id);
-            int found[$] = ids.find_first_index with (item == id);
-            return found.size() > 0;
-        endfunction
+//        function automatic logic hasOp(input InsId id);
+//            int found[$] = ids.find_first_index with (item == id);
+//            return found.size() > 0;
+//        endfunction
 
             function automatic string TMP_getStr();
                 string res;
-                first = -1;
-                last = -1;
+                InsId first = -1;
+                InsId last = -1;
                 
-                size = ids.size();
+                int size = ids.size();
                 
                 if (ids.size() > 0) begin
                     first = ids[0];
@@ -215,32 +262,15 @@ package Insmap;
             MilestoneTag tags[$];
         endclass
     
-        InsId indexList[$];
-        InsId specList[$];
-        InsId latestCommittedList[$];
-        InsId doneList[$];
-        
-        
         InsRecord records[int];
-        
-        int specListSize;
-        int doneListSize;
-        
-        string specListStr;
-        string latestCommittedListStr;
-        string doneListStr;
 
         InsId lastRetired = -1;
-        InsId lastKilled = -1;
-        InsId lastRemoved = -1;
 
         string lastRetiredStr;
-        string lastKilledStr;
 
         localparam int RECORD_ARRAY_SIZE = 24;
     
-        MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
-        MilestoneTag lastKilledRecordArr[RECORD_ARRAY_SIZE];
+            MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
 
             InsId reissuedId = -1;    
     
@@ -262,8 +292,7 @@ package Insmap;
 
         // insinfo
         function automatic void registerIndex(input InsId id);
-//            indexList.push_back(id);
-//            records[id] = new();
+
         endfunction
 
         // ins info
@@ -277,7 +306,16 @@ package Insmap;
             return insBase.infos.size();
         endfunction
         
-        
+
+            function automatic InsId m2i(input InsId mid);
+                return insBase.m2i(mid);
+            endfunction
+    
+            function automatic InsId i2m(input InsId id);
+                return insBase.i2m(id);
+            endfunction
+
+
         /////// insinfo
         
         // DEPREC
@@ -292,14 +330,9 @@ package Insmap;
         endfunction
     
 
-
         function automatic void addM(input InsId id, input Mword adr, input Word bits);
             insBase.addM(id, initInsInfo(id, adr, bits));
-            
-                indexList.push_back(id);
-                records[id] = new();
-            
-            specList.push_back(id);
+            records[id] = new();
         endfunction
 
        
@@ -356,67 +389,33 @@ package Insmap;
         // For committed
         function automatic void putMilestoneC(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
-            //records[id].tags.push_back('{kind, cycle});
         endfunction
 
         // milestones (helper)
-        function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
-            MilestoneTag def = '{___, -1};
-            InsRecord empty = new();
-            InsRecord rec = id == -1 ? empty : records[id];
-            arr = '{default: def};
-            
-            foreach(rec.tags[i]) arr[i] = rec.tags[i];
-        endfunction
-
-
-        function automatic void commitCheck(); 
-            confirmDone();
-        endfunction
-
-        function automatic void confirmDone();
-            logic SHOW_STRINGS = 0;
-        
-            int removed = -1;
-        
-            foreach (latestCommittedList[i])
-                void'(checkOk(latestCommittedList[i]));
-
-            latestCommittedList = '{};
-
-            if (doneList.size() > 100) begin
-                while (doneList.size() > 100) removed = doneList.pop_front();
-
-//                while (indexList.size() > 0 && indexList[0] <= removed) begin
-//                    int tmpIndex = indexList.pop_front();
-//                    records.delete(tmpIndex);
-//                end
-            end
-
-            while (specList.size() > 0 && specList[0] <= lastRetired) begin
-                InsId specHead = specList.pop_front();
-                doneList.push_back(specHead);
-                latestCommittedList.push_back(specHead);
-            end
+            function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
+                MilestoneTag def = '{___, -1};
+                InsRecord empty = new();
+                InsRecord rec = id == -1 ? empty : records[id];
+                arr = '{default: def};
+                
+                foreach(rec.tags[i]) arr[i] = rec.tags[i];
+            endfunction
 
 
 
-                while (indexList.size() > 0 && indexList[0] <= insBase.retiredPrev) begin
-                    int tmpIndex = indexList.pop_front();
-                    records.delete(tmpIndex);      
-                end
+        function automatic void commitCheck();
+            IdQueue removedList;
 
-            insBase.removeUpToM(insBase.retiredPrev);
+            removedList = insBase.removeUpToM(insBase.retiredPrev);
             insBase.retiredPrev = insBase.retired;
+            insBase.retiredPrevM = insBase.retiredM;
 
-            specListSize = specList.size();
-            doneListSize = doneList.size();
-
-            if (SHOW_STRINGS) begin
-                $swrite(specListStr, "%p", specList);
-                $swrite(latestCommittedListStr, "%p", latestCommittedList);
-                $swrite(doneListStr, "%p", doneList);
+            foreach (removedList[i]) begin
+                void'(checkOk(removedList[i]));
+                records.delete(removedList[i]);
+                insBase.infos.delete(removedList[i]);
             end
+
         endfunction 
 
 
@@ -431,16 +430,9 @@ package Insmap;
         endfunction
 
 
-            int sizeA = 0;
-            int sizeB = 0;
-
         // all
         function automatic void endCycle();
-                sizeA = specList.size();
-                sizeB = insBase.ids.size();
-        
-            //setRecordArr(lastRecordArr, lastRetired);
-            //setRecordArr(lastKilledRecordArr, lastKilled);
+
         endfunction
 
         // CHECKS

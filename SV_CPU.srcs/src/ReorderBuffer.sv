@@ -64,9 +64,8 @@ module ReorderBuffer
     Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
-    InsId lastIn = -1, lastOut = -1;
+    InsId lastOut = -1;
     logic lastIsBreaking = 0;
-    
     logic commitStalled = 0;
     
 
@@ -95,7 +94,7 @@ module ReorderBuffer
         outRow <= outRowVar;
 
         lastOut <= getLastOut(lastOut, outRowVar.records);
-        lastIsBreaking <= isLastBreaking(lastOut, outRowVar.records);
+        lastIsBreaking <= isLastBreaking(outRowVar.records);
 
         insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
 
@@ -285,7 +284,7 @@ module ReorderBuffer
         return tmp;
     endfunction
 
-    function automatic logic isLastBreaking(input InsId prev, input OpRecordA recs);
+    function automatic logic isLastBreaking(input OpRecordA recs);
         logic brk = 0;
         
         foreach (recs[i])
