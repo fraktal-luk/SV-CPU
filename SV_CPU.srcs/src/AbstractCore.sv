@@ -288,9 +288,6 @@ module AbstractCore
 
             renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
                 
-                insMap.alloc();
-                insMap.renamedM++;
-                
             putMilestoneM(ops[i].id, InstructionMap::Rename);
         end
     endtask
@@ -298,16 +295,34 @@ module AbstractCore
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
         OpSlotA st0 = theFrontend.stageRename0;
+        
+        OpSlotA ops = st0;
+        begin
+            //renameGroup(ops);
+            if (anyActive(ops))
+                renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
+        
+            foreach (ops[i]) begin
+                InsId newMid = -1; 
+                
+                if (ops[i].active !== 1) continue;
+                
+                insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
     
-        renameGroup(theFrontend.stageRename0);
-      
+                newMid = insMap.i2m(ops[i].id);
+    
+                renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
+                    
+                putMilestoneM(ops[i].id, InstructionMap::Rename);
+            end
+        end
+
         foreach (st0[i]) begin
             if (!theFrontend.stageRename0[i].active) continue;
             st0[i].mid = insMap.i2m(st0[i].id);
         end
-      
-        stageRename1 <= //theFrontend.stageRename0;
-                        st0;
+     
+        stageRename1 <= st0;
     endtask
 
     task automatic redirectRest();
