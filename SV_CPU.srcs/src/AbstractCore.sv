@@ -273,58 +273,50 @@ module AbstractCore
     endfunction
 
 
-    task automatic renameGroup(input OpSlotA ops);
+//    task automatic renameGroup(input OpSlotA ops);
+//        if (anyActive(ops))
+//            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
+    
+//        foreach (ops[i]) begin
+//            InsId newMid = -1; 
+            
+//            if (ops[i].active !== 1) continue;
+            
+//            insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
+
+//            newMid = insMap.i2m(ops[i].id);
+
+//            renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
+                
+//            putMilestoneM(ops[i].id, InstructionMap::Rename);
+//        end
+//    endtask
+
+    // Frontend, rename and everything before getting to OOO queues
+    task automatic runInOrderPartRe();
+        OpSlotA ops = theFrontend.stageRename0;
+        
         if (anyActive(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
-    
+        
         foreach (ops[i]) begin
-            InsId newMid = -1; 
             
             if (ops[i].active !== 1) continue;
             
+            ops[i].id = insMap.insBase.lastM + 1;
+            
             insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
 
-            newMid = insMap.i2m(ops[i].id);
 
             renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
                 
             putMilestoneM(ops[i].id, InstructionMap::Rename);
         end
-    endtask
 
-    // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPartRe();
-        OpSlotA st0 = theFrontend.stageRename0;
-        
-        OpSlotA ops = st0;
-        begin
-            //renameGroup(ops);
-            if (anyActive(ops))
-                renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
-        
-            foreach (ops[i]) begin
-                InsId newMid = -1; 
-                InsId newMid_N = insMap.insBase.lastM + 1; 
-                
-                if (ops[i].active !== 1) continue;
-                
-                    ops[i].id = newMid_N;
-                
-                insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
-    
-                newMid = insMap.i2m(ops[i].id);
-                    assert (newMid_N == newMid) else $error("nt.");
-    
-                renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
-                    
-                putMilestoneM(ops[i].id, InstructionMap::Rename);
-            end
-        end
-
-        foreach (ops[i]) begin
-            if (!theFrontend.stageRename0[i].active) continue;
-            ops[i].mid = insMap.i2m(ops[i].id);
-        end
+//        foreach (ops[i]) begin
+//            if (!theFrontend.stageRename0[i].active) continue;
+//            ops[i].mid = insMap.i2m(ops[i].id);
+//        end
      
         stageRename1 <= ops;
     endtask
@@ -570,7 +562,8 @@ module AbstractCore
 
     function automatic OpSlot TMP_properOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        OpSlot op = '{1, insInfo.id, insMap.i2m(insInfo.id), insInfo.adr, insInfo.bits};
+        OpSlot op = '{1, insInfo.id, -1,//insMap.i2m(insInfo.id), 
+                                        insInfo.adr, insInfo.bits};
         return op;
     endfunction
 

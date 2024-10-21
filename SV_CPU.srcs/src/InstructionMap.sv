@@ -29,10 +29,6 @@ package Insmap;
         
     } InstructionInfo;
 
-        typedef struct {
-            int id;
-            logic dummy;
-        } MopRecord;
 
 
     function automatic InstructionInfo initInsInfo(
@@ -61,7 +57,7 @@ package Insmap;
     
         typedef struct {
             InsId mid;
-            InsId iid;
+            InsId fid; // Fetch id
             int nUops;
             InsId firstUop;
         } MopDescriptor;
@@ -69,12 +65,10 @@ package Insmap;
     
     class InstructionBase;
         InstructionInfo infos[InsId];
-        InsId ids[$];
         InsId mids[$];
         InsId uids[$];
         
         MopDescriptor mopDescriptors[$];
-        
         
         InsId lastM = -1;
         InsId lastU = -1;
@@ -89,15 +83,13 @@ package Insmap;
 
 
         function automatic void addM(input InsId id, input InstructionInfo ii);
-                lastM++;
-                lastU++;
+            lastM++;
+            lastU++;
         
             mids.push_back(lastM);
             uids.push_back(lastU);
-        
-            ids.push_back(id);
-            
-                mopDescriptors.push_back('{lastM, id, 1, lastU});
+                    
+            mopDescriptors.push_back('{lastM, -1, 1, lastU});
             
             infos[id] = ii;
         endfunction
@@ -121,32 +113,32 @@ package Insmap;
         endfunction
 
 
-            function automatic InsId m2i(input InsId mid);
-                int found[$] = mids.find_first_index with (item == mid);
-                assert (found.size() > 0) else $fatal(2, "unknown mid");
-                return ids[found[0]];
-            endfunction
+//            function automatic InsId m2i(input InsId mid);
+//                int found[$] = mids.find_first_index with (item == mid);
+//                assert (found.size() > 0) else $fatal(2, "unknown mid");
+//                return ids[found[0]];
+//            endfunction
     
-            function automatic InsId i2m(input InsId id);
-                int found[$] = ids.find_first_index with (item == id);
-                assert (found.size() > 0) else $fatal(2, "unknown id");
-                return mids[found[0]];
-            endfunction
+//            function automatic InsId i2m(input InsId id);
+//                int found[$] = ids.find_first_index with (item == id);
+//                assert (found.size() > 0) else $fatal(2, "unknown id");
+//                return mids[found[0]];
+//            endfunction
 
 
 
         function automatic void retireUpToM(input InsId id);
             retired = id;
-                retiredM = i2m(id);
+                retiredM = id;//i2m(id);
         endfunction
 
 
         function automatic IdQueue removeUpToM(input InsId id);
             IdQueue res;
             
-            while (ids.size() > 0 && ids[0] <= id) begin
-                InsId frontId = ids[0];
-                void'(ids.pop_front());
+            while (mids.size() > 0 && mids[0] <= id) begin
+                InsId frontId = mids[0];
+                //void'(ids.pop_front());
                 void'(mids.pop_front());
                 void'(uids.pop_front());
                 void'(mopDescriptors.pop_front());
@@ -161,25 +153,21 @@ package Insmap;
 
         endfunction 
         
-        
-//        function automatic logic hasOp(input InsId id);
-//            int found[$] = ids.find_first_index with (item == id);
-//            return found.size() > 0;
-//        endfunction
 
             function automatic string TMP_getStr();
                 string res;
                 InsId first = -1;
                 InsId last = -1;
                 
-                int size = ids.size();
+                int size = //ids.size();
+                            mids.size();
                 
-                if (ids.size() > 0) begin
-                    first = ids[0];
-                    last = ids[$];
+                if (mids.size() > 0) begin
+                    first = mids[0];
+                    last = mids[$];
                 end
                 
-                $swrite(res, "[%d]: [%d, ... %d]", ids.size(), first, last);
+                $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
                 
                 return res;
             endfunction
@@ -198,22 +186,39 @@ package Insmap;
         typedef enum {
             ___,
         
-            GenAddress,
-            FlushFront,
-                PutFQ,
             
+            // Front
+                GenAddress,
+                FlushFront,
+//                PutFQ,
+            
+            
+            // Mops
             Rename,
             RobEnter, RobComplete, RobFlush, RobExit,
             BqEnter, BqFlush, BqExit,
             SqEnter, SqFlush, SqExit,            
             LqEnter, LqFlush, LqExit,
-            
-            MemFwProduce, MemFwConsume,
-            
+
             FlushOOO,
             
-            FlushExec,
-                FlushPoison,
+            FlushCommit,
+            
+            Retire,
+            RetireException,
+            RetireRefetch,
+            
+            WqEnter, 
+                
+                WqExit, // committed write queue
+
+                MemFwProduce,
+                
+            // Uops
+            MemFwConsume, // U
+            
+            FlushExec, // U
+            FlushPoison, // U
             
             IqEnter,
             IqWakeup0, IqWakeup1, IqWakeup2,
@@ -229,27 +234,22 @@ package Insmap;
               ReadArg, // FUTURE: by source type
     
               ExecRedirect,            
-    
-            ReadMem,
-            ReadSysReg,
-            ReadSQ,
+            //
+                
+                // UNUSED
+                ReadMem,
+                ReadSysReg,
+                ReadSQ,
             
-            WriteMemAddress,
-            WriteMemValue,
+            WriteMemAddress, // U
+            WriteMemValue,   // U
             
             // FUTURE: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
                 MemConfirmed,
                 MemMissed,
             
-            WriteResult,
-            
-            FlushCommit,
-            
-            Retire,
-                RetireException,
-                RetireRefetch,
-            
-            WqEnter, WqExit // committed write queue
+            WriteResult // U
+
         } Milestone;
     
     
@@ -258,17 +258,20 @@ package Insmap;
             int cycle;
         } MilestoneTag;
     
-        class InsRecord;
-            MilestoneTag tags[$];
+        class MopRecord;
+            MilestoneTag tags[$:20];
         endclass
-    
-        InsRecord records[int];
+
+        typedef MopRecord UopRecord;
+        
+        MopRecord records[InsId];
+        UopRecord recordsU[InsId];
 
         InsId lastRetired = -1;
 
         string lastRetiredStr;
 
-        localparam int RECORD_ARRAY_SIZE = 24;
+        localparam int RECORD_ARRAY_SIZE = 20;
     
             MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
 
@@ -277,9 +280,7 @@ package Insmap;
             int renamedM = 0;
             
             int committedM = 0;
-            
-            MopRecord mopRecords[$];
-            
+                        
             
             function automatic void alloc();
 
@@ -307,13 +308,13 @@ package Insmap;
         endfunction
         
 
-            function automatic InsId m2i(input InsId mid);
-                return insBase.m2i(mid);
-            endfunction
+//            function automatic InsId m2i(input InsId mid);
+//                return insBase.m2i(mid);
+//            endfunction
     
-            function automatic InsId i2m(input InsId id);
-                return insBase.i2m(id);
-            endfunction
+//            function automatic InsId i2m(input InsId id);
+//                return insBase.i2m(id);
+//            endfunction
 
 
         /////// insinfo
@@ -333,6 +334,7 @@ package Insmap;
         function automatic void addM(input InsId id, input Mword adr, input Word bits);
             insBase.addM(id, initInsInfo(id, adr, bits));
             records[id] = new();
+            recordsU[id] = new();
         endfunction
 
        
@@ -383,7 +385,7 @@ package Insmap;
         // For uops
         function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
-            records[id].tags.push_back('{kind, cycle});
+            recordsU[id].tags.push_back('{kind, cycle});
         endfunction
         
         // For committed
@@ -394,8 +396,8 @@ package Insmap;
         // milestones (helper)
             function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
                 MilestoneTag def = '{___, -1};
-                InsRecord empty = new();
-                InsRecord rec = id == -1 ? empty : records[id];
+                MopRecord empty = new();
+                MopRecord rec = id == -1 ? empty : records[id];
                 arr = '{default: def};
                 
                 foreach(rec.tags[i]) arr[i] = rec.tags[i];
@@ -413,6 +415,7 @@ package Insmap;
             foreach (removedList[i]) begin
                 void'(checkOk(removedList[i]));
                 records.delete(removedList[i]);
+                recordsU.delete(removedList[i]);
                 insBase.infos.delete(removedList[i]);
             end
 
@@ -447,23 +450,15 @@ package Insmap;
 
         function automatic ExecClass determineClass(input MilestoneTag tags[$]);
             MilestoneTag retirement[$] = tags.find with (item.kind inside {Retire, RetireRefetch, RetireException});
-            MilestoneTag frontKill[$] = tags.find with (item.kind == FlushFront);
             MilestoneTag commitKill[$] = tags.find with (item.kind == FlushCommit);
 
-            if (frontKill.size() > 0) return EC_KilledFront;
             if (commitKill.size() > 0) return EC_KilledCommit;
             if (retirement.size() > 0) return EC_Retired;
             return EC_KilledOOO;            
         endfunction
         
-        // DEPREC
-        function automatic logic checkKilledFront(input InsId id, input MilestoneTag tags[$]);
-            MilestoneTag tag = tags.pop_front();
-            $fatal(2, "shouldnt enter, %d", id);
-            return 1;
-        endfunction
 
-        function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$]);
+        function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
             AbstractInstruction dec = get(id).dec;
 
             MilestoneTag tag = tags.pop_front();
@@ -480,16 +475,17 @@ package Insmap;
                 assert (tags.size() == 0) else $error(" strange %d: %p", id, tags);
                 return 1;
             end
-            assert (checkKilledIq(tags)) else $error("wrong k iq");
 
             if (isStoreIns(dec)) assert (checkKilledStore(tags)) else $error("wrong kStore op");
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
             if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
 
+            assert (checkKilledIq(tagsU)) else $error("wrong k iq");
+
             return 1;        
         endfunction
 
-        function automatic logic checkKilledCommit(input InsId id, input MilestoneTag tags[$]);
+        function automatic logic checkKilledCommit(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
             AbstractInstruction dec = get(id).dec;
       
             MilestoneTag tag = tags.pop_front();
@@ -499,16 +495,17 @@ package Insmap;
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
             if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
             
+            assert (checkRetiredIq(tagsU)) else $error("wrong iq");
+            
             return 1;        
         endfunction
 
-        function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$]);
+        function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
             AbstractInstruction dec = get(id).dec;
         
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename?:   %p", tag);
                 
-            assert (!has(tags, FlushFront)) else $error("eeee");
             assert (!has(tags, FlushOOO)) else $error("22eeee");
             assert (!has(tags, FlushExec)) else $error("333eeee");
             
@@ -516,16 +513,16 @@ package Insmap;
             assert (has(tags, RobComplete)) else $error("4444eeee");
             assert (!has(tags, RobFlush)) else $error("5544eeee");
             assert (has(tags, RobExit)) else $error("6664eeee");
-            
-            assert (checkRetiredIq(tags)) else $error("wrong iq");
-            
+              
             if (isStoreIns(dec)) assert (checkRetiredStore(tags)) else $error("wrong Store op");
             if (isLoadIns(dec)) assert (checkRetiredLoad(tags)) else $error("wrong load op");
             if (isBranchIns(dec)) assert (checkRetiredBranch(tags)) else $error("wrong branch op: %d / %p", id, tags);
             
+            assert (checkRetiredIq(tagsU)) else $error("wrong iq");
+
                 // HACK: if has been pulled back, remember it
                 begin
-                    if (has(tags, IqPullback)) storeReissued(id, tags);
+                    if (has(tagsU, IqPullback)) storeReissued(id, tagsU);
                 end
 
             return 1;
@@ -621,12 +618,12 @@ package Insmap;
 
         function automatic logic checkOk(input InsId id);
             MilestoneTag tags[$] = records[id].tags;
+            MilestoneTag tagsU[$] = recordsU[id].tags;
             ExecClass eclass = determineClass(tags);
-            
-            if (eclass == EC_KilledFront) return checkKilledFront(id, tags);
-            else if (eclass == EC_KilledCommit) return checkKilledCommit(id, tags);
-            else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags);
-            else return checkRetired(id, tags);            
+
+            if (eclass == EC_KilledCommit) return checkKilledCommit(id, tags, tagsU);
+            else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags, tagsU);
+            else return checkRetired(id, tags, tagsU);
         endfunction
         
 
