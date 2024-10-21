@@ -304,12 +304,16 @@ module AbstractCore
         
             foreach (ops[i]) begin
                 InsId newMid = -1; 
+                InsId newMid_N = insMap.insBase.lastM + 1; 
                 
                 if (ops[i].active !== 1) continue;
+                
+                    ops[i].id = newMid_N;
                 
                 insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
     
                 newMid = insMap.i2m(ops[i].id);
+                    assert (newMid_N == newMid) else $error("nt.");
     
                 renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
                     
@@ -317,12 +321,12 @@ module AbstractCore
             end
         end
 
-        foreach (st0[i]) begin
+        foreach (ops[i]) begin
             if (!theFrontend.stageRename0[i].active) continue;
-            st0[i].mid = insMap.i2m(st0[i].id);
+            ops[i].mid = insMap.i2m(ops[i].id);
         end
      
-        stageRename1 <= st0;
+        stageRename1 <= ops;
     endtask
 
     task automatic redirectRest();
