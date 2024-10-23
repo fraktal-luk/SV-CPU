@@ -79,7 +79,6 @@ package AbstractSim;
         
         CO_break,
         
-        
             CO_dummy
         
     } ControlOp;
@@ -134,6 +133,10 @@ package AbstractSim;
         InsId producers[3];
     } InsDependencies;
 
+
+//        typedef struct {
+        
+//        } UopPacket;
 
 
     class BranchCheckpoint;

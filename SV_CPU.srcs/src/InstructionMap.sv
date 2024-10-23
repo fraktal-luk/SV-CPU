@@ -5,29 +5,68 @@ package Insmap;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
+    
+    import UopList::*;
+
     import AbstractSim::*;
+
     
 
     typedef struct {
         InsId id;
+        
         Mword adr;
         Word bits;
         Mword target;
         AbstractInstruction dec;
-        Mword result;
-        Mword actualResult;
+
         IndexSet inds;
         int slot; // UNUSED?
-        InsDependencies deps;
-        int physDest;
-        
-        Mword argValues[3];
-        logic argError;
-        
+
         logic exception;
         logic refetch;
-        
+
+        //
+        Mword result;
+        Mword actualResult;
+        InsDependencies deps;
+        int physDest;
+        Mword argValues[3];
+        logic argError;
+
     } InstructionInfo;
+
+    
+    typedef struct {
+        int m;
+        int s;
+    } UopId;
+    
+    
+        typedef struct {
+            UopName name;
+            int sources[3];
+            int dest;
+        } UopDef;    
+    
+    
+    // What should be in base
+    typedef struct {
+        UopId id;
+        
+        logic status; // TODO: enum
+        
+        UopName name;
+        int physDest;
+        
+        // deps (producer uops)
+        InsDependencies deps;
+        
+        Mword argsE[3];
+        Mword argsA[3];
+        Mword resultE;
+        Mword resultA;
+    } UopInfo;
 
 
 

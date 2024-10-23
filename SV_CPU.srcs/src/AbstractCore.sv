@@ -4,6 +4,7 @@ import InsDefs::*;
 import Asm::*;
 import Emulation::*;
 
+import UopList::*;
 import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
@@ -125,10 +126,6 @@ module AbstractCore
         insMap.endCycle();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue, branchTargetQueue
-        
-
-        
-        
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
@@ -144,14 +141,11 @@ module AbstractCore
         handleCompletion(); // registerTracker
 
         updateBookkeeping();
-        
-        
-        
-                        insMap.commitCheck();
 
-        
-            insMap.insBase.setDbStr();
-            insMap.dbStr = insMap.insBase.dbStr;
+            insMap.commitCheck();
+
+        insMap.insBase.setDbStr();
+        insMap.dbStr = insMap.insBase.dbStr;
     end
 
 
@@ -213,17 +207,10 @@ module AbstractCore
         writeInfo <= makeWriteInfo(csq[1]);
     endtask
 
+
     task automatic performSysStore();
-           
-           if (!storeHead.active) return;
-         
-       begin  
-           logic isSys = //isStoreSysIns(decId(storeHead.id));
-                         storeHead.sys;
-           // assert (isSys === storeHead.sys) else $error("wrong ! %d ", storeHead.id);
-            
-            if (storeHead.active && isSys && !storeHead.cancel) setSysReg(storeHead.adr, storeHead.val);
-        end
+        if (storeHead.active && storeHead.sys && !storeHead.cancel)
+            setSysReg(storeHead.adr, storeHead.val);
     endtask
 
 
@@ -273,51 +260,26 @@ module AbstractCore
     endfunction
 
 
-//    task automatic renameGroup(input OpSlotA ops);
-//        if (anyActive(ops))
-//            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
-    
-//        foreach (ops[i]) begin
-//            InsId newMid = -1; 
-            
-//            if (ops[i].active !== 1) continue;
-            
-//            insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
-
-//            newMid = insMap.i2m(ops[i].id);
-
-//            renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
-                
-//            putMilestoneM(ops[i].id, InstructionMap::Rename);
-//        end
-//    endtask
+        UopName TMP_uops_r0[4];
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
         OpSlotA ops = theFrontend.stageRename0;
-        
+
         if (anyActive(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
-        
+
         foreach (ops[i]) begin
-            
+                TMP_uops_r0[i] = UOP_none;
             if (ops[i].active !== 1) continue;
-            
             ops[i].id = insMap.insBase.lastM + 1;
-            
             insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
-
-
-            renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);
-                
+            renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);   
             putMilestoneM(ops[i].id, InstructionMap::Rename);
+            
+                TMP_uops_r0[i] = OP_DECODING_TABLE[decId(ops[i].id).mnemonic];
         end
 
-//        foreach (ops[i]) begin
-//            if (!theFrontend.stageRename0[i].active) continue;
-//            ops[i].mid = insMap.i2m(ops[i].id);
-//        end
-     
         stageRename1 <= ops;
     endtask
 
@@ -405,12 +367,12 @@ module AbstractCore
         InsDependencies deps;
         Mword argVals[3];
         int physDest = -1;
-        
+
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
         deps = registerTracker.getArgDeps(ins); // For insMap
-                
+
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
@@ -424,8 +386,6 @@ module AbstractCore
             addToBtq(id);
             saveCP(id); // Crucial state
         end
-
-//        insMap.addM(id, adr, bits);
 
         insMap.setRenamed(id,
                             result,
@@ -470,8 +430,7 @@ module AbstractCore
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            Mword waitingAdr = //getAdr(lateEventInfoWaiting.id);
-                                lateEventInfoWaiting.adr;
+            Mword waitingAdr = lateEventInfoWaiting.adr;
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, waitingAdr, sr2, sr3);
 
             modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
