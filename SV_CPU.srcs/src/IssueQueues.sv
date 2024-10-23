@@ -20,6 +20,8 @@ module IssueQueue
     input EventInfo lateEventInfo,
     input OpSlotA inGroup,
     input logic inMask[$size(OpSlotA)],
+        input TMP_Uop inGroupU[$size(OpSlotA)],
+        
     input logic allow,   
     output OpPacket outPackets[OUT_WIDTH]
 );
@@ -203,10 +205,11 @@ module IssueQueue
         int nInserted = 0;
 
         foreach (inGroup[i]) begin
+            InsId theId = inGroup[i].id;
             if (inGroup[i].active && inMask[i]) begin
                 int location = locs[nInserted];
-                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: inGroup[i].id};
-                putMilestone(inGroup[i].id, InstructionMap::IqEnter);
+                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: theId};
+                putMilestone(theId, InstructionMap::IqEnter);
 
                 nInserted++;          
             end
@@ -393,6 +396,19 @@ module IssueQueueComplex(
                         input EventInfo lateEventInfo,
                         input OpSlotA inGroup
 );    
+
+        
+        
+        typedef struct {
+            TMP_Uop regular[$size(OpSlotA)];
+            TMP_Uop branch[$size(OpSlotA)];
+            TMP_Uop float[$size(OpSlotA)];
+            TMP_Uop mem[$size(OpSlotA)];
+            TMP_Uop sys[$size(OpSlotA)];
+        } TMP_RoutedUops;
+        
+        TMP_RoutedUops routedOps;
+
     RoutingInfo routingInfo;    
     
     OpPacket issuedRegularP[2];
@@ -405,15 +421,15 @@ module IssueQueueComplex(
     assign routingInfo = routeOps(inGroup); 
 
     
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.regular, '1,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.regular, routedOps.regular, '1,
                                             issuedRegularP);
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, '1,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, routedOps.branch, '1,
                                             issuedBranchP);
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, '1,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, routedOps.float, '1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, '1,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, routedOps.mem, '1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, '1,
+    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, routedOps.sys, '1,
                                             issuedSysP);
     
 

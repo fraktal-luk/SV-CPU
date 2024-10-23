@@ -12,35 +12,13 @@ package Insmap;
 
     
 
-    typedef struct {
-        InsId id;
-        
-        Mword adr;
-        Word bits;
-        Mword target;
-        AbstractInstruction dec;
-
-        IndexSet inds;
-        int slot; // UNUSED?
-
-        logic exception;
-        logic refetch;
-
-        //
-        Mword result;
-        Mword actualResult;
-        InsDependencies deps;
-        int physDest;
-        Mword argValues[3];
-        logic argError;
-
-    } InstructionInfo;
-
     
     typedef struct {
         int m;
         int s;
     } UopId;
+    
+    localparam UopId UID_NONE = '{-1, -1};
     
     
         typedef struct {
@@ -50,23 +28,63 @@ package Insmap;
         } UopDef;    
     
     
-    // What should be in base
+        // What should be in base
+        typedef struct {
+            UopId id;
+            
+            logic status; // TODO: enum
+            
+            UopName name;
+            int physDest;
+            
+            InsDependencies deps;
+            
+            Mword argsE[3]; // Args from emulation
+            Mword argsA[3]; // Actual args read from regs and bypass
+            Mword resultE;  // Result according to emulation
+            Mword resultA;  // Actual result
+            
+            logic argError;    // DB
+            logic resultError; // DB
+            
+            logic exception;   // Execution event from actual uarch
+        } UopInfo;
+    
+
+
     typedef struct {
-        UopId id;
+        InsId id;
         
-        logic status; // TODO: enum
-        
-        UopName name;
+            Mword adr;
+            Word bits;
+            Mword target;
+            AbstractInstruction dec;
+
+        IndexSet inds;
+        int slot; // UNUSED?
+
+        //
         int physDest;
-        
-        // deps (producer uops)
         InsDependencies deps;
         
-        Mword argsE[3];
-        Mword argsA[3];
-        Mword resultE;
-        Mword resultA;
-    } UopInfo;
+        Mword result;
+        Mword actualResult;
+        Mword argValues[3];
+        logic argError;
+
+        logic exception;
+        logic refetch;
+
+    } InstructionInfo;
+
+
+        typedef struct {
+            InsId mid;
+            InsId fid; // Fetch id - links to adr, bits, etc
+            int nUops;
+            InsId firstUop; // Not needed if using '{m, s} type of index of uops
+        } MopDescriptor;
+
 
 
 
@@ -94,12 +112,7 @@ package Insmap;
     
     
     
-        typedef struct {
-            InsId mid;
-            InsId fid; // Fetch id
-            int nUops;
-            InsId firstUop;
-        } MopDescriptor;
+
     
     
     class InstructionBase;
@@ -107,7 +120,7 @@ package Insmap;
         InsId mids[$];
         InsId uids[$];
         
-        MopDescriptor mopDescriptors[$];
+        //MopDescriptor mopDescriptors[$];
         
         InsId lastM = -1;
         InsId lastU = -1;
@@ -128,7 +141,7 @@ package Insmap;
             mids.push_back(lastM);
             uids.push_back(lastU);
                     
-            mopDescriptors.push_back('{lastM, -1, 1, lastU});
+            //mopDescriptors.push_back('{lastM, -1, 1, lastU});
             
             infos[id] = ii;
         endfunction
@@ -180,7 +193,7 @@ package Insmap;
                 //void'(ids.pop_front());
                 void'(mids.pop_front());
                 void'(uids.pop_front());
-                void'(mopDescriptors.pop_front());
+                //void'(mopDescriptors.pop_front());
                 res.push_back(frontId);
             end
             

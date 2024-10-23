@@ -58,6 +58,14 @@ package ExecDefs;
     
     localparam OpPacket EMPTY_OP_PACKET = '{0, -1, ES_OK, EMPTY_POISON, 'x, 'x};
 
+        typedef struct {
+            logic active;
+            UopId uid;
+        } TMP_Uop;
+
+        localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
+
+
     function automatic OpPacket setResult(input OpPacket p, input Mword result);
         OpPacket res = p;            
         res.result = result;

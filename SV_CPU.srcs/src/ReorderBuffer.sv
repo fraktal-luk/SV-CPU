@@ -26,12 +26,14 @@ module ReorderBuffer
     int size;
     logic allow;
 
+        localparam int N_UOP_MAX = 1; // Number of uops a Mop can be split into
+
     typedef struct {
         InsId id;
-        logic completed;
+        logic completed[N_UOP_MAX];
     } OpRecord;
     
-    const OpRecord EMPTY_RECORD = '{id: -1, completed: 'x};
+    const OpRecord EMPTY_RECORD = '{id: -1, completed: '{default: 'x}};
     typedef OpRecord OpRecordA[WIDTH];
 
     typedef struct {
@@ -143,7 +145,8 @@ module ReorderBuffer
     function automatic void insertToQueue(ref OpRecord q[$:3*WIDTH], input Row row);
         foreach (row.records[i])
             if (row.records[i].id != -1) begin
-                assert (row.records[i].completed === 1) else $fatal(2, "not compl");
+                //assert (row.records[i].completed[0] === 1) else $fatal(2, "not compl"); // TODO: assert all are 1
+                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
                 q.push_back(row.records[i]);
             end 
     endfunction
@@ -211,7 +214,7 @@ module ReorderBuffer
         for (int r = 0; r < DEPTH; r++)
             for (int c = 0; c < WIDTH; c++)
                 if (array[r].records[c].id == p.id) begin
-                    array[r].records[c].completed = 1;
+                    array[r].records[c].completed[0] = 1; // TODO: uop subid
                     putMilestoneM(p.id, InstructionMap::RobComplete);
                 end
     endtask
@@ -247,7 +250,7 @@ module ReorderBuffer
     function automatic OpRecordA makeRecord(input OpSlotA ops);
         OpRecordA res = '{default: EMPTY_RECORD};
         foreach (ops[i])
-            res[i] = ops[i].active ? '{ops[i].id, 0} : '{-1, 'x};   
+            res[i] = ops[i].active ? '{ops[i].id, '{default: 0}} : '{-1, '{default: 'x}};   
         return res;
     endfunction
 
@@ -267,7 +270,8 @@ module ReorderBuffer
         if (endPointer == startPointer) return 0;
 
         foreach (records[i])
-            if (records[i].id != -1 && records[i].completed === 0)
+            //if (records[i].id != -1 && records[i].completed[0] === 0) // TODO: check if any is 0
+            if (records[i].id != -1 && records[i].completed.and() === 0) // Will be 0 if has any 0 (also with XZ)
                 return 0;
         
         return 1;
