@@ -316,7 +316,7 @@ module IssueQueue
         if (entry.id == -1) return res;
         
         foreach (entry.state.readyArgs[a]) begin
-            InsDependencies deps = insMap.get(entry.id).deps;
+            InsDependencies deps = insMap.get(entry.id).TMP_uopInfo.deps;
             SourceType argType = deps.types[a];
             int prod = deps.producers[a];
             int source = deps.sources[a];
@@ -454,7 +454,7 @@ module IssueQueueComplex(
         foreach (ids[i])
             if (ids[i] == -1) res.push_back('{'z, 'z, 'z});
             else begin
-                InsDependencies deps = imap.get(ids[i]).deps;
+                InsDependencies deps = imap.get(ids[i]).TMP_uopInfo.deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 res.push_back(ra);
             end

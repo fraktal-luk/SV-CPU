@@ -12,6 +12,13 @@ package Insmap;
 
     
 
+
+    typedef struct {
+        Mword adr;
+        Word bits;
+        Mword target;
+        AbstractInstruction dec;
+    } InsBasicData;
     
     typedef struct {
         int m;
@@ -55,25 +62,22 @@ package Insmap;
     typedef struct {
         InsId id;
         
-            Mword adr;
-            Word bits;
-            Mword target;
-            AbstractInstruction dec;
-
+        //    AbstractInstruction dec;
+            
+        InsBasicData basicData;
+            
         IndexSet inds;
         int slot; // UNUSED?
 
         //
-        int physDest;
-        InsDependencies deps;
-        
-        Mword result;
-        Mword actualResult;
-        Mword argValues[3];
-        logic argError;
+        //int physDest;
+        //InsDependencies deps;
+
 
         logic exception;
         logic refetch;
+        
+        UopInfo TMP_uopInfo;
 
     } InstructionInfo;
 
@@ -95,15 +99,17 @@ package Insmap;
                                                     );
         InstructionInfo res;
         res.id = id;
-        res.adr = adr;
-        res.bits = bits;
+        
+        //res.dec = decodeAbstract(bits);
 
-        res.dec = decodeAbstract(bits);
+            res.basicData.adr = adr;
+            res.basicData.bits = bits;
+            res.basicData.dec = decodeAbstract(bits);
 
-        res.physDest = -1;
-
-        res.argError = 0;
-
+       // res.physDest = -1;
+            res.TMP_uopInfo.physDest = -1;
+            res.TMP_uopInfo.argError = 0;
+            
         res.exception = 0;
         res.refetch = 0;
 
@@ -111,10 +117,7 @@ package Insmap;
     endfunction
     
     
-    
 
-    
-    
     class InstructionBase;
         InstructionInfo infos[InsId];
         InsId mids[$];
@@ -155,13 +158,21 @@ package Insmap;
                                             input IndexSet renameInds,
                                             input int slot
                                             );
-            infos[id].target = target;
-            infos[id].result = result;
-            infos[id].deps = deps;
-            infos[id].physDest = physDest;
-            infos[id].argValues = argValues;
+            //infos[id].deps = deps;
+            //infos[id].physDest = physDest;
             infos[id].inds = renameInds;
             infos[id].slot = slot;
+            
+                infos[id].basicData.target = target;
+                
+                infos[id].TMP_uopInfo.id = '{id, 0};
+                //infos[id].TMP_uopInfo.name = ...;
+                
+                infos[id].TMP_uopInfo.physDest = physDest;
+                infos[id].TMP_uopInfo.deps = deps;
+                infos[id].TMP_uopInfo.argsE = argValues;
+                infos[id].TMP_uopInfo.resultE = result;
+                
         endfunction
 
 
@@ -181,7 +192,7 @@ package Insmap;
 
         function automatic void retireUpToM(input InsId id);
             retired = id;
-                retiredM = id;//i2m(id);
+                retiredM = id;
         endfunction
 
 
@@ -190,10 +201,9 @@ package Insmap;
             
             while (mids.size() > 0 && mids[0] <= id) begin
                 InsId frontId = mids[0];
-                //void'(ids.pop_front());
                 void'(mids.pop_front());
                 void'(uids.pop_front());
-                //void'(mopDescriptors.pop_front());
+                
                 res.push_back(frontId);
             end
             
@@ -211,8 +221,7 @@ package Insmap;
                 InsId first = -1;
                 InsId last = -1;
                 
-                int size = //ids.size();
-                            mids.size();
+                int size = mids.size();
                 
                 if (mids.size() > 0) begin
                     first = mids[0];
@@ -402,13 +411,20 @@ package Insmap;
             insBase.setRenamed(id, result, target, deps, physDest, argValues, renameInds, slot);
         endfunction
 
-
-        function automatic void setActualResult(input InsId id, input Mword res);
-            insBase.infos[id].actualResult = res;
+        function automatic void setUopName(input InsId id, input UopName name);
+            insBase.infos[id].TMP_uopInfo.name = name;
         endfunction
 
-        function automatic void setArgError(input InsId id);
-            insBase.infos[id].argError = 1;
+        function automatic void setActualResult(input InsId id, input Mword res);
+            insBase.infos[id].TMP_uopInfo.resultA = res;
+        endfunction
+
+        function automatic void setActualArgs(input InsId id, input Mword args[3]);
+            insBase.infos[id].TMP_uopInfo.argsA = args;
+        endfunction
+
+        function automatic void setArgError(input InsId id, input logic value);
+            insBase.infos[id].TMP_uopInfo.argError = value;
         endfunction
         
         function automatic void setException(input InsId id);
@@ -479,7 +495,7 @@ package Insmap;
             assert (id != -1) else $fatal(2, "retired -1");
 
             lastRetired = id;
-            lastRetiredStr = disasm(get(id).bits);
+            lastRetiredStr = disasm(get(id).basicData.bits);
             
             insBase.retireUpToM(id);
         endfunction
@@ -511,7 +527,7 @@ package Insmap;
         
 
         function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
-            AbstractInstruction dec = get(id).dec;
+            AbstractInstruction dec = get(id).basicData.dec;
 
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
@@ -538,7 +554,7 @@ package Insmap;
         endfunction
 
         function automatic logic checkKilledCommit(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
-            AbstractInstruction dec = get(id).dec;
+            AbstractInstruction dec = get(id).basicData.dec;
       
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename? k:   %p", tag);
@@ -553,7 +569,7 @@ package Insmap;
         endfunction
 
         function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
-            AbstractInstruction dec = get(id).dec;
+            AbstractInstruction dec = get(id).basicData.dec;
         
             MilestoneTag tag = tags.pop_front();
             assert (tag.kind == Rename) else $error(" where rename?:   %p", tag);

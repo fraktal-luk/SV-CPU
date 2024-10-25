@@ -293,9 +293,10 @@ package ExecDefs;
         return res;
     endfunction
 
+    // TODO: rework for uops
     function automatic void verifyForward(input InstructionInfo ii, input int source, input Mword result);
-        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ii.actualResult === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.actualResult, result, ii, disasm(ii.bits));
+        assert (ii.TMP_uopInfo.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
+        assert (ii.TMP_uopInfo.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.TMP_uopInfo.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
 
@@ -309,14 +310,14 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found1[0].result);
-            return ii.actualResult;
+            return found1[0].result;
         end
         
         found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found0[0].result);
-            return ii.actualResult;
+            return found0[0].result;
         end
 
         $fatal(2, "oh no");
@@ -333,14 +334,14 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found1[0].result);
-            return ii.actualResult;
+            return found1[0].result;
         end
         
         found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(producer);
             verifyForward(ii, source, found0[0].result);
-            return ii.actualResult;
+            return found0[0].result;
         end
 
         $fatal(2, "oh no");

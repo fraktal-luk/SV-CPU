@@ -390,12 +390,11 @@ module ExecBlock(ref InstructionMap insMap,
 
     // Used before Exec0 to get final values
     function automatic Mword3 getAndVerifyArgs(input InsId id);
-        InsDependencies deps = insMap.get(id).deps;
+        InsDependencies deps = insMap.get(id).TMP_uopInfo.deps;
         Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        Mword3 argsM = insMap.get(id).argValues;
-        
-        if (argsP !== argsM) insMap.setArgError(id);
-        
+        Mword3 argsM = insMap.get(id).TMP_uopInfo.argsE;
+        insMap.setActualArgs(id, argsP);
+        insMap.setArgError(id, (argsP !== argsM));
         return argsP;
     endfunction;
 
@@ -434,6 +433,8 @@ module CoreDB();
 
         string csqStr, csqIdStr;
 
+        InstructionInfo lastII;
+        UopInfo lastUI;
 
     string bqStr;
     always @(posedge AbstractCore.clk) begin

@@ -58,7 +58,8 @@ package Queues;
             entry.adr = p.result;
             
             entry.valReady = 1;
-            entry.val = ii.argValues[2];
+            entry.val = ii.//argValues[2];
+                           TMP_uopInfo.argsA[2];
         endfunction
         
             static function void setCommitted(ref Entry entry);
@@ -189,7 +190,7 @@ package Queues;
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
             InstructionInfo ii = imap.get(id);
-            AbstractInstruction abs = ii.dec;
+            AbstractInstruction abs = ii.basicData.dec;
             
             res.id = id;
             
@@ -198,19 +199,20 @@ package Queues;
                 res.condReady = 0;
                 res.trgReady = isBranchImmIns(abs);
                 
-                res.linkAdr = ii.adr + 4;
+                res.linkAdr = ii.basicData.adr + 4;
                 //res.predictedTarget = ii.adr + 4;
                 
                 // If imm, real target is known
                 if (isBranchImmIns(abs))
-                    res.realTarget = ii.adr + ii.argValues[1];
+                    res.realTarget = ii.basicData.adr + ii.//argValues[1];
+                                                           TMP_uopInfo.argsA[1];
                 
             return res;
         endfunction
         
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
-            InstructionInfo ii = imap.get(p.id);
+            //InstructionInfo ii = imap.get(p.id);
             
             entry.taken = brInfo.active;
             

@@ -270,14 +270,17 @@ module AbstractCore
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
         foreach (ops[i]) begin
+                UopName uopName = UOP_none;
                 TMP_uops_r0[i] = UOP_none;
             if (ops[i].active !== 1) continue;
             ops[i].id = insMap.insBase.lastM + 1;
             insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
             renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);   
             putMilestoneM(ops[i].id, InstructionMap::Rename);
-            
-                TMP_uops_r0[i] = OP_DECODING_TABLE[decId(ops[i].id).mnemonic];
+                
+                uopName = OP_DECODING_TABLE[decId(ops[i].id).mnemonic];
+                TMP_uops_r0[i] = uopName;
+                    insMap.setUopName(ops[i].id, uopName);
         end
 
         stageRename1 <= ops;
@@ -406,7 +409,7 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isSysIns(insInfo.dec) && !isStoreSysIns(insInfo.dec) || insInfo.refetch || insInfo.exception);
+        return (isSysIns(insInfo.basicData.dec) && !isStoreSysIns(insInfo.basicData.dec) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
@@ -488,6 +491,21 @@ module AbstractCore
     endtask
 
 
+    
+    
+    function automatic void checkUops(input InsId id);
+        InstructionInfo info = insMap.get(id);
+        
+        //  TODO: per uop
+            
+        if (hasIntDest(decId(id)) || hasFloatDest(decId(id))) // DB
+            assert (info.TMP_uopInfo.resultA === info.TMP_uopInfo.resultE) else
+                $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), info.TMP_uopInfo.resultA, info.TMP_uopInfo.resultE);
+        assert (info.TMP_uopInfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
+    endfunction
+
+
+
     task automatic verifyOnCommit(input InsId id);
         InstructionInfo info = insMap.get(id);
 
@@ -495,19 +513,16 @@ module AbstractCore
         Mword nextTrg;
         Word bits = fetchInstruction(dbProgMem, trg); // DB
 
-        assert (trg === info.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.adr);
-        assert (bits === info.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, info.bits); // TODO: check at Frontend?
-        assert (info.argError === 0) else $fatal(2, "Arg error on op %d", id);
-
+        assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
+        assert (bits === info.basicData.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, info.basicData.bits); // TODO: check at Frontend?
+        
         if (info.refetch) return;
         
         // Only Normal commit
-        if (!info.exception)
-            if (hasIntDest(decId(id)) || hasFloatDest(decId(id))) // DB
-                assert (info.actualResult === info.result) else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.bits), info.actualResult, info.result);
-            
+        if (!info.exception) checkUops(id);
+
         // Normal or Exceptional
-        runInEmulator(retiredEmul, info.adr, info.bits);
+        runInEmulator(retiredEmul, info.basicData.adr, info.basicData.bits);
         retiredEmul.drain();
     
         nextTrg = retiredEmul.coreState.target; // DB
@@ -521,8 +536,7 @@ module AbstractCore
 
     function automatic OpSlot TMP_properOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        OpSlot op = '{1, insInfo.id, -1,//insMap.i2m(insInfo.id), 
-                                        insInfo.adr, insInfo.bits};
+        OpSlot op = '{1, insInfo.id, -1, insInfo.basicData.adr, insInfo.basicData.bits};
         return op;
     endfunction
 
@@ -549,11 +563,14 @@ module AbstractCore
         logic exception = insInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
+            coreDB.lastII = insInfo;
+            coreDB.lastUI = insInfo.TMP_uopInfo;
+
         verifyOnCommit(id);
 
         checkUnimplementedInstruction(decId(id)); // All types of commit?
 
-        registerTracker.commit(insInfo.dec, id, refetch || exception); // Need to modify to handle Exceptional and Hidden
+        registerTracker.commit(insInfo.basicData.dec, id, refetch || exception); // Need to modify to handle Exceptional and Hidden
             
         if (isStoreIns(decId(id))) putToWq(id, exception, refetch);
         
@@ -626,12 +643,12 @@ module AbstractCore
 
     function automatic AbstractInstruction decId(input InsId id);
         if (id == -1) return DEFAULT_ABS_INS;     
-        return insMap.get(id).dec;
+        return insMap.get(id).basicData.dec;
     endfunction
 
     function automatic Mword getAdr(input InsId id);
         if (id == -1) return 'x;     
-        return insMap.get(id).adr;
+        return insMap.get(id).basicData.adr;
     endfunction
  
 
