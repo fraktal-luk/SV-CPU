@@ -16,21 +16,21 @@ module MemSubpipe#(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP,
+    input UopPacket opP,
     
     output DataReadReq readReq,
     input DataReadResp readResp,
     
-    input OpPacket sqResp,
-    input OpPacket lqResp
+    input UopPacket sqResp,
+    input UopPacket lqResp
 );
     Mword result = 'x;
-    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pE1 = EMPTY_OP_PACKET, pE2 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
-    OpPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
-    OpPacket stateE0 = EMPTY_OP_PACKET, stateE1 = EMPTY_OP_PACKET, stateE2 = EMPTY_OP_PACKET;
+    UopPacket stateE0 = EMPTY_UOP_PACKET, stateE1 = EMPTY_UOP_PACKET, stateE2 = EMPTY_UOP_PACKET;
 
-    OpPacket stage0, stage0_E;
+    UopPacket stage0, stage0_E;
     
     logic readActive = 0;
     Mword effAdr = 'x, storeValue = 'x;
@@ -78,22 +78,20 @@ module MemSubpipe#(
 
     /////////////////////////////////////////////////////////////////////////////////////
     
-    function automatic OpPacket updateE0(input OpPacket p, input Mword adr);
-        OpPacket res = p;
+    function automatic UopPacket updateE0(input UopPacket p, input Mword adr);
+        UopPacket res = p;
         
-        if (p.active && isLoadSysIns(decId(p.id)) && adr > 31) begin
-               // $error("wrong sys reg read, id = %d", p.id);
-            insMap.setException(p.id);
+        if (p.active && isLoadSysIns(decId(p.TMP_oid)) && adr > 31) begin
+            insMap.setException(p.TMP_oid);
             return res;
         end
         
-        if (p.active && isStoreSysIns(decId(p.id)) && adr > 31) begin
-              //  $error("wrong sys reg write, id = %d", p.id);
-            insMap.setException(p.id);
+        if (p.active && isStoreSysIns(decId(p.TMP_oid)) && adr > 31) begin
+            insMap.setException(p.TMP_oid);
             return res;
         end
         
-        if (p.active && isMemIns(decId(p.id)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
+        if (p.active && isMemIns(decId(p.TMP_oid)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
         
         res.result = adr;
         
@@ -107,15 +105,12 @@ module MemSubpipe#(
     
         stateE0 = tickP(p1);
 
-        adr = getEffectiveAddress(stateE0.id);
-        val = getStoreValue(stateE0.id);
+        adr = getEffectiveAddress(stateE0.TMP_oid);
+        val = getStoreValue(stateE0.TMP_oid);
 
         readActive <= stateE0.active;
         effAdr <= adr;
         storeValue <= val;
-
-        //if (stateE0.active) //performMemE0(stateE0.id);
-        //                    performStore_Dummy(stateE0.id, adr, val);
 
         pE0 <= updateE0(stateE0, adr);
     endtask
@@ -123,7 +118,7 @@ module MemSubpipe#(
     task automatic performE1();
         stateE1 = tickP(pE0);
         
-        if (stateE1.active && stateE1.status == ES_OK) performStore_Dummy(stateE1.id, effAdr, storeValue);
+        if (stateE1.active && stateE1.status == ES_OK) performStore_Dummy(stateE1.TMP_oid, effAdr, storeValue);
         
         pE1 <= stateE1;
     endtask
@@ -134,8 +129,7 @@ module MemSubpipe#(
         stateE2 = tickP(pE1);
         
         resultE2 = 'x;
-        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.id, readResp, sqResp, lqResp);
-        //stateE2.result = resultE2;
+        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
         result <= stateE2.result;
         
         pE2 <= stateE2;
@@ -178,8 +172,8 @@ module MemSubpipe#(
     endtask
 
     // TOPLEVEL
-    function automatic OpPacket calcMemE2(input OpPacket p, input InsId id, input DataReadResp readResp, input OpPacket sqResp, input OpPacket lqResp);
-        OpPacket res = p;
+    function automatic UopPacket calcMemE2(input UopPacket p, input InsId id, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+        UopPacket res = p;
         AbstractInstruction abs = decId(id);
         Mword3 args = getAndVerifyArgs(id);
 
@@ -205,7 +199,7 @@ module MemSubpipe#(
             // Resp from LQ indicating that a younger load has a hazard
             if (isStoreMemIns(decId(id))) begin
                 if (lqResp.active) begin
-                    insMap.setRefetch(lqResp.id);
+                    insMap.setRefetch(lqResp.TMP_oid);
                 end
             end
             
@@ -213,13 +207,11 @@ module MemSubpipe#(
                 InstructionInfo thisInfo, writerInfo;
                 if (id != -1) thisInfo = insMap.get(id);
                 if (writerAllId != -1) writerInfo = insMap.get(writerAllId);
-                
-              // $error("AAAAA: %d, %d", forwarded, sqResp.active);
-              //  $error("%p  from:\n%p", thisInfo, writerInfo);
+
             end
             
         if (forwarded && isLoadMemIns(decId(id))) begin
-              //  assert (writerInsideId == sqResp.id) else $error("SQ id not matchinf memTracker id");
+              //  assert (writerInsideId == sqResp.i d) else $error("SQ i d not matchinf memTracker id");
             putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
             putMilestone(id, InstructionMap::MemFwConsume);
         end

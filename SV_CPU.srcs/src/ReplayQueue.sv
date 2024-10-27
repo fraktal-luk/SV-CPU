@@ -14,8 +14,8 @@ module ReplayQueue(
     input logic clk,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket inPackets[N_MEM_PORTS],
-    output OpPacket outPacket
+    input UopPacket inPackets[N_MEM_PORTS],
+    output UopPacket outPacket
 );
 
     localparam int SIZE = 16;
@@ -24,7 +24,7 @@ module ReplayQueue(
         logic used;
         logic active;
         logic ready;
-        InsId id;
+        InsId uid;
     } Entry;
 
     localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1};
@@ -50,7 +50,7 @@ module ReplayQueue(
     endfunction
 
 
-    OpPacket issued1 = EMPTY_OP_PACKET, issued0 = EMPTY_OP_PACKET, issued0__ = EMPTY_OP_PACKET;
+    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET, issued0__ = EMPTY_UOP_PACKET;
 
 
     always @(posedge clk) begin
@@ -82,8 +82,8 @@ module ReplayQueue(
         
         foreach (inPackets[i]) begin
             if (!inPackets[i].active) continue;
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, inPackets[i].id};
-            putMilestone(inPackets[i].id, InstructionMap::RqEnter);
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, inPackets[i].TMP_oid};
+            putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
 
@@ -92,7 +92,7 @@ module ReplayQueue(
     task automatic removeIssued();
         foreach (content[i]) begin
             if (content[i].used && !content[i].active) begin
-                putMilestone(content[i].id, InstructionMap::RqExit);
+                putMilestone(content[i].uid, InstructionMap::RqExit);
                 content[i] = EMPTY_ENTRY;
             end
         end
@@ -100,7 +100,7 @@ module ReplayQueue(
 
 
     task automatic issue();
-        OpPacket newPacket = EMPTY_OP_PACKET;
+        UopPacket newPacket = EMPTY_UOP_PACKET;
     
         selected <= EMPTY_ENTRY;
 
@@ -108,9 +108,9 @@ module ReplayQueue(
             if (content[i].active && content[i].ready) begin
                 selected <= content[i];
                 
-                newPacket = '{1, content[i].id, ES_OK, EMPTY_POISON, 'x, 'x};
+                newPacket = '{1, content[i].uid, UID_NONE,  ES_OK, EMPTY_POISON, 'x, 'x};
                 
-                putMilestone(content[i].id, InstructionMap::RqIssue);
+                putMilestone(content[i].uid, InstructionMap::RqIssue);
                 content[i].active = 0;
                 break;
             end
@@ -122,13 +122,13 @@ module ReplayQueue(
 
     task automatic flush();
         foreach (content[i]) begin
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && content[i].id > branchEventInfo.id)) begin
-                if (content[i].used) putMilestone(content[i].id, InstructionMap::RqFlush);
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && content[i].uid > branchEventInfo.eventMid)) begin
+                if (content[i].used) putMilestone(content[i].uid, InstructionMap::RqFlush);
                 content[i] = EMPTY_ENTRY;
             end
         end
         
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && selected.id > branchEventInfo.id)) begin
+        if (lateEventInfo.redirect || (branchEventInfo.redirect && selected.uid > branchEventInfo.eventMid)) begin
             selected = EMPTY_ENTRY;
         end
     endtask

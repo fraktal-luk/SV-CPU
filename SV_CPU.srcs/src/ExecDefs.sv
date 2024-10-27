@@ -46,17 +46,6 @@ package ExecDefs;
         ES_REDO,
             ES_INVALID
     } ExecStatus;
-    
-    typedef struct {
-        logic active;
-        InsId id;
-        ExecStatus status;
-        Poison poison;
-            logic TMP_pullback; // For poison dev
-        Mword result;
-    } OpPacket;
-    
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, ES_OK, EMPTY_POISON, 'x, 'x};
 
         typedef struct {
             logic active;
@@ -66,17 +55,31 @@ package ExecDefs;
         localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
 
 
-    function automatic OpPacket setResult(input OpPacket p, input Mword result);
-        OpPacket res = p;            
+    typedef struct {
+        logic active;
+        InsId TMP_oid;
+            UopId TMP_uopId;
+        ExecStatus status;
+        Poison poison;
+            logic TMP_pullback; // For poison dev
+        Mword result;
+    } UopPacket;
+    
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, -1, UID_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
+
+
+
+    function automatic UopPacket setResult(input UopPacket p, input Mword result);
+        UopPacket res = p;            
         res.result = result;
         
         return res;
     endfunction
 
 
-    typedef OpPacket ForwardingElement;
+    typedef UopPacket ForwardingElement;
 
-    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_OP_PACKET;
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
     localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
     
     typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
@@ -118,7 +121,7 @@ package ExecDefs;
         foreach (fea[p]) begin
             ForwardingElement subpipe[-3:1] = fea[p];
             foreach (subpipe[s]) begin
-                if (subpipe[s].id != -1) res[subpipe[s].id] = 1;
+                if (subpipe[s].TMP_oid != -1) res[subpipe[s].TMP_oid] = 1;
             end
         end
 
@@ -198,10 +201,10 @@ package ExecDefs;
         IqArgState state;
         IqPoisonState poisons;
             int issueCounter;
-        InsId id;
+        InsId uid;
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: -1};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: -1};
 
     
     typedef enum {
@@ -278,7 +281,7 @@ package ExecDefs;
 
 
     function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
-        return !(fe.id == -1) && fe.id === producer;
+        return !(fe.TMP_oid == -1) && fe.TMP_oid === producer;
     endfunction
 
     function automatic FEQ findForwardInt(input InsId producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
@@ -380,7 +383,7 @@ package ExecDefs;
         Wakeup res = EMPTY_WAKEUP;
         if (producer == -1) return res;
         foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.id == producer);
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
@@ -401,7 +404,7 @@ package ExecDefs;
         Wakeup res = EMPTY_WAKEUP;
         if (producer == -1) return res;
         foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.id == producer);
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
@@ -425,7 +428,7 @@ package ExecDefs;
         Wakeup res = EMPTY_WAKEUP;
         if (producer == -1) return res;
         foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.id == producer);
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
@@ -443,8 +446,8 @@ package ExecDefs;
 
 
         function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.id != -1) begin
-                int inds[$] = p.find with (item == fe.id);
+            if (fe.TMP_oid != -1) begin
+                int inds[$] = p.find with (item == fe.TMP_oid);
                 return inds.size() != 0;
             end
             return 0;
@@ -469,7 +472,7 @@ package ExecDefs;
     // Write buffer
     typedef struct {
         logic active;
-        InsId id;
+        InsId mid;
         logic cancel;
         logic sys;
         Mword adr;

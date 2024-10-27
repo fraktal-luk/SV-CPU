@@ -25,7 +25,7 @@ package Queues;
 
     class StoreQueueHelper;
         typedef struct {
-            InsId id;
+            InsId mid;
             logic error;
             logic adrReady;
             Mword adr;
@@ -43,7 +43,7 @@ package Queues;
 
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
-            res.id = id;
+            res.mid = id;
             res.error = 0;
             res.adrReady = 0;
             res.valReady = 0;
@@ -51,15 +51,14 @@ package Queues;
             return res;
         endfunction
         
-        static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
-            InstructionInfo ii = imap.get(p.id);
+        static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+            InstructionInfo ii = imap.get(p.TMP_oid);
             
             entry.adrReady = 1;
             entry.adr = p.result;
             
             entry.valReady = 1;
-            entry.val = ii.//argValues[2];
-                           TMP_uopInfo.argsA[2];
+            entry.val = ii.TMP_uopInfo.argsA[2];
         endfunction
         
             static function void setCommitted(ref Entry entry);
@@ -79,22 +78,22 @@ package Queues;
                 return entry.error;
             endfunction
                
-            static function automatic OpPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
+            static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
                 typedef StoreQueueHelper::Entry SqEntry;
                 // TODO: don't include sys stores in adr matching 
-                Entry found[$] = entries.find with ( item.id != -1 && item.id < id && item.adrReady && wordOverlap(item.adr, adr));
+                Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && wordOverlap(item.adr, adr));
 
-                if (found.size() == 0) return EMPTY_OP_PACKET;
+                if (found.size() == 0) return EMPTY_UOP_PACKET;
                 else if (found.size() == 1) begin 
-                    if (wordInside(adr, found[0].adr)) return '{1, found[0].id, ES_OK, EMPTY_POISON, 'x, found[0].val};
-                    else return '{1, found[0].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
+                    if (wordInside(adr, found[0].adr)) return '{1, found[0].mid, UID_NONE, ES_OK, EMPTY_POISON, 'x, found[0].val};
+                    else return '{1, found[0].mid, UID_NONE, ES_INVALID, EMPTY_POISON, 'x, 'x};
                 end
                 else begin
                     Entry sorted[$] = found[0:$];
-                    sorted.sort with (item.id);
+                    sorted.sort with (item.mid);
                     
-                    if (wordInside(adr, sorted[$].adr)) return '{1, sorted[$].id, ES_OK, EMPTY_POISON, 'x, sorted[$].val};
-                    return '{1, sorted[$].id, ES_INVALID, EMPTY_POISON, 'x, 'x};
+                    if (wordInside(adr, sorted[$].adr)) return '{1, sorted[$].mid, UID_NONE, ES_OK, EMPTY_POISON, 'x, sorted[$].val};
+                    return '{1, sorted[$].mid, UID_NONE, ES_INVALID, EMPTY_POISON, 'x, 'x};
                 end
         
             endfunction 
@@ -103,7 +102,7 @@ package Queues;
 
     class LoadQueueHelper;
         typedef struct {
-            InsId id;
+            InsId mid;
             logic error;
             logic adrReady;
             Mword adr;
@@ -117,13 +116,13 @@ package Queues;
 
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
-            res.id = id;
+            res.mid = id;
             res.adrReady = 0;
             res.error = 0;
             return res;
         endfunction
         
-        static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
+        static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
             entry.adrReady = 1;
             entry.adr = p.result;
         endfunction
@@ -144,10 +143,10 @@ package Queues;
                 return entry.error;
             endfunction
 
-                static function automatic OpPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
-                    Entry found[$] = entries.find with ( item.id != -1 && item.id > id && item.adrReady && wordOverlap(item.adr, adr));
+                static function automatic UopPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
+                    Entry found[$] = entries.find with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
                     
-                    if (found.size() == 0) return EMPTY_OP_PACKET;
+                    if (found.size() == 0) return EMPTY_UOP_PACKET;
             
                     // else: we have a match and the matching loads are incorrect
                     foreach (found[i]) begin
@@ -155,12 +154,12 @@ package Queues;
                     end
                     
                     begin // 'active' indicates that some match has happened without furthr details
-                        OpPacket res = EMPTY_OP_PACKET;
+                        UopPacket res = EMPTY_UOP_PACKET;
                         
-                        Entry oldestFound[$] = found.min with (item.id);
+                        Entry oldestFound[$] = found.min with (item.mid);
                         
                         res.active = 1; 
-                        res.id = oldestFound[0].id;
+                        res.TMP_oid = oldestFound[0].mid;
                                    
                         return res;
                     end
@@ -171,7 +170,7 @@ package Queues;
     
     class BranchQueueHelper;
         typedef struct {
-            InsId id;
+            InsId mid;
             logic predictedTaken;
             logic taken;
             logic condReady;
@@ -192,7 +191,7 @@ package Queues;
             InstructionInfo ii = imap.get(id);
             AbstractInstruction abs = ii.basicData.dec;
             
-            res.id = id;
+            res.mid = id;
             
                 res.predictedTaken = 0;
 
@@ -211,9 +210,7 @@ package Queues;
         endfunction
         
         
-        static function void updateEntry(input InstructionMap imap, ref Entry entry, input OpPacket p, input EventInfo brInfo);
-            //InstructionInfo ii = imap.get(p.id);
-            
+        static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);            
             entry.taken = brInfo.active;
             
             entry.condReady = 1;
@@ -238,10 +235,10 @@ package Queues;
             endfunction
 
 
-            static function automatic OpPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
+            static function automatic UopPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
 
                 begin // 'active' indicates that some match has happened without furthr details
-                    OpPacket res = EMPTY_OP_PACKET;
+                    UopPacket res = EMPTY_UOP_PACKET;
                     return res;
                 end
         

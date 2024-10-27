@@ -50,7 +50,7 @@ package ControlHandling;
         endcase
 
         res.active = 1;
-        res.id = info.id;
+        res.eventMid = info.eventMid;
         res.cOp = info.cOp;
 
         return res;

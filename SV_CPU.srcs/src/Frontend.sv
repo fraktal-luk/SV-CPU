@@ -11,8 +11,8 @@ import Insmap::*;
 module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
     typedef Word FetchGroup[FETCH_WIDTH];
-    typedef OpSlot FetchStage[FETCH_WIDTH];
-    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+    typedef OpSlotF FetchStage[FETCH_WIDTH];
+    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
     int fqSize = 0;
@@ -21,13 +21,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
     int fetchCtr = 0;
-    OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+    OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
     function automatic logic anyActiveFetch(input FetchStage s);
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
-
+    
+    // FUTURE: split along with split between FETCH_WIDTH and RENAME_WIDTH
     task automatic markKilledFrontStage(ref FetchStage stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
@@ -93,7 +94,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         else $fatal(2, "Should never get here");
 
         if (ipStage[0].id != -1) markKilledFrontStage(ipStage);
-        ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT};
+        ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;
 
@@ -102,14 +103,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         flushFrontend();
 
         markKilledFrontStage(stageRename0);
-        stageRename0 <= '{default: EMPTY_SLOT};
+        stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
 
     task automatic fetchAndEnqueue();
         FetchStage fetchStage0ua, ipStageU;
         if (AbstractCore.fetchAllow) begin
             Mword target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
-            ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT};
+            ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
             fetchCtr <= fetchCtr + FETCH_WIDTH;
             
             registerNewTarget(fetchCtr + FETCH_WIDTH, target);
@@ -134,8 +135,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         stageRename0 <= readFromFQ();
     endtask
     
-    function automatic OpSlotA readFromFQ();
-        OpSlotA res = '{default: EMPTY_SLOT};
+    function automatic OpSlotAF readFromFQ();
+        OpSlotAF res = '{default: EMPTY_SLOT_F};
 
         // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
         if (fqSize > 0 && AbstractCore.renameAllow) begin

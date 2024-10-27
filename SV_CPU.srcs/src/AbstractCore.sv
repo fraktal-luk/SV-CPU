@@ -70,7 +70,7 @@ module AbstractCore
 
     // Store interface
         // Committed
-        StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};// '{'{0, -1, 'x, 'x, 'x}, '{0, -1, 'x, 'x, 'x} };
+        StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
 
         StoreQueueEntry storeHead = EMPTY_SQE, drainHead = EMPTY_SQE;
         MemWriteInfo writeInfo = EMPTY_WRITE_INFO;
@@ -80,7 +80,7 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    OpSlotA robOut;
+    OpSlotAB robOut;
 
     DataReadReq TMP_readReqs[N_MEM_PORTS];
     DataReadResp TMP_readResps[N_MEM_PORTS];
@@ -97,8 +97,8 @@ module AbstractCore
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
     // Rename
-    OpSlotA stageRename1 = '{default: EMPTY_SLOT};
-    OpSlotA sqOut, lqOut, bqOut;
+    OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
+    OpSlotAB sqOut, lqOut, bqOut;
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
@@ -186,9 +186,9 @@ module AbstractCore
     task automatic putWrite();
         StoreQueueEntry sqe = drainHead;
         
-        if (sqe.id != -1) begin
-            memTracker.drain(sqe.id);
-            putMilestoneC(sqe.id, InstructionMap::WqExit);
+        if (sqe.mid != -1) begin
+            memTracker.drain(sqe.mid);
+            putMilestoneC(sqe.mid, InstructionMap::WqExit);
         end
         void'(csq.pop_front());
 
@@ -264,9 +264,9 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotA ops = theFrontend.stageRename0;
+        OpSlotAF ops = theFrontend.stageRename0;
 
-        if (anyActive(ops))
+        if (anyActiveF(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
         foreach (ops[i]) begin
@@ -283,11 +283,11 @@ module AbstractCore
                     insMap.setUopName(ops[i].id, uopName);
         end
 
-        stageRename1 <= ops;
+        stageRename1 <= TMP_front2rename(ops);
     endtask
 
     task automatic redirectRest();
-        stageRename1 <= '{default: EMPTY_SLOT};
+        stageRename1 <= '{default: EMPTY_SLOT_B};
         markKilledRenameStage(stageRename1);
 
         if (lateEventInfo.redirect) begin
@@ -305,19 +305,19 @@ module AbstractCore
             renameInds = commitInds;
         end
         else if (branchEventInfo.redirect) begin
-            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.id);
+            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
             renamedEmul.coreState = causingCP.state;
             renamedEmul.tmpDataMem.copyFrom(causingCP.mem);
 
-            flushBranchCheckpointQueuePartial(branchEventInfo.id);
-            flushBranchTargetQueuePartial(branchEventInfo.id);
+            flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
+            flushBranchTargetQueuePartial(branchEventInfo.eventMid);
 
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
-            registerTracker.flush(branchEventInfo.id);
+            registerTracker.flush(branchEventInfo.eventMid);
             
-            memTracker.flush(branchEventInfo.id);
+            memTracker.flush(branchEventInfo.eventMid);
             
             renameInds = causingCP.inds;
         end
@@ -344,10 +344,10 @@ module AbstractCore
 
     // Frontend/Rename
 
-    task automatic markKilledRenameStage(ref OpSlotA stage);
+    task automatic markKilledRenameStage(ref OpSlotAB stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
-            putMilestoneM(stage[i].id, InstructionMap::FlushOOO);
+            putMilestoneM(stage[i].TMP_mid, InstructionMap::FlushOOO);
         end
     endtask
 
@@ -468,7 +468,7 @@ module AbstractCore
         // Don't commit anything more if event is being handled
 
         foreach (robOut[i]) begin
-            InsId theId = robOut[i].id;
+            InsId theId = robOut[i].TMP_mid;
             logic refetch, exception;
            
             if (robOut[i].active !== 1 || theId == -1) continue;
@@ -534,9 +534,9 @@ module AbstractCore
     endtask
 
 
-    function automatic OpSlot TMP_properOp(input InsId id);
+    function automatic OpSlotB TMP_properOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        OpSlot op = '{1, insInfo.id, -1, insInfo.basicData.adr, insInfo.basicData.bits};
+        OpSlotB op = '{1, insInfo.id, -1, insInfo.basicData.adr, insInfo.basicData.bits};
         return op;
     endfunction
 
@@ -632,10 +632,10 @@ module AbstractCore
         sysRegs[adr] = val;
     endfunction
 
-    task automatic writeResult(input OpPacket p);
+    task automatic writeResult(input UopPacket p);
         if (!p.active) return;
-        putMilestone(p.id, InstructionMap::WriteResult);
-        registerTracker.writeValue(decId(p.id), p.id, p.result);
+        putMilestone(p.TMP_oid, InstructionMap::WriteResult);
+        registerTracker.writeValue(decId(p.TMP_oid), p.TMP_oid, p.result);
     endtask
 
 
@@ -669,28 +669,28 @@ module AbstractCore
     endfunction
 
 
-    function automatic OpPacket tickP(input OpPacket op);        
+    function automatic UopPacket tickP(input UopPacket op);        
         if (shouldFlushPoison(op.poison)) begin
-            putMilestone(op.id, InstructionMap::FlushPoison);
-            return EMPTY_OP_PACKET;
+            putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
+            return EMPTY_UOP_PACKET;
         end
     
-        if (shouldFlushEvent(op.id)) begin 
-            putMilestone(op.id, InstructionMap::FlushExec);
-            return EMPTY_OP_PACKET;
+        if (shouldFlushEvent(op.TMP_oid)) begin 
+            putMilestone(op.TMP_oid, InstructionMap::FlushExec);
+            return EMPTY_UOP_PACKET;
         end
         return op;
     endfunction
 
-    function automatic OpPacket effP(input OpPacket op);
-        if (shouldFlushPoison(op.poison)) return EMPTY_OP_PACKET;            
-        if (shouldFlushEvent(op.id)) return EMPTY_OP_PACKET;
+    function automatic UopPacket effP(input UopPacket op);
+        if (shouldFlushPoison(op.poison)) return EMPTY_UOP_PACKET;            
+        if (shouldFlushEvent(op.TMP_oid)) return EMPTY_UOP_PACKET;
         return op;
     endfunction
 
 
     function automatic logic shouldFlushEvent(input InsId id);
-        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.id);
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
     endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);

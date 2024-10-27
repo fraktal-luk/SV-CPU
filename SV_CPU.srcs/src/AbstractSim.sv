@@ -44,17 +44,29 @@ package AbstractSim;
     typedef int InsId;  // Implem detail
     typedef InsId IdQueue[$]; // Implem detail
 
+
     typedef struct {
         logic active;
         InsId id;
             InsId mid;
         Mword adr;
         Word bits;
-    } OpSlot;
+    } OpSlotF;
 
-    localparam OpSlot EMPTY_SLOT = '{'0, -1, -1, 'x, 'x};
+    typedef struct {
+        logic active;
+        InsId TMP_mid;
+            InsId mid;
+        Mword adr;
+        Word bits;
+    } OpSlotB;
+
+
+    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
+    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, -1, 'x, 'x};
     
-    typedef OpSlot OpSlotA[RENAME_WIDTH];
+    typedef OpSlotF OpSlotAF[FETCH_WIDTH];
+    typedef OpSlotB OpSlotAB[RENAME_WIDTH];
     
 
     typedef enum {
@@ -85,7 +97,7 @@ package AbstractSim;
     
     typedef struct {
         logic active;
-        InsId id;
+        InsId eventMid;
         ControlOp cOp;
         logic redirect;
             logic sigOk;
@@ -561,10 +573,37 @@ package AbstractSim;
 //////////////////
 // General
 
-    function automatic logic anyActive(input OpSlotA s);
+    function automatic logic anyActiveB(input OpSlotAB s);
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
 
+    function automatic logic anyActiveF(input OpSlotAF s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+    
+    
+    function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
+        OpSlotB res;
+        
+        res.active = op.active;
+        res.TMP_mid = op.id;
+        res.mid = -1;
+        res.adr = op.adr;
+        res.bits = op.bits;
+        
+        return res;
+    endfunction;
+
+    function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
+        OpSlotAB res;
+        
+        foreach (ops[i]) begin
+            res[i] = TMP_translateFrontToRename(ops[i]);
+        end
+        
+        return res;
+    endfunction;
 
 endpackage

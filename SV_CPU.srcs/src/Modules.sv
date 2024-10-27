@@ -14,14 +14,14 @@ module RegularSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP
+    input UopPacket opP
 );
     Mword result = 'x;
 
-    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
-    OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
 
-    OpPacket stage0, stage0_E;
+    UopPacket stage0, stage0_E;
 
     assign stage0 = setResult(pE0, result);
     assign stage0_E = setResult(pE0_E, result);
@@ -34,7 +34,7 @@ module RegularSubpipe(
         pE0 <= performRegularE0(tickP(p1));
         
         result <= 'x;
-        if (p1_E.active) result <= calcRegularOp(p1_E.id);
+        if (p1_E.active) result <= calcRegularOp(p1_E.TMP_oid);
         
         
         pD0 <= tickP(pE0);
@@ -66,16 +66,16 @@ module BranchSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP
+    input UopPacket opP
 );
     Mword result = 'x;
 
-    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
-    OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
 
-    OpPacket stage0, stage0_E;
+    UopPacket stage0, stage0_E;
     
-        BranchQueueHelper::Entry inputEntry = BranchQueueHelper::EMPTY_QENTRY;;
+    //    BranchQueueHelper::Entry inputEntry = BranchQueueHelper::EMPTY_QENTRY;;
     
     assign stage0 = setResult(pE0, result);
     assign stage0_E = setResult(pE0_E, result);
@@ -85,15 +85,15 @@ module BranchSubpipe(
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
         
-            inputEntry <= AbstractCore.theBq.getEntry(p0_E);
+          //  inputEntry <= AbstractCore.theBq.getEntry(p0_E);
         
         pE0 <= performBranchE0(tickP(p1));
         
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
-        runExecBranch(p1_E.active, p1_E.id);
-        result <= getBranchResult(p1_E.active, p1_E.id);
+        runExecBranch(p1_E.active, p1_E.TMP_oid);
+        result <= getBranchResult(p1_E.active, p1_E.TMP_oid);
     end
 
     assign p0_E = effP(p0);
@@ -119,24 +119,24 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    OpPacket doneRegular0, doneRegular1;
-    OpPacket doneBranch;
+    UopPacket doneRegular0, doneRegular1;
+    UopPacket doneBranch;
     
-    OpPacket doneMem0, doneMem2;
+    UopPacket doneMem0, doneMem2;
     
-    OpPacket doneFloat0,  doneFloat1; 
+    UopPacket doneFloat0,  doneFloat1; 
     
-    OpPacket doneSys = EMPTY_OP_PACKET;
+    UopPacket doneSys = EMPTY_UOP_PACKET;
     
 
-    OpPacket doneRegular0_E, doneRegular1_E;
-    OpPacket doneBranch_E;
+    UopPacket doneRegular0_E, doneRegular1_E;
+    UopPacket doneBranch_E;
     
-    OpPacket doneMem0_E, doneMem2_E;
+    UopPacket doneMem0_E, doneMem2_E;
     
-    OpPacket doneFloat0_E, doneFloat1_E; 
+    UopPacket doneFloat0_E, doneFloat1_E; 
     
-    OpPacket doneSys_E;
+    UopPacket doneSys_E;
 
 
     DataReadReq readReqs[N_MEM_PORTS];
@@ -144,18 +144,18 @@ module ExecBlock(ref InstructionMap insMap,
     
     logic TMP_memAllow;
     
-    OpPacket issuedReplayQueue;
+    UopPacket issuedReplayQueue;
     
-    OpPacket toReplayQueue0, toReplayQueue2;
-    OpPacket toReplayQueue[N_MEM_PORTS];
+    UopPacket toReplayQueue0, toReplayQueue2;
+    UopPacket toReplayQueue[N_MEM_PORTS];
 
-    OpPacket toLq[N_MEM_PORTS];
-    OpPacket toSq[N_MEM_PORTS];
-    OpPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
+    UopPacket toLq[N_MEM_PORTS];
+    UopPacket toSq[N_MEM_PORTS];
+    UopPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
-    OpPacket fromSq[N_MEM_PORTS];
-    OpPacket fromLq[N_MEM_PORTS];
-    OpPacket fromBq[N_MEM_PORTS];
+    UopPacket fromSq[N_MEM_PORTS];
+    UopPacket fromLq[N_MEM_PORTS];
+    UopPacket fromBq[N_MEM_PORTS];
 
 
     // Int 0
@@ -249,14 +249,14 @@ module ExecBlock(ref InstructionMap insMap,
     assign TMP_memAllow = replayQueue.accept;
 
 
-    function automatic OpPacket memToComplete(input OpPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO})) return EMPTY_OP_PACKET;
+    function automatic UopPacket memToComplete(input UopPacket p);
+        if (!(p.status inside {ES_OK, ES_REDO})) return EMPTY_UOP_PACKET;
         else return p;
     endfunction
 
-    function automatic OpPacket memToReplay(input OpPacket p);
+    function automatic UopPacket memToReplay(input UopPacket p);
         if (!(p.status inside {ES_OK, ES_REDO})) return p;
-        else return EMPTY_OP_PACKET;
+        else return EMPTY_UOP_PACKET;
     endfunction
 
 
@@ -285,12 +285,12 @@ module ExecBlock(ref InstructionMap insMap,
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
     assign toReplayQueue2 = memToReplay(mem2.stage0_E);
     
-    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_OP_PACKET};
+    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
     
-    assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_OP_PACKET};
+    assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toSq = toLq;
 
-    assign toBq = '{0: branch0.pE0_E, default: EMPTY_OP_PACKET};
+    assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
@@ -317,11 +317,11 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-    function automatic OpPacket performRegularE0(input OpPacket p);
-        if (p.id == -1) return p;
+    function automatic UopPacket performRegularE0(input UopPacket p);
+        if (p.TMP_oid == -1) return p;
         begin
-            OpPacket res = p;
-            res.result = calcRegularOp(p.id);
+            UopPacket res = p;
+            res.result = calcRegularOp(p.TMP_oid);
             
             return res;
         end
@@ -342,11 +342,11 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-    function automatic OpPacket performBranchE0(input OpPacket p);
-        if (p.id == -1) return p;
+    function automatic UopPacket performBranchE0(input UopPacket p);
+        if (p.TMP_oid == -1) return p;
         begin
-            OpPacket res = p;
-            res.result = getBranchResult(p.active, p.id);
+            UopPacket res = p;
+            res.result = getBranchResult(p.active, p.TMP_oid);
             
             return res;
         end
@@ -428,7 +428,7 @@ module CoreDB();
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
         
         // Remove?
-        OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
+        OpSlotB lastRenamed = EMPTY_SLOT_B, lastCompleted = EMPTY_SLOT_B, lastRetired = EMPTY_SLOT_B, lastRefetched = EMPTY_SLOT_B;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
         string csqStr, csqIdStr;
