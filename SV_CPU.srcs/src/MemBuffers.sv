@@ -144,9 +144,9 @@ module StoreQueue
             if (!HELPER::applies(decId(wrInputs[p].TMP_oid))) continue;
             
             begin
-               int found[$] = content_N.find_index with (item.mid == wrInputs[p].TMP_oid);
+               int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $error("Sth wrong with Q update [%d], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].TMP_oid));
+               else $error("Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].TMP_oid));
             end
         end 
     endtask
@@ -156,9 +156,10 @@ module StoreQueue
         if (!anyActiveB(inGroup)) return;
     
         foreach (inGroup[i]) begin
-            if (HELPER::applies(decId(inGroup[i].TMP_mid))) begin
-                content_N[endPointer % SIZE] = HELPER::newEntry(insMap, inGroup[i].TMP_mid);                
-                putMilestoneM(inGroup[i].TMP_mid, QUEUE_ENTER);
+            InsId thisMid = inGroup[i].TMP_mid;
+            if (HELPER::applies(decId(thisMid))) begin
+                content_N[endPointer % SIZE] = HELPER::newEntry(insMap, thisMid);                
+                putMilestoneM(thisMid, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
         end
@@ -176,7 +177,7 @@ module StoreQueue
             if (active !== 1) continue;
             if (!isLoadMemIns(decId(theExecBlock.toLq[p].TMP_oid))) continue;
                         
-            resb = HELPER::scanQueue(content_N, theExecBlock.toLq[p].TMP_oid, adr);
+            resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromSq[p] <= resb;
         end
     endtask
@@ -193,7 +194,7 @@ module StoreQueue
             if (active !== 1) continue;
             if (!isStoreMemIns(decId(theExecBlock.toSq[p].TMP_oid))) continue;
             
-            resb = HELPER::scanQueue(content_N, theExecBlock.toLq[p].TMP_oid, adr);
+            resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask

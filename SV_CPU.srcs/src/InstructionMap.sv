@@ -25,6 +25,11 @@ package Insmap;
         int s;
     } UopId;
     
+    typedef InsId UidT; // TODO: for later change to UopId
+    localparam UidT UIDT_NONE = -1;
+    
+    typedef UidT UidQueueT[$];
+    
     localparam UopId UID_NONE = '{-1, -1};
     
     
@@ -60,19 +65,11 @@ package Insmap;
 
 
     typedef struct {
-        InsId id;
-        
-        //    AbstractInstruction dec;
-            
+        InsId id;            
         InsBasicData basicData;
             
         IndexSet inds;
         int slot; // UNUSED?
-
-        //
-        //int physDest;
-        //InsDependencies deps;
-
 
         logic exception;
         logic refetch;
@@ -100,15 +97,12 @@ package Insmap;
         InstructionInfo res;
         res.id = id;
         
-        //res.dec = decodeAbstract(bits);
+        res.basicData.adr = adr;
+        res.basicData.bits = bits;
+        res.basicData.dec = decodeAbstract(bits);
 
-            res.basicData.adr = adr;
-            res.basicData.bits = bits;
-            res.basicData.dec = decodeAbstract(bits);
-
-       // res.physDest = -1;
-            res.TMP_uopInfo.physDest = -1;
-            res.TMP_uopInfo.argError = 0;
+        res.TMP_uopInfo.physDest = -1;
+        res.TMP_uopInfo.argError = 0;
             
         res.exception = 0;
         res.refetch = 0;
@@ -158,20 +152,18 @@ package Insmap;
                                             input IndexSet renameInds,
                                             input int slot
                                             );
-            //infos[id].deps = deps;
-            //infos[id].physDest = physDest;
             infos[id].inds = renameInds;
             infos[id].slot = slot;
             
-                infos[id].basicData.target = target;
-                
-                infos[id].TMP_uopInfo.id = '{id, 0};
-                //infos[id].TMP_uopInfo.name = ...;
-                
-                infos[id].TMP_uopInfo.physDest = physDest;
-                infos[id].TMP_uopInfo.deps = deps;
-                infos[id].TMP_uopInfo.argsE = argValues;
-                infos[id].TMP_uopInfo.resultE = result;
+            infos[id].basicData.target = target;
+            
+            infos[id].TMP_uopInfo.id = '{id, 0};
+            //infos[id].TMP_uopInfo.name = ...; // TODO
+            
+            infos[id].TMP_uopInfo.physDest = physDest;
+            infos[id].TMP_uopInfo.deps = deps;
+            infos[id].TMP_uopInfo.argsE = argValues;
+            infos[id].TMP_uopInfo.resultE = result;
                 
         endfunction
 
@@ -362,7 +354,12 @@ package Insmap;
             assert (insBase.infos.exists(id)) else $fatal(2, "wrong id %d", id);
             return insBase.infos[id];
         endfunction
-    
+
+            function automatic UopInfo getU(input UidT uid);
+                assert (insBase.infos.exists(uid)) else $fatal(2, "wrong id %p", uid);
+                return insBase.infos[uid].TMP_uopInfo;
+            endfunction
+   
         // ins info
         function automatic int size();
             return insBase.infos.size();
@@ -451,9 +448,9 @@ package Insmap;
         endfunction
         
         // For uops
-        function automatic void putMilestone(input InsId id, input Milestone kind, input int cycle);
-            if (id == -1) return;
-            recordsU[id].tags.push_back('{kind, cycle});
+        function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
+            if (uid == UIDT_NONE) return;
+            recordsU[uid].tags.push_back('{kind, cycle});
         endfunction
         
         // For committed

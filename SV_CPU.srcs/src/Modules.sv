@@ -389,12 +389,14 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     // Used before Exec0 to get final values
-    function automatic Mword3 getAndVerifyArgs(input InsId id);
-        InsDependencies deps = insMap.get(id).TMP_uopInfo.deps;
+    function automatic Mword3 getAndVerifyArgs(input UidT uid);
+        InsDependencies deps = insMap.//get(uid).TMP_uopInfo.deps;
+                                      getU(uid).deps;
         Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        Mword3 argsM = insMap.get(id).TMP_uopInfo.argsE;
-        insMap.setActualArgs(id, argsP);
-        insMap.setArgError(id, (argsP !== argsM));
+        Mword3 argsM = insMap.//get(uid).TMP_uopInfo.argsE;
+                              getU(uid).argsE;
+        insMap.setActualArgs(uid, argsP);
+        insMap.setArgError(uid, (argsP !== argsM));
         return argsP;
     endfunction;
 

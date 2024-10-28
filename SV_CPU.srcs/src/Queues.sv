@@ -52,13 +52,14 @@ package Queues;
         endfunction
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            InstructionInfo ii = imap.get(p.TMP_oid);
+            //InstructionInfo ii = imap.get(p.TMP_oid);
             
             entry.adrReady = 1;
             entry.adr = p.result;
             
             entry.valReady = 1;
-            entry.val = ii.TMP_uopInfo.argsA[2];
+            entry.val = //ii.TMP_uopInfo.argsA[2];
+                        imap.getU(p.TMP_oid).argsA[2];
         endfunction
         
             static function void setCommitted(ref Entry entry);

@@ -264,26 +264,34 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotAF ops = theFrontend.stageRename0;
+        OpSlotAB opsB = TMP_front2rename(theFrontend.stageRename0);
 
-        if (anyActiveF(ops))
+        if (anyActiveB(opsB))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
-        foreach (ops[i]) begin
-                UopName uopName = UOP_none;
+        foreach (opsB[i]) begin
+            UopName uopName = UOP_none;
+            InsId newMid = -1;
+
                 TMP_uops_r0[i] = UOP_none;
-            if (ops[i].active !== 1) continue;
-            ops[i].id = insMap.insBase.lastM + 1;
-            insMap.addM(ops[i].id, ops[i].adr, ops[i].bits);
-            renameOp(ops[i].id, i, ops[i].adr, ops[i].bits);   
-            putMilestoneM(ops[i].id, InstructionMap::Rename);
+            
+            if (opsB[i].active !== 1) continue;
+            
+            newMid = insMap.insBase.lastM + 1;
+            
+            opsB[i].TMP_mid = newMid;
+            
+            insMap.addM(newMid, opsB[i].adr, opsB[i].bits);
+            renameOp(newMid, i, opsB[i].adr, opsB[i].bits);   
+            putMilestoneM(newMid, InstructionMap::Rename);
                 
-                uopName = OP_DECODING_TABLE[decId(ops[i].id).mnemonic];
-                TMP_uops_r0[i] = uopName;
-                    insMap.setUopName(ops[i].id, uopName);
+            uopName = OP_DECODING_TABLE[decId(newMid).mnemonic];
+            insMap.setUopName(newMid, uopName);
+            
+            TMP_uops_r0[i] = uopName;
         end
 
-        stageRename1 <= TMP_front2rename(ops);
+        stageRename1 <= opsB;
     endtask
 
     task automatic redirectRest();
@@ -534,11 +542,11 @@ module AbstractCore
     endtask
 
 
-    function automatic OpSlotB TMP_properOp(input InsId id);
-        InstructionInfo insInfo = insMap.get(id);
-        OpSlotB op = '{1, insInfo.id, -1, insInfo.basicData.adr, insInfo.basicData.bits};
-        return op;
-    endfunction
+        function automatic OpSlotB TMP_properOp(input InsId id);
+            InstructionInfo insInfo = insMap.get(id);
+            OpSlotB op = '{1, insInfo.id, -1, insInfo.basicData.adr, insInfo.basicData.bits};
+            return op;
+        endfunction
 
 
     // Finish types:
@@ -664,8 +672,8 @@ module AbstractCore
         insMap.putMilestoneC(id, kind, cycleCtr);
     endfunction
 
-    function automatic void putMilestone(input InsId id, input InstructionMap::Milestone kind);
-        insMap.putMilestone(id, kind, cycleCtr);
+    function automatic void putMilestone(input UidT uid, input InstructionMap::Milestone kind);
+        insMap.putMilestone(uid, kind, cycleCtr);
     endfunction
 
 
@@ -689,8 +697,8 @@ module AbstractCore
     endfunction
 
 
-    function automatic logic shouldFlushEvent(input InsId id);
-        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
+    function automatic logic shouldFlushEvent(input UidT uid);
+        return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
     endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);
@@ -699,6 +707,15 @@ module AbstractCore
             if (checkMemDep(poison, memStage0[p]) && memStage0[p].status != ES_OK) return 1;
         return 0;
     endfunction
+
+        
+        function automatic InsId U2M(input UidT uid);
+            return uid;
+        endfunction
+
+        function automatic int SUBOP(input UidT uid);
+            return 0;
+        endfunction
 
 
     assign insAdr = theFrontend.ipStage[0].adr;

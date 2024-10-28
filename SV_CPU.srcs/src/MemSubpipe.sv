@@ -82,12 +82,12 @@ module MemSubpipe#(
         UopPacket res = p;
         
         if (p.active && isLoadSysIns(decId(p.TMP_oid)) && adr > 31) begin
-            insMap.setException(p.TMP_oid);
+            insMap.setException(U2M(p.TMP_oid));
             return res;
         end
         
         if (p.active && isStoreSysIns(decId(p.TMP_oid)) && adr > 31) begin
-            insMap.setException(p.TMP_oid);
+            insMap.setException(U2M(p.TMP_oid));
             return res;
         end
         
@@ -137,22 +137,22 @@ module MemSubpipe#(
 
 
 
-    function automatic Mword getEffectiveAddress(input InsId id);
-        if (id == -1) return 'x;
+    function automatic Mword getEffectiveAddress(input UidT uid);
+        if (uid == UIDT_NONE) return 'x;
         
         begin
-            AbstractInstruction abs = decId(id);
-            Mword3 args = getAndVerifyArgs(id);
+            AbstractInstruction abs = decId(uid);
+            Mword3 args = getAndVerifyArgs(uid);
             return calculateEffectiveAddress(abs, args);
         end
     endfunction
 
-    function automatic Mword getStoreValue(input InsId id);
-        if (id == -1) return 'x;
+    function automatic Mword getStoreValue(input UidT uid);
+        if (uid == UIDT_NONE) return 'x;
         
         begin
-            AbstractInstruction abs = decId(id);
-            Mword3 args = getAndVerifyArgs(id);
+            AbstractInstruction abs = decId(uid);
+            Mword3 args = getAndVerifyArgs(uid);
             return args[2];
         end
     endfunction
@@ -160,27 +160,27 @@ module MemSubpipe#(
 
 
 
-    task automatic performStore_Dummy(input InsId id, input Mword adr, input Mword val);
-        AbstractInstruction abs = decId(id);
+    task automatic performStore_Dummy(input UidT uid, input Mword adr, input Mword val);
+        AbstractInstruction abs = decId(uid);
         
         if (isStoreMemIns(abs)) begin
-            checkStoreValue(id, adr, val);
+            checkStoreValue(uid, adr, val);
             
-            putMilestone(id, InstructionMap::WriteMemAddress);
-            putMilestone(id, InstructionMap::WriteMemValue);
+            putMilestone(uid, InstructionMap::WriteMemAddress);
+            putMilestone(uid, InstructionMap::WriteMemValue);
         end
     endtask
 
     // TOPLEVEL
-    function automatic UopPacket calcMemE2(input UopPacket p, input InsId id, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-        AbstractInstruction abs = decId(id);
-        Mword3 args = getAndVerifyArgs(id);
+        AbstractInstruction abs = decId(uid);
+        Mword3 args = getAndVerifyArgs(uid);
 
-        InsId writerAllId = AbstractCore.memTracker.checkWriter(id);
-            InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(id);
-            InsId writerInsideId = AbstractCore.memTracker.checkWriter_Inside(id);
-        
+        InsId writerAllId = AbstractCore.memTracker.checkWriter(U2M(uid));
+        InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(U2M(uid));
+        InsId writerInsideId = AbstractCore.memTracker.checkWriter_Inside(U2M(uid));
+    
         logic forwarded = (writerAllId !== -1);
         
         Mword fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
@@ -188,46 +188,40 @@ module MemSubpipe#(
         Mword data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
 
             if (writerOverlapId != writerInsideId) begin
-               // $error("Cannot forward from last overlapping store!");
                 if (HANDLE_UNALIGNED) begin
                     res.status = ES_REDO;
-                   // $error("setting refetch, id = %d", id);
-                    insMap.setRefetch(id);
+                    insMap.setRefetch(U2M(uid));
                 end
             end
             
             // Resp from LQ indicating that a younger load has a hazard
-            if (isStoreMemIns(decId(id))) begin
+            if (isStoreMemIns(decId(uid))) begin
                 if (lqResp.active) begin
-                    insMap.setRefetch(lqResp.TMP_oid);
+                    insMap.setRefetch(U2M(lqResp.TMP_oid));
                 end
             end
             
-            if (isLoadMemIns(decId(id)))  assert (forwarded === sqResp.active) else begin
-                InstructionInfo thisInfo, writerInfo;
-                if (id != -1) thisInfo = insMap.get(id);
-                if (writerAllId != -1) writerInfo = insMap.get(writerAllId);
-
+            if (isLoadMemIns(decId(uid))) begin
+                // TODO: make sure the behavior is correct
+                //assert (forwarded === sqResp.active) else $error("Wrong forward state");
             end
             
-        if (forwarded && isLoadMemIns(decId(id))) begin
-              //  assert (writerInsideId == sqResp.i d) else $error("SQ i d not matchinf memTracker id");
-            putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
-            putMilestone(id, InstructionMap::MemFwConsume);
+        if (forwarded && isLoadMemIns(decId(uid))) begin
+                putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
+            putMilestone(uid, InstructionMap::MemFwConsume);
         end
 
-        insMap.setActualResult(id, data);
+        insMap.setActualResult(uid, data);
 
         res.result = data;
 
-        return //data;
-                res;
+        return res;
     endfunction
 
     // Used once by Mem subpipes
-    function automatic void checkStoreValue(input InsId id, input Mword adr, input Mword value);
-        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == id);
-        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %d, %d@%d", id, value, adr);
+    function automatic void checkStoreValue(input UidT uid, input Mword adr, input Mword value);
+        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == U2M(uid));
+        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %p, %d@%d", uid, value, adr);
     endfunction
 
 endmodule

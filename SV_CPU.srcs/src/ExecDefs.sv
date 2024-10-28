@@ -95,14 +95,14 @@ package ExecDefs;
 
 
     typedef struct {
-        InsId id;
+        //UidT id;
         logic ready;
         logic readyArgs[3];
         logic cancelledArgs[3];
     } IqArgState;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
+    localparam IqArgState EMPTY_ARG_STATE = '{/*id: -1,*/ ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{/*id: -1,*/ ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
 
     typedef struct {
@@ -201,7 +201,7 @@ package ExecDefs;
         IqArgState state;
         IqPoisonState poisons;
             int issueCounter;
-        InsId uid;
+        UidT uid;
     } IqEntry;
 
     localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: -1};
