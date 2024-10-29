@@ -24,20 +24,16 @@ module MemSubpipe#(
     input UopPacket sqResp,
     input UopPacket lqResp
 );
-    Mword result = 'x;
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
-
-    UopPacket stateE0 = EMPTY_UOP_PACKET, stateE1 = EMPTY_UOP_PACKET, stateE2 = EMPTY_UOP_PACKET;
 
     UopPacket stage0, stage0_E;
     
     logic readActive = 0;
     Mword effAdr = 'x, storeValue = 'x;
 
-    assign stage0 = setResult(pE2, result);
-    assign stage0_E = setResult(pE2_E, result);
-
+    assign stage0 = pE2;
+    assign stage0_E = pE2_E;
     assign p0 = opP;
 
 
@@ -52,7 +48,7 @@ module MemSubpipe#(
         pD1 <= tickP(pD0);
     end
 
-    assign readReq = '{/*pE0_E.active*/readActive, effAdr};
+    assign readReq = '{readActive, effAdr};
 
 
     assign p0_E = effP(p0);
@@ -81,6 +77,13 @@ module MemSubpipe#(
     function automatic UopPacket updateE0(input UopPacket p, input Mword adr);
         UopPacket res = p;
         
+        UidT uid = p.TMP_oid;
+        
+            assert (isLoadSysIns(decId(uid)) === isLoadSysUop(decUname(uid))) else $error("not");
+            assert (isStoreSysIns(decId(uid)) === isStoreSysUop(decUname(uid))) else $error("not");
+            assert (isMemIns(decId(uid)) === isMemUop(decUname(uid))) else $error("not");
+
+        
         if (p.active && isLoadSysIns(decId(p.TMP_oid)) && adr > 31) begin
             insMap.setException(U2M(p.TMP_oid));
             return res;
@@ -103,7 +106,7 @@ module MemSubpipe#(
         Mword adr;
         Mword val;
     
-        stateE0 = tickP(p1);
+        UopPacket stateE0 = tickP(p1);
 
         adr = getEffectiveAddress(stateE0.TMP_oid);
         val = getStoreValue(stateE0.TMP_oid);
@@ -116,54 +119,52 @@ module MemSubpipe#(
     endtask
     
     task automatic performE1();
-        stateE1 = tickP(pE0);
-        
+        UopPacket stateE1 = tickP(pE0);
         if (stateE1.active && stateE1.status == ES_OK) performStore_Dummy(stateE1.TMP_oid, effAdr, storeValue);
-        
+
         pE1 <= stateE1;
     endtask
     
-    task automatic performE2();
-        Mword resultE2;
-    
-        stateE2 = tickP(pE1);
-        
-        resultE2 = 'x;
+    task automatic performE2();    
+        UopPacket stateE2 = tickP(pE1);
         if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
-        result <= stateE2.result;
         
         pE2 <= stateE2;
     endtask
 
 
-
     function automatic Mword getEffectiveAddress(input UidT uid);
         if (uid == UIDT_NONE) return 'x;
-        
         begin
-            AbstractInstruction abs = decId(uid);
+            //AbstractInstruction abs = decId(U2M(uid));
             Mword3 args = getAndVerifyArgs(uid);
-            return calculateEffectiveAddress(abs, args);
+            return //calculateEffectiveAddress(abs, args);
+                   calcEffectiveAddress(args);
         end
     endfunction
 
     function automatic Mword getStoreValue(input UidT uid);
         if (uid == UIDT_NONE) return 'x;
-        
         begin
-            AbstractInstruction abs = decId(uid);
             Mword3 args = getAndVerifyArgs(uid);
             return args[2];
         end
     endfunction
 
 
+        function automatic Mword calcEffectiveAddress(Mword3 args);
+            return args[0] + args[1];
+        endfunction
+
+
 
 
     task automatic performStore_Dummy(input UidT uid, input Mword adr, input Mword val);
-        AbstractInstruction abs = decId(uid);
+        //AbstractInstruction abs = decId(uid);
+            
+            assert (isStoreMemIns(decId(uid)) === isStoreMemUop(decUname(uid))) else $error("not");
         
-        if (isStoreMemIns(abs)) begin
+        if (isStoreMemIns(decId(uid))) begin
             checkStoreValue(uid, adr, val);
             
             putMilestone(uid, InstructionMap::WriteMemAddress);
@@ -174,7 +175,7 @@ module MemSubpipe#(
     // TOPLEVEL
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-        AbstractInstruction abs = decId(uid);
+        //AbstractInstruction abs = decId(uid);
         Mword3 args = getAndVerifyArgs(uid);
 
         InsId writerAllId = AbstractCore.memTracker.checkWriter(U2M(uid));
@@ -185,7 +186,12 @@ module MemSubpipe#(
         
         Mword fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
         Mword memData = forwarded ? fwValue : readResp.result;
-        Mword data = isLoadSysIns(abs) ? getSysReg(args[1]) : memData;
+        Mword data = isLoadSysIns(decId(uid)) ? getSysReg(args[1]) : memData;
+
+            assert (isLoadSysIns(decId(uid)) === isLoadSysUop(decUname(uid))) else $error("not");
+            assert (isStoreMemIns(decId(uid)) === isStoreMemUop(decUname(uid))) else $error("not");
+            assert (isLoadMemIns(decId(uid)) === isLoadMemUop(decUname(uid))) else $error("not");
+
 
             if (writerOverlapId != writerInsideId) begin
                 if (HANDLE_UNALIGNED) begin

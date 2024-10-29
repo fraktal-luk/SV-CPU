@@ -140,13 +140,19 @@ module StoreQueue
 
     task automatic update();
         foreach (wrInputs[p]) begin
+            UopName uname;// = insMap.getU(wrInputs[p].TMP_oid).name;
             if (wrInputs[p].active !== 1) continue;
+            
+            uname = insMap.getU(wrInputs[p].TMP_oid).name;
+
+                    assert (HELPER::applies(decId(wrInputs[p].TMP_oid)) === HELPER::appliesU(decUname(wrInputs[p].TMP_oid))) else $error("wrong apply");
+            
             if (!HELPER::applies(decId(wrInputs[p].TMP_oid))) continue;
             
             begin
                int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $error("Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(wrInputs[p].TMP_oid));
+               else $error("Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
             end
         end 
     endtask
@@ -157,6 +163,10 @@ module StoreQueue
     
         foreach (inGroup[i]) begin
             InsId thisMid = inGroup[i].TMP_mid;
+            
+                                assert (HELPER::applies(decId(thisMid)) === HELPER::appliesU(decUname(thisMid))) else $error("wrong apply");
+
+            
             if (HELPER::applies(decId(thisMid))) begin
                 content_N[endPointer % SIZE] = HELPER::newEntry(insMap, thisMid);                
                 putMilestoneM(thisMid, QUEUE_ENTER);
@@ -175,6 +185,11 @@ module StoreQueue
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
             
             if (active !== 1) continue;
+            
+                 assert (isLoadMemIns(decId(theExecBlock.toLq[p].TMP_oid)) === isLoadMemUop(decUname(theExecBlock.toLq[p].TMP_oid))) else $error("not");
+
+
+            
             if (!isLoadMemIns(decId(theExecBlock.toLq[p].TMP_oid))) continue;
                         
             resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
@@ -192,6 +207,10 @@ module StoreQueue
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
             
             if (active !== 1) continue;
+            
+                             assert (isStoreMemIns(decId(theExecBlock.toSq[p].TMP_oid)) === isStoreMemUop(decUname(theExecBlock.toSq[p].TMP_oid))) else $error("not");
+
+            
             if (!isStoreMemIns(decId(theExecBlock.toSq[p].TMP_oid))) continue;
             
             resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);

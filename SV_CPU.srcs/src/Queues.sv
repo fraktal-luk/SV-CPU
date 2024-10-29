@@ -9,6 +9,8 @@ package Queues;
     import AbstractSim::*;
     import Insmap::*;
     import ExecDefs::*;
+    
+    import UopList::*;
 
 
         typedef int IntQueue[$];
@@ -41,6 +43,10 @@ package Queues;
             return isStoreIns(ins);
         endfunction
 
+            static function automatic logic appliesU(input UopName uname);
+                return isStoreUop(uname);
+            endfunction
+        
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
             res.mid = id;
@@ -115,6 +121,10 @@ package Queues;
             return isLoadIns(ins);
         endfunction
 
+            static function automatic logic appliesU(input UopName uname);
+                return isLoadUop(uname);
+            endfunction
+            
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
             res.mid = id;
@@ -187,6 +197,10 @@ package Queues;
             return isBranchIns(ins);
         endfunction
 
+            static function automatic logic appliesU(input UopName uname);
+                return isBranchUop(uname);
+            endfunction
+            
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
             InstructionInfo ii = imap.get(id);

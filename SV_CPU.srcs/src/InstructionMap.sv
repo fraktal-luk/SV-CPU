@@ -20,18 +20,6 @@ package Insmap;
         AbstractInstruction dec;
     } InsBasicData;
     
-    typedef struct {
-        int m;
-        int s;
-    } UopId;
-    
-    typedef InsId UidT; // TODO: for later change to UopId
-    localparam UidT UIDT_NONE = -1;
-    
-    typedef UidT UidQueueT[$];
-    
-    localparam UopId UID_NONE = '{-1, -1};
-    
     
         typedef struct {
             UopName name;
@@ -408,20 +396,20 @@ package Insmap;
             insBase.setRenamed(id, result, target, deps, physDest, argValues, renameInds, slot);
         endfunction
 
-        function automatic void setUopName(input InsId id, input UopName name);
-            insBase.infos[id].TMP_uopInfo.name = name;
+        function automatic void setUopName(input UidT uid, input UopName name);
+            insBase.infos[uid].TMP_uopInfo.name = name;
         endfunction
 
-        function automatic void setActualResult(input InsId id, input Mword res);
-            insBase.infos[id].TMP_uopInfo.resultA = res;
+        function automatic void setActualResult(input UidT uid, input Mword res);
+            insBase.infos[uid].TMP_uopInfo.resultA = res;
         endfunction
 
-        function automatic void setActualArgs(input InsId id, input Mword args[3]);
-            insBase.infos[id].TMP_uopInfo.argsA = args;
+        function automatic void setActualArgs(input UidT uid, input Mword args[3]);
+            insBase.infos[uid].TMP_uopInfo.argsA = args;
         endfunction
 
-        function automatic void setArgError(input InsId id, input logic value);
-            insBase.infos[id].TMP_uopInfo.argError = value;
+        function automatic void setArgError(input UidT uid, input logic value);
+            insBase.infos[uid].TMP_uopInfo.argError = value;
         endfunction
         
         function automatic void setException(input InsId id);

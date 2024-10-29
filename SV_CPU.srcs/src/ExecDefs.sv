@@ -9,6 +9,8 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
+    //import UopList::*;
+
 
     localparam int N_INT_PORTS = 4;
     localparam int N_MEM_PORTS = 4;
@@ -57,7 +59,7 @@ package ExecDefs;
 
     typedef struct {
         logic active;
-        InsId TMP_oid;
+        UidT TMP_oid;
             UopId TMP_uopId;
         ExecStatus status;
         Poison poison;
@@ -65,7 +67,7 @@ package ExecDefs;
         Mword result;
     } UopPacket;
     
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, -1, UID_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, UID_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
 
 
 

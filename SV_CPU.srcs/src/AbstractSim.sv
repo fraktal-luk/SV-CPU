@@ -46,6 +46,21 @@ package AbstractSim;
 
 
     typedef struct {
+        int m;
+        int s;
+    } UopId;
+    
+    typedef InsId UidT; // TODO: for later change to UopId
+    localparam UidT UIDT_NONE = -1;
+    
+    typedef UidT UidQueueT[$];
+    
+    localparam UopId UID_NONE = '{-1, -1};
+    
+
+
+
+    typedef struct {
         logic active;
         InsId id;
             InsId mid;
@@ -605,5 +620,115 @@ package AbstractSim;
         
         return res;
     endfunction;
+
+
+
+//    // Not including memory
+//    function automatic logic isFloatCalcUop(input UopName name);
+//        return name inside { O_floatMove, O_floatOr, O_floatAddInt };
+//    endfunction    
+
+
+
+
+    function automatic logic isBranchUop(input UopName name);
+        return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
+    endfunction
+
+//        function automatic logic isBranchImmIns(input UopName name);
+//            return name inside {"ja", "jl", "jz_i", "jnz_i"};
+//        endfunction
+
+//        function automatic logic isBranchAlwaysIns(input UopName name);
+//            return name inside {"ja", "jl"};
+//        endfunction
+
+//        function automatic logic isBranchRegIns(input UopName name);
+//            return name inside {"jz_r", "jnz_r"};
+//        endfunction       
+        
+
+    function automatic logic isMemUop(input UopName name);
+        return isLoadMemUop(name) || isStoreMemUop(name);
+    endfunction
+
+    function automatic logic isStoreUop(input UopName name);
+        return isStoreMemUop(name) || isStoreSysUop(name);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+    endfunction
+
+    function automatic logic isLoadUop(input UopName name);
+        return isLoadMemUop(name) || isLoadSysUop(name);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+    endfunction
+
+    function automatic logic isLoadSysUop(input UopName name);
+        return name inside {UOP_mem_lds};
+    endfunction
+
+    function automatic logic isLoadMemUop(input UopName name);
+        return name inside {UOP_mem_ldi, UOP_mem_ldf};
+    endfunction
+
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
+
+    function automatic logic isStoreMemUop(input UopName name);
+        return name inside {UOP_mem_sti, UOP_mem_stf};
+    endfunction
+
+//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
+//        return ins.def.o inside {O_floatStoreW};
+//    endfunction
+    
+
+    function automatic logic isStoreSysUop(input UopName name);
+        return name inside {UOP_mem_sts};
+    endfunction
+    
+//    function automatic logic isStoreIns(input AbstractInstruction ins);
+//        return isStoreMemIns(ins) || isStoreSysIns(ins);
+//    endfunction
+
+
+//    function automatic bit hasIntDest(input AbstractInstruction ins);
+//        return ins.def.o inside {
+//            O_jump,
+            
+//            O_intAnd,
+//            O_intOr,
+//            O_intXor,
+            
+//            O_intAdd,
+//            O_intSub,
+//            O_intAddH,
+            
+//            O_intMul,
+//            O_intMulHU,
+//            O_intMulHS,
+//            O_intDivU,
+//            O_intDivS,
+//            O_intRemU,
+//            O_intRemS,
+            
+//            O_intShiftLogical,
+//            O_intShiftArith,
+//            O_intRotate,
+            
+//            O_intLoadW,
+//            O_intLoadD,
+            
+//            O_sysLoad
+//        };
+//    endfunction
+
+//    function automatic bit hasFloatDest(input AbstractInstruction ins);
+//        return ins.def.o inside {
+//            O_floatMove,
+//            O_floatOr, O_floatAddInt,
+//            O_floatLoadW
+//        };
+//    endfunction
+
+
 
 endpackage

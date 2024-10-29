@@ -285,7 +285,7 @@ module AbstractCore
             renameOp(newMid, i, opsB[i].adr, opsB[i].bits);   
             putMilestoneM(newMid, InstructionMap::Rename);
                 
-            uopName = OP_DECODING_TABLE[decId(newMid).mnemonic];
+            uopName = OP_DECODING_TABLE[decodeId(newMid).mnemonic];
             insMap.setUopName(newMid, uopName);
             
             TMP_uops_r0[i] = uopName;
@@ -491,7 +491,7 @@ module AbstractCore
                 insMap.committedM++;
             
             if (breaksCommitId(theId)) begin
-                lateEventInfoWaiting <= eventFromOp(theId, decId(theId), getAdr(theId), refetch, exception);
+                lateEventInfoWaiting <= eventFromOp(theId, decodeId(theId), getAdr(theId), refetch, exception); // TODO: reorganize eventFromOp?
                 cancelRest = 1;
             end
         end
@@ -576,7 +576,7 @@ module AbstractCore
 
         verifyOnCommit(id);
 
-        checkUnimplementedInstruction(decId(id)); // All types of commit?
+        checkUnimplementedInstruction(decodeId(id)); // All types of commit?
 
         registerTracker.commit(insInfo.basicData.dec, id, refetch || exception); // Need to modify to handle Exceptional and Hidden
             
@@ -653,6 +653,17 @@ module AbstractCore
         if (id == -1) return DEFAULT_ABS_INS;     
         return insMap.get(id).basicData.dec;
     endfunction
+
+    function automatic UopName decUname(input UidT uid);
+        if (uid == UIDT_NONE) return UOP_none;     
+        return insMap.getU(uid).name;
+    endfunction
+        
+        // TEMP: to use where it's not just to determine uop name 
+        function automatic AbstractInstruction decodeId(input InsId id);
+            if (id == -1) return DEFAULT_ABS_INS;     
+            return insMap.get(id).basicData.dec;
+        endfunction
 
     function automatic Mword getAdr(input InsId id);
         if (id == -1) return 'x;     

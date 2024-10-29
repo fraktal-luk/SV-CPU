@@ -49,7 +49,7 @@ package UopList;
         
          UOP_bc_z,
          UOP_bc_nz,
-         UOP_br_n,
+         UOP_br_z,
          UOP_br_nz,
          UOP_bc_a,
          UOP_bc_l,
@@ -108,8 +108,8 @@ package UopList;
         "sts":        UOP_mem_sts,
         
         "jz_i":       UOP_bc_z,
-        "jz_r":       UOP_bc_nz,
-        "jnz_i":      UOP_br_n,
+        "jz_r":       UOP_br_z,
+        "jnz_i":      UOP_bc_nz,
         "jnz_r":      UOP_br_nz,
         "ja":         UOP_bc_a,
         "jl":         UOP_bc_l,

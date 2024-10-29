@@ -211,7 +211,7 @@ module ReorderBuffer
         for (int r = 0; r < DEPTH; r++)
             for (int c = 0; c < WIDTH; c++)
                 if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
-                    array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1; // TODO: uop subid
+                    array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
                     putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
                 end
     endtask
