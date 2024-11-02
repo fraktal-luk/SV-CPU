@@ -6,7 +6,8 @@ package ControlHandling;
     import Asm::*;
     import Emulation::*;
     import AbstractSim::*;
-    
+    import UopList::*;
+
 
     function automatic EventInfo getLateEvent(input EventInfo info, input Mword adr, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
@@ -96,43 +97,38 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input AbstractInstruction abs, input Mword adr, input logic refetch, input logic exception);
-        EventInfo res = '{1, id, CO_none, /*0, 0,*/ 1, 0, 0, adr, 'x};
+    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception);
+        EventInfo res = '{1, id, CO_none, 1, 0, 0, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;
         else begin
-            case (abs.def.o)
-                O_undef:    res.cOp = CO_undef;
-                O_call:     res.cOp = CO_call;
-                O_retE:     res.cOp = CO_retE;
-                O_retI:     res.cOp = CO_retI;
-                O_sync:     res.cOp = CO_sync;
-                O_replay:   res.cOp = CO_refetch;
+            case (uname)
+                // TODO: error
+                UOP_ctrl_undef:    res.cOp = CO_undef;
+                UOP_ctrl_call:     res.cOp = CO_call;
+                UOP_ctrl_rete:     res.cOp = CO_retE;
+                UOP_ctrl_reti:     res.cOp = CO_retI;
+                UOP_ctrl_sync:     res.cOp = CO_sync;
+                UOP_ctrl_refetch:   res.cOp = CO_refetch;
                 //O_halt:     res.cOp = CO_undef;
-                O_send:     res.cOp = CO_send;
+                UOP_ctrl_send:     res.cOp = CO_send;
                 default:    res.cOp = CO_none;
             endcase
         end
-        
         return res;
     endfunction
-
 
     task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
 
     // core logic
-    function automatic Mword getCommitTarget(input AbstractInstruction ins, input Mword prev, input Mword executed, input logic refetch, input logic exception);
-        if (isBranchIns(ins))
-            return executed;
-        else if (isSysIns(ins) || exception)
-            return 'x;
-        else if (refetch)
-            return prev;
-        else
-            return prev + 4;
+    function automatic Mword getCommitTarget(input UopName uname, input Mword prev, input Mword executed, input logic refetch, input logic exception);
+        if (isBranchUop(uname)) return executed;
+        else if (isControlUop(uname) || exception) return 'x;
+        else if (refetch) return prev;
+        else return prev + 4;
     endfunction;
 
 endpackage

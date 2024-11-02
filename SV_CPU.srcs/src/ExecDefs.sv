@@ -20,8 +20,8 @@ package ExecDefs;
     typedef logic ReadyQueue3[$][3];
 
 
-    typedef InsId Poison[N_MEM_PORTS * (1 - -3 + 1)];
-    localparam Poison EMPTY_POISON = '{default: -1};
+    typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
+    localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
     
 
     typedef struct {
@@ -97,14 +97,13 @@ package ExecDefs;
 
 
     typedef struct {
-        //UidT id;
         logic ready;
         logic readyArgs[3];
         logic cancelledArgs[3];
     } IqArgState;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{/*id: -1,*/ ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{/*id: -1,*/ ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
+    localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
 
     typedef struct {
@@ -115,7 +114,7 @@ package ExecDefs;
 
     
         
-    typedef logic IdMap[InsId];
+    typedef logic IdMap[UidT];
     
     function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         IdMap res;
@@ -123,7 +122,7 @@ package ExecDefs;
         foreach (fea[p]) begin
             ForwardingElement subpipe[-3:1] = fea[p];
             foreach (subpipe[s]) begin
-                if (subpipe[s].TMP_oid != -1) res[subpipe[s].TMP_oid] = 1;
+                if (subpipe[s].TMP_oid != UIDT_NONE) res[subpipe[s].TMP_oid] = 1;
             end
         end
 
@@ -133,7 +132,7 @@ package ExecDefs;
     function automatic IdMap poison2map(input Poison p);
         IdMap res;
         foreach (p[i])
-            if (p[i] != -1) res[p[i]] = 1;
+            if (p[i] != UIDT_NONE) res[p[i]] = 1;
         return res;
     endfunction
 
@@ -142,7 +141,7 @@ package ExecDefs;
         Poison res = EMPTY_POISON;
         int n = 0;
         
-        map.delete(-1);
+        map.delete(UIDT_NONE);
         
         foreach (map[id])
             res[n++] = id;
@@ -156,8 +155,8 @@ package ExecDefs;
         IdMap old = poison2map(p);
         
         // Remove those not present
-        foreach (old[id])
-            if (!present.exists(id)) old.delete(id);
+        foreach (old[uid])
+            if (!present.exists(uid)) old.delete(uid);
         
         return map2poison(old);
     endfunction
@@ -168,17 +167,17 @@ package ExecDefs;
     // merge args - on issue
     // add poison - for argument on its wakeup
     
-    function automatic Poison addProducer(input Poison p, input InsId id, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Poison addProducer(input Poison p, input UidT uid, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         Poison u = updatePoison(p, fea);
         IdMap map = poison2map(u);
         // add id
-        map[id] = 1;
+        map[uid] = 1;
         
         return map2poison(map);
     endfunction
         
         
-    function automatic Poison mergePoisons(input Poison ap[3] /*, input ForwardingElement fea[N_MEM_PORTS][-3:1]*/);
+    function automatic Poison mergePoisons(input Poison ap[3]);
         // update 3 poisons
         Poison u0 = ap[0];
         Poison u1 = ap[1];
@@ -188,8 +187,8 @@ package ExecDefs;
         IdMap m1 = poison2map(u1);
         IdMap m2 = poison2map(u2);
         
-        foreach (m1[id]) m0[id] = 1;
-        foreach (m2[id]) m0[id] = 1;
+        foreach (m1[uid]) m0[uid] = 1;
+        foreach (m2[uid]) m0[uid] = 1;
         
         // put into 1 poison
         return map2poison(m0);
@@ -206,7 +205,7 @@ package ExecDefs;
         UidT uid;
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: -1};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
 
     
     typedef enum {
@@ -216,14 +215,14 @@ package ExecDefs;
     
     typedef struct {
         logic active;
-        InsId producer;
+        UidT producer;
         PipeGroup group;
         int port;
         int stage;
         Poison poison;
     } Wakeup;
     
-    localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, EMPTY_POISON};
+    localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
 
 
@@ -282,18 +281,18 @@ package ExecDefs;
     endfunction
 
 
-    function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
-        return !(fe.TMP_oid == -1) && fe.TMP_oid === producer;
+    function automatic logic matchProducer(input ForwardingElement fe, input UidT producer);
+        return (fe.TMP_oid != UIDT_NONE) && fe.TMP_oid === producer;
     endfunction
 
-    function automatic FEQ findForwardInt(input InsId producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardInt(input UidT producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feInt.find with (matchProducer(item, producer));
         if (res.size() == 0)
             res = feMem.find with (matchProducer(item, producer));
         return res;
     endfunction
 
-    function automatic FEQ findForwardVec(input InsId producer, input ForwardingElement feVec[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feVec.find with (matchProducer(item, producer));
         return res;
     endfunction
@@ -306,7 +305,7 @@ package ExecDefs;
 
 
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                           input InsId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
         if (ready) return tracker.ints.regs[source];
@@ -330,7 +329,7 @@ package ExecDefs;
 
 
     function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-                                           input InsId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
                        
         if (ready) return tracker.floats.regs[source];
@@ -381,9 +380,9 @@ package ExecDefs;
     endfunction
 
     // IQs
-    function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
-        if (producer == -1) return res;
+        if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
@@ -402,9 +401,9 @@ package ExecDefs;
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
-        if (producer == -1) return res;
+        if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
@@ -426,9 +425,9 @@ package ExecDefs;
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
-        if (producer == -1) return res;
+        if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
@@ -448,8 +447,8 @@ package ExecDefs;
 
 
         function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.TMP_oid != -1) begin
-                int inds[$] = p.find with (item == fe.TMP_oid);
+            if (fe.TMP_oid != UIDT_NONE) begin
+                UidT inds[$] = p.find with (item == fe.TMP_oid);
                 return inds.size() != 0;
             end
             return 0;

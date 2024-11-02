@@ -50,12 +50,42 @@ package AbstractSim;
         int s;
     } UopId;
     
+    localparam UopId UID_NONE = '{-1, -1};
+    
+    
     typedef InsId UidT; // TODO: for later change to UopId
     localparam UidT UIDT_NONE = -1;
+
+    function automatic UidT FIRST_U(input InsId id);
+        return id;
+    endfunction
+    
+    function automatic InsId U2M(input UidT uid);
+        return uid;
+    endfunction
+
+    function automatic int SUBOP(input UidT uid);
+        return 0;
+    endfunction
+
+//        typedef UopId UidT; // TODO: for later change to UopId
+//        localparam UidT UIDT_NONE = UID_NONE;
+
+//    function automatic UidT FIRST_U(input InsId id);
+//        return '{id, 0};
+//    endfunction
+    
+//    function automatic InsId U2M(input UidT uid);
+//        return uid.m;
+//    endfunction
+
+//    function automatic int SUBOP(input UidT uid);
+//        return 0;
+//    endfunction
+
     
     typedef UidT UidQueueT[$];
     
-    localparam UopId UID_NONE = '{-1, -1};
     
 
 
@@ -150,6 +180,12 @@ package AbstractSim;
     //////////////////////////////////////
 
 
+//    typedef InsId WriterId;
+//    localparam WriterId WID_NONE = -1; 
+
+        typedef UidT WriterId;
+        localparam WriterId WID_NONE = UIDT_NONE; 
+    
     // Defs for tracking, insMap
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
     } SourceType;
@@ -157,7 +193,7 @@ package AbstractSim;
     typedef struct {
         int sources[3];
         SourceType types[3];
-        InsId producers[3];
+        WriterId producers[3];
     } InsDependencies;
 
 
@@ -169,7 +205,7 @@ package AbstractSim;
     class BranchCheckpoint;
     
         function new(input InsId id, input CpuState state, input SimpleMem mem, 
-                    input int intWr[32], input int floatWr[32],
+                    input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet);
             this.id = id;
@@ -186,8 +222,8 @@ package AbstractSim;
         InsId id;
         CpuState state;
         SimpleMem mem;
-        int intWriters[32];
-        int floatWriters[32];
+        WriterId intWriters[32];
+        WriterId floatWriters[32];
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
@@ -202,15 +238,15 @@ package AbstractSim;
         
         typedef struct {
             PhysRegState state;
-            InsId owner;
+            WriterId owner;
         } PhysRegInfo;    
 
         class RegisterDomain#(
             parameter int N_REGS = N_REGS_INT,
             parameter logic IGNORE_R0 = 1
         );
-            localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
-            localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
+            localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: WID_NONE};
+            localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: WID_NONE};
     
         
             PhysRegInfo info[N_REGS] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
@@ -220,15 +256,14 @@ package AbstractSim;
             int MapR[32] = '{default: 0};
             int MapC[32] = '{default: 0};
             
-            InsId writersR[32] = '{default: -1};
-            InsId writersC[32] = '{default: -1};
+            WriterId writersR[32] = '{default: WID_NONE};
+            WriterId writersC[32] = '{default: WID_NONE};
             
             function automatic logic ignoreV(input int vReg);
                 return (vReg == 0) && IGNORE_R0;
             endfunction
             
-            function automatic int reserve(input AbstractInstruction ins, input InsId id);
-                int vDest = ins.dest;
+            function automatic int reserve(input int vDest, input WriterId id);
                 int pDest = findFree();
                 
                 if (!ignoreV(vDest)) begin
@@ -247,8 +282,7 @@ package AbstractSim;
                 regs[p] = 'x;
             endfunction
   
-            function automatic void commit(input AbstractInstruction ins, input InsId id, input logic normal);
-                int vDest = ins.dest;
+            function automatic void commit(input int vDest, input WriterId id, input logic normal);
                 int ind[$] = info.find_first_index with (item.owner == id);
                 int pDest = ind[0];
                 int pDestPrev = MapC[vDest];
@@ -258,7 +292,7 @@ package AbstractSim;
                 if (normal) begin
                     writersC[vDest] = id;
                     MapC[vDest] = pDest;
-                    info[pDest] = '{STABLE, -1};
+                    info[pDest] = '{STABLE, WID_NONE};
                     
                     releaseRegister(pDestPrev);
                 end
@@ -268,14 +302,14 @@ package AbstractSim;
 
             endfunction
 
-            function automatic void setReady(input InsId id);
+            function automatic void setReady(input WriterId id);
                 int pDest = findDest(id);
                 ready[pDest] = 1;
             endfunction;
     
-            function automatic void writeValue(input AbstractInstruction ins, input InsId id, input Mword value);
+            function automatic void writeValue(input int vDest, input WriterId id, input Mword value);
                 int pDest = findDest(id);
-                if (ignoreV(ins.dest)) return;
+                if (ignoreV(vDest)) return;
                 regs[pDest] = value;
             endfunction            
  
@@ -284,14 +318,17 @@ package AbstractSim;
                 return res[0];
             endfunction
     
-            function automatic int findDest(input InsId id);
+            function automatic int findDest(input WriterId id);
                 int inds[$] = info.find_first_index with (item.owner == id);
                 return inds.size() > 0 ? inds[0] : -1;
             endfunction;
 
+                function automatic InsId TMP_W2M(input WriterId id);
+                    return id;
+                endfunction
 
             function automatic void flush(input InsId id);
-                int inds[$] = info.find_index with (item.state == SPECULATIVE && item.owner > id);
+                int inds[$] = info.find_index with (item.state == SPECULATIVE && TMP_W2M(item.owner) > id);
 
                 foreach (inds[i]) begin
                     int pDest = inds[i];
@@ -315,7 +352,7 @@ package AbstractSim;
             endfunction
 
 
-            function automatic void restoreCP(input int intM[32], input InsId intWriters[32]);
+            function automatic void restoreCP(input int intM[32], input WriterId intWriters[32]);
                 MapR = intM;
                 writersR = intWriters;
             endfunction
@@ -327,7 +364,7 @@ package AbstractSim;
     
             function automatic void restoreReset();
                 MapR = MapC;
-                writersR = '{default: -1};
+                writersR = '{default: WID_NONE};
 
                 foreach (info[i])
                     if (info[i].state == STABLE)
@@ -340,26 +377,26 @@ package AbstractSim;
         RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
 
           
-        function automatic int reserve(input AbstractInstruction abs, input InsId id);
-            if (hasIntDest(abs)) return ints.reserve(abs, id);
-            if (hasFloatDest(abs)) return  floats.reserve(abs, id);  
+        function automatic int reserve(input UopName name, input int dest, input WriterId id);
+            if (uopHasIntDest(name)) return ints.reserve(dest, id);
+            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);  
             return -1;
         endfunction
 
 
-        function automatic void commit(input AbstractInstruction abs, input InsId id, input abnormal);            
-            if (hasIntDest(abs)) ints.commit(abs, id, !abnormal);      
-            if (hasFloatDest(abs)) floats.commit(abs, id, !abnormal);
+        function automatic void commit(input UopName name, input int dest, input WriterId id, input abnormal);            
+            if (uopHasIntDest(name)) ints.commit(dest, id, !abnormal);      
+            if (uopHasFloatDest(name)) floats.commit(dest, id, !abnormal);
         endfunction
 
-        function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Mword value);
-            if (hasIntDest(abs)) begin
+        function automatic void writeValue(input UopName name, input int dest, input WriterId id, input Mword value);
+            if (uopHasIntDest(name)) begin
                 ints.setReady(id);
-                ints.writeValue(abs, id, value);
+                ints.writeValue(dest, id, value);
             end
-            if (hasFloatDest(abs)) begin
+            if (uopHasFloatDest(name)) begin
                 floats.setReady(id);
-                floats.writeValue(abs, id, value);
+                floats.writeValue(dest, id, value);
             end
         endfunction
 
@@ -368,7 +405,7 @@ package AbstractSim;
             int mapInt[32] = ints.MapR;
             int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
-            InsId producers[3] = '{-1, -1, -1};
+            WriterId producers[3] = '{WID_NONE, WID_NONE, WID_NONE};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
             
             string typeSpec = parsingMap[abs.fmt].typeSpec;
@@ -410,7 +447,7 @@ package AbstractSim;
         endfunction
  
  
-        function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
+        function automatic void restoreCP(input int intM[32], input int floatM[32], input WriterId intWriters[32], input WriterId floatWriters[32]);
             ints.restoreCP(intM, intWriters);
             floats.restoreCP(floatM, floatWriters);
         endfunction
@@ -623,12 +660,28 @@ package AbstractSim;
 
 
 
-//    // Not including memory
-//    function automatic logic isFloatCalcUop(input UopName name);
-//        return name inside { O_floatMove, O_floatOr, O_floatAddInt };
-//    endfunction    
+    // Not including memory
+    function automatic logic isFloatCalcUop(input UopName name);
+        return name inside {
+             UOP_fp_move,
+             UOP_fp_or,
+             UOP_fp_addi };
+    endfunction    
 
 
+    function automatic logic isControlUop(input UopName name);
+        return name inside {
+            UOP_ctrl_undef,
+            UOP_ctrl_rete,
+            UOP_ctrl_reti,
+            UOP_ctrl_halt,
+            UOP_ctrl_sync,
+            UOP_ctrl_refetch,
+            UOP_ctrl_error,
+            UOP_ctrl_call,
+            UOP_ctrl_send
+        };
+    endfunction
 
 
     function automatic logic isBranchUop(input UopName name);
@@ -690,44 +743,54 @@ package AbstractSim;
 //    endfunction
 
 
-//    function automatic bit hasIntDest(input AbstractInstruction ins);
-//        return ins.def.o inside {
-//            O_jump,
-            
-//            O_intAnd,
-//            O_intOr,
-//            O_intXor,
-            
-//            O_intAdd,
-//            O_intSub,
-//            O_intAddH,
-            
-//            O_intMul,
-//            O_intMulHU,
-//            O_intMulHS,
-//            O_intDivU,
-//            O_intDivS,
-//            O_intRemU,
-//            O_intRemS,
-            
-//            O_intShiftLogical,
-//            O_intShiftArith,
-//            O_intRotate,
-            
-//            O_intLoadW,
-//            O_intLoadD,
-            
-//            O_sysLoad
-//        };
-//    endfunction
+    function automatic logic uopHasIntDest(input UopName name);
+        return name inside {
+         UOP_int_and,
+         UOP_int_or,
+         UOP_int_xor,
+        
+         UOP_int_addc,
+         UOP_int_addh,
+        
+         UOP_int_add,
+         UOP_int_sub,
+        
+         UOP_int_shlc,
+         UOP_int_shac,
+         UOP_int_rotc,
+        
+         UOP_int_mul,
+         UOP_int_mulhs,
+         UOP_int_mulhu,
+         UOP_int_divs, 
+         UOP_int_divu,
+         UOP_int_rems,
+         UOP_int_remu,
+        
+         UOP_mem_ldi,
 
-//    function automatic bit hasFloatDest(input AbstractInstruction ins);
-//        return ins.def.o inside {
-//            O_floatMove,
-//            O_floatOr, O_floatAddInt,
-//            O_floatLoadW
-//        };
-//    endfunction
+         UOP_mem_lds,
+        
+         UOP_br_z,
+         UOP_br_nz,
+         UOP_bc_l,
+
+
+             UOP_bc_z,
+             UOP_bc_nz,
+             UOP_bc_a
+        };
+    endfunction
+
+    function automatic logic uopHasFloatDest(input UopName name);
+        return name inside {
+             UOP_fp_move,
+             UOP_fp_or,
+             UOP_fp_addi,
+            
+             UOP_mem_ldf
+        };
+    endfunction
 
 
 

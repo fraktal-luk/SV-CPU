@@ -55,7 +55,9 @@ package Insmap;
     typedef struct {
         InsId id;            
         InsBasicData basicData;
-            
+
+            UopName mainUop; // For 1 uop Mops is equal to the uop
+
         IndexSet inds;
         int slot; // UNUSED?
 
@@ -397,6 +399,7 @@ package Insmap;
         endfunction
 
         function automatic void setUopName(input UidT uid, input UopName name);
+            insBase.infos[uid].mainUop = name;
             insBase.infos[uid].TMP_uopInfo.name = name;
         endfunction
 

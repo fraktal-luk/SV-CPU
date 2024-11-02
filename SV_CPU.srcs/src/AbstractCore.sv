@@ -282,12 +282,12 @@ module AbstractCore
             opsB[i].TMP_mid = newMid;
             
             insMap.addM(newMid, opsB[i].adr, opsB[i].bits);
-            renameOp(newMid, i, opsB[i].adr, opsB[i].bits);   
-            putMilestoneM(newMid, InstructionMap::Rename);
-                
             uopName = OP_DECODING_TABLE[decodeId(newMid).mnemonic];
             insMap.setUopName(newMid, uopName);
             
+            renameOp(newMid, i, opsB[i].adr, opsB[i].bits);   
+            putMilestoneM(newMid, InstructionMap::Rename);
+                
             TMP_uops_r0[i] = uopName;
         end
 
@@ -388,8 +388,8 @@ module AbstractCore
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
-
-        physDest = registerTracker.reserve(ins, id);
+        // TODO: per uop
+        physDest = registerTracker.reserve(decUname(id), ins.dest, id);
         
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
         
@@ -417,7 +417,14 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isSysIns(insInfo.basicData.dec) && !isStoreSysIns(insInfo.basicData.dec) || insInfo.refetch || insInfo.exception);
+        
+//            logic condA = isSysIns(insInfo.basicData.dec) && !isStoreSysIns(insInfo.basicData.dec);
+//            logic condB = isControlUop(decMainUop(id));
+        
+//            assert (condA === condB) else $error("errrr");
+        
+        //return (isSysIns(insInfo.basicData.dec) && !isStoreSysIns(insInfo.basicData.dec) || insInfo.refetch || insInfo.exception);
+        return (isControlUop(decMainUop(id)) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
@@ -491,7 +498,7 @@ module AbstractCore
                 insMap.committedM++;
             
             if (breaksCommitId(theId)) begin
-                lateEventInfoWaiting <= eventFromOp(theId, decodeId(theId), getAdr(theId), refetch, exception); // TODO: reorganize eventFromOp?
+                lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
                 cancelRest = 1;
             end
         end
@@ -503,10 +510,11 @@ module AbstractCore
     
     function automatic void checkUops(input InsId id);
         InstructionInfo info = insMap.get(id);
-        
         //  TODO: per uop
-            
-        if (hasIntDest(decId(id)) || hasFloatDest(decId(id))) // DB
+
+        UopName uname = decUname(id);
+
+        if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
             assert (info.TMP_uopInfo.resultA === info.TMP_uopInfo.resultE) else
                 $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), info.TMP_uopInfo.resultA, info.TMP_uopInfo.resultE);
         assert (info.TMP_uopInfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
@@ -536,7 +544,7 @@ module AbstractCore
         nextTrg = retiredEmul.coreState.target; // DB
     
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
-        if (!info.exception && isBranchIns(decId(id))) begin // DB
+        if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
             assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", id, branchTargetQueue[0].target, nextTrg);
         end
     endtask
@@ -577,12 +585,13 @@ module AbstractCore
         verifyOnCommit(id);
 
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
-
-        registerTracker.commit(insInfo.basicData.dec, id, refetch || exception); // Need to modify to handle Exceptional and Hidden
-            
-        if (isStoreIns(decId(id))) putToWq(id, exception, refetch);
         
-        if (isStoreIns(decId(id)) || isLoadIns(decId(id))) memTracker.remove(id); // All?
+        // TODO: per uop
+        registerTracker.commit(decUname(id), insInfo.basicData.dec.dest, id, refetch || exception); // Need to modify to handle Exceptional and Hidden
+            
+        if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
+        
+        if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
 
         releaseQueues(id); // All
             
@@ -602,13 +611,13 @@ module AbstractCore
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
-        retiredTarget <= getCommitTarget(decId(id), retiredTarget, branchTargetQueue[0].target, refetch, exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retiredTarget, branchTargetQueue[0].target, refetch, exception);
     endtask
 
     
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);
         Transaction tr = memTracker.findStore(id);
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysIns(decId(id)), tr.adrAny, tr.val};       
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), tr.adrAny, tr.val};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
@@ -616,13 +625,13 @@ module AbstractCore
 
     function automatic void updateInds(ref IndexSet inds, input InsId id);
         inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
-        if (isBranchIns(decId(id))) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
-        if (isLoadIns(decId(id))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
-        if (isStoreIns(decId(id))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
+        if (isBranchUop(decMainUop(id))) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
+        if (isLoadUop(decMainUop(id))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
+        if (isStoreUop(decMainUop(id))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
 
     task automatic releaseQueues(input InsId id);
-        if (isBranchIns(decId(id))) begin // Br queue entry release
+        if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             BranchTargetEntry bte = branchTargetQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
@@ -643,7 +652,7 @@ module AbstractCore
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
         putMilestone(p.TMP_oid, InstructionMap::WriteResult);
-        registerTracker.writeValue(decId(p.TMP_oid), p.TMP_oid, p.result);
+        registerTracker.writeValue(decUname(p.TMP_oid), decId(U2M(p.TMP_oid)).dest, p.TMP_oid, p.result);
     endtask
 
 
@@ -658,7 +667,12 @@ module AbstractCore
         if (uid == UIDT_NONE) return UOP_none;     
         return insMap.getU(uid).name;
     endfunction
-        
+
+    function automatic UopName decMainUop(input InsId id);
+        if (id == -1) return UOP_none;     
+        return insMap.get(id).mainUop;
+    endfunction
+
         // TEMP: to use where it's not just to determine uop name 
         function automatic AbstractInstruction decodeId(input InsId id);
             if (id == -1) return DEFAULT_ABS_INS;     
@@ -669,7 +683,7 @@ module AbstractCore
         if (id == -1) return 'x;     
         return insMap.get(id).basicData.adr;
     endfunction
- 
+
 
     function automatic void putMilestoneF(input InsId id, input InstructionMap::Milestone kind);
         insMap.putMilestoneF(id, kind, cycleCtr);
@@ -693,7 +707,7 @@ module AbstractCore
             putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
             return EMPTY_UOP_PACKET;
         end
-    
+
         if (shouldFlushEvent(op.TMP_oid)) begin 
             putMilestone(op.TMP_oid, InstructionMap::FlushExec);
             return EMPTY_UOP_PACKET;
@@ -719,14 +733,8 @@ module AbstractCore
         return 0;
     endfunction
 
-        
-        function automatic InsId U2M(input UidT uid);
-            return uid;
-        endfunction
+ 
 
-        function automatic int SUBOP(input UidT uid);
-            return 0;
-        endfunction
 
 
     assign insAdr = theFrontend.ipStage[0].adr;

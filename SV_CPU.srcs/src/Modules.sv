@@ -307,16 +307,9 @@ module ExecBlock(ref InstructionMap insMap,
 
     // TOPLEVEL
     function automatic Mword calcRegularOp(input UidT uid);
-        //AbstractInstruction abs = decId(uid);
         UopName uname = insMap.getU(uid).name;
-        
         Mword3 args = getAndVerifyArgs(uid);
-        //Mword adr = getAdr(U2M(uid));
-        //Mword result = calculateResult(abs, args, adr);
-        Mword result = calcArith(uname, args);
-        
-        //    assert (result_N === result) else $error("Differnt results. %p %p -> %p / %p", uname, args, result, result_N);
-        
+        Mword result = calcArith(uname, args);  
         insMap.setActualResult(uid, result);
         
         return result;
@@ -399,49 +392,43 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
     task automatic setBranchInCore(input UidT uid);
-        //AbstractInstruction abs = decId(uid);
         UopName uname = insMap.getU(uid).name;
-        
         Mword3 args = getAndVerifyArgs(uid);
         Mword adr = getAdr(U2M(uid));
         
-       // ExecEvent evt = resolveBranch(abs, adr, args);
-            logic dir = resolveBranchDirection(uname, args);
-            Mword takenTrg = takenTarget(uname, adr, args);
-        
+        logic dir = resolveBranchDirection(uname, args);
+        Mword takenTrg = takenTarget(uname, adr, args);
+
         BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid));
         int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));
-        Mword trg = //evt.redirect ? evt.target : adr + 4;
-                    dir ? takenTrg : adr + 4;
-//            assert (evt.target === takenTrg) else $fatal(2, "o fckk");
-//            assert (evt.redirect === dir) else $fatal(2, "o dddd fckk");
-        
+        Mword trg = dir ? takenTrg : adr + 4;
+
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
         AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, 0, 0, adr, trg};
     endtask
 
 
-        function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
-            Mword condArg = args[0];
-            
-            assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed");
-            
-            case (uname)
-                UOP_bc_z, UOP_br_z:  return condArg === 0;
-                UOP_bc_nz, UOP_br_nz: return condArg !== 0;
-                UOP_bc_a, UOP_bc_l: return 1;  
-                default: $fatal(2, "Wrong branch uop");
-            endcase            
-        endfunction
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
+        Mword condArg = args[0];
+        
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed");
+        
+        case (uname)
+            UOP_bc_z, UOP_br_z:  return condArg === 0;
+            UOP_bc_nz, UOP_br_nz: return condArg !== 0;
+            UOP_bc_a, UOP_bc_l: return 1;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase            
+    endfunction
 
-        function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
-            case (uname)
-                UOP_br_z, UOP_br_nz:  return args[1];
-                UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
-                default: $fatal(2, "Wrong branch uop");
-            endcase  
-        endfunction
+    function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
+        case (uname)
+            UOP_br_z, UOP_br_nz:  return args[1];
+            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
+            default: $fatal(2, "Wrong branch uop");
+        endcase  
+    endfunction
 
 
 

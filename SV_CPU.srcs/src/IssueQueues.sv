@@ -165,8 +165,6 @@ module IssueQueue
 
             putMilestone(theId, InstructionMap::IqIssue);
                     
-                if (theId == TRACKED_ID) $error("issue %d", theId);
-
             array[s].active = 0;
             array[s].issueCounter = 0;
         end
@@ -182,9 +180,7 @@ module IssueQueue
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
                 putMilestone(array[s].uid, InstructionMap::IqExit);
-                
-                    if (array[s].uid == TRACKED_ID) $error("iqexit %d", array[s].uid);
-                
+                                
                 assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
                 array[s] = EMPTY_ENTRY;
             end
@@ -308,10 +304,9 @@ module IssueQueue
         if (entry.uid == UIDT_NONE) return res;
         
         foreach (entry.state.readyArgs[a]) begin
-            InsDependencies deps = insMap.//get(entry.uid).TMP_uopInfo.deps;
-                                          getU(entry.uid).deps;
+            InsDependencies deps = insMap.getU(entry.uid).deps;
             SourceType argType = deps.types[a];
-            int prod = deps.producers[a];
+            UidT prod = deps.producers[a];
             int source = deps.sources[a];
             
             Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
@@ -352,8 +347,6 @@ module IssueQueue
     function automatic void setArgReady(ref IqEntry entry, input int a, input Wakeup wup);
         entry.state.readyArgs[a] = 1;
         entry.poisons.poisoned[a] = wup.poison;
-
-            if (entry.uid == TRACKED_ID) $error("wakeup by %p", wup);
 
         if (a == 0) putMilestone(entry.uid, InstructionMap::IqWakeup0);
         else if (a == 1) putMilestone(entry.uid, InstructionMap::IqWakeup1);
@@ -441,13 +434,16 @@ module IssueQueueComplex(
             InsId mid = gr[i].TMP_mid;
             TMP_Uop uop = TMP_UOP_NONE;
             UopId uid = '{mid, 0};
+            UopName uname;
             
             if (!gr[i].active) continue;
             
-            if (isLoadIns(decId(mid)) || isStoreIns(decId(mid))) res.mem[i] = '{1, uid};
-            else if (isSysIns(decId(mid))) res.sys[i] = '{1, uid};
-            else if (isBranchIns(decId(mid))) res.branch[i] = '{1, uid};
-            else if (isFloatCalcIns(decId(mid))) res.float[i] = '{1, uid};
+            uname = decUname(gr[i].TMP_mid);
+
+            if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+            else if (isControlUop(uname)) res.sys[i] = '{1, uid};
+            else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
+            else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
             else res.regular[i] = '{1, uid};
         end
         
@@ -460,11 +456,16 @@ module IssueQueueComplex(
         
         foreach (gr[i]) begin
             InsId id = gr[i].TMP_mid;
+            UopName uname;
             
-            if (isLoadIns(decId(id)) || isStoreIns(decId(id))) res.mem[i] = 1;
-            else if (isSysIns(decId(id))) res.sys[i] = 1;
-            else if (isBranchIns(decId(id))) res.branch[i] = 1;
-            else if (isFloatCalcIns(decId(id))) res.float[i] = 1;
+            if (id == -1) continue;
+            
+            uname = decUname(gr[i].TMP_mid);
+
+            if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = 1;
+            else if (isControlUop(uname)) res.sys[i] = 1;
+            else if (isBranchUop(uname)) res.branch[i] = 1;
+            else if (isFloatCalcUop(uname)) res.float[i] = 1;
             else res.regular[i] = 1;
         end
         
@@ -477,8 +478,7 @@ module IssueQueueComplex(
         foreach (ids[i])
             if (ids[i] == UIDT_NONE) res.push_back('{'z, 'z, 'z});
             else begin
-                InsDependencies deps = imap.//get(ids[i]).TMP_uopInfo.deps;
-                                            getU(ids[i]).deps;
+                InsDependencies deps = imap.getU(ids[i]).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 res.push_back(ra);
             end

@@ -143,11 +143,8 @@ module StoreQueue
             UopName uname;// = insMap.getU(wrInputs[p].TMP_oid).name;
             if (wrInputs[p].active !== 1) continue;
             
-            uname = insMap.getU(wrInputs[p].TMP_oid).name;
-
-                    assert (HELPER::applies(decId(wrInputs[p].TMP_oid)) === HELPER::appliesU(decUname(wrInputs[p].TMP_oid))) else $error("wrong apply");
-            
-            if (!HELPER::applies(decId(wrInputs[p].TMP_oid))) continue;
+            uname = decUname(wrInputs[p].TMP_oid);            
+            if (!HELPER::appliesU(uname)) continue;
             
             begin
                int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
@@ -164,10 +161,7 @@ module StoreQueue
         foreach (inGroup[i]) begin
             InsId thisMid = inGroup[i].TMP_mid;
             
-                                assert (HELPER::applies(decId(thisMid)) === HELPER::appliesU(decUname(thisMid))) else $error("wrong apply");
-
-            
-            if (HELPER::applies(decId(thisMid))) begin
+            if (HELPER::appliesU(decMainUop(thisMid))) begin
                 content_N[endPointer % SIZE] = HELPER::newEntry(insMap, thisMid);                
                 putMilestoneM(thisMid, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
@@ -178,40 +172,35 @@ module StoreQueue
 
     task automatic handleForwardsS();
         foreach (theExecBlock.toLq[p]) begin
-            logic active = theExecBlock.toLq[p].active;
-            Mword adr = theExecBlock.toLq[p].result;
+            UopPacket loadOp = theExecBlock.toLq[p];
+            
+            logic active = loadOp.active;
+            Mword adr = loadOp.result;
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
             
             if (active !== 1) continue;
-            
-                 assert (isLoadMemIns(decId(theExecBlock.toLq[p].TMP_oid)) === isLoadMemUop(decUname(theExecBlock.toLq[p].TMP_oid))) else $error("not");
-
-
-            
-            if (!isLoadMemIns(decId(theExecBlock.toLq[p].TMP_oid))) continue;
+            if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
                         
-            resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
+            resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
             theExecBlock.fromSq[p] <= resb;
         end
     endtask
     
 
-    task automatic handleHazardsL();
+    task automatic handleHazardsL();    
         foreach (theExecBlock.toSq[p]) begin
-            logic active = theExecBlock.toSq[p].active;
-            Mword adr = theExecBlock.toSq[p].result;
+            UopPacket storeUop = theExecBlock.toSq[p];
+        
+            logic active = storeUop.active;
+            Mword adr = storeUop.result;
             UopPacket resb;
             
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
             
             if (active !== 1) continue;
-            
-                             assert (isStoreMemIns(decId(theExecBlock.toSq[p].TMP_oid)) === isStoreMemUop(decUname(theExecBlock.toSq[p].TMP_oid))) else $error("not");
-
-            
-            if (!isStoreMemIns(decId(theExecBlock.toSq[p].TMP_oid))) continue;
+            if (!isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
             
             resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      

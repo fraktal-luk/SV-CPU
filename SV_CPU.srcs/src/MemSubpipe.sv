@@ -76,25 +76,19 @@ module MemSubpipe#(
     
     function automatic UopPacket updateE0(input UopPacket p, input Mword adr);
         UopPacket res = p;
-        
-        UidT uid = p.TMP_oid;
-        
-            assert (isLoadSysIns(decId(uid)) === isLoadSysUop(decUname(uid))) else $error("not");
-            assert (isStoreSysIns(decId(uid)) === isStoreSysUop(decUname(uid))) else $error("not");
-            assert (isMemIns(decId(uid)) === isMemUop(decUname(uid))) else $error("not");
+        UidT uid = p.TMP_oid; 
 
-        
-        if (p.active && isLoadSysIns(decId(p.TMP_oid)) && adr > 31) begin
+        if (p.active && isLoadSysUop(decUname(uid)) && adr > 31) begin
             insMap.setException(U2M(p.TMP_oid));
             return res;
         end
         
-        if (p.active && isStoreSysIns(decId(p.TMP_oid)) && adr > 31) begin
+        if (p.active && isStoreSysUop(decUname(uid)) && adr > 31) begin
             insMap.setException(U2M(p.TMP_oid));
             return res;
         end
         
-        if (p.active && isMemIns(decId(p.TMP_oid)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
+        if (p.active && isMemUop(decUname(uid)) && (adr % 4) != 0 && !HANDLE_UNALIGNED) res.status = ES_UNALIGNED;
         
         res.result = adr;
         
@@ -135,12 +129,7 @@ module MemSubpipe#(
 
     function automatic Mword getEffectiveAddress(input UidT uid);
         if (uid == UIDT_NONE) return 'x;
-        begin
-            //AbstractInstruction abs = decId(U2M(uid));
-            Mword3 args = getAndVerifyArgs(uid);
-            return //calculateEffectiveAddress(abs, args);
-                   calcEffectiveAddress(args);
-        end
+        return calcEffectiveAddress(getAndVerifyArgs(uid));
     endfunction
 
     function automatic Mword getStoreValue(input UidT uid);
@@ -152,21 +141,15 @@ module MemSubpipe#(
     endfunction
 
 
-        function automatic Mword calcEffectiveAddress(Mword3 args);
-            return args[0] + args[1];
-        endfunction
-
+    function automatic Mword calcEffectiveAddress(Mword3 args);
+        return args[0] + args[1];
+    endfunction
 
 
 
     task automatic performStore_Dummy(input UidT uid, input Mword adr, input Mword val);
-        //AbstractInstruction abs = decId(uid);
-            
-            assert (isStoreMemIns(decId(uid)) === isStoreMemUop(decUname(uid))) else $error("not");
-        
-        if (isStoreMemIns(decId(uid))) begin
+        if (isStoreMemUop(decUname(uid))) begin
             checkStoreValue(uid, adr, val);
-            
             putMilestone(uid, InstructionMap::WriteMemAddress);
             putMilestone(uid, InstructionMap::WriteMemValue);
         end
@@ -175,7 +158,6 @@ module MemSubpipe#(
     // TOPLEVEL
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-        //AbstractInstruction abs = decId(uid);
         Mword3 args = getAndVerifyArgs(uid);
 
         InsId writerAllId = AbstractCore.memTracker.checkWriter(U2M(uid));
@@ -186,33 +168,28 @@ module MemSubpipe#(
         
         Mword fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
         Mword memData = forwarded ? fwValue : readResp.result;
-        Mword data = isLoadSysIns(decId(uid)) ? getSysReg(args[1]) : memData;
+        Mword data = isLoadSysUop(decUname(uid)) ? getSysReg(args[1]) : memData;
 
-            assert (isLoadSysIns(decId(uid)) === isLoadSysUop(decUname(uid))) else $error("not");
-            assert (isStoreMemIns(decId(uid)) === isStoreMemUop(decUname(uid))) else $error("not");
-            assert (isLoadMemIns(decId(uid)) === isLoadMemUop(decUname(uid))) else $error("not");
-
-
-            if (writerOverlapId != writerInsideId) begin
-                if (HANDLE_UNALIGNED) begin
-                    res.status = ES_REDO;
-                    insMap.setRefetch(U2M(uid));
-                end
+        if (writerOverlapId != writerInsideId) begin
+            if (HANDLE_UNALIGNED) begin
+                res.status = ES_REDO;
+                insMap.setRefetch(U2M(uid));
             end
-            
-            // Resp from LQ indicating that a younger load has a hazard
-            if (isStoreMemIns(decId(uid))) begin
-                if (lqResp.active) begin
-                    insMap.setRefetch(U2M(lqResp.TMP_oid));
-                end
+        end
+        
+        // Resp from LQ indicating that a younger load has a hazard
+        if (isStoreMemUop(decUname(uid))) begin
+            if (lqResp.active) begin
+                insMap.setRefetch(U2M(lqResp.TMP_oid));
             end
+        end
+        
+        if (isLoadMemUop(decUname(uid))) begin
+            // TODO: make sure the behavior is correct
+            //assert (forwarded === sqResp.active) else $error("Wrong forward state");
+        end
             
-            if (isLoadMemIns(decId(uid))) begin
-                // TODO: make sure the behavior is correct
-                //assert (forwarded === sqResp.active) else $error("Wrong forward state");
-            end
-            
-        if (forwarded && isLoadMemIns(decId(uid))) begin
+        if (forwarded && isLoadMemUop(decUname(uid))) begin
                 putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
             putMilestone(uid, InstructionMap::MemFwConsume);
         end
