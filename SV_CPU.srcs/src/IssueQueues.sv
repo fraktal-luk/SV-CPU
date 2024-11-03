@@ -118,7 +118,7 @@ module IssueQueue
 
         UidQueueT ids = getIdQueue(array);
         UidQueueT idsSorted = ids;
-        idsSorted.sort(); // TODO: sorting for uid structs
+        idsSorted.sort with (U2M(item)); // TODO: sorting for uid structs
 
         if (!allow) return res;
 
@@ -193,7 +193,7 @@ module IssueQueue
         int nInserted = 0;
 
         foreach (inGroup[i]) begin
-            UidT theUid = inGroup[i].TMP_mid; // TODO: change to uop id
+            UidT theUid = FIRST_U(inGroup[i].TMP_mid); // TODO: change to uop id
             if (inGroup[i].active && inMask[i]) begin
                 int location = locs[nInserted];
                 array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: theUid};
@@ -438,7 +438,7 @@ module IssueQueueComplex(
             
             if (!gr[i].active) continue;
             
-            uname = decUname(gr[i].TMP_mid);
+            uname = decUname(FIRST_U(gr[i].TMP_mid));
 
             if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
             else if (isControlUop(uname)) res.sys[i] = '{1, uid};
@@ -460,7 +460,7 @@ module IssueQueueComplex(
             
             if (id == -1) continue;
             
-            uname = decUname(gr[i].TMP_mid);
+            uname = decUname(FIRST_U(gr[i].TMP_mid));
 
             if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = 1;
             else if (isControlUop(uname)) res.sys[i] = 1;

@@ -58,14 +58,12 @@ package Queues;
         endfunction
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            //InstructionInfo ii = imap.get(p.TMP_oid);
             
             entry.adrReady = 1;
             entry.adr = p.result;
             
             entry.valReady = 1;
-            entry.val = //ii.TMP_uopInfo.argsA[2];
-                        imap.getU(p.TMP_oid).argsA[2];
+            entry.val = imap.getU(p.TMP_oid).argsA[2];
         endfunction
         
             static function void setCommitted(ref Entry entry);
@@ -92,15 +90,15 @@ package Queues;
 
                 if (found.size() == 0) return EMPTY_UOP_PACKET;
                 else if (found.size() == 1) begin 
-                    if (wordInside(adr, found[0].adr)) return '{1, found[0].mid, UID_NONE, ES_OK, EMPTY_POISON, 'x, found[0].val};
-                    else return '{1, found[0].mid, UID_NONE, ES_INVALID, EMPTY_POISON, 'x, 'x};
+                    if (wordInside(adr, found[0].adr)) return '{1, FIRST_U(found[0].mid), UID_NONE, ES_OK, EMPTY_POISON, 'x, found[0].val};
+                    else return '{1, FIRST_U(found[0].mid), UID_NONE, ES_INVALID, EMPTY_POISON, 'x, 'x};
                 end
                 else begin
                     Entry sorted[$] = found[0:$];
                     sorted.sort with (item.mid);
                     
-                    if (wordInside(adr, sorted[$].adr)) return '{1, sorted[$].mid, UID_NONE, ES_OK, EMPTY_POISON, 'x, sorted[$].val};
-                    return '{1, sorted[$].mid, UID_NONE, ES_INVALID, EMPTY_POISON, 'x, 'x};
+                    if (wordInside(adr, sorted[$].adr)) return '{1, FIRST_U(sorted[$].mid), UID_NONE, ES_OK, EMPTY_POISON, 'x, sorted[$].val};
+                    return '{1, FIRST_U(sorted[$].mid), UID_NONE, ES_INVALID, EMPTY_POISON, 'x, 'x};
                 end
         
             endfunction 
@@ -170,7 +168,7 @@ package Queues;
                         Entry oldestFound[$] = found.min with (item.mid);
                         
                         res.active = 1; 
-                        res.TMP_oid = oldestFound[0].mid;
+                        res.TMP_oid = FIRST_U(oldestFound[0].mid);
                                    
                         return res;
                     end
@@ -214,12 +212,10 @@ package Queues;
                 res.trgReady = isBranchImmIns(abs);
                 
                 res.linkAdr = ii.basicData.adr + 4;
-                //res.predictedTarget = ii.adr + 4;
                 
                 // If imm, real target is known
                 if (isBranchImmIns(abs))
-                    res.realTarget = ii.basicData.adr + ii.//argValues[1];
-                                                           TMP_uopInfo.argsA[1];
+                    res.realTarget = ii.basicData.adr + ii.TMP_uopInfo.argsA[1];
                 
             return res;
         endfunction

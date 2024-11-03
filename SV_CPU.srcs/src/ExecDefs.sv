@@ -312,14 +312,16 @@ package ExecDefs;
         
         found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
         if (found1.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found1[0].result);
             return found1[0].result;
         end
         
         found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
         if (found0.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found0[0].result);
             return found0[0].result;
         end
@@ -336,14 +338,16 @@ package ExecDefs;
 
         found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
         if (found1.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found1[0].result);
             return found1[0].result;
         end
         
         found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
         if (found0.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found0[0].result);
             return found0[0].result;
         end

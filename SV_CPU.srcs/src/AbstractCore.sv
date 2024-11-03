@@ -389,7 +389,7 @@ module AbstractCore
         target = renamedEmul.coreState.target; // For insMap
 
         // TODO: per uop
-        physDest = registerTracker.reserve(decUname(id), ins.dest, id);
+        physDest = registerTracker.reserve(decUname(FIRST_U(id)), ins.dest, FIRST_U(id));
         
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
         
@@ -512,7 +512,7 @@ module AbstractCore
         InstructionInfo info = insMap.get(id);
         //  TODO: per uop
 
-        UopName uname = decUname(id);
+        UopName uname = decUname(FIRST_U(id));
 
         if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
             assert (info.TMP_uopInfo.resultA === info.TMP_uopInfo.resultE) else
@@ -587,7 +587,7 @@ module AbstractCore
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
         
         // TODO: per uop
-        registerTracker.commit(decUname(id), insInfo.basicData.dec.dest, id, refetch || exception); // Need to modify to handle Exceptional and Hidden
+        registerTracker.commit(decUname(FIRST_U(id)), insInfo.basicData.dec.dest, FIRST_U(id), refetch || exception); // Need to modify to handle Exceptional and Hidden
             
         if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
         

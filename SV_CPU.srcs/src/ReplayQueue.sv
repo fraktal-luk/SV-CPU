@@ -24,10 +24,10 @@ module ReplayQueue(
         logic used;
         logic active;
         logic ready;
-        InsId uid;
+        UidT uid;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, UIDT_NONE};
 
     int numUsed = 0;
     logic accept;
@@ -122,13 +122,13 @@ module ReplayQueue(
 
     task automatic flush();
         foreach (content[i]) begin
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && content[i].uid > branchEventInfo.eventMid)) begin
+            if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(content[i].uid) > branchEventInfo.eventMid)) begin
                 if (content[i].used) putMilestone(content[i].uid, InstructionMap::RqFlush);
                 content[i] = EMPTY_ENTRY;
             end
         end
         
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && selected.uid > branchEventInfo.eventMid)) begin
+        if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(selected.uid) > branchEventInfo.eventMid)) begin
             selected = EMPTY_ENTRY;
         end
     endtask

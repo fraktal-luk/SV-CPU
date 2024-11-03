@@ -70,24 +70,30 @@ package AbstractSim;
 
 //        typedef UopId UidT; // TODO: for later change to UopId
 //        localparam UidT UIDT_NONE = UID_NONE;
-
-//    function automatic UidT FIRST_U(input InsId id);
-//        return '{id, 0};
-//    endfunction
     
-//    function automatic InsId U2M(input UidT uid);
-//        return uid.m;
-//    endfunction
-
-//    function automatic int SUBOP(input UidT uid);
-//        return 0;
-//    endfunction
+//        function automatic UidT FIRST_U(input InsId id);
+//            return '{id, 0};
+//        endfunction
+        
+//        function automatic InsId U2M(input UidT uid);
+//            return uid.m;
+//        endfunction
+    
+//        function automatic int SUBOP(input UidT uid);
+//            return 0;
+//        endfunction
 
     
     typedef UidT UidQueueT[$];
     
-    
 
+
+        typedef UidT WriterId;
+        localparam WriterId WID_NONE = UIDT_NONE;
+
+        function automatic InsId TMP_W2M(input WriterId id);
+            return U2M(id);
+        endfunction
 
 
     typedef struct {
@@ -182,9 +188,6 @@ package AbstractSim;
 
 //    typedef InsId WriterId;
 //    localparam WriterId WID_NONE = -1; 
-
-        typedef UidT WriterId;
-        localparam WriterId WID_NONE = UIDT_NONE; 
     
     // Defs for tracking, insMap
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
@@ -323,9 +326,6 @@ package AbstractSim;
                 return inds.size() > 0 ? inds[0] : -1;
             endfunction;
 
-                function automatic InsId TMP_W2M(input WriterId id);
-                    return id;
-                endfunction
 
             function automatic void flush(input InsId id);
                 int inds[$] = info.find_index with (item.state == SPECULATIVE && TMP_W2M(item.owner) > id);

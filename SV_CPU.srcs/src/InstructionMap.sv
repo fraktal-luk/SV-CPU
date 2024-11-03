@@ -346,8 +346,8 @@ package Insmap;
         endfunction
 
             function automatic UopInfo getU(input UidT uid);
-                assert (insBase.infos.exists(uid)) else $fatal(2, "wrong id %p", uid);
-                return insBase.infos[uid].TMP_uopInfo;
+                assert (insBase.infos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
+                return insBase.infos[U2M(uid)].TMP_uopInfo;
             endfunction
    
         // ins info
@@ -398,21 +398,21 @@ package Insmap;
             insBase.setRenamed(id, result, target, deps, physDest, argValues, renameInds, slot);
         endfunction
 
-        function automatic void setUopName(input UidT uid, input UopName name);
-            insBase.infos[uid].mainUop = name;
-            insBase.infos[uid].TMP_uopInfo.name = name;
+        function automatic void setUopName(input InsId id, input UopName name);
+            insBase.infos[id].mainUop = name;
+            insBase.infos[id].TMP_uopInfo.name = name;
         endfunction
 
         function automatic void setActualResult(input UidT uid, input Mword res);
-            insBase.infos[uid].TMP_uopInfo.resultA = res;
+            insBase.infos[U2M(uid)].TMP_uopInfo.resultA = res;
         endfunction
 
         function automatic void setActualArgs(input UidT uid, input Mword args[3]);
-            insBase.infos[uid].TMP_uopInfo.argsA = args;
+            insBase.infos[U2M(uid)].TMP_uopInfo.argsA = args;
         endfunction
 
         function automatic void setArgError(input UidT uid, input logic value);
-            insBase.infos[uid].TMP_uopInfo.argError = value;
+            insBase.infos[U2M(uid)].TMP_uopInfo.argError = value;
         endfunction
         
         function automatic void setException(input InsId id);
@@ -441,7 +441,7 @@ package Insmap;
         // For uops
         function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
             if (uid == UIDT_NONE) return;
-            recordsU[uid].tags.push_back('{kind, cycle});
+            recordsU[U2M(uid)].tags.push_back('{kind, cycle});
         endfunction
         
         // For committed
