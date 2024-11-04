@@ -9,6 +9,8 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
+    //import UopList::*;
+
 
     localparam int N_INT_PORTS = 4;
     localparam int N_MEM_PORTS = 4;
@@ -18,26 +20,8 @@ package ExecDefs;
     typedef logic ReadyQueue3[$][3];
 
 
-    typedef InsId Poison[N_MEM_PORTS * (1 - -3 + 1)];
-    localparam Poison EMPTY_POISON = '{default: -1};
-    
-
-    typedef struct {
-        logic regular[DISPATCH_WIDTH];
-        logic float[DISPATCH_WIDTH];
-        logic branch[DISPATCH_WIDTH];
-        logic mem[DISPATCH_WIDTH];
-        logic sys[DISPATCH_WIDTH];
-    } RoutingInfo;
-
-    const RoutingInfo DEFAULT_ROUTING_INFO = '{
-        regular: '{default: 0},
-        float: '{default: 0},
-        branch: '{default: 0},
-        mem: '{default: 0},
-        sys: '{default: 0}
-    };
-
+    typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
+    localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
 
 
     typedef enum {
@@ -46,29 +30,41 @@ package ExecDefs;
         ES_REDO,
             ES_INVALID
     } ExecStatus;
-    
+
+
     typedef struct {
         logic active;
-        InsId id;
+        UopId uid;
+    } TMP_Uop;
+
+    localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
+
+
+    typedef struct {
+        logic active;
+        UidT TMP_oid;
+            UopId TMP_uopId;
         ExecStatus status;
         Poison poison;
             logic TMP_pullback; // For poison dev
-        Word result;
-    } OpPacket;
+        Mword result;
+    } UopPacket;
     
-    localparam OpPacket EMPTY_OP_PACKET = '{0, -1, ES_OK, EMPTY_POISON, 'x, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, UID_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
 
-    function automatic OpPacket setResult(input OpPacket p, input Word result);
-        OpPacket res = p;            
+
+
+    function automatic UopPacket setResult(input UopPacket p, input Mword result);
+        UopPacket res = p;            
         res.result = result;
         
         return res;
     endfunction
 
 
-    typedef OpPacket ForwardingElement;
+    typedef UopPacket ForwardingElement;
 
-    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_OP_PACKET;
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
     localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
     
     typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
@@ -84,14 +80,13 @@ package ExecDefs;
 
 
     typedef struct {
-        InsId id;
         logic ready;
         logic readyArgs[3];
         logic cancelledArgs[3];
     } IqArgState;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{id: -1, ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{id: -1, ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
+    localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
+    localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
 
     typedef struct {
@@ -102,7 +97,7 @@ package ExecDefs;
 
     
         
-    typedef logic IdMap[InsId];
+    typedef logic IdMap[UidT];
     
     function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         IdMap res;
@@ -110,7 +105,7 @@ package ExecDefs;
         foreach (fea[p]) begin
             ForwardingElement subpipe[-3:1] = fea[p];
             foreach (subpipe[s]) begin
-                if (subpipe[s].id != -1) res[subpipe[s].id] = 1;
+                if (subpipe[s].TMP_oid != UIDT_NONE) res[subpipe[s].TMP_oid] = 1;
             end
         end
 
@@ -120,7 +115,7 @@ package ExecDefs;
     function automatic IdMap poison2map(input Poison p);
         IdMap res;
         foreach (p[i])
-            if (p[i] != -1) res[p[i]] = 1;
+            if (p[i] != UIDT_NONE) res[p[i]] = 1;
         return res;
     endfunction
 
@@ -129,7 +124,7 @@ package ExecDefs;
         Poison res = EMPTY_POISON;
         int n = 0;
         
-        map.delete(-1);
+        map.delete(UIDT_NONE);
         
         foreach (map[id])
             res[n++] = id;
@@ -143,8 +138,8 @@ package ExecDefs;
         IdMap old = poison2map(p);
         
         // Remove those not present
-        foreach (old[id])
-            if (!present.exists(id)) old.delete(id);
+        foreach (old[uid])
+            if (!present.exists(uid)) old.delete(uid);
         
         return map2poison(old);
     endfunction
@@ -155,17 +150,17 @@ package ExecDefs;
     // merge args - on issue
     // add poison - for argument on its wakeup
     
-    function automatic Poison addProducer(input Poison p, input InsId id, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Poison addProducer(input Poison p, input UidT uid, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         Poison u = updatePoison(p, fea);
         IdMap map = poison2map(u);
         // add id
-        map[id] = 1;
+        map[uid] = 1;
         
         return map2poison(map);
     endfunction
         
         
-    function automatic Poison mergePoisons(input Poison ap[3] /*, input ForwardingElement fea[N_MEM_PORTS][-3:1]*/);
+    function automatic Poison mergePoisons(input Poison ap[3]);
         // update 3 poisons
         Poison u0 = ap[0];
         Poison u1 = ap[1];
@@ -175,8 +170,8 @@ package ExecDefs;
         IdMap m1 = poison2map(u1);
         IdMap m2 = poison2map(u2);
         
-        foreach (m1[id]) m0[id] = 1;
-        foreach (m2[id]) m0[id] = 1;
+        foreach (m1[uid]) m0[uid] = 1;
+        foreach (m2[uid]) m0[uid] = 1;
         
         // put into 1 poison
         return map2poison(m0);
@@ -190,10 +185,10 @@ package ExecDefs;
         IqArgState state;
         IqPoisonState poisons;
             int issueCounter;
-        InsId id;
+        UidT uid;
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: -1};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
 
     
     typedef enum {
@@ -203,14 +198,14 @@ package ExecDefs;
     
     typedef struct {
         logic active;
-        InsId producer;
+        UidT producer;
         PipeGroup group;
         int port;
         int stage;
         Poison poison;
     } Wakeup;
     
-    localparam Wakeup EMPTY_WAKEUP = '{0, -1, PG_NONE, -1, 2, EMPTY_POISON};
+    localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
 
 
@@ -269,70 +264,75 @@ package ExecDefs;
     endfunction
 
 
-    function automatic logic matchProducer(input ForwardingElement fe, input InsId producer);
-        return !(fe.id == -1) && fe.id === producer;
+    function automatic logic matchProducer(input ForwardingElement fe, input UidT producer);
+        return (fe.TMP_oid != UIDT_NONE) && fe.TMP_oid === producer;
     endfunction
 
-    function automatic FEQ findForwardInt(input InsId producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardInt(input UidT producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feInt.find with (matchProducer(item, producer));
         if (res.size() == 0)
             res = feMem.find with (matchProducer(item, producer));
         return res;
     endfunction
 
-    function automatic FEQ findForwardVec(input InsId producer, input ForwardingElement feVec[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feVec.find with (matchProducer(item, producer));
         return res;
     endfunction
 
-    function automatic void verifyForward(input InstructionInfo ii, input int source, input Word result);
-        assert (ii.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ii.actualResult === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.actualResult, result, ii, disasm(ii.bits));
+    // TODO: rework for uops
+    function automatic void verifyForward(input InstructionInfo ii, input int source, input Mword result);
+        assert (ii.TMP_uopInfo.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
+        assert (ii.TMP_uopInfo.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.TMP_uopInfo.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
 
-    function automatic Word getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                           input InsId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+    function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
+                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
         if (ready) return tracker.ints.regs[source];
         
         found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
         if (found1.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found1[0].result);
-            return ii.actualResult;
+            return found1[0].result;
         end
         
         found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
         if (found0.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found0[0].result);
-            return ii.actualResult;
+            return found0[0].result;
         end
 
         $fatal(2, "oh no");
     endfunction
 
 
-    function automatic Word getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-                                           input InsId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+    function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
+                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
                        
         if (ready) return tracker.floats.regs[source];
 
         found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
         if (found1.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found1[0].result);
-            return ii.actualResult;
+            return found1[0].result;
         end
         
         found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
         if (found0.size() != 0) begin
-            InstructionInfo ii = imap.get(producer);
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
             verifyForward(ii, source, found0[0].result);
-            return ii.actualResult;
+            return found0[0].result;
         end
 
         $fatal(2, "oh no");
@@ -367,11 +367,11 @@ package ExecDefs;
     endfunction
 
     // IQs
-    function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
-        if (producer == -1) return res;
+        if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.id == producer);
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
@@ -388,11 +388,11 @@ package ExecDefs;
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
-        if (producer == -1) return res;
+        if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.id == producer);
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
@@ -412,11 +412,11 @@ package ExecDefs;
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input InsId producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
-        if (producer == -1) return res;
+        if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.id == producer);
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
@@ -434,8 +434,8 @@ package ExecDefs;
 
 
         function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.id != -1) begin
-                int inds[$] = p.find with (item == fe.id);
+            if (fe.TMP_oid != UIDT_NONE) begin
+                UidT inds[$] = p.find with (item == fe.TMP_oid);
                 return inds.size() != 0;
             end
             return 0;
@@ -445,30 +445,34 @@ package ExecDefs;
 //////////////////
     typedef struct {
         logic active;
-        Word adr;
+        Mword adr;
     } DataReadReq;
 
     localparam DataReadReq EMPTY_READ_REQ = '{1, 'x};
 
     typedef struct {
         logic active;
-        Word result;
+        Mword result;
     } DataReadResp;
 
     localparam DataReadResp EMPTY_READ_RESP = '{1, 'x};
 
     // Write buffer
     typedef struct {
-        OpSlot op;
+        logic active;
+        InsId mid;
         logic cancel;
-        Word adr;
-        Word val;
+        logic sys;
+        Mword adr;
+        Mword val;
     } StoreQueueEntry;
+
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x};
 
     typedef struct {
         logic req;
-        Word adr;
-        Word value;
+        Mword adr;
+        Mword value;
     } MemWriteInfo;
     
     localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};

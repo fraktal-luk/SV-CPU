@@ -11,8 +11,8 @@ import Insmap::*;
 module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
     typedef Word FetchGroup[FETCH_WIDTH];
-    typedef OpSlot FetchStage[FETCH_WIDTH];
-    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT};
+    typedef OpSlotF FetchStage[FETCH_WIDTH];
+    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
     int fqSize = 0;
@@ -21,38 +21,38 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
     int fetchCtr = 0;
-    OpSlotA stageRename0 = '{default: EMPTY_SLOT};
+    OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
     function automatic logic anyActiveFetch(input FetchStage s);
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
-
+    
+    // FUTURE: split along with split between FETCH_WIDTH and RENAME_WIDTH
     task automatic markKilledFrontStage(ref FetchStage stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
-            putMilestone(stage[i].id, InstructionMap::FlushFront);
-            //insMap.setKilled(stage[i].id,  1);
+            putMilestoneF(stage[i].id, InstructionMap::FlushFront);
         end
     endtask
 
 
-    task automatic registerNewTarget(input int fCtr, input Word target);
+    task automatic registerNewTarget(input int fCtr, input Mword target);
         int slotPosition = (target/4) % FETCH_WIDTH;
-        Word baseAdr = target & ~(4*FETCH_WIDTH-1);
+        Mword baseAdr = target & ~(4*FETCH_WIDTH-1);
         for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
-            Word adr = baseAdr + 4*i;
+            Mword adr = baseAdr + 4*i;
             InsId index = fCtr + i;
             insMap.registerIndex(index);
-            putMilestone(index, InstructionMap::GenAddress);
+            putMilestoneF(index, InstructionMap::GenAddress);
         end
     endtask
 
 
     function automatic FetchStage setActive(input FetchStage s, input logic on, input int ctr);
         FetchStage res = s;
-        Word firstAdr = res[0].adr;
-        Word baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
+        Mword firstAdr = res[0].adr;
+        Mword baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
 
         if (!on) return EMPTY_STAGE;
 
@@ -87,14 +87,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endtask
 
     task automatic redirectFront();
-        Word target;
+        Mword target;
 
         if (lateEventInfo.redirect)         target = lateEventInfo.target;
         else if (branchEventInfo.redirect)  target = branchEventInfo.target;
         else $fatal(2, "Should never get here");
 
         if (ipStage[0].id != -1) markKilledFrontStage(ipStage);
-        ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+        ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;
 
@@ -103,14 +103,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         flushFrontend();
 
         markKilledFrontStage(stageRename0);
-        stageRename0 <= '{default: EMPTY_SLOT};
+        stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
 
     task automatic fetchAndEnqueue();
         FetchStage fetchStage0ua, ipStageU;
         if (AbstractCore.fetchAllow) begin
-            Word target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
-            ipStage <= '{0: '{1, -1, target, 'x}, default: EMPTY_SLOT};
+            Mword target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
+            ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
             fetchCtr <= fetchCtr + FETCH_WIDTH;
             
             registerNewTarget(fetchCtr + FETCH_WIDTH, target);
@@ -119,15 +119,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         ipStageU = setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
 
         fetchStage0 <= ipStageU;
-        fetchStage0ua = setWords(fetchStage0, //AbstractCore.insIn);
-                                              AbstractCore.instructionCacheOut);
+        fetchStage0ua = setWords(fetchStage0, AbstractCore.instructionCacheOut);
         
         foreach (ipStageU[i]) if (ipStageU[i].active) begin
-            insMap.add(ipStageU[i]);
+            insMap.add(ipStageU[i].id, ipStageU[i].adr, ipStageU[i].bits);
         end
 
         foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
-            insMap.setEncoding(fetchStage0ua[i]);
+            insMap.setEncoding(fetchStage0ua[i].id, fetchStage0ua[i].bits);
         end
 
         fetchStage1 <= fetchStage0ua;
@@ -136,8 +135,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         stageRename0 <= readFromFQ();
     endtask
     
-    function automatic OpSlotA readFromFQ();
-        OpSlotA res = '{default: EMPTY_SLOT};
+    function automatic OpSlotAF readFromFQ();
+        OpSlotAF res = '{default: EMPTY_SLOT_F};
 
         // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
         if (fqSize > 0 && AbstractCore.renameAllow) begin

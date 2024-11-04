@@ -15,9 +15,9 @@ package TempMems;
             this.content = '{default: 'x};
         endfunction
         
-        function Line read(input Word adr);
+        function Line read(input Mword adr);
             Line res;
-            Word truncatedAdr = adr & ~(4*WIDTH-1);
+            Mword truncatedAdr = adr & ~(4*WIDTH-1);
             
             foreach (res[i]) res[i] = content[truncatedAdr/4 + i];
             return res;
@@ -29,7 +29,7 @@ package TempMems;
     class DataMemory;        
         Mbyte content[4096];
         
-        function void setContent(Word arr[]);
+        function void setContent(Mword arr[]);
             foreach (arr[i]) content[i] = arr[i];
         endfunction
         
@@ -37,14 +37,14 @@ package TempMems;
             content = '{default: '0};
         endfunction;
         
-        function automatic Word read(input Word adr);
-            Word res = 0;
+        function automatic Mword read(input Mword adr);
+            Mword res = 0;
             for (int i = 0; i < 4; i++) res = (res << 8) + content[adr + i];
             return res;
         endfunction
     
-        function automatic void write(input Word adr, input Word value);
-            Word data = value;            
+        function automatic void write(input Mword adr, input Mword value);
+            Mword data = value;            
             for (int i = 0; i < 4; i++) begin
                 content[adr + i] = data[31:24];
                 data <<= 8;

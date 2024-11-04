@@ -6,46 +6,43 @@ package ControlHandling;
     import Asm::*;
     import Emulation::*;
     import AbstractSim::*;
-    
+    import UopList::*;
 
 
-
-    function automatic EventInfo getLateEvent(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
+    function automatic EventInfo getLateEvent(input EventInfo info, input Mword adr, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
         
-        case (abs.def.o)
-            O_sysStore: ;
-            O_undef: begin
+        case (info.cOp)
+            CO_exception: begin
+                res.target = IP_EXC;
+                res.redirect = 1;
+            end
+            CO_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
                 res.sigWrong = 1;
             end
-            O_call: begin
+            CO_call: begin
                 res.target = IP_CALL;
                 res.redirect = 1;
             end
-            O_retE: begin
+            CO_retE: begin
                 res.target = sr2;
                 res.redirect = 1;
             end 
-            O_retI: begin
+            CO_retI: begin
                 res.target = sr3;
                 res.redirect = 1;
             end 
-            O_sync: begin
+            CO_sync: begin
                 res.target = adr + 4;
                 res.redirect = 1;
             end
-            
-            O_replay: begin
+            CO_refetch: begin
                 res.target = adr;
                 res.redirect = 1;
             end 
-            O_halt: begin                
-                res.target = adr + 4;
-                res.redirect = 1;
-            end
-            O_send: begin
+            CO_send: begin
                 res.target = adr + 4;
                 res.redirect = 1;
                 res.sigOk = 1;
@@ -53,81 +50,85 @@ package ControlHandling;
             default: ;                            
         endcase
 
-        res.op = op;
-
-        return res;
-    endfunction
-
-    
-    function automatic EventInfo getLateEventExc(input OpSlot op, input AbstractInstruction abs, input Word adr, input Mword sr2, input Mword sr3);
-        EventInfo res = EMPTY_EVENT_INFO;
-        
-        res.target = IP_EXC;
-        res.redirect = 1;
-
-        res.op = op;
+        res.active = 1;
+        res.eventMid = info.eventMid;
+        res.cOp = info.cOp;
 
         return res;
     endfunction
 
 
-    function automatic void modifyStateSync(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
-        case (abs.def.o)
-            O_undef: begin
+    function automatic void modifyStateSync(input ControlOp cOp, ref Mword sysRegs[32], input Mword adr);
+        case (cOp)
+            CO_exception: begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[2] = adr;
+                
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+            end
+            CO_undef: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
-                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
             end
-            O_call: begin                    
+            CO_call: begin                  
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
-                sysRegs[1] |= 1; // TODO: handle state register correctly
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
             end
-            O_retE: sysRegs[1] = sysRegs[4];
-            O_retI: sysRegs[1] = sysRegs[5];
+            CO_retE: begin
+                sysRegs[1] = sysRegs[4];
+            end
+            CO_retI: begin
+                sysRegs[1] = sysRegs[5];
+            end
         endcase
     endfunction
+    
+    
 
-    function automatic void modifyStateSyncExc(ref Word sysRegs[32], input Word adr, input AbstractInstruction abs);
-        begin
-            sysRegs[4] = sysRegs[1];
-            sysRegs[2] = adr;
-            
-            sysRegs[1] |= 1; // TODO: handle state register correctly
-        end
-    endfunction
-
-
-    function automatic void saveStateAsync(ref Word sysRegs[32], input Word prevTarget);
+    function automatic void saveStateAsync(ref Mword sysRegs[32], input Mword prevTarget);
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
         
-        sysRegs[1] |= 2; // TODO: handle state register correctly
+        sysRegs[1] |= 2; // FUTURE: handle state register correctly
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input OpSlot op);
-        return '{op, 0, 0, 1, 0, 0, 'x};
+    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception);
+        EventInfo res = '{1, id, CO_none, 1, 0, 0, adr, 'x};
+        
+        if (refetch) res.cOp = CO_refetch;
+        else if (exception) res.cOp = CO_exception;
+        else begin
+            case (uname)
+                // TODO: error
+                UOP_ctrl_undef:    res.cOp = CO_undef;
+                UOP_ctrl_call:     res.cOp = CO_call;
+                UOP_ctrl_rete:     res.cOp = CO_retE;
+                UOP_ctrl_reti:     res.cOp = CO_retI;
+                UOP_ctrl_sync:     res.cOp = CO_sync;
+                UOP_ctrl_refetch:   res.cOp = CO_refetch;
+                //O_halt:     res.cOp = CO_undef;
+                UOP_ctrl_send:     res.cOp = CO_send;
+                default:    res.cOp = CO_none;
+            endcase
+        end
+        return res;
     endfunction
-
 
     task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
 
     // core logic
-    function automatic Word getCommitTarget(input AbstractInstruction ins, input Word prev, input Word executed, input logic refetch, input logic exception);
-        if (isBranchIns(ins))
-            return executed;
-        else if (isSysIns(ins) || exception)
-            return 'x;
-        else if (refetch)
-            return prev;
-        else
-            return prev + 4;
+    function automatic Mword getCommitTarget(input UopName uname, input Mword prev, input Mword executed, input logic refetch, input logic exception);
+        if (isBranchUop(uname)) return executed;
+        else if (isControlUop(uname) || exception) return 'x;
+        else if (refetch) return prev;
+        else return prev + 4;
     endfunction;
-
 
 endpackage

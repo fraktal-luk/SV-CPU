@@ -5,10 +5,7 @@ package AbstractSim;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
-
-
-    // Arch specific
-    typedef Word Mword;
+    import UopList::*;
 
 
     // Uarch specific
@@ -37,9 +34,6 @@ package AbstractSim;
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
 
-    // DB specific
-        localparam int TRACKED_ID = -2;
-
 
 ////////////////////////////
     // Core structures
@@ -47,33 +41,105 @@ package AbstractSim;
     typedef int InsId;  // Implem detail
     typedef InsId IdQueue[$]; // Implem detail
 
+
+    typedef struct {
+        int m;
+        int s;
+    } UopId;
+    
+    localparam UopId UID_NONE = '{-1, -1};
+
+
+    typedef UopId UidT; // TODO: for later change to UopId
+    localparam UidT UIDT_NONE = UID_NONE;
+
+    function automatic UidT FIRST_U(input InsId id);
+        return '{id, 0};
+    endfunction
+    
+    function automatic InsId U2M(input UidT uid);
+        return uid.m;
+    endfunction
+
+    function automatic int SUBOP(input UidT uid);
+        return 0;
+    endfunction
+
+    
+    typedef UidT UidQueueT[$];
+    
+
+
+        typedef UidT WriterId;
+        localparam WriterId WID_NONE = UIDT_NONE;
+
+        function automatic InsId TMP_W2M(input WriterId id);
+            return U2M(id);
+        endfunction
+
+
     typedef struct {
         logic active;
         InsId id;
-        Word adr;
+            InsId mid;
+        Mword adr;
         Word bits;
-    } OpSlot;
-
-    localparam OpSlot EMPTY_SLOT = '{'0, -1, 'x, 'x};
-    
-    typedef OpSlot OpSlotA[RENAME_WIDTH];
-    
+    } OpSlotF;
 
     typedef struct {
-        OpSlot op;
-        logic interrupt;
-        logic reset;
+        logic active;
+        InsId mid;
+        Mword adr;
+        Word bits;
+    } OpSlotB;
+
+
+    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
+    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
+    
+    typedef OpSlotF OpSlotAF[FETCH_WIDTH];
+    typedef OpSlotB OpSlotAB[RENAME_WIDTH];
+    
+
+    typedef enum {
+        CO_none,
+        
+        CO_reset,
+        CO_int,
+        
+        CO_undef,
+        
+        CO_error,
+        CO_send,
+        CO_call,
+        
+        CO_exception,
+        
+        CO_sync,
+        CO_refetch,
+        
+        CO_retE,
+        CO_retI,
+        
+        CO_break
+
+    } ControlOp;
+    
+    typedef struct {
+        logic active;
+        InsId eventMid;
+        ControlOp cOp;
         logic redirect;
-        logic sigOk;
-        logic sigWrong;
-        Word target;
+            logic sigOk;
+            logic sigWrong;
+        Mword adr;
+        Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{EMPTY_SLOT, 0, 0, 0, '0, '0, 'x};
-    localparam EventInfo RESET_EVENT = '{EMPTY_SLOT, 0, 1, 1, 0, 0, IP_RESET};
-    localparam EventInfo INT_EVENT =   '{EMPTY_SLOT, 1, 0, 1, 0, 0, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, 0, 0, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, 0, 0, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, 0, 0, 'x, IP_INT};
 
-    // TODO: move swh else?
     typedef struct {
         int iqRegular;
         int iqFloat;
@@ -82,15 +148,10 @@ package AbstractSim;
         int iqSys;
     } IqLevels;
 
-        // not really used yet
-        typedef struct {
-            OpSlot late;
-            OpSlot exec;
-        } Events;
 
     typedef struct {
         InsId id;
-        Word target;
+        Mword target;
     } BranchTargetEntry;
 
     typedef struct {
@@ -104,6 +165,9 @@ package AbstractSim;
     //////////////////////////////////////
 
 
+//    typedef InsId WriterId;
+//    localparam WriterId WID_NONE = -1; 
+    
     // Defs for tracking, insMap
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
     } SourceType;
@@ -111,18 +175,22 @@ package AbstractSim;
     typedef struct {
         int sources[3];
         SourceType types[3];
-        InsId producers[3];
+        WriterId producers[3];
     } InsDependencies;
 
+
+//        typedef struct {
+        
+//        } UopPacket;
 
 
     class BranchCheckpoint;
     
-        function new(input OpSlot op, input CpuState state, input SimpleMem mem, 
-                    input int intWr[32], input int floatWr[32],
+        function new(input InsId id, input CpuState state, input SimpleMem mem, 
+                    input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet);
-            this.op = op;
+            this.id = id;
             this.state = state;
             this.mem = new();
             this.mem.copyFrom(mem);
@@ -133,11 +201,11 @@ package AbstractSim;
             this.inds = indexSet;
         endfunction
 
-        OpSlot op;
+        InsId id;
         CpuState state;
         SimpleMem mem;
-        int intWriters[32];
-        int floatWriters[32];
+        WriterId intWriters[32];
+        WriterId floatWriters[32];
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
@@ -146,39 +214,38 @@ package AbstractSim;
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
             
-        // TODO: move to RegisterDomain after moving functiona for num free etc.
+        // FUTURE: move to RegisterDomain after moving functiona for num free etc.
         typedef enum {FREE, SPECULATIVE, STABLE
         } PhysRegState;
         
         typedef struct {
             PhysRegState state;
-            InsId owner;
+            WriterId owner;
         } PhysRegInfo;    
 
         class RegisterDomain#(
             parameter int N_REGS = N_REGS_INT,
             parameter logic IGNORE_R0 = 1
         );
-            localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: -1};
-            localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: -1};
+            localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: WID_NONE};
+            localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: WID_NONE};
     
         
             PhysRegInfo info[N_REGS] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
-            Word regs[N_REGS] = '{0: 0, default: 'x};
+            Mword regs[N_REGS] = '{0: 0, default: 'x};
             logic ready[N_REGS] = '{0: 1, default: '0};
             
             int MapR[32] = '{default: 0};
             int MapC[32] = '{default: 0};
             
-            InsId writersR[32] = '{default: -1};
-            InsId writersC[32] = '{default: -1};
+            WriterId writersR[32] = '{default: WID_NONE};
+            WriterId writersC[32] = '{default: WID_NONE};
             
             function automatic logic ignoreV(input int vReg);
                 return (vReg == 0) && IGNORE_R0;
             endfunction
             
-            function automatic int reserve(input AbstractInstruction ins, input InsId id);
-                int vDest = ins.dest;
+            function automatic int reserve(input int vDest, input WriterId id);
                 int pDest = findFree();
                 
                 if (!ignoreV(vDest)) begin
@@ -197,8 +264,7 @@ package AbstractSim;
                 regs[p] = 'x;
             endfunction
   
-            function automatic void commit(input AbstractInstruction ins, input InsId id, input logic normal);
-                int vDest = ins.dest;
+            function automatic void commit(input int vDest, input WriterId id, input logic normal);
                 int ind[$] = info.find_first_index with (item.owner == id);
                 int pDest = ind[0];
                 int pDestPrev = MapC[vDest];
@@ -208,7 +274,7 @@ package AbstractSim;
                 if (normal) begin
                     writersC[vDest] = id;
                     MapC[vDest] = pDest;
-                    info[pDest] = '{STABLE, -1};
+                    info[pDest] = '{STABLE, WID_NONE};
                     
                     releaseRegister(pDestPrev);
                 end
@@ -218,14 +284,14 @@ package AbstractSim;
 
             endfunction
 
-            function automatic void setReady(input InsId id);
+            function automatic void setReady(input WriterId id);
                 int pDest = findDest(id);
                 ready[pDest] = 1;
             endfunction;
     
-            function automatic void writeValue(input AbstractInstruction ins, input InsId id, input Word value);
+            function automatic void writeValue(input int vDest, input WriterId id, input Mword value);
                 int pDest = findDest(id);
-                if (ignoreV(ins.dest)) return;
+                if (ignoreV(vDest)) return;
                 regs[pDest] = value;
             endfunction            
  
@@ -234,14 +300,14 @@ package AbstractSim;
                 return res[0];
             endfunction
     
-            function automatic int findDest(input InsId id);
+            function automatic int findDest(input WriterId id);
                 int inds[$] = info.find_first_index with (item.owner == id);
                 return inds.size() > 0 ? inds[0] : -1;
             endfunction;
 
 
-            function automatic void flush(input OpSlot op);
-                int inds[$] = info.find_index with (item.state == SPECULATIVE && item.owner > op.id);
+            function automatic void flush(input InsId id);
+                int inds[$] = info.find_index with (item.state == SPECULATIVE && TMP_W2M(item.owner) > id);
 
                 foreach (inds[i]) begin
                     int pDest = inds[i];
@@ -265,7 +331,7 @@ package AbstractSim;
             endfunction
 
 
-            function automatic void restoreCP(input int intM[32], input InsId intWriters[32]);
+            function automatic void restoreCP(input int intM[32], input WriterId intWriters[32]);
                 MapR = intM;
                 writersR = intWriters;
             endfunction
@@ -277,7 +343,7 @@ package AbstractSim;
     
             function automatic void restoreReset();
                 MapR = MapC;
-                writersR = '{default: -1};
+                writersR = '{default: WID_NONE};
 
                 foreach (info[i])
                     if (info[i].state == STABLE)
@@ -287,29 +353,29 @@ package AbstractSim;
 
 
         RegisterDomain#(N_REGS_INT, 1) ints = new();
-        RegisterDomain#(N_REGS_INT, 0) floats = new(); // TODO: change to FP reg num
+        RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
 
           
-        function automatic int reserve(input AbstractInstruction abs, input InsId id);
-            if (hasIntDest(abs)) return ints.reserve(abs, id);
-            if (hasFloatDest(abs)) return  floats.reserve(abs, id);  
+        function automatic int reserve(input UopName name, input int dest, input WriterId id);
+            if (uopHasIntDest(name)) return ints.reserve(dest, id);
+            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);  
             return -1;
         endfunction
 
 
-        function automatic void commit(input AbstractInstruction abs, input InsId id, input abnormal);            
-            if (hasIntDest(abs)) ints.commit(abs, id, !abnormal);      
-            if (hasFloatDest(abs)) floats.commit(abs, id, !abnormal);
+        function automatic void commit(input UopName name, input int dest, input WriterId id, input abnormal);            
+            if (uopHasIntDest(name)) ints.commit(dest, id, !abnormal);      
+            if (uopHasFloatDest(name)) floats.commit(dest, id, !abnormal);
         endfunction
 
-        function automatic void writeValue(input AbstractInstruction abs, input InsId id, input Word value);
-            if (hasIntDest(abs)) begin
+        function automatic void writeValue(input UopName name, input int dest, input WriterId id, input Mword value);
+            if (uopHasIntDest(name)) begin
                 ints.setReady(id);
-                ints.writeValue(abs, id, value);
+                ints.writeValue(dest, id, value);
             end
-            if (hasFloatDest(abs)) begin
+            if (uopHasFloatDest(name)) begin
                 floats.setReady(id);
-                floats.writeValue(abs, id, value);
+                floats.writeValue(dest, id, value);
             end
         endfunction
 
@@ -318,7 +384,7 @@ package AbstractSim;
             int mapInt[32] = ints.MapR;
             int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
-            InsId producers[3] = '{-1, -1, -1};
+            WriterId producers[3] = '{WID_NONE, WID_NONE, WID_NONE};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
             
             string typeSpec = parsingMap[abs.fmt].typeSpec;
@@ -349,9 +415,9 @@ package AbstractSim;
         
  
  
-        function automatic void flush(input OpSlot op);
-            ints.flush(op);
-            floats.flush(op);
+        function automatic void flush(input InsId id);
+            ints.flush(id);
+            floats.flush(id);
         endfunction
         
         function automatic void flushAll();
@@ -360,7 +426,7 @@ package AbstractSim;
         endfunction
  
  
-        function automatic void restoreCP(input int intM[32], input int floatM[32], input InsId intWriters[32], input InsId floatWriters[32]);
+        function automatic void restoreCP(input int intM[32], input int floatM[32], input WriterId intWriters[32], input WriterId floatWriters[32]);
             ints.restoreCP(intM, intWriters);
             floats.restoreCP(floatM, floatWriters);
         endfunction
@@ -393,19 +459,18 @@ package AbstractSim;
     endclass
 
 
-
-    function automatic logic wordOverlap(input Word wa, input Word wb);
-        Word aEnd = wa + 4; // Exclusive end
-        Word bEnd = wb + 4; // Exclusive end
+    function automatic logic wordOverlap(input Mword wa, input Mword wb);
+        Mword aEnd = wa + 4; // Exclusive end
+        Mword bEnd = wb + 4; // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
         if (wb >= aEnd || wa >= bEnd) return 0;
         else return 1;
     endfunction
 
-    function automatic logic wordInside(input Word wa, input Word wb);
-        Word aEnd = wa + 4; // Exclusive end
-        Word bEnd = wb + 4; // Exclusive end
+    function automatic logic wordInside(input Mword wa, input Mword wb);
+        Mword aEnd = wa + 4; // Exclusive end
+        Mword bEnd = wb + 4; // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
        
@@ -413,12 +478,11 @@ package AbstractSim;
     endfunction
     
 
-     
     typedef struct {
         InsId owner;
-        Word adr;
-        Word val;
-        Word adrAny; 
+        Mword adr;
+        Mword val;
+        Mword adrAny; 
     } Transaction;
 
 
@@ -428,64 +492,62 @@ package AbstractSim;
         Transaction loads[$];
         Transaction committedStores[$]; // Not included in transactions
         
-        function automatic void add(input OpSlot op, input AbstractInstruction ins, input Word argVals[3]);
-            Word effAdr = calculateEffectiveAddress(ins, argVals);
+        function automatic void add(input InsId id, input AbstractInstruction ins, input Mword argVals[3]);
+            Mword effAdr = calculateEffectiveAddress(ins, argVals);
     
             if (isStoreMemIns(ins)) begin 
-                Word value = argVals[2];
-                addStore(op, effAdr, value);
+                Mword value = argVals[2];
+                addStore(id, effAdr, value);
             end
             if (isLoadMemIns(ins)) begin
-                addLoad(op, effAdr, 'x);
+                addLoad(id, effAdr, 'x);
             end
             if (isStoreSysIns(ins)) begin 
-                Word value = argVals[2];
-                addStoreSys(op, effAdr, value);
+                Mword value = argVals[2];
+                addStoreSys(id, effAdr, value);
             end
             if (isLoadSysIns(ins)) begin
-                addLoadSys(op, effAdr, 'x);
+                addLoadSys(id, effAdr, 'x);
             end
         endfunction
 
-        
-        function automatic void addStore(input OpSlot op, input Word adr, input Word val);
-            transactions.push_back('{op.id, adr, val, adr});
-            stores.push_back('{op.id, adr, val, adr});
+        function automatic void addStore(input InsId id, input Mword adr, input Mword val);
+            transactions.push_back('{id, adr, val, adr});
+            stores.push_back('{id, adr, val, adr});
         endfunction
 
-        function automatic void addLoad(input OpSlot op, input Word adr, input Word val);            
-            transactions.push_back('{op.id, adr, val, adr});
-            loads.push_back('{op.id, adr, val, adr});
+        function automatic void addLoad(input InsId id, input Mword adr, input Mword val);            
+            transactions.push_back('{id, adr, val, adr});
+            loads.push_back('{id, adr, val, adr});
         endfunction
 
-        function automatic void addStoreSys(input OpSlot op, input Word adr, input Word val);
-            transactions.push_back('{op.id, 'x, val, adr});
-            stores.push_back('{op.id, 'x, val, adr});
+        function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
+            transactions.push_back('{id, 'x, val, adr});
+            stores.push_back('{id, 'x, val, adr});
         endfunction
 
-        function automatic void addLoadSys(input OpSlot op, input Word adr, input Word val);            
-            transactions.push_back('{op.id, 'x, val, adr});
-            loads.push_back('{op.id, 'x, val, adr});
+        function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
+            transactions.push_back('{id, 'x, val, adr});
+            loads.push_back('{id, 'x, val, adr});
         endfunction
 
-
-        function automatic void remove(input OpSlot op);
-            assert (transactions[0].owner == op.id) begin
+        function automatic void remove(input InsId id);
+            assert (transactions[0].owner == id) begin
                 void'(transactions.pop_front());
-                if (stores.size() != 0 && stores[0].owner == op.id) begin
+                if (stores.size() != 0 && stores[0].owner == id) begin
                     Transaction store = (stores.pop_front());
                     committedStores.push_back(store);                       
                 end
-                if (loads.size() != 0 && loads[0].owner == op.id) void'(loads.pop_front());
+                if (loads.size() != 0 && loads[0].owner == id) void'(loads.pop_front());
             end
             else $error("Incorrect transaction commit");
         endfunction
 
-        function automatic void drain(input OpSlot op);
-            assert (committedStores[0].owner == op.id) begin
+        function automatic void drain(input InsId id);
+            assert (committedStores[0].owner == id) begin
                 void'(committedStores.pop_front());
             end
-            else $error("Incorrect transaction drain: %d but found %d", op.id, committedStores[0].owner);
+            else $error("Incorrect transaction drain: %d but found %d", id, committedStores[0].owner);
         endfunction
 
         function automatic void flushAll();
@@ -494,10 +556,10 @@ package AbstractSim;
             loads.delete();
         endfunction
 
-        function automatic void flush(input OpSlot op);
-            while (transactions.size() != 0 && transactions[$].owner > op.id) void'(transactions.pop_back());
-            while (stores.size() != 0 && stores[$].owner > op.id) void'(stores.pop_back());
-            while (loads.size() != 0 && loads[$].owner > op.id) void'(loads.pop_back());
+        function automatic void flush(input InsId id);
+            while (transactions.size() != 0 && transactions[$].owner > id) void'(transactions.pop_back());
+            while (stores.size() != 0 && stores[$].owner > id) void'(stores.pop_back());
+            while (loads.size() != 0 && loads[$].owner > id) void'(loads.pop_back());
         endfunction
 
         function automatic InsId checkWriter(input InsId id);
@@ -524,7 +586,7 @@ package AbstractSim;
                 return (writers.size() == 0) ? -1 : writers[$].owner;
             endfunction
 
-        function automatic Word getStoreValue(input InsId id);
+        function automatic Mword getStoreValue(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
             Transaction writers[$] = allStores.find with (item.owner == id);
             return writers[0].val;
@@ -542,10 +604,173 @@ package AbstractSim;
 //////////////////
 // General
 
-    function automatic logic anyActive(input OpSlotA s);
+    function automatic logic anyActiveB(input OpSlotAB s);
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
+
+    function automatic logic anyActiveF(input OpSlotAF s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+    
+    
+    function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
+        OpSlotB res;
+        
+        res.active = op.active;
+        res.mid = op.id;
+        res.mid = -1;
+        res.adr = op.adr;
+        res.bits = op.bits;
+        
+        return res;
+    endfunction;
+
+    function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
+        OpSlotAB res;
+        
+        foreach (ops[i]) begin
+            res[i] = TMP_translateFrontToRename(ops[i]);
+        end
+        
+        return res;
+    endfunction;
+
+
+
+    // Not including memory
+    function automatic logic isFloatCalcUop(input UopName name);
+        return name inside {
+             UOP_fp_move,
+             UOP_fp_or,
+             UOP_fp_addi };
+    endfunction    
+
+
+    function automatic logic isControlUop(input UopName name);
+        return name inside {
+            UOP_ctrl_undef,
+            UOP_ctrl_rete,
+            UOP_ctrl_reti,
+            UOP_ctrl_halt,
+            UOP_ctrl_sync,
+            UOP_ctrl_refetch,
+            UOP_ctrl_error,
+            UOP_ctrl_call,
+            UOP_ctrl_send
+        };
+    endfunction
+
+
+    function automatic logic isBranchUop(input UopName name);
+        return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
+    endfunction
+
+//        function automatic logic isBranchImmIns(input UopName name);
+//            return name inside {"ja", "jl", "jz_i", "jnz_i"};
+//        endfunction
+
+//        function automatic logic isBranchAlwaysIns(input UopName name);
+//            return name inside {"ja", "jl"};
+//        endfunction
+
+//        function automatic logic isBranchRegIns(input UopName name);
+//            return name inside {"jz_r", "jnz_r"};
+//        endfunction       
+        
+
+    function automatic logic isMemUop(input UopName name);
+        return isLoadMemUop(name) || isStoreMemUop(name);
+    endfunction
+
+    function automatic logic isStoreUop(input UopName name);
+        return isStoreMemUop(name) || isStoreSysUop(name);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+    endfunction
+
+    function automatic logic isLoadUop(input UopName name);
+        return isLoadMemUop(name) || isLoadSysUop(name);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+    endfunction
+
+    function automatic logic isLoadSysUop(input UopName name);
+        return name inside {UOP_mem_lds};
+    endfunction
+
+    function automatic logic isLoadMemUop(input UopName name);
+        return name inside {UOP_mem_ldi, UOP_mem_ldf};
+    endfunction
+
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
+
+    function automatic logic isStoreMemUop(input UopName name);
+        return name inside {UOP_mem_sti, UOP_mem_stf};
+    endfunction
+
+//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
+//        return ins.def.o inside {O_floatStoreW};
+//    endfunction
+    
+
+    function automatic logic isStoreSysUop(input UopName name);
+        return name inside {UOP_mem_sts};
+    endfunction
+    
+//    function automatic logic isStoreIns(input AbstractInstruction ins);
+//        return isStoreMemIns(ins) || isStoreSysIns(ins);
+//    endfunction
+
+
+    function automatic logic uopHasIntDest(input UopName name);
+        return name inside {
+         UOP_int_and,
+         UOP_int_or,
+         UOP_int_xor,
+        
+         UOP_int_addc,
+         UOP_int_addh,
+        
+         UOP_int_add,
+         UOP_int_sub,
+        
+         UOP_int_shlc,
+         UOP_int_shac,
+         UOP_int_rotc,
+        
+         UOP_int_mul,
+         UOP_int_mulhs,
+         UOP_int_mulhu,
+         UOP_int_divs, 
+         UOP_int_divu,
+         UOP_int_rems,
+         UOP_int_remu,
+        
+         UOP_mem_ldi,
+
+         UOP_mem_lds,
+        
+         UOP_br_z,
+         UOP_br_nz,
+         UOP_bc_l,
+
+
+             UOP_bc_z,
+             UOP_bc_nz,
+             UOP_bc_a
+        };
+    endfunction
+
+    function automatic logic uopHasFloatDest(input UopName name);
+        return name inside {
+             UOP_fp_move,
+             UOP_fp_or,
+             UOP_fp_addi,
+            
+             UOP_mem_ldf
+        };
+    endfunction
+
 
 
 endpackage

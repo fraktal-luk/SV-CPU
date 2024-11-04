@@ -41,13 +41,18 @@ endpackage
 package InsDefs;
 
     import Base::*;
-    
+
+    typedef Word Mword;
+
+    typedef Mword Mword3[3];
+    typedef Mword Mword4[4];
+
     // Handler addresses
-    localparam Word IP_ERROR = 'h00000100;
-    localparam Word IP_CALL = 'h00000180;
-    localparam Word IP_RESET = 'h00000200;
-    localparam Word IP_INT = 'h00000280;
-    localparam Word IP_EXC = 'h00000300;
+    localparam Mword IP_ERROR = 'h000100;
+    localparam Mword IP_CALL = 'h00000180;
+    localparam Mword IP_RESET = 'h00000200;
+    localparam Mword IP_INT = 'h00000280;
+    localparam Mword IP_EXC = 'h00000300;
 
 
     class MnemonicClass;

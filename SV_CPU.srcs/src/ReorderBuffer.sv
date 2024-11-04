@@ -16,8 +16,8 @@ module ReorderBuffer
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotA inGroup,
-    output OpSlotA outGroup
+    input OpSlotAB inGroup,
+    output OpSlotAB outGroup
 );
 
     localparam int DEPTH = ROB_SIZE/WIDTH;
@@ -26,12 +26,14 @@ module ReorderBuffer
     int size;
     logic allow;
 
+        localparam int N_UOP_MAX = 1; // Number of uops a Mop can be split into
+
     typedef struct {
-        InsId id;
-        logic completed;
+        InsId mid;
+        logic completed[N_UOP_MAX];
     } OpRecord;
     
-    const OpRecord EMPTY_RECORD = '{id: -1, completed: 'x};
+    const OpRecord EMPTY_RECORD = '{mid: -1, completed: '{default: 'x}};
     typedef OpRecord OpRecordA[WIDTH];
 
     typedef struct {
@@ -39,7 +41,7 @@ module ReorderBuffer
     } Row;
 
 
-    OpSlotA outGroupPrev = '{default: EMPTY_SLOT};
+    OpSlotAB outGroupPrev = '{default: EMPTY_SLOT_B};
 
     OpRecord commitQ[$:3*WIDTH];
     OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
@@ -49,12 +51,12 @@ module ReorderBuffer
 
     const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
-    function automatic OpSlotA makeOutGroup(input Row row);
-        OpSlotA res = '{default: EMPTY_SLOT};
+    function automatic OpSlotAB makeOutGroup(input Row row);
+        OpSlotAB res = '{default: EMPTY_SLOT_B};
         foreach (row.records[i]) begin
-            if (row.records[i].id == -1) continue;
+            if (row.records[i].mid == -1) continue;
             res[i].active = 1;
-            res[i].id = row.records[i].id;
+            res[i].mid = row.records[i].mid;
         end
         
         return res;
@@ -64,9 +66,8 @@ module ReorderBuffer
     Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
     
-    InsId lastIn = -1, lastOut = -1;
+    InsId lastOut = -1;
     logic lastIsBreaking = 0;
-    
     logic commitStalled = 0;
     
 
@@ -82,7 +83,7 @@ module ReorderBuffer
             outGroupPrev <= outGroup;
 
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
             arrayHeadRow <= EMPTY_ROW;
@@ -95,7 +96,7 @@ module ReorderBuffer
         outRow <= outRowVar;
 
         lastOut <= getLastOut(lastOut, outRowVar.records);
-        lastIsBreaking <= isLastBreaking(lastOut, outRowVar.records);
+        lastIsBreaking <= isLastBreaking(outRowVar.records);
 
         insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
 
@@ -105,7 +106,7 @@ module ReorderBuffer
             flushArrayAll();
         else if (branchEventInfo.redirect)
             flushArrayPartial();
-        else if (anyActive(inGroup))
+        else if (anyActiveB(inGroup))
             add(inGroup);
 
         commitQM <= makeQM(commitQ);
@@ -120,12 +121,12 @@ module ReorderBuffer
 
     function automatic OpRecord tickRecord(input OpRecord rec);
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
         begin
-            if (rec.id != -1)
-                putMilestone(rec.id, InstructionMap::FlushCommit);
+            if (rec.mid != -1)
+                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
             return EMPTY_RECORD;
         end
         else
@@ -143,8 +144,8 @@ module ReorderBuffer
 
     function automatic void insertToQueue(ref OpRecord q[$:3*WIDTH], input Row row);
         foreach (row.records[i])
-            if (row.records[i].id != -1) begin
-                assert (row.records[i].completed === 1) else $fatal(2, "not compl");
+            if (row.records[i].mid != -1) begin
+                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
                 q.push_back(row.records[i]);
             end 
     endfunction
@@ -153,11 +154,11 @@ module ReorderBuffer
         Row res = EMPTY_ROW;
         
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.interrupt || AbstractCore.lateEventInfoWaiting.reset || AbstractCore.lateEventInfoWaiting.redirect
+            || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             ) begin
             foreach (q[i])
-                if (q[i].id != -1) putMilestone(q[i].id, InstructionMap::FlushCommit);
+                if (q[i].mid != -1) putMilestoneM(q[i].mid, InstructionMap::FlushCommit);
             q = '{};
         end
         
@@ -166,7 +167,7 @@ module ReorderBuffer
         foreach (res.records[i]) begin
             if (q.size() == 0) break;
             res.records[i] = q.pop_front();
-            if (breaksCommitId(res.records[i].id)) break;
+            if (breaksCommitId(res.records[i].mid)) break;
         end
         
         return res;
@@ -177,7 +178,7 @@ module ReorderBuffer
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
             foreach (row[c])
-                putMilestone(row[c].id, InstructionMap::RobFlush);
+                putMilestoneM(row[c].mid, InstructionMap::RobFlush);
         end
 
         endPointer = startPointer;
@@ -187,17 +188,15 @@ module ReorderBuffer
     
     task automatic flushArrayPartial();
         logic clear = 0;
-        int causingGroup = insMap.get(branchEventInfo.op.id).inds.renameG;
-        int causingSlot = insMap.get(branchEventInfo.op.id).slot;
-        InsId causingId = branchEventInfo.op.id;
+        InsId causingMid = branchEventInfo.eventMid;
         int p = startPointer;
                     
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
             for (int c = 0; c < WIDTH; c++) begin
-                if (row[c].id == causingId) endPointer = (p+1) % (2*DEPTH);
-                if (row[c].id > causingId) begin
-                    putMilestone(row[c].id, InstructionMap::RobFlush);
+                if (row[c].mid == causingMid) endPointer = (p+1) % (2*DEPTH);
+                if (row[c].mid > causingMid) begin
+                    putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
                 end
             end
@@ -206,14 +205,14 @@ module ReorderBuffer
     endtask
     
     
-    task automatic markPacketCompleted(input OpPacket p);         
+    task automatic markPacketCompleted(input UopPacket p);         
         if (!p.active) return;
         
         for (int r = 0; r < DEPTH; r++)
             for (int c = 0; c < WIDTH; c++)
-                if (array[r].records[c].id == p.id) begin
-                    array[r].records[c].completed = 1;
-                    putMilestone(p.id, InstructionMap::RobComplete);
+                if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
+                    array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
+                    putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
                 end
     endtask
     
@@ -236,7 +235,7 @@ module ReorderBuffer
         Row row = array[startPointer % DEPTH];
         
         foreach (row.records[i])
-            if (row.records[i].id != -1) putMilestone(row.records[i].id, InstructionMap::RobExit);
+            if (row.records[i].mid != -1) putMilestoneM(row.records[i].mid, InstructionMap::RobExit);
 
         array[startPointer % DEPTH] = EMPTY_ROW;
         startPointer = (startPointer+1) % (2*DEPTH);
@@ -245,22 +244,22 @@ module ReorderBuffer
     endfunction
     
 
-    function automatic OpRecordA makeRecord(input OpSlotA ops);
+    function automatic OpRecordA makeRecord(input OpSlotAB ops);
         OpRecordA res = '{default: EMPTY_RECORD};
         foreach (ops[i])
-            res[i] = ops[i].active ? '{ops[i].id, 0} : '{-1, 'x};   
+            res[i] = ops[i].active ? '{ops[i].mid, '{default: 0}} : '{-1, '{default: 'x}};   
         return res;
     endfunction
 
 
-    task automatic add(input OpSlotA in);
+    task automatic add(input OpSlotAB in);
         OpRecordA rec = makeRecord(in);
             
         array[endPointer % DEPTH].records = makeRecord(in);
         endPointer = (endPointer+1) % (2*DEPTH);
         
         foreach (rec[i])
-            putMilestone(rec[i].id, InstructionMap::RobEnter);
+            putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
     endtask
     
     function automatic logic frontCompleted();
@@ -268,7 +267,7 @@ module ReorderBuffer
         if (endPointer == startPointer) return 0;
 
         foreach (records[i])
-            if (records[i].id != -1 && records[i].completed === 0)
+            if (records[i].mid != -1 && records[i].completed.and() === 0) // Will be 0 if has any 0 (also with XZ)
                 return 0;
         
         return 1;
@@ -279,18 +278,18 @@ module ReorderBuffer
         InsId tmp = prev;
         
         foreach (recs[i])
-            if  (recs[i].id != -1)
-                tmp = recs[i].id;
+            if  (recs[i].mid != -1)
+                tmp = recs[i].mid;
                 
         return tmp;
     endfunction
 
-    function automatic logic isLastBreaking(input InsId prev, input OpRecordA recs);
+    function automatic logic isLastBreaking(input OpRecordA recs);
         logic brk = 0;
         
         foreach (recs[i])
-            if  (recs[i].id != -1)
-                brk = breaksCommitId(recs[i].id);
+            if  (recs[i].mid != -1)
+                brk = breaksCommitId(recs[i].mid);
                 
         return brk;
     endfunction

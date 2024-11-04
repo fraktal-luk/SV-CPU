@@ -150,7 +150,7 @@ $cmp32eq
 	jz_r r0, r0, r31	
 @end
 
-; TODO: what about return? src[31] must contain the return address 
+; FUTURE: what about return? src[31] must contain the return address 
 @proc loadIntRegisters ; (src=r3) 
 	and_r r31, r3, r3  ; move to 31 because it's written last
 

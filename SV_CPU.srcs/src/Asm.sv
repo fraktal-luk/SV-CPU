@@ -36,7 +36,6 @@ package Asm;
         InstructionDef def = getDef(parts[0]);
         
         string args[] = orderArgs(parts[1:3], parsingMap[fmt]);
-        //Word4 vals;
         CodeRef res;
 
         res.label = parseLabel(args[0:3], parsingMap[fmt].decoding);

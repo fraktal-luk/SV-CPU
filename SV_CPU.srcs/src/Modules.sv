@@ -14,34 +14,22 @@ module RegularSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP
+    input UopPacket opP
 );
-    Word result = 'x;
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+    UopPacket stage0, stage0_E;
 
-    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
-    OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
-
-    OpPacket stage0, stage0_E;
-
-    assign stage0 = setResult(pE0, result);
-    assign stage0_E = setResult(pE0_E, result);
+    assign stage0 = pE0;
+    assign stage0_E = pE0_E;
 
     assign p0 = opP;
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        
         pE0 <= performRegularE0(tickP(p1));
-        
-        result <= 'x;
-        if (p1_E.active) result <= calcRegularOp(p1_E.id);
-        
-        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
-
-
-
     end
 
     assign p0_E = effP(p0);
@@ -66,34 +54,24 @@ module BranchSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpPacket opP
+    input UopPacket opP
 );
-    Word result = 'x;
-
-    OpPacket p0, p1 = EMPTY_OP_PACKET, pE0 = EMPTY_OP_PACKET, pD0 = EMPTY_OP_PACKET, pD1 = EMPTY_OP_PACKET;
-    OpPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
-
-    OpPacket stage0, stage0_E;
-    
-        BranchQueueHelper::Entry inputEntry = BranchQueueHelper::EMPTY_QENTRY;;
-    
-    assign stage0 = setResult(pE0, result);
-    assign stage0_E = setResult(pE0_E, result);
-
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+    UopPacket stage0, stage0_E;
+        
+    assign stage0 = pE0;
+    assign stage0_E = pE0_E;
+                      
     assign p0 = opP;
 
     always @(posedge AbstractCore.clk) begin
-        p1 <= tickP(p0);
-        
-            inputEntry <= AbstractCore.theBq.getEntry(p0_E);
-        
+        p1 <= tickP(p0);   
         pE0 <= performBranchE0(tickP(p1));
-        
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
-        runExecBranch(p1_E.active, p1_E.id);
-        result <= getBranchResult(p1_E.active, p1_E.id);
+        runExecBranch(p1_E.active, p1_E.TMP_oid);
     end
 
     assign p0_E = effP(p0);
@@ -119,24 +97,24 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    OpPacket doneRegular0, doneRegular1;
-    OpPacket doneBranch;
+    UopPacket doneRegular0, doneRegular1;
+    UopPacket doneBranch;
     
-    OpPacket doneMem0, doneMem2;
+    UopPacket doneMem0, doneMem2;
     
-    OpPacket doneFloat0,  doneFloat1; 
+    UopPacket doneFloat0,  doneFloat1; 
     
-    OpPacket doneSys = EMPTY_OP_PACKET;
+    UopPacket doneSys = EMPTY_UOP_PACKET;
     
 
-    OpPacket doneRegular0_E, doneRegular1_E;
-    OpPacket doneBranch_E;
+    UopPacket doneRegular0_E, doneRegular1_E;
+    UopPacket doneBranch_E;
     
-    OpPacket doneMem0_E, doneMem2_E;
+    UopPacket doneMem0_E, doneMem2_E;
     
-    OpPacket doneFloat0_E, doneFloat1_E; 
+    UopPacket doneFloat0_E, doneFloat1_E; 
     
-    OpPacket doneSys_E;
+    UopPacket doneSys_E;
 
 
     DataReadReq readReqs[N_MEM_PORTS];
@@ -144,19 +122,19 @@ module ExecBlock(ref InstructionMap insMap,
     
     logic TMP_memAllow;
     
-    OpPacket issuedReplayQueue;
+    UopPacket issuedReplayQueue;
     
-    OpPacket toReplayQueue0, toReplayQueue2;
-    OpPacket toReplayQueue[N_MEM_PORTS];
+    UopPacket toReplayQueue0, toReplayQueue2;
+    UopPacket toReplayQueue[N_MEM_PORTS];
 
-    OpPacket toLq[N_MEM_PORTS];
-    OpPacket toSq[N_MEM_PORTS];
-    OpPacket toBq[N_MEM_PORTS]; // TODO: Customize this width in MemBuffer (or make whole new module for BQ)?  
+    UopPacket toLq[N_MEM_PORTS];
+    UopPacket toSq[N_MEM_PORTS];
+    UopPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
-    OpPacket fromSq[N_MEM_PORTS];
-    OpPacket fromLq[N_MEM_PORTS];
-    OpPacket fromBq[N_MEM_PORTS];
-
+    UopPacket fromSq[N_MEM_PORTS];
+    UopPacket fromLq[N_MEM_PORTS];
+    UopPacket fromBq[N_MEM_PORTS];
+    
 
     // Int 0
     RegularSubpipe regular0(
@@ -249,14 +227,14 @@ module ExecBlock(ref InstructionMap insMap,
     assign TMP_memAllow = replayQueue.accept;
 
 
-    function automatic OpPacket memToComplete(input OpPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO})) return EMPTY_OP_PACKET;
+    function automatic UopPacket memToComplete(input UopPacket p);
+        if (!(p.status inside {ES_OK, ES_REDO})) return EMPTY_UOP_PACKET;
         else return p;
     endfunction
 
-    function automatic OpPacket memToReplay(input OpPacket p);
+    function automatic UopPacket memToReplay(input UopPacket p);
         if (!(p.status inside {ES_OK, ES_REDO})) return p;
-        else return EMPTY_OP_PACKET;
+        else return EMPTY_UOP_PACKET;
     endfunction
 
 
@@ -285,12 +263,12 @@ module ExecBlock(ref InstructionMap insMap,
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
     assign toReplayQueue2 = memToReplay(mem2.stage0_E);
     
-    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_OP_PACKET};
+    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
     
-    assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_OP_PACKET};
+    assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toSq = toLq;
 
-    assign toBq = '{0: branch0.pE0_E, default: EMPTY_OP_PACKET};
+    assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
@@ -317,94 +295,158 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-    function automatic OpPacket performRegularE0(input OpPacket p);
-        if (p.id == -1) return p;
+    function automatic UopPacket performRegularE0(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
         begin
-            OpPacket res = p;
-            res.result = calcRegularOp(p.id);
+            UopPacket res = p;
+            res.result = calcRegularOp(p.TMP_oid);
             
             return res;
         end
     endfunction
 
     // TOPLEVEL
-    function automatic Word calcRegularOp(input InsId id);
-        AbstractInstruction abs = decId(id);
-                                
-        Word3 args = getAndVerifyArgs(id);
-        Word adr = getAdr(id);
-        Word result = calculateResult(abs, args, adr);
-        
-        insMap.setActualResult(id, result);
+    function automatic Mword calcRegularOp(input UidT uid);
+        UopName uname = insMap.getU(uid).name;
+        Mword3 args = getAndVerifyArgs(uid);
+        Mword result = calcArith(uname, args);  
+        insMap.setActualResult(uid, result);
         
         return result;
     endfunction
 
 
-
-    function automatic OpPacket performBranchE0(input OpPacket p);
-        if (p.id == -1) return p;
-        begin
-            OpPacket res = p;
-            res.result = getBranchResult(p.active, p.id);
+    function automatic Mword calcArith(UopName name, Mword args[3]);
+        Mword res = 'x;
+        
+        case (name)
+            UOP_int_and:  res = args[0] & args[1];
+            UOP_int_or:   res = args[0] | args[1];
+            UOP_int_xor:  res = args[0] ^ args[1];
             
+            UOP_int_addc: res = args[0] + args[1];
+            UOP_int_addh: res = args[0] + (args[1] << 16);
+            
+            UOP_int_add:  res = args[0] + args[1];
+            UOP_int_sub:  res = args[0] - args[1];
+            
+            UOP_int_shlc:
+                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                            else                       res = $unsigned(args[0]) >> -args[1];
+            UOP_int_shac:
+                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                            else                       res = $unsigned(args[0]) >> -args[1];                     
+            UOP_int_rotc:
+                            if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
+                            else                       res = {args[0], args[0]} >> -args[1];
+            
+            // mul/div/rem
+            UOP_int_mul:   res = args[0] * args[1];
+            UOP_int_mulhu: res = (Dword'($unsigned(args[0])) * Dword'($unsigned(args[1]))) >> 32;
+            UOP_int_mulhs: res = (Dword'($signed(args[0])) * Dword'($signed(args[1]))) >> 32;
+            UOP_int_divu:  res = $unsigned(args[0]) / $unsigned(args[1]);
+            UOP_int_divs:  res = divSignedW(args[0], args[1]);
+            UOP_int_remu:  res = $unsigned(args[0]) % $unsigned(args[1]);
+            UOP_int_rems:  res = remSignedW(args[0], args[1]);
+           
+            
+            // FP
+            UOP_fp_move:   res = args[0];
+            UOP_fp_or:     res = args[0] | args[1];
+            UOP_fp_addi:   res = args[0] + args[1];
+           
+           
+            default: $fatal(2, "Wrong uop");
+        endcase
+        
+        // Handing of cases of division by 0  
+        if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
+
+        return res;
+    endfunction
+
+
+
+    function automatic UopPacket performBranchE0(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
+        begin
+            UopPacket res = p;
+            res.result = getBranchResult(p.active, p.TMP_oid);
             return res;
         end
     endfunction
 
     // TOPLEVEL
-    task automatic runExecBranch(input logic active, input InsId id);
+    task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
         if (!active) return;
-        insMap.setActualResult(id, getBranchResult(1, id));
+        insMap.setActualResult(uid, getBranchResult(1, uid));
 
-        setBranchInCore(id);
-        putMilestone(id, InstructionMap::ExecRedirect);
+        setBranchInCore(uid);
+        putMilestone(uid, InstructionMap::ExecRedirect);
     endtask
 
-    function automatic Word getBranchResult(input logic active, input InsId id);
+    function automatic Mword getBranchResult(input logic active, input UidT uid);
         if (!active) return 'x;
-        else begin
-            Word adr = getAdr(id);
-            return adr + 4;
-        end
+        else return getAdr(U2M(uid)) + 4;
     endfunction
 
-    task automatic setBranchInCore(input InsId id);
-        OpSlot wholeOp = getOpSlotFromId(id);
-        AbstractInstruction abs = decId(id);
-        Word3 args = getAndVerifyArgs(id);
-        Word adr = getAdr(id);
+    task automatic setBranchInCore(input UidT uid);
+        UopName uname = insMap.getU(uid).name;
+        Mword3 args = getAndVerifyArgs(uid);
+        Mword adr = getAdr(U2M(uid));
+        
+        logic dir = resolveBranchDirection(uname, args);
+        Mword takenTrg = takenTarget(uname, adr, args);
 
-        ExecEvent evt = resolveBranch(abs, adr, args);
-        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.op.id == id);
-        
-        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);
-        Word trg = evt.redirect ? evt.target : adr + 4;
-        
+        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid));
+        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));
+        Mword trg = dir ? takenTrg : adr + 4;
+
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{wholeOp, 0, 0, evt.redirect, 0, 0, evt.target};
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, 0, 0, adr, trg};
     endtask
+
+
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
+        Mword condArg = args[0];
+        
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed");
+        
+        case (uname)
+            UOP_bc_z, UOP_br_z:  return condArg === 0;
+            UOP_bc_nz, UOP_br_nz: return condArg !== 0;
+            UOP_bc_a, UOP_bc_l: return 1;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase            
+    endfunction
+
+    function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
+        case (uname)
+            UOP_br_z, UOP_br_nz:  return args[1];
+            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
+            default: $fatal(2, "Wrong branch uop");
+        endcase  
+    endfunction
 
 
 
     // Used before Exec0 to get final values
-    function automatic Word3 getAndVerifyArgs(input InsId id);
-        InsDependencies deps = insMap.get(id).deps;
-        Word3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        Word3 argsM = insMap.get(id).argValues;
-        
-        if (argsP !== argsM) insMap.setArgError(id);
-        
+    function automatic Mword3 getAndVerifyArgs(input UidT uid);
+        InsDependencies deps = insMap.getU(uid).deps;
+        Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
+        Mword3 argsM = insMap.getU(uid).argsE;
+        insMap.setActualArgs(uid, argsP);
+        insMap.setArgError(uid, (argsP !== argsM));
         return argsP;
     endfunction;
 
 
     // Used once
-    function automatic Word3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+    function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
         ForwardsByStage_0 fws = allByStage;
-        Word res[3];
+        Mword res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                     
         foreach (deps.types[i]) begin
@@ -428,14 +470,20 @@ endmodule
 module CoreDB();
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
-
-    OpSlot lastRenamed = EMPTY_SLOT, lastCompleted = EMPTY_SLOT, lastRetired = EMPTY_SLOT, lastRefetched = EMPTY_SLOT;
+        
+        // Remove?
+        OpSlotB lastRenamed = EMPTY_SLOT_B, lastCompleted = EMPTY_SLOT_B, lastRetired = EMPTY_SLOT_B, lastRefetched = EMPTY_SLOT_B;
     string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
+
+        string csqStr, csqIdStr;
+
+        InstructionInfo lastII;
+        UopInfo lastUI;
 
     string bqStr;
     always @(posedge AbstractCore.clk) begin
         automatic int ids[$];
-        foreach (AbstractCore.branchCheckpointQueue[i]) ids.push_back(AbstractCore.branchCheckpointQueue[i].op.id);
+        foreach (AbstractCore.branchCheckpointQueue[i]) ids.push_back(AbstractCore.branchCheckpointQueue[i].id);
         $swrite(bqStr, "%p", ids);
     end
 
@@ -445,6 +493,6 @@ module CoreDB();
         assign lastRefetchedStr = disasm(lastRefetched.bits);
 
     logic cmp0, cmp1;
-    Word cmpw0, cmpw1, cmpw2, cmpw3;
+    Mword cmpmw0, cmpmw1, cmpmw2, cmpmw3;
    
 endmodule

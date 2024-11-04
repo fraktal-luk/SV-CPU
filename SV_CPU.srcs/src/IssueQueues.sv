@@ -18,51 +18,42 @@ module IssueQueue
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotA inGroup,
-    input logic inMask[$size(OpSlotA)],
+    input TMP_Uop inGroupU[RENAME_WIDTH],
+        
     input logic allow,   
-    output OpPacket outPackets[OUT_WIDTH]
+    output UopPacket outPackets[OUT_WIDTH]
 );
-    localparam int IN_SIZE = $size(OpSlotA);
+    localparam int IN_SIZE = RENAME_WIDTH;
 
     localparam int HOLD_CYCLES = 3;
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
     localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
 
-    typedef int InputLocs[$size(OpSlotA)];
+    typedef int InputLocs[RENAME_WIDTH];
 
-    typedef InsId IdArr[TOTAL_SIZE];
-    typedef InsId OutIds[OUT_WIDTH];
+    typedef UidT IdArr[TOTAL_SIZE];
 
-    typedef OpPacket OutGroupP[OUT_WIDTH];
+    typedef UopPacket OutGroupP[OUT_WIDTH];
  
 
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
 
     ReadyQueue  rfq_perSlot;
     ReadyQueue3 forwardStates, rq_perArg, fq_perArg, rfq_perArg;
-    logic forwardInitialStates[IN_SIZE][3], forwardInitialStates_D[IN_SIZE][3];
 
 
-    IdArr ida;
-
-    OpPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
-    OpPacket pIssued1[OUT_WIDTH] = '{default: EMPTY_OP_PACKET};
+    UopPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
+    UopPacket pIssued1[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
 
     int num = 0, numUsed = 0;    
         
-
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
 
     WakeupMatrix wMatrix, wMatrixVar;
 
 
-    logic cmpb, cmpb0, cmpb1;
-
-
     assign outPackets = effA(pIssued0);
-
 
     always_comb wMatrix = getForwards(array);
     always_comb forwardStates = fwFromWups(wMatrix, getIdQueue(array));
@@ -78,32 +69,25 @@ module IssueQueue
 
         wMatrixVar = wMatrix; // for DB
 
-
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flushIq();
         end
 
         updateWakeups();
-        
 
         issue();
 
-      
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
         end                
         
-                removeIssuedFromArray();
-                
+        removeIssuedFromArray();    
         
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
 
-      
         num <= getNumVirtual();     
         numUsed <= getNumUsed();
-             
-        ida = q2a(getIdQueue(array));
     end
 
 
@@ -114,24 +98,22 @@ module IssueQueue
 
 
     task automatic issue();
-        IdQueue validIds = getArrOpsToIssue();
+        UidQueueT validIds = getArrOpsToIssue();
         issueFromArray(validIds);
     endtask
 
 
-    function automatic IdQueue getArrOpsToIssue();
-        IdQueue res;
-
-        IdQueue ids = getIdQueue(array);
-        IdQueue idsSorted = ids;
-        idsSorted.sort();
+    function automatic UidQueueT getArrOpsToIssue();
+        UidQueueT res;
+        UidQueueT idsSorted = getIdQueue(array);
+        idsSorted.sort with (U2M(item));
 
         if (!allow) return res;
 
         foreach (idsSorted[i]) begin
-            if (idsSorted[i] == -1) continue;
+            if (idsSorted[i] == UIDT_NONE) continue;
             else begin
-                int arrayLoc[$] = array.find_index with (item.id == idsSorted[i]);
+                int arrayLoc[$] = array.find_index with (item.uid == idsSorted[i]);
                 IqEntry entry = array[arrayLoc[0]]; 
                 logic ready = rfq_perSlot[arrayLoc[0]];
                 logic active = entry.used && entry.active;
@@ -153,26 +135,24 @@ module IssueQueue
 
 
 
-    task automatic issueFromArray(input IdQueue ids);
-        pIssued0 <= '{default: EMPTY_OP_PACKET};
+    task automatic issueFromArray(input UidQueueT ids);
+        pIssued0 <= '{default: EMPTY_UOP_PACKET};
 
         foreach (ids[i]) begin
-            InsId theId = ids[i];
-            int found[$] = array.find_first_index with (item.id == theId);
+            UidT theId = ids[i];
+            int found[$] = array.find_first_index with (item.uid == theId);
             int s = found[0];
             
             Poison newPoison = mergePoisons(array[s].poisons.poisoned);
-            OpPacket newPacket = '{1, theId, ES_OK, newPoison, 'x, 'x};
+            UopPacket newPacket = '{1, theId, UID_NONE, ES_OK, newPoison, 'x, 'x};
             
-            assert (theId != -1) else $fatal(2, "Wrong id for issue");
+            assert (theId != UIDT_NONE) else $fatal(2, "Wrong id for issue");
             assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
 
             pIssued0[i] <= tickP(newPacket);
 
             putMilestone(theId, InstructionMap::IqIssue);
                     
-                if (theId == TRACKED_ID) $error("issue %d", theId);
-
             array[s].active = 0;
             array[s].issueCounter = 0;
         end
@@ -187,10 +167,8 @@ module IssueQueue
     task automatic removeIssuedFromArray();
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
-                putMilestone(array[s].id, InstructionMap::IqExit);
-                
-                    if (array[s].id == TRACKED_ID) $error("iqexit %d", array[s].id);
-                
+                putMilestone(array[s].uid, InstructionMap::IqExit);
+                                
                 assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
                 array[s] = EMPTY_ENTRY;
             end
@@ -202,12 +180,13 @@ module IssueQueue
         InputLocs locs = getInputLocs();
         int nInserted = 0;
 
-        foreach (inGroup[i]) begin
-            OpSlot op = inGroup[i];
-            if (op.active && inMask[i]) begin
+        foreach (inGroupU[i]) begin
+            if (inGroupU[i].active) begin
                 int location = locs[nInserted];
-                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, id: op.id};
-                putMilestone(op.id, InstructionMap::IqEnter);
+                UidT uid = inGroupU[i].uid;
+                                
+                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: uid};
+                putMilestone(uid, InstructionMap::IqEnter);
 
                 nInserted++;          
             end
@@ -217,20 +196,20 @@ module IssueQueue
 
     task automatic flushIq();
         if (lateEventInfo.redirect) flushOpQueueAll();
-        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.op);
+        else if (branchEventInfo.redirect) flushOpQueuePartial(branchEventInfo.eventMid);
     endtask
 
     task automatic flushOpQueueAll();
         foreach (array[i]) begin
-            if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
+            if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
             array[i] = EMPTY_ENTRY;
         end
     endtask
 
-    task automatic flushOpQueuePartial(input OpSlot op);
+    task automatic flushOpQueuePartial(input InsId id);
         foreach (array[i]) begin
-            if (array[i].id > op.id) begin
-                if (array[i].used) putMilestone(array[i].id, InstructionMap::IqFlush);
+            if (U2M(array[i].uid) > id) begin
+                if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
                 array[i] = EMPTY_ENTRY;
             end
         end
@@ -255,7 +234,7 @@ module IssueQueue
         end
 
         if (entry.state.readyArgs.and()) begin
-            if (!entry.state.ready) putMilestone(entry.id, InstructionMap::IqWakeupComplete);
+            if (!entry.state.ready) putMilestone(entry.uid, InstructionMap::IqWakeupComplete);
             entry.state.ready = 1;
         end
         
@@ -283,12 +262,12 @@ module IssueQueue
     endfunction
 
 
-    function automatic IdQueue getIdQueue(input IqEntry entries[$size(array)]);
-        InsId res[$];
+    function automatic UidQueueT getIdQueue(input IqEntry entries[TOTAL_SIZE]);
+        UidT res[$];
         
         foreach (entries[i]) begin
-            InsId id = entries[i].used ? entries[i].id : -1;
-            res.push_back(id);
+            UidT uid = entries[i].used ? entries[i].uid : UIDT_NONE;
+            res.push_back(uid);
         end
         
         return res;
@@ -303,20 +282,20 @@ module IssueQueue
     endfunction
     
         
-    function automatic IdArr q2a(input IdQueue queue);
-        IdArr res = queue[0:$size(array)-1];
+    function automatic IdArr q2a(input UidQueueT queue);
+        IdArr res = queue[0:TOTAL_SIZE-1];
         return res;
     endfunction
     
 
     function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
-        if (entry.id == -1) return res;
+        if (entry.uid == UIDT_NONE) return res;
         
         foreach (entry.state.readyArgs[a]) begin
-            InsDependencies deps = insMap.get(entry.id).deps;
+            InsDependencies deps = insMap.getU(entry.uid).deps;
             SourceType argType = deps.types[a];
-            int prod = deps.producers[a];
+            UidT prod = deps.producers[a];
             int source = deps.sources[a];
             
             Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
@@ -338,12 +317,12 @@ module IssueQueue
         return res;
     endfunction
 
-    function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input InsId ids[$]);
+    function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input UidT ids[$]);
         ReadyQueue3 res;
         foreach (wm[i]) begin
             logic3 r3 = '{'z, 'z, 'z};
 
-            if (ids[i] != -1)
+            if (ids[i] != UIDT_NONE)
                 foreach (r3[a]) r3[a] = wm[i][a].active;
 
             res.push_back(r3);
@@ -358,24 +337,22 @@ module IssueQueue
         entry.state.readyArgs[a] = 1;
         entry.poisons.poisoned[a] = wup.poison;
 
-            if (entry.id == TRACKED_ID) $error("wakeup by %p", wup);
-
-        if (a == 0) putMilestone(entry.id, InstructionMap::IqWakeup0);
-        else if (a == 1) putMilestone(entry.id, InstructionMap::IqWakeup1);
-        else if (a == 2) putMilestone(entry.id, InstructionMap::IqWakeup2);
+        if (a == 0) putMilestone(entry.uid, InstructionMap::IqWakeup0);
+        else if (a == 1) putMilestone(entry.uid, InstructionMap::IqWakeup1);
+        else if (a == 2) putMilestone(entry.uid, InstructionMap::IqWakeup2);
     endfunction
 
     function automatic void cancelArg(ref IqEntry entry, input int a);
         entry.state.readyArgs[a] = 0;
         entry.poisons.poisoned[a] = EMPTY_POISON;
 
-        if (a == 0) putMilestone(entry.id, InstructionMap::IqCancelWakeup0);
-        else if (a == 1) putMilestone(entry.id, InstructionMap::IqCancelWakeup1);
-        else if (a == 2) putMilestone(entry.id, InstructionMap::IqCancelWakeup2);
+        if (a == 0) putMilestone(entry.uid, InstructionMap::IqCancelWakeup0);
+        else if (a == 1) putMilestone(entry.uid, InstructionMap::IqCancelWakeup1);
+        else if (a == 2) putMilestone(entry.uid, InstructionMap::IqCancelWakeup2);
     endfunction
 
     function automatic void pullbackEntry(ref IqEntry entry);
-        if (entry.state.ready) putMilestone(entry.id, InstructionMap::IqPullback);
+        if (entry.state.ready) putMilestone(entry.uid, InstructionMap::IqPullback);
 
         // cancel issue
         entry.active = 1;
@@ -392,54 +369,76 @@ module IssueQueueComplex(
                         ref InstructionMap insMap,
                         input EventInfo branchEventInfo,
                         input EventInfo lateEventInfo,
-                        input OpSlotA inGroup
+                        input OpSlotAB inGroup
 );    
-    RoutingInfo routingInfo;    
+
+    typedef struct {
+        TMP_Uop regular[RENAME_WIDTH];
+        TMP_Uop branch[RENAME_WIDTH];
+        TMP_Uop float[RENAME_WIDTH];
+        TMP_Uop mem[RENAME_WIDTH];
+        TMP_Uop sys[RENAME_WIDTH];
+    } RoutedUops;
     
-    OpPacket issuedRegularP[2];
-    OpPacket issuedBranchP[1];
-    OpPacket issuedFloatP[2];
-    OpPacket issuedMemP[1];
-    OpPacket issuedSysP[1];
-
-
-    assign routingInfo = routeOps(inGroup); 
-
+    RoutedUops routedUops;
     
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.regular, '1,
+    UopPacket issuedRegularP[2];
+    UopPacket issuedBranchP[1];
+    UopPacket issuedFloatP[2];
+    UopPacket issuedMemP[1];
+    UopPacket issuedSysP[1];
+
+
+    assign routedUops = routeUops(inGroup); 
+
+
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
                                             issuedRegularP);
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, '1,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,
                                             issuedBranchP);
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, '1,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, routedUops.float, '1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, '1,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, '1,
+    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, routedUops.sys, '1,
                                             issuedSysP);
     
 
-    function automatic RoutingInfo routeOps(input OpSlotA gr);
-        RoutingInfo res = DEFAULT_ROUTING_INFO;
+
+    function automatic RoutedUops routeUops(input OpSlotAB gr);
+        RoutedUops res = '{
+            regular: '{default: TMP_UOP_NONE},
+            branch: '{default: TMP_UOP_NONE},
+            float: '{default: TMP_UOP_NONE},
+            mem: '{default: TMP_UOP_NONE},
+            sys: '{default: TMP_UOP_NONE}
+        };
         
         foreach (gr[i]) begin
-            OpSlot op = gr[i];
+            UopId uid = '{gr[i].mid, 0};
+            UopName uname;
             
-            if (isLoadIns(decAbs(op)) || isStoreIns(decAbs(op))) res.mem[i] = 1;
-            else if (isSysIns(decAbs(op))) res.sys[i] = 1;
-            else if (isBranchIns(decAbs(op))) res.branch[i] = 1;
-            else if (isFloatCalcIns(decAbs(op))) res.float[i] = 1;
-            else res.regular[i] = 1;
+            if (!gr[i].active) continue;
+            
+            uname = decUname(uid);
+
+            if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+            else if (isControlUop(uname)) res.sys[i] = '{1, uid};
+            else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
+            else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
+            else res.regular[i] = '{1, uid};
         end
         
         return res;
     endfunction
 
-    function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input InsId ids[$]);
+
+    function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input UidT ids[$]);
         ReadyQueue3 res;
         foreach (ids[i])
-            if (ids[i] == -1) res.push_back('{'z, 'z, 'z});
+            if (ids[i] == UIDT_NONE) res.push_back('{'z, 'z, 'z});
             else begin
-                InsDependencies deps = imap.get(ids[i]).deps;
+                InsDependencies deps = imap.getU(ids[i]).deps;
                 logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                 res.push_back(ra);
             end
