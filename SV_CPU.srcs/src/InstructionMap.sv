@@ -11,7 +11,8 @@ package Insmap;
     import AbstractSim::*;
 
     
-
+        typedef int Unum;
+        
 
     typedef struct {
         Mword adr;
@@ -91,8 +92,8 @@ package Insmap;
         res.basicData.bits = bits;
         res.basicData.dec = decodeAbstract(bits);
 
-        res.TMP_uopInfo.physDest = -1;
-        res.TMP_uopInfo.argError = 0;
+            res.TMP_uopInfo.physDest = -1;
+            res.TMP_uopInfo.argError = 0;
             
         res.exception = 0;
         res.refetch = 0;
@@ -103,14 +104,15 @@ package Insmap;
     
 
     class InstructionBase;
-        InstructionInfo infos[InsId];
+        InstructionInfo minfos[InsId];
+        UopInfo uinfos[Unum];
         InsId mids[$];
-        InsId uids[$];
+        Unum uids[$];
         
         //MopDescriptor mopDescriptors[$];
         
         InsId lastM = -1;
-        InsId lastU = -1;
+        Unum lastU = -1;
                 
         InsId retired = -1;
         InsId retiredPrev = -1;
@@ -122,6 +124,8 @@ package Insmap;
 
 
         function automatic void addM(input InsId id, input InstructionInfo ii);
+                UopInfo uinfo;
+            
             lastM++;
             lastU++;
         
@@ -130,7 +134,10 @@ package Insmap;
                     
             //mopDescriptors.push_back('{lastM, -1, 1, lastU});
             
-            infos[id] = ii;
+            minfos[id] = ii;
+                //uinfos[   id] = ii.TMP_uopInfo; // TODO: replace id
+                uinfos[ id ].physDest = -1;              
+                uinfos[ id ].argError = 0;              
         endfunction
 
         function automatic void setRenamed(input InsId id,
@@ -142,18 +149,29 @@ package Insmap;
                                             input IndexSet renameInds,
                                             input int slot
                                             );
-            infos[id].inds = renameInds;
-            infos[id].slot = slot;
+            minfos[id].inds = renameInds;
+            minfos[id].slot = slot;
             
-            infos[id].basicData.target = target;
+            minfos[id].basicData.target = target;
             
-            infos[id].TMP_uopInfo.id = '{id, 0};
-            //infos[id].TMP_uopInfo.name = ...; // TODO
-            
-            infos[id].TMP_uopInfo.physDest = physDest;
-            infos[id].TMP_uopInfo.deps = deps;
-            infos[id].TMP_uopInfo.argsE = argValues;
-            infos[id].TMP_uopInfo.resultE = result;
+                minfos[id].TMP_uopInfo.id = '{id, 0};
+                //infos[id].TMP_uopInfo.name = ...; // TODO
+                
+                minfos[id].TMP_uopInfo.physDest = physDest;
+                minfos[id].TMP_uopInfo.deps = deps;
+                minfos[id].TMP_uopInfo.argsE = argValues;
+                minfos[id].TMP_uopInfo.resultE = result;
+
+
+                uinfos[id].id = '{id, 0};
+                //infos[id].name = ...; // TODO
+                
+                uinfos[id].physDest = physDest;
+                uinfos[id].deps = deps;
+                uinfos[id].argsE = argValues;
+                uinfos[id].resultE = result;
+                
+              //uinfos[  id ] = minfos[id].TMP_uopInfo;
                 
         endfunction
 
@@ -341,18 +359,21 @@ package Insmap;
 
         // ins info
         function automatic InstructionInfo get(input InsId id);
-            assert (insBase.infos.exists(id)) else $fatal(2, "wrong id %d", id);
-            return insBase.infos[id];
+            assert (insBase.minfos.exists(id)) else $fatal(2, "wrong id %d", id);
+            return insBase.minfos[id];
         endfunction
 
             function automatic UopInfo getU(input UidT uid);
-                assert (insBase.infos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
-                return insBase.infos[U2M(uid)].TMP_uopInfo;
+                //assert (insBase.minfos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
+                assert (insBase.uinfos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
+                //    assert (insBase.minfos[U2M(uid)].TMP_uopInfo === insBase.uinfos[U2M(uid)]) else $error("not the same");
+                //return insBase.minfos[U2M(uid)].TMP_uopInfo;
+                    return insBase.uinfos[ U2M(uid) ];
             endfunction
    
         // ins info
         function automatic int size();
-            return insBase.infos.size();
+            return insBase.minfos.size();
         endfunction
         
 
@@ -399,28 +420,32 @@ package Insmap;
         endfunction
 
         function automatic void setUopName(input InsId id, input UopName name);
-            insBase.infos[id].mainUop = name;
-            insBase.infos[id].TMP_uopInfo.name = name;
+            insBase.minfos[id].mainUop = name;
+            insBase.minfos[id].TMP_uopInfo.name = name;
+                insBase.uinfos[id].name = name;
         endfunction
 
         function automatic void setActualResult(input UidT uid, input Mword res);
-            insBase.infos[U2M(uid)].TMP_uopInfo.resultA = res;
+            insBase.minfos[U2M(uid)].TMP_uopInfo.resultA = res;
+                insBase.uinfos[  U2M(uid)].resultA = res;
         endfunction
 
         function automatic void setActualArgs(input UidT uid, input Mword args[3]);
-            insBase.infos[U2M(uid)].TMP_uopInfo.argsA = args;
+            insBase.minfos[U2M(uid)].TMP_uopInfo.argsA = args;
+                insBase.uinfos[ U2M(uid)].argsA = args;
         endfunction
 
         function automatic void setArgError(input UidT uid, input logic value);
-            insBase.infos[U2M(uid)].TMP_uopInfo.argError = value;
+            insBase.minfos[U2M(uid)].TMP_uopInfo.argError = value;
+                insBase.uinfos[ U2M(uid)].argError = value;
         endfunction
         
         function automatic void setException(input InsId id);
-            insBase.infos[id].exception = 1;
+            insBase.minfos[id].exception = 1;
         endfunction
         
         function automatic void setRefetch(input InsId id);
-            insBase.infos[id].refetch = 1;
+            insBase.minfos[id].refetch = 1;
         endfunction
         ////////////
 
@@ -472,7 +497,8 @@ package Insmap;
                 void'(checkOk(removedList[i]));
                 records.delete(removedList[i]);
                 recordsU.delete(removedList[i]);
-                insBase.infos.delete(removedList[i]);
+                insBase.minfos.delete(removedList[i]);
+                    insBase.uinfos.delete(   removedList[i]);
             end
 
         endfunction 
