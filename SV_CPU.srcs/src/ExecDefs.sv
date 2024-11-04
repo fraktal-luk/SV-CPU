@@ -281,9 +281,9 @@ package ExecDefs;
     endfunction
 
     // TODO: rework for uops
-    function automatic void verifyForward(input InstructionInfo ii, input int source, input Mword result);
-        assert (ii.TMP_uopInfo.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ii.TMP_uopInfo.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.TMP_uopInfo.resultA, result, ii, disasm(ii.basicData.bits));
+    function automatic void verifyForward(input InstructionInfo ii, input UopInfo ui, input int source, input Mword result);
+        assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
+        assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
 
@@ -297,7 +297,7 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found1[0].result);
+            verifyForward(ii, ui, source, found1[0].result);
             return found1[0].result;
         end
         
@@ -305,7 +305,7 @@ package ExecDefs;
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found0[0].result);
+            verifyForward(ii, ui, source, found0[0].result);
             return found0[0].result;
         end
 
@@ -323,7 +323,7 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found1[0].result);
+            verifyForward(ii, ui, source, found1[0].result);
             return found1[0].result;
         end
         
@@ -331,7 +331,7 @@ package ExecDefs;
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found0[0].result);
+            verifyForward(ii, ui, source, found0[0].result);
             return found0[0].result;
         end
 

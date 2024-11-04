@@ -202,6 +202,7 @@ package Queues;
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
             InstructionInfo ii = imap.get(id);
+            UopInfo ui = imap.getU(FIRST_U(id));
             AbstractInstruction abs = ii.basicData.dec;
             
             res.mid = id;
@@ -215,7 +216,7 @@ package Queues;
                 
                 // If imm, real target is known
                 if (isBranchImmIns(abs))
-                    res.realTarget = ii.basicData.adr + ii.TMP_uopInfo.argsA[1];
+                    res.realTarget = ii.basicData.adr + ui.argsA[1];
                 
             return res;
         endfunction

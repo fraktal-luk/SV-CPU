@@ -510,14 +510,15 @@ module AbstractCore
     
     function automatic void checkUops(input InsId id);
         InstructionInfo info = insMap.get(id);
+            UopInfo uinfo = insMap.getU( FIRST_U(id) );
         //  TODO: per uop
 
         UopName uname = decUname(FIRST_U(id));
 
         if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
-            assert (info.TMP_uopInfo.resultA === info.TMP_uopInfo.resultE) else
-                $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), info.TMP_uopInfo.resultA, info.TMP_uopInfo.resultE);
-        assert (info.TMP_uopInfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
+            assert (uinfo.resultA === uinfo.resultE) else
+                $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+        assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
     endfunction
 
 
