@@ -279,7 +279,7 @@ module AbstractCore
             
             newMid = insMap.insBase.lastM + 1;
             
-            opsB[i].TMP_mid = newMid;
+            opsB[i].mid = newMid;
             
             insMap.addM(newMid, opsB[i].adr, opsB[i].bits);
             uopName = OP_DECODING_TABLE[decodeId(newMid).mnemonic];
@@ -355,7 +355,7 @@ module AbstractCore
     task automatic markKilledRenameStage(ref OpSlotAB stage);
         foreach (stage[i]) begin
             if (!stage[i].active) continue;
-            putMilestoneM(stage[i].TMP_mid, InstructionMap::FlushOOO);
+            putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
         end
     endtask
 
@@ -483,7 +483,7 @@ module AbstractCore
         // Don't commit anything more if event is being handled
 
         foreach (robOut[i]) begin
-            InsId theId = robOut[i].TMP_mid;
+            InsId theId = robOut[i].mid;
             logic refetch, exception;
            
             if (robOut[i].active !== 1 || theId == -1) continue;
@@ -552,7 +552,7 @@ module AbstractCore
 
         function automatic OpSlotB TMP_properOp(input InsId id);
             InstructionInfo insInfo = insMap.get(id);
-            OpSlotB op = '{1, insInfo.id, -1, insInfo.basicData.adr, insInfo.basicData.bits};
+            OpSlotB op = '{1, insInfo.id, insInfo.basicData.adr, insInfo.basicData.bits};
             return op;
         endfunction
 

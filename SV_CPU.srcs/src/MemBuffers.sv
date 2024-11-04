@@ -109,7 +109,7 @@ module StoreQueue
         while (isCommittable(content_N[startPointer % SIZE].mid))
         begin
             InsId thisId = content_N[startPointer % SIZE].mid;
-            outGroup[nOut].TMP_mid <= thisId;
+            outGroup[nOut].mid <= thisId;
             outGroup[nOut].active <= 1;
             nOut++;
                 
@@ -159,7 +159,7 @@ module StoreQueue
         if (!anyActiveB(inGroup)) return;
     
         foreach (inGroup[i]) begin
-            InsId thisMid = inGroup[i].TMP_mid;
+            InsId thisMid = inGroup[i].mid;
             
             if (HELPER::appliesU(decMainUop(thisMid))) begin
                 content_N[endPointer % SIZE] = HELPER::newEntry(insMap, thisMid);                

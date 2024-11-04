@@ -56,7 +56,7 @@ module ReorderBuffer
         foreach (row.records[i]) begin
             if (row.records[i].mid == -1) continue;
             res[i].active = 1;
-            res[i].TMP_mid = row.records[i].mid;
+            res[i].mid = row.records[i].mid;
         end
         
         return res;
@@ -247,7 +247,7 @@ module ReorderBuffer
     function automatic OpRecordA makeRecord(input OpSlotAB ops);
         OpRecordA res = '{default: EMPTY_RECORD};
         foreach (ops[i])
-            res[i] = ops[i].active ? '{ops[i].TMP_mid, '{default: 0}} : '{-1, '{default: 'x}};   
+            res[i] = ops[i].active ? '{ops[i].mid, '{default: 0}} : '{-1, '{default: 'x}};   
         return res;
     endfunction
 

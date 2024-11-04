@@ -18,9 +18,7 @@ module IssueQueue
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotAB inGroup,
-    input logic inMask[RENAME_WIDTH],
-        input TMP_Uop inGroupU[RENAME_WIDTH],
+    input TMP_Uop inGroupU[RENAME_WIDTH],
         
     input logic allow,   
     output UopPacket outPackets[OUT_WIDTH]
@@ -34,7 +32,6 @@ module IssueQueue
     typedef int InputLocs[RENAME_WIDTH];
 
     typedef UidT IdArr[TOTAL_SIZE];
-    typedef UidT OutIds[OUT_WIDTH];
 
     typedef UopPacket OutGroupP[OUT_WIDTH];
  
@@ -43,17 +40,13 @@ module IssueQueue
 
     ReadyQueue  rfq_perSlot;
     ReadyQueue3 forwardStates, rq_perArg, fq_perArg, rfq_perArg;
-    logic forwardInitialStates[IN_SIZE][3], forwardInitialStates_D[IN_SIZE][3];
 
-
-    IdArr ida;
 
     UopPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
     UopPacket pIssued1[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
 
     int num = 0, numUsed = 0;    
         
-
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
 
@@ -76,7 +69,6 @@ module IssueQueue
 
         wMatrixVar = wMatrix; // for DB
 
-
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flushIq();
         end
@@ -96,8 +88,6 @@ module IssueQueue
 
         num <= getNumVirtual();     
         numUsed <= getNumUsed();
-             
-        ida = q2a(getIdQueue(array));
     end
 
 
@@ -115,10 +105,8 @@ module IssueQueue
 
     function automatic UidQueueT getArrOpsToIssue();
         UidQueueT res;
-
-        UidQueueT ids = getIdQueue(array);
-        UidQueueT idsSorted = ids;
-        idsSorted.sort with (U2M(item)); // TODO: sorting for uid structs
+        UidQueueT idsSorted = getIdQueue(array);
+        idsSorted.sort with (U2M(item));
 
         if (!allow) return res;
 
@@ -192,12 +180,13 @@ module IssueQueue
         InputLocs locs = getInputLocs();
         int nInserted = 0;
 
-        foreach (inGroup[i]) begin
-            UidT theUid = FIRST_U(inGroup[i].TMP_mid); // TODO: change to uop id
-            if (inGroup[i].active && inMask[i]) begin
+        foreach (inGroupU[i]) begin
+            if (inGroupU[i].active) begin
                 int location = locs[nInserted];
-                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: theUid};
-                putMilestone(theUid, InstructionMap::IqEnter);
+                UidT uid = inGroupU[i].uid;
+                                
+                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: uid};
+                putMilestone(uid, InstructionMap::IqEnter);
 
                 nInserted++;          
             end
@@ -273,7 +262,7 @@ module IssueQueue
     endfunction
 
 
-    function automatic UidQueueT getIdQueue(input IqEntry entries[$size(array)]);
+    function automatic UidQueueT getIdQueue(input IqEntry entries[TOTAL_SIZE]);
         UidT res[$];
         
         foreach (entries[i]) begin
@@ -294,7 +283,7 @@ module IssueQueue
     
         
     function automatic IdArr q2a(input UidQueueT queue);
-        IdArr res = queue[0:$size(array)-1];
+        IdArr res = queue[0:TOTAL_SIZE-1];
         return res;
     endfunction
     
@@ -383,19 +372,15 @@ module IssueQueueComplex(
                         input OpSlotAB inGroup
 );    
 
-        
-        
-        typedef struct {
-            TMP_Uop regular[RENAME_WIDTH];
-            TMP_Uop branch[RENAME_WIDTH];
-            TMP_Uop float[RENAME_WIDTH];
-            TMP_Uop mem[RENAME_WIDTH];
-            TMP_Uop sys[RENAME_WIDTH];
-        } TMP_RoutedUops;
-        
-        TMP_RoutedUops routedUops;
-
-    RoutingInfo routingInfo;    
+    typedef struct {
+        TMP_Uop regular[RENAME_WIDTH];
+        TMP_Uop branch[RENAME_WIDTH];
+        TMP_Uop float[RENAME_WIDTH];
+        TMP_Uop mem[RENAME_WIDTH];
+        TMP_Uop sys[RENAME_WIDTH];
+    } RoutedUops;
+    
+    RoutedUops routedUops;
     
     UopPacket issuedRegularP[2];
     UopPacket issuedBranchP[1];
@@ -404,25 +389,24 @@ module IssueQueueComplex(
     UopPacket issuedSysP[1];
 
 
-    assign routingInfo = routeOps(inGroup); 
     assign routedUops = routeUops(inGroup); 
 
 
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.regular, routedUops.regular, '1,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
                                             issuedRegularP);
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.branch, routedUops.branch, '1,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,
                                             issuedBranchP);
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.float, routedUops.float, '1,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, routedUops.float, '1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.mem, routedUops.mem, '1,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, inGroup, routingInfo.sys, routedUops.sys, '1,
+    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, routedUops.sys, '1,
                                             issuedSysP);
     
 
 
-    function automatic TMP_RoutedUops routeUops(input OpSlotAB gr);
-        TMP_RoutedUops res = '{
+    function automatic RoutedUops routeUops(input OpSlotAB gr);
+        RoutedUops res = '{
             regular: '{default: TMP_UOP_NONE},
             branch: '{default: TMP_UOP_NONE},
             float: '{default: TMP_UOP_NONE},
@@ -431,42 +415,18 @@ module IssueQueueComplex(
         };
         
         foreach (gr[i]) begin
-            InsId mid = gr[i].TMP_mid;
-            TMP_Uop uop = TMP_UOP_NONE;
-            UopId uid = '{mid, 0};
+            UopId uid = '{gr[i].mid, 0};
             UopName uname;
             
             if (!gr[i].active) continue;
             
-            uname = decUname(FIRST_U(gr[i].TMP_mid));
+            uname = decUname(uid);
 
             if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
             else if (isControlUop(uname)) res.sys[i] = '{1, uid};
             else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
             else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
             else res.regular[i] = '{1, uid};
-        end
-        
-        return res;
-    endfunction
-
-
-    function automatic RoutingInfo routeOps(input OpSlotAB gr);
-        RoutingInfo res = DEFAULT_ROUTING_INFO;
-        
-        foreach (gr[i]) begin
-            InsId id = gr[i].TMP_mid;
-            UopName uname;
-            
-            if (id == -1) continue;
-            
-            uname = decUname(FIRST_U(gr[i].TMP_mid));
-
-            if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = 1;
-            else if (isControlUop(uname)) res.sys[i] = 1;
-            else if (isBranchUop(uname)) res.branch[i] = 1;
-            else if (isFloatCalcUop(uname)) res.float[i] = 1;
-            else res.regular[i] = 1;
         end
         
         return res;

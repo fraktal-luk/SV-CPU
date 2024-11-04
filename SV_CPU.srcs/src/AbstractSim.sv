@@ -34,9 +34,6 @@ package AbstractSim;
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
 
-    // DB specific
-        localparam int TRACKED_ID = -2;
-
 
 ////////////////////////////
     // Core structures
@@ -51,37 +48,22 @@ package AbstractSim;
     } UopId;
     
     localparam UopId UID_NONE = '{-1, -1};
-    
-    
-    typedef InsId UidT; // TODO: for later change to UopId
-    localparam UidT UIDT_NONE = -1;
+
+
+    typedef UopId UidT; // TODO: for later change to UopId
+    localparam UidT UIDT_NONE = UID_NONE;
 
     function automatic UidT FIRST_U(input InsId id);
-        return id;
+        return '{id, 0};
     endfunction
     
     function automatic InsId U2M(input UidT uid);
-        return uid;
+        return uid.m;
     endfunction
 
     function automatic int SUBOP(input UidT uid);
         return 0;
     endfunction
-
-//        typedef UopId UidT; // TODO: for later change to UopId
-//        localparam UidT UIDT_NONE = UID_NONE;
-    
-//        function automatic UidT FIRST_U(input InsId id);
-//            return '{id, 0};
-//        endfunction
-        
-//        function automatic InsId U2M(input UidT uid);
-//            return uid.m;
-//        endfunction
-    
-//        function automatic int SUBOP(input UidT uid);
-//            return 0;
-//        endfunction
 
     
     typedef UidT UidQueueT[$];
@@ -106,15 +88,14 @@ package AbstractSim;
 
     typedef struct {
         logic active;
-        InsId TMP_mid;
-            InsId mid;
+        InsId mid;
         Mword adr;
         Word bits;
     } OpSlotB;
 
 
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
-    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, -1, 'x, 'x};
+    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
     
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
@@ -140,10 +121,8 @@ package AbstractSim;
         CO_retE,
         CO_retI,
         
-        CO_break,
-        
-            CO_dummy
-        
+        CO_break
+
     } ControlOp;
     
     typedef struct {
@@ -640,7 +619,7 @@ package AbstractSim;
         OpSlotB res;
         
         res.active = op.active;
-        res.TMP_mid = op.id;
+        res.mid = op.id;
         res.mid = -1;
         res.adr = op.adr;
         res.bits = op.bits;

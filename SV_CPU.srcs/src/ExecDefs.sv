@@ -22,24 +22,6 @@ package ExecDefs;
 
     typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
     localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
-    
-
-    typedef struct {
-        logic regular[DISPATCH_WIDTH];
-        logic float[DISPATCH_WIDTH];
-        logic branch[DISPATCH_WIDTH];
-        logic mem[DISPATCH_WIDTH];
-        logic sys[DISPATCH_WIDTH];
-    } RoutingInfo;
-
-    const RoutingInfo DEFAULT_ROUTING_INFO = '{
-        regular: '{default: 0},
-        float: '{default: 0},
-        branch: '{default: 0},
-        mem: '{default: 0},
-        sys: '{default: 0}
-    };
-
 
 
     typedef enum {
@@ -49,12 +31,13 @@ package ExecDefs;
             ES_INVALID
     } ExecStatus;
 
-        typedef struct {
-            logic active;
-            UopId uid;
-        } TMP_Uop;
 
-        localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
+    typedef struct {
+        logic active;
+        UopId uid;
+    } TMP_Uop;
+
+    localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
 
 
     typedef struct {
