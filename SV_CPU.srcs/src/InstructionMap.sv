@@ -11,7 +11,7 @@ package Insmap;
     import AbstractSim::*;
 
     
-        typedef int Unum;
+    typedef int Unum;
         
 
     typedef struct {
@@ -57,16 +57,16 @@ package Insmap;
         InsId id;            
         InsBasicData basicData;
 
-            UopName mainUop; // For 1 uop Mops is equal to the uop
+        UopName mainUop; // For 1 uop Mops is equal to the uop
+
+        Unum firstUop;
+        int nUops;
 
         IndexSet inds;
         int slot; // UNUSED?
 
         logic exception;
         logic refetch;
-        
-        UopInfo TMP_uopInfo;
-
     } InstructionInfo;
 
 
@@ -92,9 +92,6 @@ package Insmap;
         res.basicData.bits = bits;
         res.basicData.dec = decodeAbstract(bits);
 
-            res.TMP_uopInfo.physDest = -1;
-            res.TMP_uopInfo.argError = 0;
-            
         res.exception = 0;
         res.refetch = 0;
 
@@ -108,9 +105,9 @@ package Insmap;
         UopInfo uinfos[Unum];
         InsId mids[$];
         Unum uids[$];
-        
-        //MopDescriptor mopDescriptors[$];
-        
+
+            InsId lastId = -1;
+            
         InsId lastM = -1;
         Unum lastU = -1;
                 
@@ -124,20 +121,35 @@ package Insmap;
 
 
         function automatic void addM(input InsId id, input InstructionInfo ii);
-                UopInfo uinfo;
+            UopInfo uinfo;
+            Unum lastPrevU = lastU;
             
+                int nUops = 1;
+            
+                lastId = id;
+                
             lastM++;
-            lastU++;
-        
-            mids.push_back(lastM);
-            uids.push_back(lastU);
-                    
-            //mopDescriptors.push_back('{lastM, -1, 1, lastU});
             
+                assert (lastId == lastM) else $fatal(2, "wring idss");
+
+            mids.push_back(lastM);
+
             minfos[id] = ii;
-                //uinfos[   id] = ii.TMP_uopInfo; // TODO: replace id
-                uinfos[ id ].physDest = -1;              
-                uinfos[ id ].argError = 0;              
+              minfos[id].firstUop = lastPrevU + 1; 
+              minfos[id].nUops = nUops; 
+              
+              
+            // TODO: per each uop
+            for (int u = 0; u < nUops; u++) begin
+                lastU++;
+                    
+                    assert (lastU == lastM + u) else $error(" U // M ");
+            
+                uids.push_back(lastU);
+                
+                uinfos[lastU].physDest = -1;
+                uinfos[lastU].argError = 0;
+            end
         endfunction
 
         function automatic void setRenamed(input InsId id,
@@ -149,30 +161,24 @@ package Insmap;
                                             input IndexSet renameInds,
                                             input int slot
                                             );
+            Unum uBase = minfos[id].firstUop;
+            int nU = minfos[id].nUops;
+                                            
             minfos[id].inds = renameInds;
             minfos[id].slot = slot;
             
             minfos[id].basicData.target = target;
             
-                minfos[id].TMP_uopInfo.id = '{id, 0};
-                //infos[id].TMP_uopInfo.name = ...; // TODO
-                
-                minfos[id].TMP_uopInfo.physDest = physDest;
-                minfos[id].TMP_uopInfo.deps = deps;
-                minfos[id].TMP_uopInfo.argsE = argValues;
-                minfos[id].TMP_uopInfo.resultE = result;
-
-
-                uinfos[id].id = '{id, 0};
+            
+            for (int u = 0; u < nU; u++) begin
+                uinfos[uBase + u].id = '{id, u};
                 //infos[id].name = ...; // TODO
                 
-                uinfos[id].physDest = physDest;
-                uinfos[id].deps = deps;
-                uinfos[id].argsE = argValues;
-                uinfos[id].resultE = result;
-                
-              //uinfos[  id ] = minfos[id].TMP_uopInfo;
-                
+                uinfos[uBase + u].physDest = physDest;
+                uinfos[uBase + u].deps = deps;
+                uinfos[uBase + u].argsE = argValues;
+                uinfos[uBase + u].resultE = result;
+            end
         endfunction
 
 
@@ -196,20 +202,32 @@ package Insmap;
         endfunction
 
 
-        function automatic IdQueue removeUpToM(input InsId id);
+        function automatic IdQueue removeUpToM(input InsId id /*, input Unum unum*/);
             IdQueue res;
             
             while (mids.size() > 0 && mids[0] <= id) begin
                 InsId frontId = mids[0];
                 void'(mids.pop_front());
-                void'(uids.pop_front());
+                
+                //for (int u = 0; u < nU; u++)
+                   // void'(uids.pop_front()); // TODO: num of uops
                 
                 res.push_back(frontId);
             end
             
             return res;
         endfunction
-        
+
+//            function automatic void removeUpToU(input Unum unum);
+//                IdQueue res;
+                
+//                while (uids.size() > 0 && uids[0] <= unum) begin
+//                    Unum frontUnum = uids[0];
+//                    void'(uids.pop_front());
+//                end
+                
+//            endfunction
+       
         
         function automatic void checkOp(input InsId id);
 
@@ -363,14 +381,16 @@ package Insmap;
             return insBase.minfos[id];
         endfunction
 
-            function automatic UopInfo getU(input UidT uid);
-                //assert (insBase.minfos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
-                assert (insBase.uinfos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
-                //    assert (insBase.minfos[U2M(uid)].TMP_uopInfo === insBase.uinfos[U2M(uid)]) else $error("not the same");
-                //return insBase.minfos[U2M(uid)].TMP_uopInfo;
-                    return insBase.uinfos[ U2M(uid) ];
-            endfunction
-   
+        function automatic UopInfo getU(input UidT uid);
+            Unum uIndex = insBase.minfos[U2M(uid)].firstUop + uid.s;
+
+            assert (insBase.uinfos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
+            
+                assert (uIndex == U2M(uid)) else $error("mismatchedd");
+            
+            return insBase.uinfos[ uIndex ];
+        endfunction
+
         // ins info
         function automatic int size();
             return insBase.minfos.size();
@@ -421,24 +441,22 @@ package Insmap;
 
         function automatic void setUopName(input InsId id, input UopName name);
             insBase.minfos[id].mainUop = name;
-            insBase.minfos[id].TMP_uopInfo.name = name;
-                insBase.uinfos[id].name = name;
+            
+            insBase.uinfos[id].name = name;
         endfunction
 
         function automatic void setActualResult(input UidT uid, input Mword res);
-            insBase.minfos[U2M(uid)].TMP_uopInfo.resultA = res;
-                insBase.uinfos[  U2M(uid)].resultA = res;
+            insBase.uinfos[  U2M(uid)].resultA = res;
         endfunction
 
         function automatic void setActualArgs(input UidT uid, input Mword args[3]);
-            insBase.minfos[U2M(uid)].TMP_uopInfo.argsA = args;
-                insBase.uinfos[ U2M(uid)].argsA = args;
+            insBase.uinfos[ U2M(uid)].argsA = args;
         endfunction
 
         function automatic void setArgError(input UidT uid, input logic value);
-            insBase.minfos[U2M(uid)].TMP_uopInfo.argError = value;
-                insBase.uinfos[ U2M(uid)].argError = value;
+            insBase.uinfos[ U2M(uid)].argError = value;
         endfunction
+        
         
         function automatic void setException(input InsId id);
             insBase.minfos[id].exception = 1;
@@ -487,20 +505,31 @@ package Insmap;
 
 
         function automatic void commitCheck();
-            IdQueue removedList;
+            while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
+                InsId removedId = insBase.mids.pop_front();
+            
+                Unum firstUop = insBase.minfos[removedId].firstUop;
+                int nU = insBase.minfos[removedId].nUops;
+            
+                void'(checkOk(removedId));
+                records.delete(removedId);
 
-            removedList = insBase.removeUpToM(insBase.retiredPrev);
+                insBase.minfos.delete(removedId);
+
+                for (int u = 0; u < nU; u++) begin
+                    recordsU.delete(firstUop + u);
+                //end
+                //for (int u = 0; u < nU; u++)
+                    insBase.uinfos.delete(firstUop + u);
+                    
+                //for (int u = 0; u < nU; u++) begin
+                    assert (insBase.uids[0] == firstUop + u) else $error("not match");
+                    void'(insBase.uids.pop_front());
+                end
+            end
+            
             insBase.retiredPrev = insBase.retired;
             insBase.retiredPrevM = insBase.retiredM;
-
-            foreach (removedList[i]) begin
-                void'(checkOk(removedList[i]));
-                records.delete(removedList[i]);
-                recordsU.delete(removedList[i]);
-                insBase.minfos.delete(removedList[i]);
-                    insBase.uinfos.delete(   removedList[i]);
-            end
-
         endfunction 
 
 

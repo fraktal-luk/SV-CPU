@@ -581,7 +581,8 @@ module AbstractCore
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
             coreDB.lastII = insInfo;
-            coreDB.lastUI = insInfo.TMP_uopInfo;
+            coreDB.lastUI = //insInfo.TMP_uopInfo;
+                            insMap.getU(FIRST_U(id));
 
         verifyOnCommit(id);
 

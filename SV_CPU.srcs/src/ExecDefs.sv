@@ -43,14 +43,14 @@ package ExecDefs;
     typedef struct {
         logic active;
         UidT TMP_oid;
-            UopId TMP_uopId;
+        //    UopId TMP_uopId;
         ExecStatus status;
         Poison poison;
             logic TMP_pullback; // For poison dev
         Mword result;
     } UopPacket;
     
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, UID_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
 
 
 
@@ -288,7 +288,7 @@ package ExecDefs;
 
 
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
         if (ready) return tracker.ints.regs[source];
@@ -433,13 +433,13 @@ package ExecDefs;
     endfunction;
 
 
-        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.TMP_oid != UIDT_NONE) begin
-                UidT inds[$] = p.find with (item == fe.TMP_oid);
-                return inds.size() != 0;
-            end
-            return 0;
-        endfunction
+    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+        if (fe.TMP_oid != UIDT_NONE) begin
+            UidT inds[$] = p.find with (item == fe.TMP_oid);
+            return inds.size() != 0;
+        end
+        return 0;
+    endfunction
 
 
 //////////////////
