@@ -90,15 +90,15 @@ package Queues;
 
                 if (found.size() == 0) return EMPTY_UOP_PACKET;
                 else if (found.size() == 1) begin 
-                    if (wordInside(adr, found[0].adr)) return '{1, FIRST_U(found[0].mid), ES_OK, EMPTY_POISON, 'x, found[0].val};
-                    else return '{1, FIRST_U(found[0].mid), ES_INVALID, EMPTY_POISON, 'x, 'x};
+                    if (wordInside(adr, found[0].adr)) return '{1, FIRST_U(found[0].mid), ES_OK, EMPTY_POISON, found[0].val};
+                    else return '{1, FIRST_U(found[0].mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
                 else begin
                     Entry sorted[$] = found[0:$];
                     sorted.sort with (item.mid);
                     
-                    if (wordInside(adr, sorted[$].adr)) return '{1, FIRST_U(sorted[$].mid), ES_OK, EMPTY_POISON, 'x, sorted[$].val};
-                    return '{1, FIRST_U(sorted[$].mid), ES_INVALID, EMPTY_POISON, 'x, 'x};
+                    if (wordInside(adr, sorted[$].adr)) return '{1, FIRST_U(sorted[$].mid), ES_OK, EMPTY_POISON, sorted[$].val};
+                    return '{1, FIRST_U(sorted[$].mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
         
             endfunction 

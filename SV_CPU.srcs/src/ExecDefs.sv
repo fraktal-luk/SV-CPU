@@ -43,14 +43,12 @@ package ExecDefs;
     typedef struct {
         logic active;
         UidT TMP_oid;
-        //    UopId TMP_uopId;
         ExecStatus status;
         Poison poison;
-            logic TMP_pullback; // For poison dev
         Mword result;
     } UopPacket;
     
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
 
 
 

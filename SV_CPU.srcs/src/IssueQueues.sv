@@ -144,7 +144,7 @@ module IssueQueue
             int s = found[0];
             
             Poison newPoison = mergePoisons(array[s].poisons.poisoned);
-            UopPacket newPacket = '{1, theId, ES_OK, newPoison, 'x, 'x};
+            UopPacket newPacket = '{1, theId, ES_OK, newPoison, 'x};
             
             assert (theId != UIDT_NONE) else $fatal(2, "Wrong id for issue");
             assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");

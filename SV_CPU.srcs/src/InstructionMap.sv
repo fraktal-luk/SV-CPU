@@ -139,11 +139,10 @@ package Insmap;
               minfos[id].nUops = nUops; 
               
               
-            // TODO: per each uop
             for (int u = 0; u < nUops; u++) begin
                 lastU++;
                     
-                    assert (lastU == lastM + u) else $error(" U // M ");
+                assert (lastU == lastM + u) else $error(" U // M ");
             
                 uids.push_back(lastU);
                 
@@ -181,53 +180,11 @@ package Insmap;
             end
         endfunction
 
-
-//            function automatic InsId m2i(input InsId mid);
-//                int found[$] = mids.find_first_index with (item == mid);
-//                assert (found.size() > 0) else $fatal(2, "unknown mid");
-//                return ids[found[0]];
-//            endfunction
-    
-//            function automatic InsId i2m(input InsId id);
-//                int found[$] = ids.find_first_index with (item == id);
-//                assert (found.size() > 0) else $fatal(2, "unknown id");
-//                return mids[found[0]];
-//            endfunction
-
-
-
         function automatic void retireUpToM(input InsId id);
             retired = id;
                 retiredM = id;
         endfunction
 
-
-        function automatic IdQueue removeUpToM(input InsId id /*, input Unum unum*/);
-            IdQueue res;
-            
-            while (mids.size() > 0 && mids[0] <= id) begin
-                InsId frontId = mids[0];
-                void'(mids.pop_front());
-                
-                //for (int u = 0; u < nU; u++)
-                   // void'(uids.pop_front()); // TODO: num of uops
-                
-                res.push_back(frontId);
-            end
-            
-            return res;
-        endfunction
-
-//            function automatic void removeUpToU(input Unum unum);
-//                IdQueue res;
-                
-//                while (uids.size() > 0 && uids[0] <= unum) begin
-//                    Unum frontUnum = uids[0];
-//                    void'(uids.pop_front());
-//                end
-                
-//            endfunction
-       
         
         function automatic void checkOp(input InsId id);
 
@@ -397,15 +354,6 @@ package Insmap;
         endfunction
         
 
-//            function automatic InsId m2i(input InsId mid);
-//                return insBase.m2i(mid);
-//            endfunction
-    
-//            function automatic InsId i2m(input InsId id);
-//                return insBase.i2m(id);
-//            endfunction
-
-
         /////// insinfo
         
         // DEPREC
@@ -518,11 +466,7 @@ package Insmap;
 
                 for (int u = 0; u < nU; u++) begin
                     recordsU.delete(firstUop + u);
-                //end
-                //for (int u = 0; u < nU; u++)
                     insBase.uinfos.delete(firstUop + u);
-                    
-                //for (int u = 0; u < nU; u++) begin
                     assert (insBase.uids[0] == firstUop + u) else $error("not match");
                     void'(insBase.uids.pop_front());
                 end
