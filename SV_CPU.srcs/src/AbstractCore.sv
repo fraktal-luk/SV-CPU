@@ -364,9 +364,6 @@ module AbstractCore
         Mword argVals[3];
         int physDest = -1;
         UopName uopName = OP_DECODING_TABLE[ins.mnemonic];
-        
-//        insMap.addM(id, adr, bits);
-//        insMap.setUopName(id, uopName);
 
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
@@ -378,7 +375,7 @@ module AbstractCore
         target = renamedEmul.coreState.target; // For insMap
 
         // TODO: per uop
-        physDest = registerTracker.reserve( /*decUname(FIRST_U(id))*/ uopName , ins.dest, FIRST_U(id));
+        physDest = registerTracker.reserve(uopName , ins.dest, FIRST_U(id));
         
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
         
@@ -409,23 +406,9 @@ module AbstractCore
                 uInfo.deps = deps;
                 uInfo.argsE = argVals;
                 uInfo.resultE = result;
-           
 
-        insMap.addM(id, adr, bits);
-        insMap.setUopName(id, uopName);
-        
-        insMap.setRenamed(id,
-                            result,
-                            target,
-                            deps,
-                            physDest,
-                            argVals,
-                            renameInds,
-                            currentSlot
-                            );
 
-            assert (ii === insMap.get(id)) else $error("no no no");
-            assert (uInfo === insMap.getU(FIRST_U(id))) else $error("uuuuuuuuuu no no no");
+        insMap.TMP_func(id, ii, uInfo);           
 
 
         updateInds(renameInds, id); // Crucial state

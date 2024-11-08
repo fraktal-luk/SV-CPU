@@ -120,64 +120,24 @@ package Insmap;
         string dbStr;
 
 
-        function automatic void addM(input InsId id, input InstructionInfo ii);
-            UopInfo uinfo;
-            Unum lastPrevU = lastU;
-            
-                int nUops = 1;
-            
-                lastId = id;
-                
+        function automatic void setRenamedNew(input InsId id,
+                                            input InstructionInfo argII,
+                                            input UopInfo argUI
+                                            );
+            lastId = id;
             lastM++;
-            
-                assert (lastId == lastM) else $fatal(2, "wring idss");
+            assert (lastId == lastM) else $fatal(2, "wring idss");
 
             mids.push_back(lastM);
-
-            minfos[id] = ii;
-              minfos[id].firstUop = lastPrevU + 1; 
-              minfos[id].nUops = nUops; 
-              
-              
-            for (int u = 0; u < nUops; u++) begin
+            minfos[id] = argII;    
+                
+            for (int u = 0; u < minfos[id].nUops; u++) begin                    
                 lastU++;
-                    
-                assert (lastU == lastM + u) else $error(" U // M ");
-            
+                    assert (lastU == minfos[id].firstUop + u) else $error(" uuuuuuuuuuuuuu ");    
                 uids.push_back(lastU);
-                
-                uinfos[lastU].physDest = -1;
-                uinfos[lastU].argError = 0;
+                uinfos[minfos[id].firstUop + u] = argUI;
             end
-        endfunction
-
-        function automatic void setRenamed(input InsId id,
-                                            input Mword result,
-                                            input Mword target,
-                                            input InsDependencies deps,
-                                            input int physDest,
-                                            input Mword argValues[3],
-                                            input IndexSet renameInds,
-                                            input int slot
-                                            );
-            Unum uBase = minfos[id].firstUop;
-            int nU = minfos[id].nUops;
-                                            
-            minfos[id].inds = renameInds;
-            minfos[id].slot = slot;
-            
-            minfos[id].basicData.target = target;
-            
-            
-            for (int u = 0; u < nU; u++) begin
-                uinfos[uBase + u].id = '{id, u};
-                //infos[id].name = ...; // TODO
                 
-                uinfos[uBase + u].physDest = physDest;
-                uinfos[uBase + u].deps = deps;
-                uinfos[uBase + u].argsE = argValues;
-                uinfos[uBase + u].resultE = result;
-            end
         endfunction
 
         function automatic void retireUpToM(input InsId id);
@@ -368,30 +328,18 @@ package Insmap;
         endfunction
     
 
-        function automatic void addM(input InsId id, input Mword adr, input Word bits);
-            insBase.addM(id, initInsInfo(id, adr, bits));
-            records[id] = new();
-            recordsU[id] = new();
-        endfunction
-
-       
-        function automatic void setRenamed(input InsId id,
-                                            input Mword result,
-                                            input Mword target,
-                                            input InsDependencies deps,
-                                            input int physDest,
-                                            input Mword argValues[3],
-                                            input IndexSet renameInds,
-                                            input int slot
+        function automatic void TMP_func(input InsId id,
+                                        input InstructionInfo argII,
+                                        input UopInfo argUI
                                             );
-            insBase.setRenamed(id, result, target, deps, physDest, argValues, renameInds, slot);
-        endfunction
+            insBase.setRenamedNew(id, 
+                                    argII, argUI
+                                    );
 
-        function automatic void setUopName(input InsId id, input UopName name);
-            insBase.minfos[id].mainUop = name;
-            
-            insBase.uinfos[id].name = name;
+                records[id] = new();
+                recordsU[id] = new(); // TODO: per uop
         endfunction
+        
 
         function automatic void setActualResult(input UidT uid, input Mword res);
             insBase.uinfos[  U2M(uid)].resultA = res;
