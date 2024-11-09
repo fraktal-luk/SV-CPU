@@ -769,8 +769,7 @@ package AbstractSim;
             
              UOP_mem_ldf
         };
-    endfunction
-
-
+    endfunction    
+    
 
 endpackage

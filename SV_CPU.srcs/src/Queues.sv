@@ -98,7 +98,7 @@ package Queues;
                     sorted.sort with (item.mid);
                     
                     if (wordInside(adr, sorted[$].adr)) return '{1, FIRST_U(sorted[$].mid), ES_OK, EMPTY_POISON, sorted[$].val};
-                    return '{1, FIRST_U(sorted[$].mid), ES_INVALID, EMPTY_POISON, 'x};
+                    else return '{1, FIRST_U(sorted[$].mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
         
             endfunction 

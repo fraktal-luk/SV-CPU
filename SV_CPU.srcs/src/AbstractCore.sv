@@ -355,28 +355,15 @@ module AbstractCore
     endtask
 
 
-    
-        typedef struct {
-            int vDest;
-            InsDependencies deps;
-            Mword argVals[3];
-            Mword result;
-        } ArgDesc; 
-
-
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
         InstructionInfo ii;
-        UopInfo uInfo;
-            UopInfo uInfos[$];
+        UopInfo mainUinfo;
+        UopInfo uInfos[$];
         Mword result, target;
         InsDependencies deps;
         Mword argVals[3];
-        int physDest = -1;
         UopName uopName = OP_DECODING_TABLE[ins.mnemonic];
-        UopName splitUopNames[$];
-        ArgDesc mainArgDesc;
-        ArgDesc splitArgDescs[$];
 
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
@@ -389,8 +376,6 @@ module AbstractCore
         deps = registerTracker.getArgDeps(ins); // For insMap
 
 
-        mainArgDesc = '{ins.dest, deps, argVals, result};
-
         ii = initInsInfo(id, adr, bits);
         ii.mainUop = uopName;
         ii.inds = renameInds;
@@ -401,22 +386,22 @@ module AbstractCore
         ii.nUops = 1;
 
 
-        splitUopNames = {uopName};
-        splitArgDescs = {mainArgDesc}; // TMP
-
+        mainUinfo.id = '{id, -1};
+        mainUinfo.name = uopName;
+        mainUinfo.vDest = ins.dest;
+        mainUinfo.physDest = -1;
+        mainUinfo.deps = deps;
+        mainUinfo.argsE = argVals;
+        mainUinfo.resultE = result;
+        mainUinfo.argError = 0;
+            
+        uInfos = splitUop(mainUinfo);
+            
         for (int u = 0; u < ii.nUops; u++) begin
-            int thisPhysDest = registerTracker.reserve(splitUopNames[u], splitArgDescs[u].vDest, '{id, u});
+            UopInfo uInfo = uInfos[u];
+            int thisPhysDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
 
-            uInfo.id = '{id, u};
-            uInfo.name = splitUopNames[u];
-            uInfo.vDest = splitArgDescs[u].vDest;
-            uInfo.physDest = thisPhysDest;
-            uInfo.deps = splitArgDescs[u].deps;
-            uInfo.argsE = splitArgDescs[u].argVals;
-            uInfo.resultE = splitArgDescs[u].result;
-            uInfo.argError = 0;
-
-            uInfos.push_back(uInfo);
+            uInfos[u].physDest = thisPhysDest;
         end
 
 
@@ -599,9 +584,6 @@ module AbstractCore
         logic exception = insInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-        ArgDesc mainArgDesc;
-        ArgDesc splitArgDescs[$];
-
             coreDB.lastII = insInfo;
             coreDB.lastUI = insMap.getU(FIRST_U(id)); // TODO: last, not first of Mop
 
@@ -609,9 +591,6 @@ module AbstractCore
 
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
 
-
-        mainArgDesc.vDest = insInfo.basicData.dec.dest;
-        splitArgDescs = {mainArgDesc};
 
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};

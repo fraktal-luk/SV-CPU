@@ -339,7 +339,10 @@ package Insmap;
                                     );
 
                 records[id] = new();
-                recordsU[id] = new(); // TODO: per uop
+                
+            for (int u = 0; u < argII.nUops; u++) begin
+                recordsU[argII.firstUop + u] = new();
+            end
         endfunction
         
 
@@ -638,5 +641,16 @@ package Insmap;
         
     endclass
 
+
+    typedef UopInfo UopInfoQ[$];
+
+    function automatic UopInfoQ splitUop(input UopInfo uinfo);
+        UopInfoQ res;
+        UopInfo current = uinfo;
+        current.id.s = 0;
+        res.push_back(current);
+        
+        return res;
+    endfunction
 
 endpackage

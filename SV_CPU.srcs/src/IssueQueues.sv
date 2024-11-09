@@ -415,18 +415,18 @@ module IssueQueueComplex(
         };
         
         foreach (gr[i]) begin
-            UopId uid = '{gr[i].mid, 0};
-            UopName uname;
-            
             if (!gr[i].active) continue;
             
-            uname = decUname(uid);
+            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin
+                UopId uid = '{gr[i].mid, u};
+                UopName uname = decUname(uid);
 
-            if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
-            else if (isControlUop(uname)) res.sys[i] = '{1, uid};
-            else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
-            else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
-            else res.regular[i] = '{1, uid};
+                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+                else if (isControlUop(uname)) res.sys[i] = '{1, uid};
+                else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
+                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
+                else res.regular[i] = '{1, uid};
+            end
         end
         
         return res;
