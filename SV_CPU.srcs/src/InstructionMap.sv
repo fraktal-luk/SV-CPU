@@ -133,8 +133,13 @@ package Insmap;
             mids.push_back(lastM);
             minfos[id] = argII;    
                 
+               // if (id > 1840) $display("getting M %d", lastM);
+                
             for (int u = 0; u < minfos[id].nUops; u++) begin                    
                 lastU++;
+                       // if (id > 1840) $display("   getting U %d", lastU);
+
+                
                     assert (lastU == minfos[id].firstUop + u) else $error(" uuuuuuuuuuuuuu ");    
                 uids.push_back(lastU);
                 uinfos[minfos[id].firstUop + u] = argUI.pop_front();
@@ -302,10 +307,11 @@ package Insmap;
 
         function automatic UopInfo getU(input UidT uid);
             Unum uIndex = insBase.minfos[U2M(uid)].firstUop + uid.s;
+                assert (uIndex == uid2unum(uid)) else $error("uIndex differes");
 
-            assert (insBase.uinfos.exists(U2M(uid))) else $fatal(2, "wrong id %p", uid);
+            assert (insBase.uinfos.exists( uIndex /*U2M(uid)*/)) else $fatal(2, "wrong id %p", uid);
             
-                assert (uIndex == U2M(uid)) else $error("mismatchedd");
+               // assert (uIndex == U2M(uid)) else $error("mismatchedd");
             
             return insBase.uinfos[ uIndex ];
         endfunction
@@ -346,16 +352,22 @@ package Insmap;
         endfunction
         
 
+            function automatic Unum uid2unum(input UidT uid);
+                Unum base = insBase.minfos[U2M(uid)].firstUop;
+                return base + uid.s;
+            endfunction
+            
+
         function automatic void setActualResult(input UidT uid, input Mword res);
-            insBase.uinfos[  U2M(uid)].resultA = res;
+            insBase.uinfos[uid2unum(uid)].resultA = res;
         endfunction
 
         function automatic void setActualArgs(input UidT uid, input Mword args[3]);
-            insBase.uinfos[ U2M(uid)].argsA = args;
+            insBase.uinfos[uid2unum(uid)].argsA = args;
         endfunction
 
         function automatic void setArgError(input UidT uid, input logic value);
-            insBase.uinfos[ U2M(uid)].argError = value;
+            insBase.uinfos[uid2unum(uid)].argError = value;
         endfunction
         
         
@@ -385,7 +397,8 @@ package Insmap;
         // For uops
         function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
             if (uid == UIDT_NONE) return;
-            recordsU[U2M(uid)].tags.push_back('{kind, cycle});
+            
+            recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});
         endfunction
         
         // For committed
@@ -648,6 +661,8 @@ package Insmap;
         UopInfoQ res;
         UopInfo current = uinfo;
         current.id.s = 0;
+        
+            //if (current.name == UOP_ctrl_sync) return res;
         res.push_back(current);
         
         return res;

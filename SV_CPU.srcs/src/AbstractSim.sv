@@ -62,7 +62,7 @@ package AbstractSim;
     endfunction
 
     function automatic int SUBOP(input UidT uid);
-        return 0;
+        return uid.s;
     endfunction
 
     

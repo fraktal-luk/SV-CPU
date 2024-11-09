@@ -26,11 +26,12 @@ module ReorderBuffer
     int size;
     logic allow;
 
-        localparam int N_UOP_MAX = 1; // Number of uops a Mop can be split into
+    localparam int N_UOP_MAX = 1; // TODO: Number of uops a Mop can be split into
+    typedef logic CompletedVec[N_UOP_MAX];
 
     typedef struct {
         InsId mid;
-        logic completed[N_UOP_MAX];
+        CompletedVec completed;
     } OpRecord;
     
     const OpRecord EMPTY_RECORD = '{mid: -1, completed: '{default: 'x}};
@@ -208,11 +209,13 @@ module ReorderBuffer
     task automatic markPacketCompleted(input UopPacket p);         
         if (!p.active) return;
         
+            // TODO: take into account that number of uops may differ
+        
         for (int r = 0; r < DEPTH; r++)
             for (int c = 0; c < WIDTH; c++)
                 if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
                     array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
-                    putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
+                    if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
                 end
     endtask
     
@@ -244,10 +247,37 @@ module ReorderBuffer
     endfunction
     
 
+    function automatic CompletedVec initCompletedVec(input int n);
+        CompletedVec res = '{default: 'x};
+        for (int i = 0; i < n; i++)
+            res[i] = 0;
+        return res;
+    endfunction
+
+
     function automatic OpRecordA makeRecord(input OpSlotAB ops);
         OpRecordA res = '{default: EMPTY_RECORD};
-        foreach (ops[i])
-            res[i] = ops[i].active ? '{ops[i].mid, '{default: 0}} : '{-1, '{default: 'x}};   
+        foreach (ops[i]) begin
+            if (ops[i].active) begin
+            
+                int nUops = insMap.get(ops[i].mid).nUops;
+                
+                CompletedVec initialCompleted = //'{default: 0};
+                                                initCompletedVec(nUops);
+                
+                res[i] = '{ops[i].mid, initialCompleted};
+            end
+            else
+                res[i] = '{-1, '{default: 'x}};
+        
+//            // TODO: 'completed' must have number of 0's equal to nUops
+//            int nUops = insMap.get(ops[i].mid).nUops;
+            
+//            CompletedVec initialCompleted = //'{default: 0};
+//                                            initCompletedVec(nUops);
+            
+//            res[i] = ops[i].active ? '{ops[i].mid, initialCompleted} : '{-1, '{default: 'x}};
+        end
         return res;
     endfunction
 
@@ -258,8 +288,12 @@ module ReorderBuffer
         array[endPointer % DEPTH].records = makeRecord(in);
         endPointer = (endPointer+1) % (2*DEPTH);
         
-        foreach (rec[i])
+        foreach (rec[i]) begin
             putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
+            
+                // TODO: also RobComplete if 0 uops
+            if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
+        end
     endtask
     
     function automatic logic frontCompleted();

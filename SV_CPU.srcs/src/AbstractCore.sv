@@ -383,7 +383,7 @@ module AbstractCore
         ii.basicData.target = target;
 
         ii.firstUop = insMap.insBase.lastU + 1;
-        ii.nUops = 1;
+        ii.nUops = -1;
 
 
         mainUinfo.id = '{id, -1};
@@ -396,6 +396,9 @@ module AbstractCore
         mainUinfo.argError = 0;
             
         uInfos = splitUop(mainUinfo);
+            ii.nUops = uInfos.size();
+            
+            if (uInfos.size() != 1) $error(" Mid %d", id);
             
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];
