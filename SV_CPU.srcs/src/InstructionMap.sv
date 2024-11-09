@@ -36,6 +36,8 @@ package Insmap;
             logic status; // TODO: enum
             
             UopName name;
+            
+            int vDest;
             int physDest;
             
             InsDependencies deps;
@@ -122,7 +124,7 @@ package Insmap;
 
         function automatic void setRenamedNew(input InsId id,
                                             input InstructionInfo argII,
-                                            input UopInfo argUI
+                                            input UopInfo argUI[$]
                                             );
             lastId = id;
             lastM++;
@@ -135,7 +137,7 @@ package Insmap;
                 lastU++;
                     assert (lastU == minfos[id].firstUop + u) else $error(" uuuuuuuuuuuuuu ");    
                 uids.push_back(lastU);
-                uinfos[minfos[id].firstUop + u] = argUI;
+                uinfos[minfos[id].firstUop + u] = argUI.pop_front();
             end
                 
         endfunction
@@ -330,7 +332,7 @@ package Insmap;
 
         function automatic void TMP_func(input InsId id,
                                         input InstructionInfo argII,
-                                        input UopInfo argUI
+                                        input UopInfo argUI[$]
                                             );
             insBase.setRenamedNew(id, 
                                     argII, argUI
