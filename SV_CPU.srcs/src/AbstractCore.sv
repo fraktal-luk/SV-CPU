@@ -393,12 +393,12 @@ module AbstractCore
         mainUinfo.deps = deps;
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
-        mainUinfo.argError = 0;
+        mainUinfo.argError = 0;// TODO: don't set until args are read?
             
         uInfos = splitUop(mainUinfo);
             ii.nUops = uInfos.size();
             
-            if (uInfos.size() != 1) $error(" Mid %d", id);
+            //if (uInfos.size() > 1) $error(" Mid %d", id);
             
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];

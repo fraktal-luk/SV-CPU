@@ -26,7 +26,7 @@ module ReorderBuffer
     int size;
     logic allow;
 
-    localparam int N_UOP_MAX = 1; // TODO: Number of uops a Mop can be split into
+    localparam int N_UOP_MAX = 2; // TODO: Number of uops a Mop can be split into
     typedef logic CompletedVec[N_UOP_MAX];
 
     typedef struct {

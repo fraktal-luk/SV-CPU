@@ -425,7 +425,7 @@ package Insmap;
                 Unum firstUop = insBase.minfos[removedId].firstUop;
                 int nU = insBase.minfos[removedId].nUops;
             
-                void'(checkOk(removedId));
+                void'(checkOk(removedId, firstUop, nU));
                 records.delete(removedId);
 
                 insBase.minfos.delete(removedId);
@@ -479,7 +479,7 @@ package Insmap;
         endfunction
         
 
-        function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
+        function automatic logic checkKilledOOO(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$][$]);
             AbstractInstruction dec = get(id).basicData.dec;
 
             MilestoneTag tag = tags.pop_front();
@@ -501,12 +501,14 @@ package Insmap;
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
             if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
 
-            assert (checkKilledIq(tagsU)) else $error("wrong k iq");
-
+            foreach (tagsU[u]) begin
+                assert (checkKilledIq(tagsU[u])) else $error("wrong k iq");
+            end
+            
             return 1;        
         endfunction
 
-        function automatic logic checkKilledCommit(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
+        function automatic logic checkKilledCommit(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$][$]);
             AbstractInstruction dec = get(id).basicData.dec;
       
             MilestoneTag tag = tags.pop_front();
@@ -516,12 +518,14 @@ package Insmap;
             if (isLoadIns(dec)) assert (checkKilledLoad(tags)) else $error("wrong kload op");
             if (isBranchIns(dec)) assert (checkKilledBranch(tags)) else $error("wrong kbranch op: %d / %p", id, tags);
             
-            assert (checkRetiredIq(tagsU)) else $error("wrong iq");
+            foreach (tagsU[u]) begin
+                assert (checkRetiredIq(tagsU[u])) else $error("wrong iq");
+            end
             
             return 1;        
         endfunction
 
-        function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$]);
+        function automatic logic checkRetired(input InsId id, input MilestoneTag tags[$], input MilestoneTag tagsU[$][$]);
             AbstractInstruction dec = get(id).basicData.dec;
         
             MilestoneTag tag = tags.pop_front();
@@ -539,13 +543,15 @@ package Insmap;
             if (isLoadIns(dec)) assert (checkRetiredLoad(tags)) else $error("wrong load op");
             if (isBranchIns(dec)) assert (checkRetiredBranch(tags)) else $error("wrong branch op: %d / %p", id, tags);
             
-            assert (checkRetiredIq(tagsU)) else $error("wrong iq");
+            foreach (tagsU[u]) begin
+                assert (checkRetiredIq(tagsU[u])) else $error("wrong iq");
 
                 // HACK: if has been pulled back, remember it
                 begin
-                    if (has(tagsU, IqPullback)) storeReissued(id, tagsU);
+                    if (has(tagsU[u], IqPullback)) storeReissued(id, tagsU[u]);
                 end
-
+            end
+            
             return 1;
         endfunction
     
@@ -637,14 +643,20 @@ package Insmap;
         endfunction
 
 
-        function automatic logic checkOk(input InsId id);
+        function automatic logic checkOk(input InsId id, input Unum firstUop, input int nU);
+            MilestoneTag tagsU_N[$][$];
+            
             MilestoneTag tags[$] = records[id].tags;
-            MilestoneTag tagsU[$] = recordsU[id].tags;
             ExecClass eclass = determineClass(tags);
 
-            if (eclass == EC_KilledCommit) return checkKilledCommit(id, tags, tagsU);
-            else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags, tagsU);
-            else return checkRetired(id, tags, tagsU);
+            //MilestoneTag tagsU[$] = recordsU[id].tags;
+            for (int u = 0; u < nU; u++) begin
+                tagsU_N.push_back(recordsU[firstUop + u].tags);
+            end
+
+            if (eclass == EC_KilledCommit) return checkKilledCommit(id, tags, tagsU_N);
+            else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags, tagsU_N);
+            else return checkRetired(id, tags, tagsU_N);
         endfunction
         
 
@@ -662,9 +674,35 @@ package Insmap;
         UopInfo current = uinfo;
         current.id.s = 0;
         
-            //if (current.name == UOP_ctrl_sync) return res;
+            if (current.name == UOP_ctrl_sync) return res;
+            
         res.push_back(current);
         
+            if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
+                UopInfo sd;
+                sd.id = '{current.id.m, 1};
+                sd.name = UOP_data_int;
+                sd.physDest = -1;
+                sd.deps.producers = '{default: UIDT_NONE};
+                sd.argError = 0; // TODO: don't set until args are read?
+                
+                  //  $display("%p\n%p", current, sd);
+                
+                res.push_back(sd);
+            end
+            else if (current.name == UOP_mem_stf) begin
+                UopInfo sd;
+                sd.id = '{current.id.m, 1};
+                sd.name = UOP_data_fp;
+                sd.physDest = -1;
+                sd.deps.producers = '{default: UIDT_NONE};
+                sd.argError = 0; // TODO: don't set until args are read?
+                
+                  //  $display("%p\n%p", current, sd);
+                
+                res.push_back(sd);
+            end
+            
         return res;
     endfunction
 

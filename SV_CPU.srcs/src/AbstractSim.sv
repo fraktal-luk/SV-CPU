@@ -658,7 +658,11 @@ package AbstractSim;
             UOP_ctrl_refetch,
             UOP_ctrl_error,
             UOP_ctrl_call,
-            UOP_ctrl_send
+            UOP_ctrl_send,
+                
+                // TMP
+                UOP_data_int,
+                UOP_data_fp
         };
     endfunction
 
