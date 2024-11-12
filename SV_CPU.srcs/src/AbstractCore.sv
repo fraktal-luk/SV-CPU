@@ -395,6 +395,9 @@ module AbstractCore
         mainUinfo.resultE = result;
         mainUinfo.argError = 0;// TODO: don't set until args are read?
 
+              //  if (id >= 1839) $display("__ %p", mainUinfo);
+                
+
         uInfos = splitUop(mainUinfo);
             ii.nUops = uInfos.size();
             

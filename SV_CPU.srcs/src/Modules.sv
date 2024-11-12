@@ -93,6 +93,47 @@ endmodule
 
 
 
+module StoreDataSubpipe(
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input UopPacket opP
+);
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+    UopPacket stage0, stage0_E;
+
+    assign stage0 = pE0;
+    assign stage0_E = pE0_E;
+
+    assign p0 = opP;
+
+    always @(posedge AbstractCore.clk) begin
+        p1 <= tickP(p0);
+        pE0 <= performStoreData(tickP(p1));
+        pD0 <= tickP(pE0);
+        pD1 <= tickP(pD0);
+    end
+
+    assign p0_E = effP(p0);
+    assign p1_E = effP(p1);
+    assign pE0_E = effP(pE0);
+    assign pD0_E = effP(pD0);
+
+    ForwardingElement image_E[-3:1];
+    
+    assign image_E = '{
+        -2: p0_E,
+        -1: p1_E,
+        0: pE0_E,
+        1: pD0_E,
+        default: EMPTY_FORWARDING_ELEMENT
+    };
+
+endmodule
+
+
+
 module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
@@ -207,6 +248,16 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedFloatP[1]
     );
 
+
+    StoreDataSubpipe storeData0(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedSysP[0]
+    );
+
+
+
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
 
@@ -256,6 +307,10 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
+        //assign doneSys = storeData0.stage0;
+
+
+
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
@@ -265,6 +320,9 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
+
+        //assign doneSys_E = storeData0.stage0_E;
+
 
 
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
@@ -442,10 +500,13 @@ module ExecBlock(ref InstructionMap insMap,
 
     function automatic UopPacket performStoreData(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
+        
+           // if (p.TMP_oid.m > 1839) $display("... sd: %p", p.TMP_oid);
+        
         begin
             UopName uname = insMap.getU(p.TMP_oid).name;
             Mword3 args;
-                        //= getAndVerifyArgs(p.TMP_oid);
+                       // = getAndVerifyArgs(p.TMP_oid);
             UopPacket res = p;
             res.result = args[2];
             return res;

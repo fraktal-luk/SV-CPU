@@ -307,7 +307,7 @@ package ExecDefs;
             return found0[0].result;
         end
 
-        $fatal(2, "oh no");
+        $fatal(2, "oh no\n%p, %d", producer, source);
     endfunction
 
 

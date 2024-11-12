@@ -688,11 +688,11 @@ package Insmap;
                 sd.deps.sources = '{default: 0};
                 sd.deps.producers = '{default: UIDT_NONE};
                 sd.argError = 0; // TODO: don't set until args are read?
-                /*
+                ///*
                     sd.deps.types[2] = current.deps.types[2];
                     sd.deps.sources[2] = current.deps.sources[2];
                     sd.deps.producers[2] = current.deps.producers[2];
-                */
+                //*/
                 res.push_back(sd);
             end
             else if (current.name == UOP_mem_stf) begin
@@ -705,11 +705,11 @@ package Insmap;
                 sd.deps.sources = '{default: 0};
                 sd.deps.producers = '{default: UIDT_NONE};
                 sd.argError = 0; // TODO: don't set until args are read?
-                /*
+                ///*
                     sd.deps.types[2] = current.deps.types[2];
                     sd.deps.sources[2] = current.deps.sources[2];
                     sd.deps.producers[2] = current.deps.producers[2];
-                */
+                //*/
                 res.push_back(sd);
             end
             
