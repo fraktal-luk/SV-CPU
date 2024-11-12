@@ -394,7 +394,7 @@ module AbstractCore
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
         mainUinfo.argError = 0;// TODO: don't set until args are read?
-            
+
         uInfos = splitUop(mainUinfo);
             ii.nUops = uInfos.size();
             

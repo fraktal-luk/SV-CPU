@@ -117,6 +117,10 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneSys_E;
 
 
+    UopPacket sysE0 = EMPTY_UOP_PACKET, sysE0_E;
+
+
+
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadResp readResps[N_MEM_PORTS];
     
@@ -208,9 +212,12 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     always @(posedge AbstractCore.clk) begin
-       doneSys <= tickP(theIssueQueues.issuedSysP[0]);
+       sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
+       doneSys <= tickP(sysE0);
+                        //theIssueQueues.issuedSysP[0]);
     end
 
+    assign sysE0_E = effP(sysE0);
     assign doneSys_E = effP(doneSys);
 
 
@@ -429,6 +436,22 @@ module ExecBlock(ref InstructionMap insMap,
             default: $fatal(2, "Wrong branch uop");
         endcase  
     endfunction
+
+
+
+
+    function automatic UopPacket performStoreData(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
+        begin
+            UopName uname = insMap.getU(p.TMP_oid).name;
+            Mword3 args;
+                        //= getAndVerifyArgs(p.TMP_oid);
+            UopPacket res = p;
+            res.result = args[2];
+            return res;
+        end
+    endfunction
+
 
 
 

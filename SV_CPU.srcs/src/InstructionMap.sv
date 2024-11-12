@@ -683,11 +683,16 @@ package Insmap;
                 sd.id = '{current.id.m, 1};
                 sd.name = UOP_data_int;
                 sd.physDest = -1;
+                sd.argsE = '{default: 0};
+                sd.deps.types = '{default: SRC_ZERO};
+                sd.deps.sources = '{default: 0};
                 sd.deps.producers = '{default: UIDT_NONE};
                 sd.argError = 0; // TODO: don't set until args are read?
-                
-                  //  $display("%p\n%p", current, sd);
-                
+                /*
+                    sd.deps.types[2] = current.deps.types[2];
+                    sd.deps.sources[2] = current.deps.sources[2];
+                    sd.deps.producers[2] = current.deps.producers[2];
+                */
                 res.push_back(sd);
             end
             else if (current.name == UOP_mem_stf) begin
@@ -695,11 +700,16 @@ package Insmap;
                 sd.id = '{current.id.m, 1};
                 sd.name = UOP_data_fp;
                 sd.physDest = -1;
+                sd.argsE = '{default: 0};
+                sd.deps.types = '{default: SRC_ZERO};
+                sd.deps.sources = '{default: 0};
                 sd.deps.producers = '{default: UIDT_NONE};
                 sd.argError = 0; // TODO: don't set until args are read?
-                
-                  //  $display("%p\n%p", current, sd);
-                
+                /*
+                    sd.deps.types[2] = current.deps.types[2];
+                    sd.deps.sources[2] = current.deps.sources[2];
+                    sd.deps.producers[2] = current.deps.producers[2];
+                */
                 res.push_back(sd);
             end
             

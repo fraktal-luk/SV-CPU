@@ -148,10 +148,22 @@ module StoreQueue
             
             begin
                int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
+               
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $error("Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
+               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
             end
-        end 
+        end
+        
+        // 
+        if (IS_STORE_QUEUE) begin
+            UopPacket dataUop = theExecBlock.sysE0_E;
+            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
+                int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
+                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
+                
+                HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
+            end
+        end
     endtask
 
 

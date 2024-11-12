@@ -34,9 +34,11 @@ package Queues;
             logic valReady;
             Mword val;
             logic committed;
+                Mword dataVal;
+                logic dataValReady;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x,  'x, 'x};
     
         
         static function automatic logic applies(input AbstractInstruction ins);
@@ -54,16 +56,33 @@ package Queues;
             res.adrReady = 0;
             res.valReady = 0;
             res.committed = 0;
+                res.dataValReady = 0;
             return res;
         endfunction
         
+        
+            static function void updateAddress(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+            
+            endfunction
+            
+            static function void updateData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+            
+            endfunction            
+            
+        
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            
-            entry.adrReady = 1;
-            entry.adr = p.result;
-            
-            entry.valReady = 1;
-            entry.val = imap.getU(p.TMP_oid).argsA[2];
+            // TODO: check if store adr uop
+            if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti, UOP_mem_stf, UOP_mem_sts}) begin
+                entry.adrReady = 1;
+                entry.adr = p.result;
+                
+                entry.valReady = 1;
+                entry.val = imap.getU(p.TMP_oid).argsA[2];
+            end
+            // TODO: assert store data uop
+            else begin
+                    entry.dataValReady = 1;
+            end
         endfunction
         
             static function void setCommitted(ref Entry entry);
