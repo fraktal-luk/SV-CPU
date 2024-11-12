@@ -54,6 +54,10 @@ package UopList;
          UOP_bc_a,
          UOP_bc_l,
         
+            // Store data
+            UOP_data_int,
+            UOP_data_fp,
+        
          UOP_ctrl_rete,
          UOP_ctrl_reti,
          UOP_ctrl_halt,

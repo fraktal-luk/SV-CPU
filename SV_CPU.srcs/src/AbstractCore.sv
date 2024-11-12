@@ -260,38 +260,21 @@ module AbstractCore
     endfunction
 
 
-        UopName TMP_uops_r0[4];
-
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotAB opsB = TMP_front2rename(theFrontend.stageRename0);
+        OpSlotAB ops = TMP_front2rename(theFrontend.stageRename0);
 
-        if (anyActiveB(opsB))
+        if (anyActiveB(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
-        foreach (opsB[i]) begin
-            UopName uopName = UOP_none;
-            InsId newMid = -1;
-
-                TMP_uops_r0[i] = UOP_none;
+        foreach (ops[i]) begin            
+            if (ops[i].active !== 1) continue;
             
-            if (opsB[i].active !== 1) continue;
-            
-            newMid = insMap.insBase.lastM + 1;
-            
-            opsB[i].mid = newMid;
-            
-            insMap.addM(newMid, opsB[i].adr, opsB[i].bits);
-            uopName = OP_DECODING_TABLE[decodeId(newMid).mnemonic];
-            insMap.setUopName(newMid, uopName);
-            
-            renameOp(newMid, i, opsB[i].adr, opsB[i].bits);   
-            putMilestoneM(newMid, InstructionMap::Rename);
-                
-            TMP_uops_r0[i] = uopName;
+            ops[i].mid = insMap.insBase.lastM + 1;
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits);   
         end
 
-        stageRename1 <= opsB;
+        stageRename1 <= ops;
     endtask
 
     task automatic redirectRest();
@@ -374,56 +357,79 @@ module AbstractCore
 
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
+        InstructionInfo ii;
+        UopInfo mainUinfo;
+        UopInfo uInfos[$];
         Mword result, target;
         InsDependencies deps;
         Mword argVals[3];
-        int physDest = -1;
+        UopName uopName = OP_DECODING_TABLE[ins.mnemonic];
 
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = computeResult(renamedEmul.coreState, adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
-        deps = registerTracker.getArgDeps(ins); // For insMap
-
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
 
-        // TODO: per uop
-        physDest = registerTracker.reserve(decUname(FIRST_U(id)), ins.dest, FIRST_U(id));
-        
+        // General, per ins
+        deps = registerTracker.getArgDeps(ins); // For insMap
+
+
+        ii = initInsInfo(id, adr, bits);
+        ii.mainUop = uopName;
+        ii.inds = renameInds;
+        ii.slot = currentSlot;
+        ii.basicData.target = target;
+
+        ii.firstUop = insMap.insBase.lastU + 1;
+        ii.nUops = -1;
+
+
+        mainUinfo.id = '{id, -1};
+        mainUinfo.name = uopName;
+        mainUinfo.vDest = ins.dest;
+        mainUinfo.physDest = -1;
+        mainUinfo.deps = deps;
+        mainUinfo.argsE = argVals;
+        mainUinfo.resultE = result;
+        mainUinfo.argError = 0;// TODO: don't set until args are read?
+            
+        uInfos = splitUop(mainUinfo);
+            ii.nUops = uInfos.size();
+            
+            //if (uInfos.size() > 1) $error(" Mid %d", id);
+            
+        for (int u = 0; u < ii.nUops; u++) begin
+            UopInfo uInfo = uInfos[u];
+            int thisPhysDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
+
+            uInfos[u].physDest = thisPhysDest;
+        end
+
+
+        insMap.TMP_func(id, ii, uInfos);           
+
+
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
-        
+
         if (isBranchIns(ins)) begin
             addToBtq(id);
             saveCP(id); // Crucial state
         end
 
-        insMap.setRenamed(id,
-                            result,
-                            target,
-                            deps,
-                            physDest,
-                            argVals,
-                            renameInds,
-                            currentSlot
-                            );
-
-            coreDB.lastRenamed = TMP_properOp(id);
 
         updateInds(renameInds, id); // Crucial state
 
+            coreDB.lastRenamed = TMP_properOp(id);
+
+
+        putMilestoneM(id, InstructionMap::Rename);
     endtask
 
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        
-//            logic condA = isSysIns(insInfo.basicData.dec) && !isStoreSysIns(insInfo.basicData.dec);
-//            logic condB = isControlUop(decMainUop(id));
-        
-//            assert (condA === condB) else $error("errrr");
-        
-        //return (isSysIns(insInfo.basicData.dec) && !isStoreSysIns(insInfo.basicData.dec) || insInfo.refetch || insInfo.exception);
         return (isControlUop(decMainUop(id)) || insInfo.refetch || insInfo.exception);
     endfunction
 
@@ -510,14 +516,16 @@ module AbstractCore
     
     function automatic void checkUops(input InsId id);
         InstructionInfo info = insMap.get(id);
-        //  TODO: per uop
-
-        UopName uname = decUname(FIRST_U(id));
-
-        if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
-            assert (info.TMP_uopInfo.resultA === info.TMP_uopInfo.resultE) else
-                $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), info.TMP_uopInfo.resultA, info.TMP_uopInfo.resultE);
-        assert (info.TMP_uopInfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
+        
+        for (int u = 0; u < info.nUops; u++) begin
+            UopInfo uinfo = insMap.getU('{id, u});
+            UopName uname = uinfo.name;
+    
+            if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
+                assert (uinfo.resultA === uinfo.resultE) else
+                    $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+            assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
+        end
     endfunction
 
 
@@ -580,21 +588,25 @@ module AbstractCore
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
             coreDB.lastII = insInfo;
-            coreDB.lastUI = insInfo.TMP_uopInfo;
+            coreDB.lastUI = insMap.getU(FIRST_U(id)); // TODO: last, not first of Mop
 
         verifyOnCommit(id);
 
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
-        
-        // TODO: per uop
-        registerTracker.commit(decUname(FIRST_U(id)), insInfo.basicData.dec.dest, FIRST_U(id), refetch || exception); // Need to modify to handle Exceptional and Hidden
-            
+
+
+        for (int u = 0; u < insInfo.nUops; u++) begin
+            UidT uid = '{id, u};
+            UopInfo uInfo = insMap.getU(uid);
+            registerTracker.commit(decUname(uid), uInfo.vDest, uid, refetch || exception); // Need to modify to handle Exceptional and Hidden
+        end
+
         if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
-        
+
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
 
         releaseQueues(id); // All
-            
+  
         if (refetch) begin
             coreDB.lastRefetched = TMP_properOp(id);
         end
@@ -602,11 +614,11 @@ module AbstractCore
             coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
             coreDB.nRetired++;
         end
-        
+
         // Need to modify to serve all types of commit            
         putMilestoneM(id, retireType);
         insMap.setRetired(id);
-        
+
         // Elements related to crucial signals:
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
@@ -614,7 +626,7 @@ module AbstractCore
         retiredTarget <= getCommitTarget(decMainUop(id), retiredTarget, branchTargetQueue[0].target, refetch, exception);
     endtask
 
-    
+
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);
         Transaction tr = memTracker.findStore(id);
         StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), tr.adrAny, tr.val};       

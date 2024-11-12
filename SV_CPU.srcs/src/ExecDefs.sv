@@ -43,14 +43,12 @@ package ExecDefs;
     typedef struct {
         logic active;
         UidT TMP_oid;
-            UopId TMP_uopId;
         ExecStatus status;
         Poison poison;
-            logic TMP_pullback; // For poison dev
         Mword result;
     } UopPacket;
     
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, UID_NONE, ES_OK, EMPTY_POISON, 'x, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
 
 
 
@@ -281,14 +279,14 @@ package ExecDefs;
     endfunction
 
     // TODO: rework for uops
-    function automatic void verifyForward(input InstructionInfo ii, input int source, input Mword result);
-        assert (ii.TMP_uopInfo.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ii.TMP_uopInfo.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ii.TMP_uopInfo.resultA, result, ii, disasm(ii.basicData.bits));
+    function automatic void verifyForward(input InstructionInfo ii, input UopInfo ui, input int source, input Mword result);
+        assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
+        assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
 
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
         if (ready) return tracker.ints.regs[source];
@@ -297,7 +295,7 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found1[0].result);
+            verifyForward(ii, ui, source, found1[0].result);
             return found1[0].result;
         end
         
@@ -305,7 +303,7 @@ package ExecDefs;
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found0[0].result);
+            verifyForward(ii, ui, source, found0[0].result);
             return found0[0].result;
         end
 
@@ -323,7 +321,7 @@ package ExecDefs;
         if (found1.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found1[0].result);
+            verifyForward(ii, ui, source, found1[0].result);
             return found1[0].result;
         end
         
@@ -331,7 +329,7 @@ package ExecDefs;
         if (found0.size() != 0) begin
             InstructionInfo ii = imap.get(U2M(producer));
             UopInfo ui = imap.getU(producer);
-            verifyForward(ii, source, found0[0].result);
+            verifyForward(ii, ui, source, found0[0].result);
             return found0[0].result;
         end
 
@@ -433,13 +431,13 @@ package ExecDefs;
     endfunction;
 
 
-        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-            if (fe.TMP_oid != UIDT_NONE) begin
-                UidT inds[$] = p.find with (item == fe.TMP_oid);
-                return inds.size() != 0;
-            end
-            return 0;
-        endfunction
+    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+        if (fe.TMP_oid != UIDT_NONE) begin
+            UidT inds[$] = p.find with (item == fe.TMP_oid);
+            return inds.size() != 0;
+        end
+        return 0;
+    endfunction
 
 
 //////////////////
