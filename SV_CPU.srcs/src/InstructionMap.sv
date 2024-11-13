@@ -306,7 +306,16 @@ package Insmap;
         endfunction
 
         function automatic UopInfo getU(input UidT uid);
-            Unum uIndex = insBase.minfos[U2M(uid)].firstUop + uid.s;
+            Unum uIndex = -1;
+            InstructionInfo ii;
+            
+            assert (insBase.minfos.exists(U2M(uid))) else $fatal(2, "Wrong uid %p, not corresponding to any Mop", uid);
+            
+            ii = insBase.minfos[U2M(uid)];
+            
+            assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
+            
+            uIndex = ii.firstUop + uid.s;
                 assert (uIndex == uid2unum(uid)) else $error("uIndex differes");
 
             assert (insBase.uinfos.exists( uIndex /*U2M(uid)*/)) else $fatal(2, "wrong id %p", uid);
@@ -676,7 +685,8 @@ package Insmap;
         UopInfo current = uinfo;
         current.id.s = 0;
     
-        if (current.name == UOP_ctrl_sync) return res;
+        if (//current.name == UOP_ctrl_sync || 
+            isControlUop(current.name)  ) return res; // 0 uops
         
     
         if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
