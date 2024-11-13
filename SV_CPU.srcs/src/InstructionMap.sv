@@ -670,6 +670,8 @@ package Insmap;
     typedef UopInfo UopInfoQ[$];
 
     function automatic UopInfoQ splitUop(input UopInfo uinfo);
+            localparam logic CLEAR_ARG_2 = 1;
+    
         UopInfoQ res;
         UopInfo current = uinfo;
         current.id.s = 0;
@@ -687,13 +689,18 @@ package Insmap;
             sd.deps.sources = '{default: 0};
             sd.deps.producers = '{default: UIDT_NONE};
             sd.argError = 0; // TODO: don't set until args are read?
-            ///*
+
                 sd.deps.types[2] = current.deps.types[2];
                 sd.deps.sources[2] = current.deps.sources[2];
                 sd.deps.producers[2] = current.deps.producers[2];
-                
                 sd.argsE[2] = current.argsE[2];
-            //*/
+            
+            if (CLEAR_ARG_2) begin
+                current.deps.types[2] = SRC_ZERO;
+                current.deps.sources[2] = 0;
+                current.deps.producers[2] = UIDT_NONE;
+                current.argsE[2] = 0;
+            end
             
             res.push_back(current);
             res.push_back(sd);
@@ -709,13 +716,18 @@ package Insmap;
             sd.deps.sources = '{default: 0};
             sd.deps.producers = '{default: UIDT_NONE};
             sd.argError = 0; // TODO: don't set until args are read?
-            ///*
+
                 sd.deps.types[2] = current.deps.types[2];
                 sd.deps.sources[2] = current.deps.sources[2];
                 sd.deps.producers[2] = current.deps.producers[2];
-                
                 sd.argsE[2] = current.argsE[2];
-            //*/
+            
+            if (CLEAR_ARG_2) begin
+                current.deps.types[2] = SRC_ZERO;
+                current.deps.sources[2] = 0;
+                current.deps.producers[2] = UIDT_NONE;
+                current.argsE[2] = 0;
+            end
             
             res.push_back(current);
             res.push_back(sd);

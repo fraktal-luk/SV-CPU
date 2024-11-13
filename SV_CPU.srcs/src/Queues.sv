@@ -102,7 +102,15 @@ package Queues;
             static function logic isError(input Entry entry);
                 return entry.error;
             endfunction
-               
+
+            static function Mword getAdr(input Entry entry);
+                return entry.adr; 
+            endfunction
+
+            static function Mword getVal(input Entry entry);
+                return entry.val;
+            endfunction
+ 
             static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
                 //typedef StoreQueueHelper::Entry SqEntry;
                 // TODO: don't include sys stores in adr matching 
@@ -170,6 +178,14 @@ package Queues;
 
             static function logic isError(input Entry entry);
                 return entry.error;
+            endfunction
+
+            static function Mword getAdr(input Entry entry);
+                return 'x;//entry.adr; 
+            endfunction
+
+            static function Mword getVal(input Entry entry);
+                return 'x;//entry.val;
             endfunction
 
                 static function automatic UopPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
@@ -264,6 +280,14 @@ package Queues;
 
             static function logic isError(input Entry entry);
                 return 0;
+            endfunction
+
+            static function Mword getAdr(input Entry entry);
+                return 'x;//entry.adr; 
+            endfunction
+
+            static function Mword getVal(input Entry entry);
+                return 'x;//entry.val;
             endfunction
 
 

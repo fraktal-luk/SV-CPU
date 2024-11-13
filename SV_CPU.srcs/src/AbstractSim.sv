@@ -532,6 +532,9 @@ package AbstractSim;
         endfunction
 
         function automatic void remove(input InsId id);
+        
+            //    if (id > 4600) $error("Memtracker remove %d", id);
+        
             assert (transactions[0].owner == id) begin
                 void'(transactions.pop_front());
                 if (stores.size() != 0 && stores[0].owner == id) begin
