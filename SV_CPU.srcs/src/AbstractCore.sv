@@ -527,7 +527,7 @@ module AbstractCore
             if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
                 assert (uinfo.resultA === uinfo.resultE) else
                     $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
-            assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
+            assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %p\n%p", id, uinfo);
         end
     endfunction
 

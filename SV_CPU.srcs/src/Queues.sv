@@ -34,11 +34,11 @@ package Queues;
             logic valReady;
             Mword val;
             logic committed;
-                Mword dataVal;
-                logic dataValReady;
+            //    Mword dataVal;
+            //    logic dataValReady;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x,  'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
     
         
         static function automatic logic applies(input AbstractInstruction ins);
@@ -56,7 +56,7 @@ package Queues;
             res.adrReady = 0;
             res.valReady = 0;
             res.committed = 0;
-                res.dataValReady = 0;
+            //    res.dataValReady = 0;
             return res;
         endfunction
         
@@ -76,12 +76,13 @@ package Queues;
                 entry.adrReady = 1;
                 entry.adr = p.result;
                 
-                entry.valReady = 1;
-                entry.val = imap.getU(p.TMP_oid).argsA[2];
+                //entry.valReady = 1;
+                //entry.val = imap.getU(p.TMP_oid).argsA[2];
             end
             // TODO: assert store data uop
             else begin
-                    entry.dataValReady = 1;
+                entry.valReady = 1;
+                entry.val = p.result;
             end
         endfunction
         
@@ -103,7 +104,7 @@ package Queues;
             endfunction
                
             static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-                typedef StoreQueueHelper::Entry SqEntry;
+                //typedef StoreQueueHelper::Entry SqEntry;
                 // TODO: don't include sys stores in adr matching 
                 Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && wordOverlap(item.adr, adr));
 

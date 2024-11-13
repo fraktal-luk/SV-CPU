@@ -145,7 +145,7 @@ module ExecBlock(ref InstructionMap insMap,
     
     UopPacket doneFloat0,  doneFloat1; 
     
-    UopPacket doneSys = EMPTY_UOP_PACKET;
+    UopPacket doneSys ;// = EMPTY_UOP_PACKET;
     
 
     UopPacket doneRegular0_E, doneRegular1_E;
@@ -158,7 +158,8 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneSys_E;
 
 
-    UopPacket sysE0 = EMPTY_UOP_PACKET, sysE0_E;
+    UopPacket sysE0 //= EMPTY_UOP_PACKET
+              , sysE0_E;
 
 
 
@@ -263,13 +264,13 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     always @(posedge AbstractCore.clk) begin
-       sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
-       doneSys <= tickP(sysE0);
+      // sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
+      // doneSys <= tickP(sysE0);
                         //theIssueQueues.issuedSysP[0]);
     end
 
-    assign sysE0_E = effP(sysE0);
-    assign doneSys_E = effP(doneSys);
+   // assign sysE0_E = effP(sysE0);
+   // assign doneSys_E = effP(doneSys);
 
 
     ReplayQueue replayQueue(
@@ -307,7 +308,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
-        //assign doneSys = storeData0.stage0;
+        assign doneSys = storeData0.stage0;
 
 
 
@@ -321,8 +322,11 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
 
-        //assign doneSys_E = storeData0.stage0_E;
+        assign doneSys_E = storeData0.stage0_E;
 
+
+      assign sysE0 = storeData0.stage0;
+      assign sysE0_E = storeData0.stage0_E;
 
 
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
@@ -505,8 +509,8 @@ module ExecBlock(ref InstructionMap insMap,
         
         begin
             UopName uname = insMap.getU(p.TMP_oid).name;
-            Mword3 args;
-                       // = getAndVerifyArgs(p.TMP_oid);
+            Mword3 args//;
+                        = getAndVerifyArgs(p.TMP_oid);
             UopPacket res = p;
             res.result = args[2];
             return res;
