@@ -27,7 +27,8 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
-        ES_REDO,
+            ES_NOT_READY,
+        ES_REDO, // cause refetch
             ES_INVALID
     } ExecStatus;
 
@@ -278,7 +279,6 @@ package ExecDefs;
         return res;
     endfunction
 
-    // TODO: rework for uops
     function automatic void verifyForward(input InstructionInfo ii, input UopInfo ui, input int source, input Mword result);
         assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));

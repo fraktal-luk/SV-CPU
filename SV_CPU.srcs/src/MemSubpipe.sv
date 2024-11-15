@@ -30,7 +30,7 @@ module MemSubpipe#(
     UopPacket stage0, stage0_E;
     
     logic readActive = 0;
-    Mword effAdr = 'x;//, storeValue = 'x;
+    Mword effAdr = 'x;
 
     assign stage0 = pE2;
     assign stage0_E = pE2_E;
@@ -98,23 +98,19 @@ module MemSubpipe#(
     
     task automatic performE0();
         Mword adr;
-        //Mword val;
     
         UopPacket stateE0 = tickP(p1);
 
         adr = getEffectiveAddress(stateE0.TMP_oid);
-        //val = getStoreValue(stateE0.TMP_oid);
 
         readActive <= stateE0.active;
         effAdr <= adr;
-        //storeValue <= val;
 
         pE0 <= updateE0(stateE0, adr);
     endtask
     
     task automatic performE1();
         UopPacket stateE1 = tickP(pE0);
-        //if (stateE1.active && stateE1.status == ES_OK) performStore_Dummy(stateE1.TMP_oid, effAdr, storeValue);
 
         pE1 <= stateE1;
     endtask
@@ -132,28 +128,11 @@ module MemSubpipe#(
         return calcEffectiveAddress(getAndVerifyArgs(uid));
     endfunction
 
-//    function automatic Mword getStoreValue(input UidT uid);
-//        if (uid == UIDT_NONE) return 'x;
-//        begin
-//            Mword3 args = getAndVerifyArgs(uid);
-//            return args[2];
-//        end
-//    endfunction
-
 
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
 
-
-
-//    task automatic performStore_Dummy(input UidT uid, input Mword adr, input Mword val);
-//        if (isStoreMemUop(decUname(uid))) begin
-//        //    checkStore(uid, adr, val);
-//            //putMilestone(uid, InstructionMap::WriteMemAddress);
-////            putMilestone(uid, InstructionMap::WriteMemValue); // TODO: move this to SD subpipe
-//        end
-//    endtask
 
     // TOPLEVEL
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
@@ -185,8 +164,7 @@ module MemSubpipe#(
         end
         
         if (isLoadMemUop(decUname(uid))) begin
-            // TODO: make sure the behavior is correct
-            //assert (forwarded === sqResp.active) else $error("Wrong forward state");
+
         end
             
         if (forwarded && isLoadMemUop(decUname(uid))) begin
@@ -201,11 +179,6 @@ module MemSubpipe#(
         return res;
     endfunction
 
-//    // Used once by Mem subpipes
-//    function automatic void checkStore(input UidT uid, input Mword adr, input Mword value);
-//        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == U2M(uid));
-//        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %p, %d@%d", uid, value, adr);
-//    endfunction
 
 endmodule
 

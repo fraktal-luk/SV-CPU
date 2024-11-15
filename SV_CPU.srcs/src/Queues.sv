@@ -34,11 +34,12 @@ package Queues;
             logic valReady;
             Mword val;
             logic committed;
+                logic dontForward;
             //    Mword dataVal;
             //    logic dataValReady;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
     
         
         static function automatic logic applies(input AbstractInstruction ins);
@@ -56,6 +57,7 @@ package Queues;
             res.adrReady = 0;
             res.valReady = 0;
             res.committed = 0;
+                res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
             //    res.dataValReady = 0;
             return res;
         endfunction
@@ -71,7 +73,6 @@ package Queues;
             
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            // TODO: check if store adr uop
             if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti, UOP_mem_stf, UOP_mem_sts}) begin
                 entry.adrReady = 1;
                 entry.adr = p.result;
@@ -79,8 +80,9 @@ package Queues;
                 //entry.valReady = 1;
                 //entry.val = imap.getU(p.TMP_oid).argsA[2];
             end
-            // TODO: assert store data uop
             else begin
+                assert (imap.getU(p.TMP_oid).name inside {UOP_data_int, UOP_data_fp}) else $fatal(2, "Wrong uop for store data");
+            
                 entry.valReady = 1;
                 entry.val = p.result;
             end
@@ -112,22 +114,37 @@ package Queues;
             endfunction
  
             static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-                //typedef StoreQueueHelper::Entry SqEntry;
-                // TODO: don't include sys stores in adr matching 
-                Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && wordOverlap(item.adr, adr));
+                Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
+                Entry fwEntry;
+                
+                // TODO: classify matches (X covers Y means X includes Y)
+                // Youngest older overlapping store:
+                // Covers and has data -> OK
+                // Not covers -> incomplete forward, refetch
+                // Not has data -> to RQ, wait ??
 
                 if (found.size() == 0) return EMPTY_UOP_PACKET;
-                else if (found.size() == 1) begin 
-                    if (wordInside(adr, found[0].adr)) return '{1, FIRST_U(found[0].mid), ES_OK, EMPTY_POISON, found[0].val};
-                    else return '{1, FIRST_U(found[0].mid), ES_INVALID, EMPTY_POISON, 'x};
+                else if (found.size() == 1) begin
+                    fwEntry = found[0];
+                
+                    //if (wordInside(adr, fwEntry.adr)) return '{1, FIRST_U(fwEntry.mid), ES_OK, EMPTY_POISON, fwEntry.val};
+                    //else return '{1, FIRST_U(fwEntry.mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
                 else begin
                     Entry sorted[$] = found[0:$];
                     sorted.sort with (item.mid);
+                    fwEntry = sorted[$];
                     
-                    if (wordInside(adr, sorted[$].adr)) return '{1, FIRST_U(sorted[$].mid), ES_OK, EMPTY_POISON, sorted[$].val};
-                    else return '{1, FIRST_U(sorted[$].mid), ES_INVALID, EMPTY_POISON, 'x};
+                    //if (wordInside(adr, fwEntry.adr)) return '{1, FIRST_U(fwEntry.mid), ES_OK, EMPTY_POISON, fwEntry.val};
+                    //else return '{1, FIRST_U(fwEntry.mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
+                
+                    
+                //    if (!fwEntry.valReady) $display("not ready FW");
+                
+                if (!fwEntry.valReady) return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
+                else if (wordInside(adr, fwEntry.adr)) return '{1, FIRST_U(fwEntry.mid), ES_OK, EMPTY_POISON, fwEntry.val};
+                else return '{1, FIRST_U(fwEntry.mid), ES_INVALID, EMPTY_POISON, 'x};
         
             endfunction 
     endclass

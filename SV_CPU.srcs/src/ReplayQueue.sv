@@ -82,6 +82,9 @@ module ReplayQueue(
         
         foreach (inPackets[i]) begin
             if (!inPackets[i].active) continue;
+            
+                if (inPackets[i].status == ES_NOT_READY) $error("RQ accepts not ready FW");
+            
             content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, inPackets[i].TMP_oid};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end

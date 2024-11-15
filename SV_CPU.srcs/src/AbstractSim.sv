@@ -50,7 +50,7 @@ package AbstractSim;
     localparam UopId UID_NONE = '{-1, -1};
 
 
-    typedef UopId UidT; // TODO: for later change to UopId
+    typedef UopId UidT; // FUTURE change to UopId
     localparam UidT UIDT_NONE = UID_NONE;
 
     function automatic UidT FIRST_U(input InsId id);
@@ -130,15 +130,15 @@ package AbstractSim;
         InsId eventMid;
         ControlOp cOp;
         logic redirect;
-            logic sigOk;
-            logic sigWrong;
+           // logic sigOk;
+            //logic sigWrong;
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, 0, 0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, 0, 0, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, 0, 0, 'x, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, /*0, 0*,*/ 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, /*0, 0,*/ 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, /*0, 0,*/ 'x, IP_INT};
 
     typedef struct {
         int iqRegular;

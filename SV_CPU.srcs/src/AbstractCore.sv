@@ -56,7 +56,7 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
-    // Exec   TODO: encapsulate in backend?
+    // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
@@ -393,7 +393,7 @@ module AbstractCore
         mainUinfo.deps = deps;
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
-        mainUinfo.argError = 0;// TODO: don't set until args are read?
+        mainUinfo.argError = 'x;
 
               //  if (id >= 1839) $display("__ %p", mainUinfo);
                 
@@ -591,7 +591,7 @@ module AbstractCore
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
             coreDB.lastII = insInfo;
-            if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU(FIRST_U(id)); // TODO: last, not first of Mop
+            if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
         verifyOnCommit(id);
 
@@ -754,8 +754,14 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    // TODO: remove these fields from EventInfo
-    assign sig = lateEventInfo.sigOk;
-    assign wrong = lateEventInfo.sigWrong;
+//    assign sig = lateEventInfo.sigOk;
+//    assign wrong = lateEventInfo.sigWrong;
+
+
+//        logic sig_N;
+//        logic wrong_N;
+
+    assign sig = lateEventInfo.cOp == CO_send;
+    assign wrong = lateEventInfo.cOp == CO_undef;
 
 endmodule

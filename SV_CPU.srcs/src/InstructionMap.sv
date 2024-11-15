@@ -33,7 +33,7 @@ package Insmap;
         typedef struct {
             UopId id;
             
-            logic status; // TODO: enum
+            logic status; // FUTURE: enum
             
             UopName name;
             
@@ -698,7 +698,7 @@ package Insmap;
             sd.deps.types = '{default: SRC_ZERO};
             sd.deps.sources = '{default: 0};
             sd.deps.producers = '{default: UIDT_NONE};
-            sd.argError = 0; // TODO: don't set until args are read?
+            sd.argError = 'x;
 
                 sd.deps.types[2] = current.deps.types[2];
                 sd.deps.sources[2] = current.deps.sources[2];
@@ -725,7 +725,7 @@ package Insmap;
             sd.deps.types = '{default: SRC_ZERO};
             sd.deps.sources = '{default: 0};
             sd.deps.producers = '{default: UIDT_NONE};
-            sd.argError = 0; // TODO: don't set until args are read?
+            sd.argError = 'x;
 
                 sd.deps.types[2] = current.deps.types[2];
                 sd.deps.sources[2] = current.deps.sources[2];
