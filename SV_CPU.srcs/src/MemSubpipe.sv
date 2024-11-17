@@ -138,50 +138,22 @@ module MemSubpipe#(
 
     function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-
-        Transaction lastOverlap = AbstractCore.memTracker.checkTransaction_Overlap(U2M(uid));
-        InsId writerOverlapId = lastOverlap.owner;
-
-        logic forwardedE = (writerOverlapId !== -1);
-        logic forwardedA = sqResp.active;
-
         Mword memData = readResp.result;
 
-          //  assert (forwardedE === forwardedA) else $error("different fw: %d, %d", forwardedE, forwardedA);
-
-        if (forwardedA) begin
-            Transaction lastInside = AbstractCore.memTracker.checkTransaction_Inside(U2M(uid));
-            InsId writerInsideId = lastInside.owner;
-            
-            logic notInsideE = (writerOverlapId != writerInsideId);
-            logic notInsideA = (sqResp.status == ES_INVALID);
-            
-            Mword fwValueE = AbstractCore.memTracker.getStoreValue(writerOverlapId);
-            Mword fwValueA = sqResp.result;
-
-            memData = fwValueA;
-            
-            if (notInsideA) begin            
-                //$error("not same overlap %p, %p", decUname(uid), sqResp.status);
+        if (sqResp.active) begin
+            if (sqResp.status == ES_INVALID) begin            
                 res.status = ES_REDO;
                 insMap.setRefetch(U2M(uid));
                 memData = 0; // TMP
             end
-            else begin
-                //Mword actualForwarded = sqResp.result;
-                
-                if (sqResp.status == ES_NOT_READY) begin
-                    res.status = ES_NOT_READY;
-                    insMap.setRefetch(U2M(uid));
-                    memData = 0; // TMP
-                end
-                else begin
-
-                end
-                
+            else if (sqResp.status == ES_NOT_READY) begin
+                res.status = ES_NOT_READY;
+                memData = 0; // TMP
             end
-        
-            putMilestone(uid, InstructionMap::MemFwConsume);
+            else begin
+                memData = sqResp.result;
+                putMilestone(uid, InstructionMap::MemFwConsume);
+            end
         end
 
         insMap.setActualResult(uid, memData);

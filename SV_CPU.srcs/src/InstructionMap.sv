@@ -262,7 +262,7 @@ package Insmap;
         } MilestoneTag;
     
         class MopRecord;
-            MilestoneTag tags[$:20];
+            MilestoneTag tags[$:24];
         endclass
 
         typedef MopRecord UopRecord;
