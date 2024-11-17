@@ -207,7 +207,8 @@ module ExecBlock(ref InstructionMap insMap,
     );
     
     // Mem 0
-    MemSubpipe mem0(
+    MemSubpipe#(.HANDLE_UNALIGNED(1))
+    mem0(
         insMap,
         branchEventInfo,
         lateEventInfo,
