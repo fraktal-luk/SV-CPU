@@ -34,21 +34,19 @@ package Queues;
             logic valReady;
             Mword val;
             logic committed;
-                logic dontForward;
-            //    Mword dataVal;
-            //    logic dataValReady;
+            logic dontForward;
         } Entry;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
     
         
-        static function automatic logic applies(input AbstractInstruction ins);
-            return isStoreIns(ins);
-        endfunction
+//        static function automatic logic applies(input AbstractInstruction ins);
+//            return isStoreIns(ins);
+//        endfunction
 
-            static function automatic logic appliesU(input UopName uname);
-                return isStoreUop(uname);
-            endfunction
+        static function automatic logic appliesU(input UopName uname);
+            return isStoreUop(uname);
+        endfunction
         
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
@@ -57,8 +55,7 @@ package Queues;
             res.adrReady = 0;
             res.valReady = 0;
             res.committed = 0;
-                res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
-            //    res.dataValReady = 0;
+            res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
             return res;
         endfunction
         
@@ -76,9 +73,6 @@ package Queues;
             if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti, UOP_mem_stf, UOP_mem_sts}) begin
                 entry.adrReady = 1;
                 entry.adr = p.result;
-                
-                //entry.valReady = 1;
-                //entry.val = imap.getU(p.TMP_oid).argsA[2];
             end
             else begin
                 assert (imap.getU(p.TMP_oid).name inside {UOP_data_int, UOP_data_fp}) else $fatal(2, "Wrong uop for store data");
@@ -126,26 +120,20 @@ package Queues;
                 if (found.size() == 0) return EMPTY_UOP_PACKET;
                 else if (found.size() == 1) begin
                     fwEntry = found[0];
-                
-                    //if (wordInside(adr, fwEntry.adr)) return '{1, FIRST_U(fwEntry.mid), ES_OK, EMPTY_POISON, fwEntry.val};
-                    //else return '{1, FIRST_U(fwEntry.mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
                 else begin
                     Entry sorted[$] = found[0:$];
                     sorted.sort with (item.mid);
                     fwEntry = sorted[$];
-                    
-                    //if (wordInside(adr, fwEntry.adr)) return '{1, FIRST_U(fwEntry.mid), ES_OK, EMPTY_POISON, fwEntry.val};
-                    //else return '{1, FIRST_U(fwEntry.mid), ES_INVALID, EMPTY_POISON, 'x};
                 end
                 
-                    
-                //    if (!fwEntry.valReady) $display("not ready FW");
-                
-                if (!fwEntry.valReady) return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
-                else if (wordInside(adr, fwEntry.adr)) return '{1, FIRST_U(fwEntry.mid), ES_OK, EMPTY_POISON, fwEntry.val};
-                else return '{1, FIRST_U(fwEntry.mid), ES_INVALID, EMPTY_POISON, 'x};
-        
+                if (!fwEntry.valReady)
+                    return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
+                else if (wordInside(adr, fwEntry.adr))
+                    return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+                else
+                    return '{1, FIRST_U(fwEntry.mid), ES_INVALID,   EMPTY_POISON, 'x};
+
             endfunction 
     endclass
 
@@ -160,13 +148,13 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x};
 
-        static function automatic logic applies(input AbstractInstruction ins);
-            return isLoadIns(ins);
-        endfunction
+//        static function automatic logic applies(input AbstractInstruction ins);
+//            return isLoadIns(ins);
+//        endfunction
 
-            static function automatic logic appliesU(input UopName uname);
-                return isLoadUop(uname);
-            endfunction
+        static function automatic logic appliesU(input UopName uname);
+            return isLoadUop(uname);
+        endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
@@ -244,13 +232,13 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
 
-        static function automatic logic applies(input AbstractInstruction ins);
-            return isBranchIns(ins);
-        endfunction
+//        static function automatic logic applies(input AbstractInstruction ins);
+//            return isBranchIns(ins);
+//        endfunction
 
-            static function automatic logic appliesU(input UopName uname);
-                return isBranchUop(uname);
-            endfunction
+        static function automatic logic appliesU(input UopName uname);
+            return isBranchUop(uname);
+        endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
@@ -260,17 +248,17 @@ package Queues;
             
             res.mid = id;
             
-                res.predictedTaken = 0;
+            res.predictedTaken = 0;
 
-                res.condReady = 0;
-                res.trgReady = isBranchImmIns(abs);
-                
-                res.linkAdr = ii.basicData.adr + 4;
-                
-                // If imm, real target is known
-                if (isBranchImmIns(abs))
-                    res.realTarget = ii.basicData.adr + ui.argsA[1];
-                
+            res.condReady = 0;
+            res.trgReady = isBranchImmIns(abs);
+            
+            res.linkAdr = ii.basicData.adr + 4;
+            
+            // If imm, real target is known
+            if (isBranchImmIns(abs))
+                res.realTarget = ii.basicData.adr + ui.argsA[1];
+            
             return res;
         endfunction
         

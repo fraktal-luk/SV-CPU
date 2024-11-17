@@ -117,7 +117,8 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
-        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
+        if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
+            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
         
         pE2 <= stateE2;
     endtask
@@ -134,52 +135,87 @@ module MemSubpipe#(
     endfunction
 
 
+
+    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+        UopPacket res = p;
+
+        Transaction lastOverlap = AbstractCore.memTracker.checkTransaction_Overlap(U2M(uid));
+        InsId writerOverlapId = lastOverlap.owner;
+
+        logic forwardedE = (writerOverlapId !== -1);
+        logic forwardedA = sqResp.active;
+
+        Mword memData = readResp.result;
+
+          //  assert (forwardedE === forwardedA) else $error("different fw: %d, %d", forwardedE, forwardedA);
+
+        if (forwardedA) begin
+            Transaction lastInside = AbstractCore.memTracker.checkTransaction_Inside(U2M(uid));
+            InsId writerInsideId = lastInside.owner;
+            
+            logic notInsideE = (writerOverlapId != writerInsideId);
+            logic notInsideA = (sqResp.status == ES_INVALID);
+            
+            Mword fwValueE = AbstractCore.memTracker.getStoreValue(writerOverlapId);
+            Mword fwValueA = sqResp.result;
+
+            memData = fwValueA;
+            
+            if (notInsideA) begin            
+                //$error("not same overlap %p, %p", decUname(uid), sqResp.status);
+                res.status = ES_REDO;
+                insMap.setRefetch(U2M(uid));
+                memData = 0; // TMP
+            end
+            else begin
+                //Mword actualForwarded = sqResp.result;
+                
+                if (sqResp.status == ES_NOT_READY) begin
+                    res.status = ES_NOT_READY;
+                    insMap.setRefetch(U2M(uid));
+                    memData = 0; // TMP
+                end
+                else begin
+
+                end
+                
+            end
+        
+            putMilestone(uid, InstructionMap::MemFwConsume);
+        end
+
+        insMap.setActualResult(uid, memData);
+        res.result = memData;
+
+        return res;
+    endfunction
+    
+
     // TOPLEVEL
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-        Mword3 args = getAndVerifyArgs(uid);
+        Mword3 args = getAndVerifyArgs(uid); // TODO: remove this repeated reading of args?
 
-        InsId writerAllId = AbstractCore.memTracker.checkWriter(U2M(uid));
-        InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(U2M(uid));
-        InsId writerInsideId = AbstractCore.memTracker.checkWriter_Inside(U2M(uid));
-    
-        logic forwarded = (writerAllId !== -1);
-        
-        Mword fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        Mword memData = forwarded ? fwValue : readResp.result;
-        Mword data = isLoadSysUop(decUname(uid)) ? getSysReg(args[1]) : memData;
+        if (isLoadMemUop(decUname(uid)))
+            return calcMemLoadE2(p, uid, readResp, sqResp, lqResp);
 
-        if (writerOverlapId != writerInsideId) begin
-            if (HANDLE_UNALIGNED) begin
-                res.status = ES_REDO;
-                insMap.setRefetch(U2M(uid));
-            end
+        if (isLoadSysUop(decUname(uid))) begin
+            Mword val = getSysReg(args[1]);
+            insMap.setActualResult(uid, val);
+            res.result = val;
         end
-        
+
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
             if (lqResp.active) begin
                 insMap.setRefetch(U2M(lqResp.TMP_oid));
             end
         end
-        
-        if (isLoadMemUop(decUname(uid))) begin
 
-        end
-            
-        if (forwarded && isLoadMemUop(decUname(uid))) begin
-                putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
-            putMilestone(uid, InstructionMap::MemFwConsume);
-        end
-
-        insMap.setActualResult(uid, data);
-
-        res.result = data;
+        // For store sys uops: nothing happens in this function
 
         return res;
     endfunction
 
 
 endmodule
-
-

@@ -481,7 +481,7 @@ module ExecBlock(ref InstructionMap insMap,
     function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
         Mword condArg = args[0];
         
-        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed");
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, args);
         
         case (uname)
             UOP_bc_z, UOP_br_z:  return condArg === 0;

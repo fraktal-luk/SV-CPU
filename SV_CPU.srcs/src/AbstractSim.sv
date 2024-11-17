@@ -467,7 +467,8 @@ package AbstractSim;
         if (wb >= aEnd || wa >= bEnd) return 0;
         else return 1;
     endfunction
-
+    
+    // is a inside b
     function automatic logic wordInside(input Mword wa, input Mword wb);
         Mword aEnd = wa + 4; // Exclusive end
         Mword bEnd = wb + 4; // Exclusive end
@@ -484,6 +485,8 @@ package AbstractSim;
         Mword val;
         Mword adrAny; 
     } Transaction;
+
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x};
 
 
     class MemTracker;
@@ -565,29 +568,23 @@ package AbstractSim;
             while (loads.size() != 0 && loads[$].owner > id) void'(loads.pop_back());
         endfunction
 
-        function automatic InsId checkWriter(input InsId id);
+
+        function automatic Transaction checkTransaction_Overlap(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
         
             Transaction read[$] = transactions.find_first with (item.owner == id); 
-            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < id);
-            return (writers.size() == 0) ? -1 : writers[$].owner;
+            Transaction writers[$] = allStores.find with (wordOverlap(item.adr, read[0].adr) && item.owner < id);
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
 
-            function automatic InsId checkWriter_Overlap(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
+        function automatic Transaction checkTransaction_Inside(input InsId id);
+            Transaction allStores[$] = {committedStores, stores};
+        
+            Transaction read[$] = transactions.find_first with (item.owner == id); 
+            Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
+        endfunction
             
-                Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find with (wordOverlap(item.adr, read[0].adr) && item.owner < id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
-
-            function automatic InsId checkWriter_Inside(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
-            
-                Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
 
         function automatic Mword getStoreValue(input InsId id);
             Transaction allStores[$] = {committedStores, stores};

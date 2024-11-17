@@ -202,10 +202,10 @@ module StoreQueue
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
-            
+
             if (active !== 1) continue;
             if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
-                        
+
             resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
             theExecBlock.fromSq[p] <= resb;
         end
