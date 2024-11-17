@@ -719,6 +719,9 @@ module AbstractCore
 
     function automatic UopPacket tickP(input UopPacket op);        
         if (shouldFlushPoison(op.poison)) begin
+//                string str = disasm(
+//                            insMap.get(U2M(op.TMP_oid)).basicData.bits);
+//                $error("%m  this flushed %p; %s\nbecause %p", decUname(op.TMP_oid), str, theExecBlock.memImagesTr[0][0].TMP_oid);
             putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
             return EMPTY_UOP_PACKET;
         end
@@ -744,22 +747,14 @@ module AbstractCore
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         foreach (memStage0[p])
-            if (checkMemDep(poison, memStage0[p]) && memStage0[p].status != ES_OK) return 1;
+            if (checkMemDep(poison, memStage0[p]) && !(memStage0[p].status inside {ES_OK, ES_REDO, ES_INVALID})) begin
+                return 1;
+            end
         return 0;
     endfunction
 
  
-
-
-
     assign insAdr = theFrontend.ipStage[0].adr;
-
-//    assign sig = lateEventInfo.sigOk;
-//    assign wrong = lateEventInfo.sigWrong;
-
-
-//        logic sig_N;
-//        logic wrong_N;
 
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
