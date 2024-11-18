@@ -126,13 +126,13 @@ package Queues;
                     sorted.sort with (item.mid);
                     fwEntry = sorted[$];
                 end
-                
-                if (!fwEntry.valReady)
-                    return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
-                else if (wordInside(adr, fwEntry.adr))
-                    return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
-                else
+
+                if (!wordInside(adr, fwEntry.adr))
                     return '{1, FIRST_U(fwEntry.mid), ES_INVALID,   EMPTY_POISON, 'x};
+                else if (!fwEntry.valReady)
+                    return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
+                else
+                    return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 
             endfunction 
     endclass

@@ -30,7 +30,7 @@ module MemSubpipe#(
     UopPacket stage0, stage0_E;
     
     logic readActive = 0;
-    Mword effAdr = 'x;
+    Mword effAdrE0 = 'x, effAdrE1 = 'x, effAdrE2 = 'x;
 
     assign stage0 = pE2;
     assign stage0_E = pE2_E;
@@ -48,7 +48,7 @@ module MemSubpipe#(
         pD1 <= tickP(pD0);
     end
 
-    assign readReq = '{readActive, effAdr};
+    assign readReq = '{readActive, effAdrE0};
 
 
     assign p0_E = effP(p0);
@@ -104,13 +104,15 @@ module MemSubpipe#(
         adr = getEffectiveAddress(stateE0.TMP_oid);
 
         readActive <= stateE0.active;
-        effAdr <= adr;
+        effAdrE0 <= adr;
 
         pE0 <= updateE0(stateE0, adr);
     endtask
     
     task automatic performE1();
         UopPacket stateE1 = tickP(pE0);
+
+        effAdrE1 <= effAdrE0;
 
         pE1 <= stateE1;
     endtask
@@ -119,6 +121,8 @@ module MemSubpipe#(
         UopPacket stateE2 = tickP(pE1);
         if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
             stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
+        
+        effAdrE2 <= effAdrE1;
         
         pE2 <= stateE2;
     endtask
@@ -141,16 +145,26 @@ module MemSubpipe#(
         Mword memData = readResp.result;
 
         if (sqResp.active) begin
-            if (sqResp.status == ES_INVALID) begin            
+            UidT fwUid = sqResp.TMP_oid;
+            Transaction tr = AbstractCore.memTracker.findStoreAll(U2M(fwUid));
+            assert (tr.owner != -1) else $fatal(2, "Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
+        
+            if (sqResp.status == ES_INVALID) begin //
+                assert (wordOverlap(effAdrE1, tr.adr) && !wordInside(effAdrE1, tr.adr)) else $error("Adr inside or not overlapping");
+                        
                 res.status = ES_REDO;
                 insMap.setRefetch(U2M(uid));
                 memData = 0; // TMP
             end
             else if (sqResp.status == ES_NOT_READY) begin
+                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
+            
                 res.status = ES_NOT_READY;
                 memData = 0; // TMP
             end
             else begin
+                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
+            
                 memData = sqResp.result;
                 putMilestone(uid, InstructionMap::MemFwConsume);
             end

@@ -586,15 +586,21 @@ package AbstractSim;
         endfunction
             
 
-        function automatic Mword getStoreValue(input InsId id);
-            Transaction allStores[$] = {committedStores, stores};
-            Transaction writers[$] = allStores.find with (item.owner == id);
-            return writers[0].val;
-        endfunction
+//        function automatic Mword getStoreValue(input InsId id);
+//            Transaction allStores[$] = {committedStores, stores};
+//            Transaction writers[$] = allStores.find with (item.owner == id);
+//            return writers[0].val;
+//        endfunction
 
         function automatic Transaction findStore(input InsId id);
             Transaction writers[$] = stores.find with (item.owner == id);
-            return writers[0];
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
+        endfunction
+
+        function automatic Transaction findStoreAll(input InsId id);
+            Transaction allStores[$] = {committedStores, stores};
+            Transaction writers[$] = allStores.find with (item.owner == id);
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
         endfunction
 
     endclass
