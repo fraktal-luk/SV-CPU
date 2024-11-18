@@ -33,7 +33,7 @@ package Insmap;
         typedef struct {
             UopId id;
             
-            logic status; // TODO: enum
+            logic status; // FUTURE: enum
             
             UopName name;
             
@@ -262,7 +262,7 @@ package Insmap;
         } MilestoneTag;
     
         class MopRecord;
-            MilestoneTag tags[$:20];
+            MilestoneTag tags[$:24];
         endclass
 
         typedef MopRecord UopRecord;
@@ -306,7 +306,16 @@ package Insmap;
         endfunction
 
         function automatic UopInfo getU(input UidT uid);
-            Unum uIndex = insBase.minfos[U2M(uid)].firstUop + uid.s;
+            Unum uIndex = -1;
+            InstructionInfo ii;
+            
+            assert (insBase.minfos.exists(U2M(uid))) else $fatal(2, "Wrong uid %p, not corresponding to any Mop", uid);
+            
+            ii = insBase.minfos[U2M(uid)];
+            
+            assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
+            
+            uIndex = ii.firstUop + uid.s;
                 assert (uIndex == uid2unum(uid)) else $error("uIndex differes");
 
             assert (insBase.uinfos.exists( uIndex /*U2M(uid)*/)) else $fatal(2, "wrong id %p", uid);
@@ -670,39 +679,72 @@ package Insmap;
     typedef UopInfo UopInfoQ[$];
 
     function automatic UopInfoQ splitUop(input UopInfo uinfo);
+            localparam logic CLEAR_ARG_2 = 1;
+    
         UopInfoQ res;
         UopInfo current = uinfo;
         current.id.s = 0;
+    
+        if (//current.name == UOP_ctrl_sync || 
+            isControlUop(current.name)  ) return res; // 0 uops
         
-            if (current.name == UOP_ctrl_sync) return res;
+    
+        if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
+            UopInfo sd;
+            sd.id = '{current.id.m, 1};
+            sd.name = UOP_data_int;
+            sd.physDest = -1;
+            sd.argsE = '{default: 0};
+            sd.deps.types = '{default: SRC_ZERO};
+            sd.deps.sources = '{default: 0};
+            sd.deps.producers = '{default: UIDT_NONE};
+            sd.argError = 'x;
+
+                sd.deps.types[2] = current.deps.types[2];
+                sd.deps.sources[2] = current.deps.sources[2];
+                sd.deps.producers[2] = current.deps.producers[2];
+                sd.argsE[2] = current.argsE[2];
             
+            if (CLEAR_ARG_2) begin
+                current.deps.types[2] = SRC_ZERO;
+                current.deps.sources[2] = 0;
+                current.deps.producers[2] = UIDT_NONE;
+                current.argsE[2] = 0;
+            end
+            
+            res.push_back(current);
+            res.push_back(sd);
+            return res;
+        end
+        else if (current.name == UOP_mem_stf) begin
+            UopInfo sd;
+            sd.id = '{current.id.m, 1};
+            sd.name = UOP_data_fp;
+            sd.physDest = -1;
+            sd.argsE = '{default: 0};
+            sd.deps.types = '{default: SRC_ZERO};
+            sd.deps.sources = '{default: 0};
+            sd.deps.producers = '{default: UIDT_NONE};
+            sd.argError = 'x;
+
+                sd.deps.types[2] = current.deps.types[2];
+                sd.deps.sources[2] = current.deps.sources[2];
+                sd.deps.producers[2] = current.deps.producers[2];
+                sd.argsE[2] = current.argsE[2];
+            
+            if (CLEAR_ARG_2) begin
+                current.deps.types[2] = SRC_ZERO;
+                current.deps.sources[2] = 0;
+                current.deps.producers[2] = UIDT_NONE;
+                current.argsE[2] = 0;
+            end
+            
+            res.push_back(current);
+            res.push_back(sd);
+            return res;
+        end
+
         res.push_back(current);
-        
-            if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
-                UopInfo sd;
-                sd.id = '{current.id.m, 1};
-                sd.name = UOP_data_int;
-                sd.physDest = -1;
-                sd.deps.producers = '{default: UIDT_NONE};
-                sd.argError = 0; // TODO: don't set until args are read?
-                
-                  //  $display("%p\n%p", current, sd);
-                
-                res.push_back(sd);
-            end
-            else if (current.name == UOP_mem_stf) begin
-                UopInfo sd;
-                sd.id = '{current.id.m, 1};
-                sd.name = UOP_data_fp;
-                sd.physDest = -1;
-                sd.deps.producers = '{default: UIDT_NONE};
-                sd.argError = 0; // TODO: don't set until args are read?
-                
-                  //  $display("%p\n%p", current, sd);
-                
-                res.push_back(sd);
-            end
-            
         return res;
     endfunction
 

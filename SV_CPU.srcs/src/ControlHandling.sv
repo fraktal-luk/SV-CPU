@@ -20,7 +20,7 @@ package ControlHandling;
             CO_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
-                res.sigWrong = 1;
+                //res.sigWrong = 1;
             end
             CO_call: begin
                 res.target = IP_CALL;
@@ -45,7 +45,7 @@ package ControlHandling;
             CO_send: begin
                 res.target = adr + 4;
                 res.redirect = 1;
-                res.sigOk = 1;
+                //res.sigOk = 1;
             end
             default: ;                            
         endcase
@@ -98,7 +98,7 @@ package ControlHandling;
 
 
     function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception);
-        EventInfo res = '{1, id, CO_none, 1, 0, 0, adr, 'x};
+        EventInfo res = '{1, id, CO_none, 1, /*0, 0,*/ adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;

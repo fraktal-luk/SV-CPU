@@ -114,6 +114,13 @@ module StoreQueue
             nOut++;
                 
             putMilestoneM(thisId, QUEUE_EXIT);
+            
+            if (IS_STORE_QUEUE) begin
+                Mword actualAdr = HELPER::getAdr(content_N[startPointer % SIZE]);
+                Mword actualVal = HELPER::getVal(content_N[startPointer % SIZE]);
+                
+                checkStore(content_N[startPointer % SIZE].mid, actualAdr, actualVal);
+            end
 
             if (SQ_RETAIN && IS_STORE_QUEUE) begin
                 HELPER::setCommitted(content_N[startPointer % SIZE]);
@@ -148,10 +155,26 @@ module StoreQueue
             
             begin
                int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
+               
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $error("Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
+               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
+               
+               putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
             end
-        end 
+        end
+        
+        // 
+        if (IS_STORE_QUEUE) begin
+            UopPacket dataUop = theExecBlock.sysE0_E;
+            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
+                int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
+                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
+                
+                HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
+                
+                putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+            end
+        end
     endtask
 
 
@@ -179,10 +202,10 @@ module StoreQueue
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
-            
+
             if (active !== 1) continue;
             if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
-                        
+
             resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
             theExecBlock.fromSq[p] <= resb;
         end
@@ -207,5 +230,15 @@ module StoreQueue
         end
     endtask
 
-    
+
+    // Used once by Mem subpipes
+    function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
+        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
+        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find with (item.owner == mid); // ... so may be already here
+                
+        if (insMap.get(mid).mainUop == UOP_mem_sts) return; // Not checking sys stores
+        
+        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
+    endfunction
+
 endmodule

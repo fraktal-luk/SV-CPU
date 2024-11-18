@@ -30,7 +30,7 @@ module MemSubpipe#(
     UopPacket stage0, stage0_E;
     
     logic readActive = 0;
-    Mword effAdr = 'x, storeValue = 'x;
+    Mword effAdrE0 = 'x, effAdrE1 = 'x, effAdrE2 = 'x;
 
     assign stage0 = pE2;
     assign stage0_E = pE2_E;
@@ -48,7 +48,7 @@ module MemSubpipe#(
         pD1 <= tickP(pD0);
     end
 
-    assign readReq = '{readActive, effAdr};
+    assign readReq = '{readActive, effAdrE0};
 
 
     assign p0_E = effP(p0);
@@ -98,30 +98,31 @@ module MemSubpipe#(
     
     task automatic performE0();
         Mword adr;
-        Mword val;
     
         UopPacket stateE0 = tickP(p1);
 
         adr = getEffectiveAddress(stateE0.TMP_oid);
-        val = getStoreValue(stateE0.TMP_oid);
 
         readActive <= stateE0.active;
-        effAdr <= adr;
-        storeValue <= val;
+        effAdrE0 <= adr;
 
         pE0 <= updateE0(stateE0, adr);
     endtask
     
     task automatic performE1();
         UopPacket stateE1 = tickP(pE0);
-        if (stateE1.active && stateE1.status == ES_OK) performStore_Dummy(stateE1.TMP_oid, effAdr, storeValue);
+
+        effAdrE1 <= effAdrE0;
 
         pE1 <= stateE1;
     endtask
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
-        if (stateE2.active) stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
+        if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
+            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
+        
+        effAdrE2 <= effAdrE1;
         
         pE2 <= stateE2;
     endtask
@@ -132,14 +133,6 @@ module MemSubpipe#(
         return calcEffectiveAddress(getAndVerifyArgs(uid));
     endfunction
 
-    function automatic Mword getStoreValue(input UidT uid);
-        if (uid == UIDT_NONE) return 'x;
-        begin
-            Mword3 args = getAndVerifyArgs(uid);
-            return args[2];
-        end
-    endfunction
-
 
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
@@ -147,66 +140,68 @@ module MemSubpipe#(
 
 
 
-    task automatic performStore_Dummy(input UidT uid, input Mword adr, input Mword val);
-        if (isStoreMemUop(decUname(uid))) begin
-            checkStoreValue(uid, adr, val);
-            putMilestone(uid, InstructionMap::WriteMemAddress);
-            putMilestone(uid, InstructionMap::WriteMemValue);
+    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+        UopPacket res = p;
+        Mword memData = readResp.result;
+
+        if (sqResp.active) begin
+            UidT fwUid = sqResp.TMP_oid;
+            Transaction tr = AbstractCore.memTracker.findStoreAll(U2M(fwUid));
+            assert (tr.owner != -1) else $fatal(2, "Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
+        
+            if (sqResp.status == ES_INVALID) begin //
+                assert (wordOverlap(effAdrE1, tr.adr) && !wordInside(effAdrE1, tr.adr)) else $error("Adr inside or not overlapping");
+                        
+                res.status = ES_REDO;
+                insMap.setRefetch(U2M(uid));
+                memData = 0; // TMP
+            end
+            else if (sqResp.status == ES_NOT_READY) begin
+                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
+            
+                res.status = ES_NOT_READY;
+                memData = 0; // TMP
+            end
+            else begin
+                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
+            
+                memData = sqResp.result;
+                putMilestone(uid, InstructionMap::MemFwConsume);
+            end
         end
-    endtask
+
+        insMap.setActualResult(uid, memData);
+        res.result = memData;
+
+        return res;
+    endfunction
+    
 
     // TOPLEVEL
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-        Mword3 args = getAndVerifyArgs(uid);
+        Mword3 args = getAndVerifyArgs(uid); // TODO: remove this repeated reading of args?
 
-        InsId writerAllId = AbstractCore.memTracker.checkWriter(U2M(uid));
-        InsId writerOverlapId = AbstractCore.memTracker.checkWriter_Overlap(U2M(uid));
-        InsId writerInsideId = AbstractCore.memTracker.checkWriter_Inside(U2M(uid));
-    
-        logic forwarded = (writerAllId !== -1);
-        
-        Mword fwValue = AbstractCore.memTracker.getStoreValue(writerAllId);
-        Mword memData = forwarded ? fwValue : readResp.result;
-        Mword data = isLoadSysUop(decUname(uid)) ? getSysReg(args[1]) : memData;
+        if (isLoadMemUop(decUname(uid)))
+            return calcMemLoadE2(p, uid, readResp, sqResp, lqResp);
 
-        if (writerOverlapId != writerInsideId) begin
-            if (HANDLE_UNALIGNED) begin
-                res.status = ES_REDO;
-                insMap.setRefetch(U2M(uid));
-            end
+        if (isLoadSysUop(decUname(uid))) begin
+            Mword val = getSysReg(args[1]);
+            insMap.setActualResult(uid, val);
+            res.result = val;
         end
-        
+
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
             if (lqResp.active) begin
                 insMap.setRefetch(U2M(lqResp.TMP_oid));
             end
         end
-        
-        if (isLoadMemUop(decUname(uid))) begin
-            // TODO: make sure the behavior is correct
-            //assert (forwarded === sqResp.active) else $error("Wrong forward state");
-        end
-            
-        if (forwarded && isLoadMemUop(decUname(uid))) begin
-                putMilestoneC(writerAllId, InstructionMap::MemFwProduce);
-            putMilestone(uid, InstructionMap::MemFwConsume);
-        end
 
-        insMap.setActualResult(uid, data);
-
-        res.result = data;
+        // For store sys uops: nothing happens in this function
 
         return res;
     endfunction
 
-    // Used once by Mem subpipes
-    function automatic void checkStoreValue(input UidT uid, input Mword adr, input Mword value);
-        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == U2M(uid));
-        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: op %p, %d@%d", uid, value, adr);
-    endfunction
 
 endmodule
-
-

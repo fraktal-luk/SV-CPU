@@ -93,6 +93,47 @@ endmodule
 
 
 
+module StoreDataSubpipe(
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input UopPacket opP
+);
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
+    UopPacket stage0, stage0_E;
+
+    assign stage0 = pE0;
+    assign stage0_E = pE0_E;
+
+    assign p0 = opP;
+
+    always @(posedge AbstractCore.clk) begin
+        p1 <= tickP(p0);
+        pE0 <= performStoreData(tickP(p1));
+        pD0 <= tickP(pE0);
+        pD1 <= tickP(pD0);
+    end
+
+    assign p0_E = effP(p0);
+    assign p1_E = effP(p1);
+    assign pE0_E = effP(pE0);
+    assign pD0_E = effP(pD0);
+
+    ForwardingElement image_E[-3:1];
+    
+    assign image_E = '{
+        -2: p0_E,
+        -1: p1_E,
+        0: pE0_E,
+        1: pD0_E,
+        default: EMPTY_FORWARDING_ELEMENT
+    };
+
+endmodule
+
+
+
 module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
@@ -104,7 +145,7 @@ module ExecBlock(ref InstructionMap insMap,
     
     UopPacket doneFloat0,  doneFloat1; 
     
-    UopPacket doneSys = EMPTY_UOP_PACKET;
+    UopPacket doneSys ;// = EMPTY_UOP_PACKET;
     
 
     UopPacket doneRegular0_E, doneRegular1_E;
@@ -115,6 +156,11 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneFloat0_E, doneFloat1_E; 
     
     UopPacket doneSys_E;
+
+
+    UopPacket sysE0 //= EMPTY_UOP_PACKET
+              , sysE0_E;
+
 
 
     DataReadReq readReqs[N_MEM_PORTS];
@@ -161,7 +207,8 @@ module ExecBlock(ref InstructionMap insMap,
     );
     
     // Mem 0
-    MemSubpipe mem0(
+    MemSubpipe#(.HANDLE_UNALIGNED(1))
+    mem0(
         insMap,
         branchEventInfo,
         lateEventInfo,
@@ -203,15 +250,28 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedFloatP[1]
     );
 
+
+    StoreDataSubpipe storeData0(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedSysP[0]
+    );
+
+
+
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
 
 
     always @(posedge AbstractCore.clk) begin
-       doneSys <= tickP(theIssueQueues.issuedSysP[0]);
+      // sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
+      // doneSys <= tickP(sysE0);
+                        //theIssueQueues.issuedSysP[0]);
     end
 
-    assign doneSys_E = effP(doneSys);
+   // assign sysE0_E = effP(sysE0);
+   // assign doneSys_E = effP(doneSys);
 
 
     ReplayQueue replayQueue(
@@ -228,12 +288,12 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic UopPacket memToComplete(input UopPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO})) return EMPTY_UOP_PACKET;
+        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID})) return EMPTY_UOP_PACKET;
         else return p;
     endfunction
 
     function automatic UopPacket memToReplay(input UopPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO})) return p;
+        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID})) return p;
         else return EMPTY_UOP_PACKET;
     endfunction
 
@@ -249,6 +309,10 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
+        assign doneSys = storeData0.stage0;
+
+
+
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
@@ -258,6 +322,12 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
+
+        assign doneSys_E = storeData0.stage0_E;
+
+
+      assign sysE0 = storeData0.stage0;
+      assign sysE0_E = storeData0.stage0_E;
 
 
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
@@ -405,14 +475,14 @@ module ExecBlock(ref InstructionMap insMap,
 
         AbstractCore.branchTargetQueue[ind[0]].target = trg;
         AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, 0, 0, adr, trg};
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir,/* 0, 0,*/ adr, trg};
     endtask
 
 
     function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
         Mword condArg = args[0];
         
-        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed");
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, args);
         
         case (uname)
             UOP_bc_z, UOP_br_z:  return condArg === 0;
@@ -429,6 +499,25 @@ module ExecBlock(ref InstructionMap insMap,
             default: $fatal(2, "Wrong branch uop");
         endcase  
     endfunction
+
+
+
+
+    function automatic UopPacket performStoreData(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
+        
+           // if (p.TMP_oid.m > 1839) $display("... sd: %p", p.TMP_oid);
+        
+        begin
+            UopName uname = insMap.getU(p.TMP_oid).name;
+            Mword3 args//;
+                        = getAndVerifyArgs(p.TMP_oid);
+            UopPacket res = p;
+            res.result = args[2];
+            return res;
+        end
+    endfunction
+
 
 
 

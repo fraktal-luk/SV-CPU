@@ -56,7 +56,7 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
 
-    // Exec   TODO: encapsulate in backend?
+    // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
@@ -393,8 +393,11 @@ module AbstractCore
         mainUinfo.deps = deps;
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
-        mainUinfo.argError = 0;// TODO: don't set until args are read?
-            
+        mainUinfo.argError = 'x;
+
+              //  if (id >= 1839) $display("__ %p", mainUinfo);
+                
+
         uInfos = splitUop(mainUinfo);
             ii.nUops = uInfos.size();
             
@@ -524,7 +527,7 @@ module AbstractCore
             if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
                 assert (uinfo.resultA === uinfo.resultE) else
                     $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
-            assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %d", id);
+            assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %p\n%p", id, uinfo);
         end
     endfunction
 
@@ -588,7 +591,7 @@ module AbstractCore
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
             coreDB.lastII = insInfo;
-            coreDB.lastUI = insMap.getU(FIRST_U(id)); // TODO: last, not first of Mop
+            if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
         verifyOnCommit(id);
 
@@ -716,6 +719,9 @@ module AbstractCore
 
     function automatic UopPacket tickP(input UopPacket op);        
         if (shouldFlushPoison(op.poison)) begin
+//                string str = disasm(
+//                            insMap.get(U2M(op.TMP_oid)).basicData.bits);
+//                $error("%m  this flushed %p; %s\nbecause %p", decUname(op.TMP_oid), str, theExecBlock.memImagesTr[0][0].TMP_oid);
             putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
             return EMPTY_UOP_PACKET;
         end
@@ -741,18 +747,16 @@ module AbstractCore
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         foreach (memStage0[p])
-            if (checkMemDep(poison, memStage0[p]) && memStage0[p].status != ES_OK) return 1;
+            if (checkMemDep(poison, memStage0[p]) && !(memStage0[p].status inside {ES_OK, ES_REDO, ES_INVALID})) begin
+                return 1;
+            end
         return 0;
     endfunction
 
  
-
-
-
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    // TODO: remove these fields from EventInfo
-    assign sig = lateEventInfo.sigOk;
-    assign wrong = lateEventInfo.sigWrong;
+    assign sig = lateEventInfo.cOp == CO_send;
+    assign wrong = lateEventInfo.cOp == CO_undef;
 
 endmodule

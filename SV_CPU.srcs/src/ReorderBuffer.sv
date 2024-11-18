@@ -209,8 +209,6 @@ module ReorderBuffer
     task automatic markPacketCompleted(input UopPacket p);         
         if (!p.active) return;
         
-            // TODO: take into account that number of uops may differ
-        
         for (int r = 0; r < DEPTH; r++)
             for (int c = 0; c < WIDTH; c++)
                 if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
@@ -259,24 +257,10 @@ module ReorderBuffer
         OpRecordA res = '{default: EMPTY_RECORD};
         foreach (ops[i]) begin
             if (ops[i].active) begin
-            
                 int nUops = insMap.get(ops[i].mid).nUops;
-                
-                CompletedVec initialCompleted = //'{default: 0};
-                                                initCompletedVec(nUops);
-                
+                CompletedVec initialCompleted = initCompletedVec(nUops);
                 res[i] = '{ops[i].mid, initialCompleted};
             end
-            else
-                res[i] = '{-1, '{default: 'x}};
-        
-//            // TODO: 'completed' must have number of 0's equal to nUops
-//            int nUops = insMap.get(ops[i].mid).nUops;
-            
-//            CompletedVec initialCompleted = //'{default: 0};
-//                                            initCompletedVec(nUops);
-            
-//            res[i] = ops[i].active ? '{ops[i].mid, initialCompleted} : '{-1, '{default: 'x}};
         end
         return res;
     endfunction
@@ -290,8 +274,6 @@ module ReorderBuffer
         
         foreach (rec[i]) begin
             putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
-            
-                // TODO: also RobComplete if 0 uops
             if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
         end
     endtask

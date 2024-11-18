@@ -50,7 +50,7 @@ package AbstractSim;
     localparam UopId UID_NONE = '{-1, -1};
 
 
-    typedef UopId UidT; // TODO: for later change to UopId
+    typedef UopId UidT; // FUTURE change to UopId
     localparam UidT UIDT_NONE = UID_NONE;
 
     function automatic UidT FIRST_U(input InsId id);
@@ -130,15 +130,15 @@ package AbstractSim;
         InsId eventMid;
         ControlOp cOp;
         logic redirect;
-            logic sigOk;
-            logic sigWrong;
+           // logic sigOk;
+            //logic sigWrong;
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, 0, 0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, 0, 0, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, 0, 0, 'x, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, /*0, 0*,*/ 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, /*0, 0,*/ 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, /*0, 0,*/ 'x, IP_INT};
 
     typedef struct {
         int iqRegular;
@@ -467,7 +467,8 @@ package AbstractSim;
         if (wb >= aEnd || wa >= bEnd) return 0;
         else return 1;
     endfunction
-
+    
+    // is a inside b
     function automatic logic wordInside(input Mword wa, input Mword wb);
         Mword aEnd = wa + 4; // Exclusive end
         Mword bEnd = wb + 4; // Exclusive end
@@ -484,6 +485,8 @@ package AbstractSim;
         Mword val;
         Mword adrAny; 
     } Transaction;
+
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x};
 
 
     class MemTracker;
@@ -532,6 +535,9 @@ package AbstractSim;
         endfunction
 
         function automatic void remove(input InsId id);
+        
+            //    if (id > 4600) $error("Memtracker remove %d", id);
+        
             assert (transactions[0].owner == id) begin
                 void'(transactions.pop_front());
                 if (stores.size() != 0 && stores[0].owner == id) begin
@@ -562,39 +568,39 @@ package AbstractSim;
             while (loads.size() != 0 && loads[$].owner > id) void'(loads.pop_back());
         endfunction
 
-        function automatic InsId checkWriter(input InsId id);
+
+        function automatic Transaction checkTransaction_Overlap(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
         
             Transaction read[$] = transactions.find_first with (item.owner == id); 
-            Transaction writers[$] = allStores.find with (item.adr == read[0].adr && item.owner < id);
-            return (writers.size() == 0) ? -1 : writers[$].owner;
+            Transaction writers[$] = allStores.find with (wordOverlap(item.adr, read[0].adr) && item.owner < id);
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
 
-            function automatic InsId checkWriter_Overlap(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
-            
-                Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find with (wordOverlap(item.adr, read[0].adr) && item.owner < id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
-
-            function automatic InsId checkWriter_Inside(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
-            
-                Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
-                return (writers.size() == 0) ? -1 : writers[$].owner;
-            endfunction
-
-        function automatic Mword getStoreValue(input InsId id);
+        function automatic Transaction checkTransaction_Inside(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
-            Transaction writers[$] = allStores.find with (item.owner == id);
-            return writers[0].val;
+        
+            Transaction read[$] = transactions.find_first with (item.owner == id); 
+            Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
+            
+
+//        function automatic Mword getStoreValue(input InsId id);
+//            Transaction allStores[$] = {committedStores, stores};
+//            Transaction writers[$] = allStores.find with (item.owner == id);
+//            return writers[0].val;
+//        endfunction
 
         function automatic Transaction findStore(input InsId id);
             Transaction writers[$] = stores.find with (item.owner == id);
-            return writers[0];
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
+        endfunction
+
+        function automatic Transaction findStoreAll(input InsId id);
+            Transaction allStores[$] = {committedStores, stores};
+            Transaction writers[$] = allStores.find with (item.owner == id);
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
         endfunction
 
     endclass
