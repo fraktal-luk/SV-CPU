@@ -379,14 +379,15 @@ module ExecBlock(ref InstructionMap insMap,
     function automatic Mword calcRegularOp(input UidT uid);
         UopName uname = insMap.getU(uid).name;
         Mword3 args = getAndVerifyArgs(uid);
-        Mword result = calcArith(uname, args);  
+        Mword lk = getAdr(U2M(uid)) + 4;
+        Mword result = calcArith(uname, args, lk);  
         insMap.setActualResult(uid, result);
         
         return result;
     endfunction
 
 
-    function automatic Mword calcArith(UopName name, Mword args[3]);
+    function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
         Mword res = 'x;
         
         case (name)
@@ -419,6 +420,9 @@ module ExecBlock(ref InstructionMap insMap,
             UOP_int_remu:  res = $unsigned(args[0]) % $unsigned(args[1]);
             UOP_int_rems:  res = remSignedW(args[0], args[1]);
            
+            
+            UOP_int_link: res = linkAdr;
+            
             
             // FP
             UOP_fp_move:   res = args[0];

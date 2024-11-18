@@ -760,14 +760,18 @@ package AbstractSim;
 
          UOP_mem_lds,
         
-         UOP_br_z,
-         UOP_br_nz,
-         UOP_bc_l,
+             
+
+             UOP_br_z,  // Branch reg, with link
+             UOP_br_nz, // Branch reg, with link
+             UOP_bc_l,  // Branch link, with link
+
+            UOP_int_link,
 
 
-             UOP_bc_z,
-             UOP_bc_nz,
-             UOP_bc_a
+                 UOP_bc_z,  // Branch imm 
+                 UOP_bc_nz, // Branch imm
+                 UOP_bc_a   // Branch always
         };
     endfunction
 

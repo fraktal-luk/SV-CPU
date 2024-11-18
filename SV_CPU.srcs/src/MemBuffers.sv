@@ -163,7 +163,7 @@ module StoreQueue
             end
         end
         
-        // 
+        // Update store data
         if (IS_STORE_QUEUE) begin
             UopPacket dataUop = theExecBlock.sysE0_E;
             if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
