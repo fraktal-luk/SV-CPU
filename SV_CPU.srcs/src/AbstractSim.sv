@@ -248,6 +248,8 @@ package AbstractSim;
             function automatic int reserve(input int vDest, input WriterId id);
                 int pDest = findFree();
                 
+                 //   if (vDest == -1) $error("reerving -1");
+                
                 if (!ignoreV(vDest)) begin
                     writersR[vDest] = id;
                     info[pDest] = '{SPECULATIVE, id};
@@ -357,8 +359,12 @@ package AbstractSim;
 
           
         function automatic int reserve(input UopName name, input int dest, input WriterId id);
+            //    if (dest == -1) $error("reserving -1");
+            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
-            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);  
+            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
+            
+            //    $error("pseudo vDest = %d", dest);
             return -1;
         endfunction
 
@@ -762,16 +768,16 @@ package AbstractSim;
         
              
 
-             UOP_br_z,  // Branch reg, with link
-             UOP_br_nz, // Branch reg, with link
-             UOP_bc_l,  // Branch link, with link
+          //   UOP_br_z,  // Branch reg, with link
+          //   UOP_br_nz, // Branch reg, with link
+          //   UOP_bc_l,  // Branch link, with link
 
-            UOP_int_link,
+            UOP_int_link //,
 
 
-                 UOP_bc_z,  // Branch imm 
-                 UOP_bc_nz, // Branch imm
-                 UOP_bc_a   // Branch always
+//                 UOP_bc_z,  // Branch imm 
+//                 UOP_bc_nz, // Branch imm
+//                 UOP_bc_a   // Branch always
         };
     endfunction
 

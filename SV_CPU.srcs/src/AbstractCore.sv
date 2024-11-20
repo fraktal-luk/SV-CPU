@@ -407,6 +407,8 @@ module AbstractCore
             UopInfo uInfo = uInfos[u];
             int thisPhysDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
 
+                if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
+
             uInfos[u].physDest = thisPhysDest;
         end
 

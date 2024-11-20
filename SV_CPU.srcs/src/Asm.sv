@@ -216,7 +216,7 @@ package Asm;
         int qc = w[9:5];        
         int qd = w[4:0];        
 
-        int dest;
+        int dest = -1;
         int sources[3];
 
         if ($isunknown(w)) begin
@@ -229,7 +229,8 @@ package Asm;
             "b": dest = qb;
             "c": dest = qc;
             "d": dest = qd;
-            "0", " ": ;
+            "0": dest = 0;
+            " ": ;
             default: $fatal("Wrong dest specifier");
         endcase
 
