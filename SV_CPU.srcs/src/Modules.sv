@@ -145,7 +145,7 @@ module ExecBlock(ref InstructionMap insMap,
     
     UopPacket doneFloat0,  doneFloat1; 
     
-    UopPacket doneSys ;// = EMPTY_UOP_PACKET;
+    UopPacket doneSys;
     
 
     UopPacket doneRegular0_E, doneRegular1_E;
@@ -158,8 +158,7 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneSys_E;
 
 
-    UopPacket sysE0 //= EMPTY_UOP_PACKET
-              , sysE0_E;
+    UopPacket sysE0, sysE0_E;
 
 
 
@@ -263,15 +262,6 @@ module ExecBlock(ref InstructionMap insMap,
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
 
-
-//    always @(posedge AbstractCore.clk) begin
-//      // sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
-//      // doneSys <= tickP(sysE0);
-//                        //theIssueQueues.issuedSysP[0]);
-//    end
-
-//   // assign sysE0_E = effP(sysE0);
-//   // assign doneSys_E = effP(doneSys);
 
 
     ReplayQueue replayQueue(
@@ -440,46 +430,53 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-
+    // TOPLEVEL
     function automatic UopPacket performBranchE0(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
-        begin
-            //UopPacket res = p;
-            //res.result = getBranchResult(p.active, p.TMP_oid);
-            return p;
-        end
+
+        
+        return p;
     endfunction
 
-    // TOPLEVEL
+
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
         if (!active) return;
-        //insMap.setActualResult(uid, getBranchResult(1, uid));
 
         setBranchInCore(uid);
         putMilestone(uid, InstructionMap::ExecRedirect);
     endtask
 
-//    function automatic Mword getBranchResult(input logic active, input UidT uid);
-//        if (!active) return 'x;
-//        else return getAdr(U2M(uid)) + 4;
-//    endfunction
 
     task automatic setBranchInCore(input UidT uid);
         UopName uname = insMap.getU(uid).name;
         Mword3 args = getAndVerifyArgs(uid);
         Mword adr = getAdr(U2M(uid));
         
-        logic dir = resolveBranchDirection(uname, args);
-        Mword takenTrg = takenTarget(uname, adr, args);
-
-        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid));
-        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));
+        logic dir = resolveBranchDirection(uname, args);// reg
+        Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
         Mword trg = dir ? takenTrg : adr + 4;
 
-        AbstractCore.branchTargetQueue[ind[0]].target = trg;
-        AbstractCore.branchCP = found[0];
+        //BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid)); // Independent
+
+       // int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));        // Independent
+       // AbstractCore.branchTargetQueue[ind[0]].target = trg;
+
+        setBtqTarget(uid, trg);
+        setCurrentCp(uid);
+
+        //AbstractCore.branchCP = found[0];
         AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir,/* 0, 0,*/ adr, trg};
+    endtask
+
+
+    task automatic setBtqTarget(input UidT uid, input Mword target);
+        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));        // Independent
+        AbstractCore.branchTargetQueue[ind[0]].target = target;
+    endtask
+
+    task automatic setCurrentCp(input UidT uid);
+        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid)); // Independent
+        AbstractCore.branchCP = found[0];
     endtask
 
 
@@ -509,14 +506,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     function automatic UopPacket performStoreData(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
-        
-           // if (p.TMP_oid.m > 1839) $display("... sd: %p", p.TMP_oid);
-        
+                
         begin
-            UopName uname = insMap.getU(p.TMP_oid).name;
-            Mword3 args//;
-                        = getAndVerifyArgs(p.TMP_oid);
             UopPacket res = p;
+            Mword3 args = getAndVerifyArgs(p.TMP_oid);
             res.result = args[2];
             return res;
         end
