@@ -264,14 +264,14 @@ module ExecBlock(ref InstructionMap insMap,
     assign readReqs[3] = EMPTY_READ_REQ;
 
 
-    always @(posedge AbstractCore.clk) begin
-      // sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
-      // doneSys <= tickP(sysE0);
-                        //theIssueQueues.issuedSysP[0]);
-    end
+//    always @(posedge AbstractCore.clk) begin
+//      // sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
+//      // doneSys <= tickP(sysE0);
+//                        //theIssueQueues.issuedSysP[0]);
+//    end
 
-   // assign sysE0_E = effP(sysE0);
-   // assign doneSys_E = effP(doneSys);
+//   // assign sysE0_E = effP(sysE0);
+//   // assign doneSys_E = effP(doneSys);
 
 
     ReplayQueue replayQueue(
@@ -444,9 +444,9 @@ module ExecBlock(ref InstructionMap insMap,
     function automatic UopPacket performBranchE0(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
         begin
-            UopPacket res = p;
-            res.result = getBranchResult(p.active, p.TMP_oid);
-            return res;
+            //UopPacket res = p;
+            //res.result = getBranchResult(p.active, p.TMP_oid);
+            return p;
         end
     endfunction
 
@@ -454,16 +454,16 @@ module ExecBlock(ref InstructionMap insMap,
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
         if (!active) return;
-        insMap.setActualResult(uid, getBranchResult(1, uid));
+        //insMap.setActualResult(uid, getBranchResult(1, uid));
 
         setBranchInCore(uid);
         putMilestone(uid, InstructionMap::ExecRedirect);
     endtask
 
-    function automatic Mword getBranchResult(input logic active, input UidT uid);
-        if (!active) return 'x;
-        else return getAdr(U2M(uid)) + 4;
-    endfunction
+//    function automatic Mword getBranchResult(input logic active, input UidT uid);
+//        if (!active) return 'x;
+//        else return getAdr(U2M(uid)) + 4;
+//    endfunction
 
     task automatic setBranchInCore(input UidT uid);
         UopName uname = insMap.getU(uid).name;
