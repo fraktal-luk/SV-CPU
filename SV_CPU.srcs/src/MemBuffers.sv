@@ -49,14 +49,19 @@ module StoreQueue
 
     QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
 
+    Mword lookupTarget = 'x, execTarget = 'x;
+    Mword lookupLink = 'x, execLink = 'x;
+
 
     always @(posedge AbstractCore.clk) begin    
         advance();
 
         if (IS_STORE_QUEUE) handleForwardsS();
         if (IS_LOAD_QUEUE)  handleHazardsL();
+        if (IS_BRANCH_QUEUE) handleBranch();
     
         update();
+    
     
         if (lateEventInfo.redirect)
             flushAll();
@@ -115,6 +120,9 @@ module StoreQueue
                 
             putMilestoneM(thisId, QUEUE_EXIT);
             
+            
+                HELPER::verifyOnCommit(insMap, content_N[startPointer % SIZE]);
+            
             if (IS_STORE_QUEUE) begin
                 Mword actualAdr = HELPER::getAdr(content_N[startPointer % SIZE]);
                 Mword actualVal = HELPER::getVal(content_N[startPointer % SIZE]);
@@ -159,7 +167,7 @@ module StoreQueue
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
                else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
                
-               putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
+               putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress); // TODO: diffrentiate for BQ
             end
         end
         
@@ -227,6 +235,26 @@ module StoreQueue
             
             resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      
+        end
+    endtask
+
+
+    task automatic handleBranch();    
+        UopPacket p = theExecBlock.branch0.p1_E;
+        
+        lookupTarget <= 'x;
+        lookupLink <= 'x;
+        
+        if (!p.active) return; 
+        
+        begin
+            int arrayIndex[$] = content_N.find_index with (item.mid == U2M(p.TMP_oid));
+            
+            Mword trg = HELPER::getAdr(content_N[arrayIndex[0]]);
+            Mword link = HELPER::getLink(content_N[arrayIndex[0]]);
+            
+            lookupTarget <= trg;
+            lookupLink <= link;
         end
     endtask
 

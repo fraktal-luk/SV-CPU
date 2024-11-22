@@ -36,7 +36,7 @@ module AbstractCore
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
     
-    BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE];
+    BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE]; // TODO: remove when BQ starts providing taken targets at Commit
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
     //..............................
@@ -65,7 +65,7 @@ module AbstractCore
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
     //    Events evts;
 
-    BranchCheckpoint branchCP;
+    //BranchCheckpoint branchCP;
 
 
     // Store interface
@@ -760,5 +760,11 @@ module AbstractCore
 
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
+
+
+        task automatic setBtqTarget_N(input InsId id, input Mword target);
+            int ind[$] = branchTargetQueue.find_first_index with (item.id == id);
+            branchTargetQueue[ind[0]].target = target;
+        endtask
 
 endmodule

@@ -59,7 +59,9 @@ module BranchSubpipe(
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
-        
+
+
+  
     assign stage0 = pE0;
     assign stage0_E = pE0_E;
                       
@@ -72,6 +74,15 @@ module BranchSubpipe(
         pD1 <= tickP(pD0);
 
         runExecBranch(p1_E.active, p1_E.TMP_oid);
+        
+        
+//        if (p1_E.active) begin
+//           // setCurrentCp(U2M(p1_E.TMP_oid));
+//        end
+        
+        if (!AbstractCore.lateEventInfo.redirect && AbstractCore.branchEventInfo.active) begin
+           setBtqTarget_N(AbstractCore.branchEventInfo.eventMid, AbstractCore.branchEventInfo.target);
+        end
     end
 
     assign p0_E = effP(p0);
@@ -432,14 +443,26 @@ module ExecBlock(ref InstructionMap insMap,
 
     // TOPLEVEL
     function automatic UopPacket performBranchE0(input UopPacket p);
-
-        
+        if (!p.active) return p;
+        begin
+            UidT uid = p.TMP_oid;
+            UopName uname = insMap.getU(uid).name;
+            Mword3 args = getAndVerifyArgs(uid);
+            
+            logic dir = resolveBranchDirection(uname, args[0]);// reg
+            
+            p.result = dir;
+        end
         return p;
     endfunction
 
 
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+        
+            AbstractCore.theBq.execTarget = 'x;
+            AbstractCore.theBq.execLink = 'x; 
+        
         if (!active) return;
 
         setBranchInCore(uid);
@@ -449,41 +472,43 @@ module ExecBlock(ref InstructionMap insMap,
 
     task automatic setBranchInCore(input UidT uid);
         UopName uname = insMap.getU(uid).name;
-        Mword3 args = getAndVerifyArgs(uid);
+        Mword3 args = //getAndVerifyArgs(uid);
+                      insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
         
-        logic dir = resolveBranchDirection(uname, args);// reg
+        logic dir = resolveBranchDirection(uname, args[0]);// reg
         Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
         Mword trg = dir ? takenTrg : adr + 4;
 
-        //BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid)); // Independent
+            AbstractCore.theBq.execTarget = takenTrg;
+            AbstractCore.theBq.execLink = adr + 4;
 
-       // int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));        // Independent
-       // AbstractCore.branchTargetQueue[ind[0]].target = trg;
+        //    TODO: lookup from BQ is available 1 cycle later
+        //    assert (takenTrg === AbstractCore.theBq.lookupTarget) else $error("Not matching target of %p: %d / %d", uname, takenTrg, AbstractCore.theSq.lookupTarget);
+        //    assert (adr + 4 === AbstractCore.theBq.lookupLink) else $error("Not matching link of %p: %d / %d", uname, adr + 4, AbstractCore.theSq.lookupLink);
 
-        setBtqTarget(uid, trg);
-        setCurrentCp(uid);
+        setBtqTarget_N(U2M(uid), trg);
+        //setCurrentCp(U2M(uid));
 
-        //AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir,/* 0, 0,*/ adr, trg};
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, adr, trg};
     endtask
 
 
-    task automatic setBtqTarget(input UidT uid, input Mword target);
-        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));        // Independent
-        AbstractCore.branchTargetQueue[ind[0]].target = target;
-    endtask
+//    task automatic setBtqTarget(input InsId id, input Mword target);
+//        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);        // Independent
+//        AbstractCore.branchTargetQueue[ind[0]].target = target;
+//    endtask
 
-    task automatic setCurrentCp(input UidT uid);
-        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid)); // Independent
-        AbstractCore.branchCP = found[0];
-    endtask
+//    task automatic setCurrentCp(input InsId id);
+//        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == id); // Independent
+//        AbstractCore.branchCP = found[0];
+//    endtask
 
 
-    function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
-        Mword condArg = args[0];
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);
+        //Mword condArg = args[0];
         
-        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, args);
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
         
         case (uname)
             UOP_bc_z, UOP_br_z:  return condArg === 0;

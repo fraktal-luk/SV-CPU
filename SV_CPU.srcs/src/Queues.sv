@@ -106,35 +106,46 @@ package Queues;
             static function Mword getVal(input Entry entry);
                 return entry.val;
             endfunction
- 
-            static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-                Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
-                Entry fwEntry;
-                
-                // TODO: classify matches (X covers Y means X includes Y)
-                // Youngest older overlapping store:
-                // Covers and has data -> OK
-                // Not covers -> incomplete forward, refetch
-                // Not has data -> to RQ, wait ??
 
-                if (found.size() == 0) return EMPTY_UOP_PACKET;
-                else if (found.size() == 1) begin
-                    fwEntry = found[0];
-                end
-                else begin
-                    Entry sorted[$] = found[0:$];
-                    sorted.sort with (item.mid);
-                    fwEntry = sorted[$];
-                end
+            static function Mword getLink(input Entry entry);
+                return 'x;
+            endfunction
 
-                if (!wordInside(adr, fwEntry.adr))
-                    return '{1, FIRST_U(fwEntry.mid), ES_INVALID,   EMPTY_POISON, 'x};
-                else if (!fwEntry.valReady)
-                    return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
-                else
-                    return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 
-            endfunction 
+        static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
+            Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
+            Entry fwEntry;
+            
+            // TODO: classify matches (X covers Y means X includes Y)
+            // Youngest older overlapping store:
+            // Covers and has data -> OK
+            // Not covers -> incomplete forward, refetch
+            // Not has data -> to RQ, wait ??
+
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            else if (found.size() == 1) begin
+                fwEntry = found[0];
+            end
+            else begin
+                Entry sorted[$] = found[0:$];
+                sorted.sort with (item.mid);
+                fwEntry = sorted[$];
+            end
+
+            if (!wordInside(adr, fwEntry.adr))
+                return '{1, FIRST_U(fwEntry.mid), ES_INVALID,   EMPTY_POISON, 'x};
+            else if (!fwEntry.valReady)
+                return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
+            else
+                return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+
+        endfunction
+
+
+        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
+            
+        endfunction
+
     endclass
 
 
@@ -193,29 +204,39 @@ package Queues;
                 return 'x;//entry.val;
             endfunction
 
-                static function automatic UopPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
-                    Entry found[$] = entries.find with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
-                    
-                    if (found.size() == 0) return EMPTY_UOP_PACKET;
+            static function Mword getLink(input Entry entry);
+                return 'x;
+            endfunction
+
+        static function automatic UopPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
+            Entry found[$] = entries.find with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
             
-                    // else: we have a match and the matching loads are incorrect
-                    foreach (found[i]) begin
-                        setError(found[i]);
-                    end
-                    
-                    begin // 'active' indicates that some match has happened without furthr details
-                        UopPacket res = EMPTY_UOP_PACKET;
-                        
-                        Entry oldestFound[$] = found.min with (item.mid);
-                        
-                        res.active = 1; 
-                        res.TMP_oid = FIRST_U(oldestFound[0].mid);
-                                   
-                        return res;
-                    end
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+    
+            // else: we have a match and the matching loads are incorrect
+            foreach (found[i]) begin
+                setError(found[i]);
+            end
             
-                endfunction
-    endclass
+            begin // 'active' indicates that some match has happened without furthr details
+                UopPacket res = EMPTY_UOP_PACKET;
+                
+                Entry oldestFound[$] = found.min with (item.mid);
+                
+                res.active = 1; 
+                res.TMP_oid = FIRST_U(oldestFound[0].mid);
+                           
+                return res;
+            end
+    
+        endfunction
+
+
+        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
+            
+        endfunction
+
+endclass
     
     
     class BranchQueueHelper;
@@ -227,10 +248,12 @@ package Queues;
             logic trgReady;
             Mword linkAdr;
             Mword predictedTarget;
-            Mword realTarget;
+            //Mword realTarget;
+                Mword immTarget;
+                Mword regTarget;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, /*'x,*/ 'x, 'x};
 
 //        static function automatic logic applies(input AbstractInstruction ins);
 //            return isBranchIns(ins);
@@ -255,21 +278,32 @@ package Queues;
             
             res.linkAdr = ii.basicData.adr + 4;
             
+            // If branch immediate, calculate target for taken
+            if (ui.name inside {UOP_bc_a, UOP_bc_l, UOP_bc_z, UOP_bc_nz})
+                res.immTarget = ii.basicData.adr + ui.argsE[1];
+            
             // If imm, real target is known
-            if (isBranchImmIns(abs))
-                res.realTarget = ii.basicData.adr + ui.argsA[1];
+//            if (isBranchImmIns(abs))
+//                res.realTarget = ii.basicData.adr + ui.argsA[1];
             
             return res;
         endfunction
         
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);            
-            entry.taken = brInfo.active;
+            UopName name = imap.getU(p.TMP_oid).name;
+            Mword trgArg = imap.getU(p.TMP_oid).argsA[1];
+            
+            entry.taken = p.result;
             
             entry.condReady = 1;
             entry.trgReady = 1;
             
-            entry.realTarget = brInfo.target;
+            //entry.realTarget = brInfo.target;
+            
+            if (name inside {UOP_br_z, UOP_br_nz})
+                entry.regTarget = trgArg;
+     
         endfunction
 
             static function void setCommitted(ref Entry entry);
@@ -288,24 +322,52 @@ package Queues;
             endfunction
 
             static function Mword getAdr(input Entry entry);
-                return 'x;//entry.adr; 
+                return entry.immTarget; 
             endfunction
 
             static function Mword getVal(input Entry entry);
                 return 'x;//entry.val;
             endfunction
 
-
-            static function automatic UopPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
-
-                begin // 'active' indicates that some match has happened without furthr details
-                    UopPacket res = EMPTY_UOP_PACKET;
-                    return res;
-                end
-        
+            static function Mword getLink(input Entry entry);
+                return entry.linkAdr;
             endfunction
 
-                 
+
+        static function automatic UopPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
+            Entry found[$] = entries.find with ( item.mid != -1 && item.mid == id);
+            
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+
+            begin // 'active' indicates that some match has happened without furthr details
+                UopPacket res = EMPTY_UOP_PACKET;
+                
+                //res.
+                
+                return res;
+            end
+    
+        endfunction
+
+        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
+            UopName uname = imap.getU(FIRST_U(entry.mid)).name;
+            Mword target = imap.get(entry.mid).basicData.target;
+            Mword actualTarget = 'x;
+                        
+            if (entry.taken) begin
+                if (uname inside {UOP_br_z, UOP_br_nz})
+                    actualTarget = entry.regTarget;
+                else
+                    actualTarget = entry.immTarget;
+            end
+            else begin
+                actualTarget = entry.linkAdr;
+            end
+            
+            assert (actualTarget === target) else $error("Branch %p committed not matching: %d // %d", uname, actualTarget, target);
+            
+        endfunction
+             
     endclass
 
 
