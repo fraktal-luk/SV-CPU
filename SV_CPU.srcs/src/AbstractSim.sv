@@ -18,6 +18,7 @@ package AbstractSim;
     localparam int ISSUE_QUEUE_SIZE = 24;
 
     localparam int ROB_SIZE = 128;
+    localparam int ROB_WIDTH = 4;
     
     localparam int LQ_SIZE = 80;
     localparam int SQ_SIZE = 80;
@@ -94,11 +95,26 @@ package AbstractSim;
     } OpSlotB;
 
 
+    typedef struct {
+        logic active;
+        InsId mid;
+        Mword adr;
+        
+        logic takenBranch;
+        logic exception;
+        logic refetch;
+        
+        Mword target;
+    } RetirementInfo;
+
+
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
-    
+    localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
+
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
+    typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
     
 
     typedef enum {

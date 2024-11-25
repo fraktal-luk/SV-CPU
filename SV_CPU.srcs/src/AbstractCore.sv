@@ -497,13 +497,15 @@ module AbstractCore
             InsId theId = robOut[i].mid;
             logic refetch, exception;
            
+                assert (robOut[i].mid == theRob.retirementGroup[i].mid) else $fatal(2, "not same ids: %d, %d", robOut[i].mid, theRob.retirementGroup[i].mid);
+            
             if (robOut[i].active !== 1 || theId == -1) continue;
             if (cancelRest) $fatal(2, "Committing after break");
             
             refetch = insMap.get(theId).refetch;
             exception = insMap.get(theId).exception;
 
-            commitOp(theId);
+            commitOp(theId, theRob.retirementGroup[i]);
                 
                 insMap.dealloc();
                 insMap.committedM++;
@@ -535,7 +537,7 @@ module AbstractCore
 
 
 
-    task automatic verifyOnCommit(input InsId id);
+    task automatic verifyOnCommit(input InsId id, RetirementInfo retInfo);
         InstructionInfo info = insMap.get(id);
 
         Mword trg = retiredEmul.coreState.target; // DB
@@ -558,7 +560,11 @@ module AbstractCore
     
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
         if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
-            assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", id, branchTargetQueue[0].target, nextTrg);
+            //assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", id, branchTargetQueue[0].target, nextTrg);
+            
+            if (retInfo.takenBranch === 1) begin
+                assert (retInfo.target === nextTrg) else $fatal(2, "MIsmatch of trg: %d, %d", retInfo.target, nextTrg);
+            end
         end
     endtask
 
@@ -585,8 +591,10 @@ module AbstractCore
     //
     // Store ops: if Exc or Hidden, SQ entry must be marked invalid on commit or not committed (ptr not moved, then flushed by event)
     // 
-    task automatic commitOp(input InsId id);
+    task automatic commitOp(input InsId id, RetirementInfo retInfo);
         InstructionInfo insInfo = insMap.get(id);
+
+        // TODO: from {SLB}Q -> exception, refetch, target (if taken branch)
 
         logic refetch = insInfo.refetch;
         logic exception = insInfo.exception;
@@ -595,7 +603,7 @@ module AbstractCore
             coreDB.lastII = insInfo;
             if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
-        verifyOnCommit(id);
+        verifyOnCommit(id, retInfo);
 
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
 
@@ -628,7 +636,7 @@ module AbstractCore
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
-        retiredTarget <= getCommitTarget(decMainUop(id), retiredTarget, branchTargetQueue[0].target, refetch, exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target /*branchTargetQueue[0].target*/, refetch, exception);
     endtask
 
 

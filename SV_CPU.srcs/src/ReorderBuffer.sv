@@ -44,6 +44,10 @@ module ReorderBuffer
 
     OpSlotAB outGroupPrev = '{default: EMPTY_SLOT_B};
 
+    RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
+
+
+
     OpRecord commitQ[$:3*WIDTH];
     OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
 
@@ -52,50 +56,48 @@ module ReorderBuffer
 
     const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
-    function automatic OpSlotAB makeOutGroup(input Row row);
-        OpSlotAB res = '{default: EMPTY_SLOT_B};
-        foreach (row.records[i]) begin
-            if (row.records[i].mid == -1) continue;
-            res[i].active = 1;
-            res[i].mid = row.records[i].mid;
-        end
-        
-        return res;
-    endfunction
-    
+
 
     Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
-    
-    InsId lastOut = -1;
+
+    InsId lastScanned = -1, // last id whoch was transfered to output queue
+          lastOut = -1;     // last accepted as committed
     logic lastIsBreaking = 0;
     logic commitStalled = 0;
-    
+
 
     assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - 3);
-        
-    assign outGroup = makeOutGroup(outRow);
 
-    
+    always_comb outGroup = makeOutGroup(outRow);
+    always_comb retirementGroup = makeRetirementGroup();//outRow);
+
+
     always @(posedge AbstractCore.clk) begin
         automatic Row outRowVar;
+        automatic Row arrayHeadRowVar;
 
             outGroupPrev <= outGroup;
+            retirementGroupPrev <= retirementGroup;
 
         if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
             || AbstractCore.lateEventInfoWaiting.active
             || lastIsBreaking
             )
-            arrayHeadRow <= EMPTY_ROW;
+            arrayHeadRowVar = EMPTY_ROW;
         else if (frontCompleted() && commitQ.size() <= 3*WIDTH - 2*WIDTH)
-            arrayHeadRow <= readOutRow();
+            arrayHeadRowVar = readOutRow();
         else
-            arrayHeadRow <= EMPTY_ROW;
+            arrayHeadRowVar = EMPTY_ROW;
+
+        arrayHeadRow <= arrayHeadRowVar;
+        lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
+
 
         outRowVar = takeFromQueue(commitQ, commitStalled);
-        outRow <= outRowVar;
 
+        outRow <= outRowVar;
         lastOut <= getLastOut(lastOut, outRowVar.records);
         lastIsBreaking <= isLastBreaking(outRowVar.records);
 
@@ -309,5 +311,60 @@ module ReorderBuffer
                 
         return brk;
     endfunction
+
+
+    function automatic OpSlotAB makeOutGroup(input Row row);
+        OpSlotAB res = '{default: EMPTY_SLOT_B};
+        foreach (row.records[i]) begin
+            if (row.records[i].mid == -1) continue;
+            res[i].active = 1;
+            res[i].mid = row.records[i].mid;
+        end
+
+        return res;
+    endfunction
+
+    function automatic RetirementInfoA makeRetirementGroup();//input Row row);
+        Row row = outRow;
+        
+        StoreQueueHelper::Entry outputSQ[3*ROB_WIDTH] = AbstractCore.theSq.outputQM;
+        LoadQueueHelper::Entry outputLQ[3*ROB_WIDTH] = AbstractCore.theLq.outputQM;
+        BranchQueueHelper::Entry outputBQ[3*ROB_WIDTH] = AbstractCore.theBq.outputQM;
+        
+        RetirementInfoA res = '{default: EMPTY_RETIREMENT_INFO};
+        foreach (row.records[i]) begin
+            InsId mid = row.records[i].mid;
+            
+            if (mid == -1) continue;
+            res[i].active = 1;
+            res[i].mid = mid;
+            
+            // Find corresponding entries of queues
+            if (isStoreUop(insMap.get(mid).mainUop)) begin
+                StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
+                
+            end
+
+            if (isLoadUop(insMap.get(mid).mainUop)) begin
+                 LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
+           
+            end
+            
+            if (isBranchUop(insMap.get(mid).mainUop)) begin
+                UopName uname = insMap.getU(FIRST_U(mid)).name;
+
+                BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
+                res[i].takenBranch = entry[0].taken;
+                
+                if (uname inside {UOP_br_z, UOP_br_nz})
+                    res[i].target = entry[0].regTarget;
+                else
+                    res[i].target = entry[0].immTarget;
+            end
+        end
+
+        return res;
+    endfunction
+
 
 endmodule
