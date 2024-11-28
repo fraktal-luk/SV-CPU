@@ -78,13 +78,8 @@ module MemSubpipe#(
         UopPacket res = p;
         UidT uid = p.TMP_oid; 
 
-        if (p.active && isLoadSysUop(decUname(uid)) && adr > 31) begin
-            insMap.setException(U2M(p.TMP_oid));
-            return res;
-        end
-        
-        if (p.active && isStoreSysUop(decUname(uid)) && adr > 31) begin
-            insMap.setException(U2M(p.TMP_oid));
+        if (p.active && (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) && adr > 31) begin
+            insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             return res;
         end
         
@@ -153,7 +148,7 @@ module MemSubpipe#(
                 assert (wordOverlap(effAdrE1, tr.adr) && !wordInside(effAdrE1, tr.adr)) else $error("Adr inside or not overlapping");
                         
                 res.status = ES_REDO;
-                insMap.setRefetch(U2M(uid));
+                insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
                 memData = 0; // TMP
             end
             else if (sqResp.status == ES_NOT_READY) begin
@@ -194,7 +189,7 @@ module MemSubpipe#(
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
             if (lqResp.active) begin
-                insMap.setRefetch(U2M(lqResp.TMP_oid));
+                insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
         end
 

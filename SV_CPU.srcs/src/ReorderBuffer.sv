@@ -339,6 +339,10 @@ module ReorderBuffer
             res[i].active = 1;
             res[i].mid = mid;
             
+                res[i].takenBranch = 0;
+                res[i].exception = 0;
+                res[i].refetch = 0;
+            
             // Find corresponding entries of queues
             if (isStoreUop(insMap.get(mid).mainUop)) begin
                 StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);

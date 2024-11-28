@@ -29,6 +29,7 @@ package Queues;
         typedef struct {
             InsId mid;
             logic error;
+            logic refetch;
             logic adrReady;
             Mword adr;
             logic valReady;
@@ -37,7 +38,7 @@ package Queues;
             logic dontForward;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
     
         
 //        static function automatic logic applies(input AbstractInstruction ins);
@@ -52,6 +53,7 @@ package Queues;
             Entry res = EMPTY_QENTRY;
             res.mid = id;
             res.error = 0;
+            res.refetch = 0;
             res.adrReady = 0;
             res.valReady = 0;
             res.committed = 0;
@@ -153,11 +155,12 @@ package Queues;
         typedef struct {
             InsId mid;
             logic error;
+            logic refetch;
             logic adrReady;
             Mword adr;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x};
 
 //        static function automatic logic applies(input AbstractInstruction ins);
 //            return isLoadIns(ins);
@@ -172,6 +175,7 @@ package Queues;
             res.mid = id;
             res.adrReady = 0;
             res.error = 0;
+            res.refetch = 0;
             return res;
         endfunction
         

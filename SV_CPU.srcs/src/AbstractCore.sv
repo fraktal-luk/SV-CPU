@@ -547,6 +547,8 @@ module AbstractCore
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (bits === info.basicData.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, info.basicData.bits); // TODO: check at Frontend?
         
+            
+        
         if (info.refetch) return;
         
         // Only Normal commit
