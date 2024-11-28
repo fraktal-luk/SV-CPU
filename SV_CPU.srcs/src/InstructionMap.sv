@@ -681,6 +681,8 @@ package Insmap;
     function automatic UopInfoQ splitUop(input UopInfo uinfo);
             localparam logic CLEAR_ARG_2 = 1;
     
+        int nDests = 0;
+    
         UopInfoQ res;
         UopInfo current = uinfo;
         current.id.s = 0;
@@ -688,8 +690,8 @@ package Insmap;
         if (//current.name == UOP_ctrl_sync || 
             isControlUop(current.name)  ) return res; // 0 uops
         
-    
-        if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
+        // Store ops: split into adr and data
+        else if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
             UopInfo sd;
             sd.id = '{current.id.m, 1};
             sd.name = UOP_data_int;
@@ -714,7 +716,6 @@ package Insmap;
             
             res.push_back(current);
             res.push_back(sd);
-            return res;
         end
         else if (current.name == UOP_mem_stf) begin
             UopInfo sd;
@@ -741,10 +742,48 @@ package Insmap;
             
             res.push_back(current);
             res.push_back(sd);
-            return res;
         end
+        // Branches: split into condition, (target if from register), link
+        else if (1 && current.name inside {UOP_br_z, UOP_br_nz, UOP_bc_l}) begin
+            UopInfo lk;
+            lk.id = '{current.id.m, 1};
+            lk.name = UOP_int_link;
+                lk.vDest = current.vDest;
+            lk.physDest = -1;
+            lk.argsE = '{default: 0};
+            lk.deps.types = '{default: SRC_ZERO};
+            lk.deps.sources = '{default: 0};
+            lk.deps.producers = '{default: UIDT_NONE};
+            lk.argError = 'x;
 
-        res.push_back(current);
+            lk.resultE = current.resultE;
+                
+                current.vDest = -1;
+//                sd.deps.types[2] = current.deps.types[2];
+//                sd.deps.sources[2] = current.deps.sources[2];
+//                sd.deps.producers[2] = current.deps.producers[2];
+//                sd.argsE[2] = current.argsE[2];
+            
+//            if (CLEAR_ARG_2) begin
+//                current.deps.types[2] = SRC_ZERO;
+//                current.deps.sources[2] = 0;
+//                current.deps.producers[2] = UIDT_NONE;
+//                current.argsE[2] = 0;
+//                  current.physDest = -1;
+//            end
+            res.push_back(current);
+
+                res.push_back(lk);
+        end
+        else
+            res.push_back(current);
+        
+        
+        foreach (res[i])
+            if (uopHasIntDest(res[i].name) || uopHasFloatDest(res[i].name)) nDests++;
+        
+        assert (nDests <= 1) else $error("Multiple dests for op %p", uinfo.name);
+        
         return res;
     endfunction
 

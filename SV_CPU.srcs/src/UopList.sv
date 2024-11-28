@@ -47,6 +47,8 @@ package UopList;
          UOP_mem_lds,
          UOP_mem_sts,
         
+            UOP_int_link,
+        
          UOP_bc_z,
          UOP_bc_nz,
          UOP_br_z,

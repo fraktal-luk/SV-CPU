@@ -18,6 +18,7 @@ package AbstractSim;
     localparam int ISSUE_QUEUE_SIZE = 24;
 
     localparam int ROB_SIZE = 128;
+    localparam int ROB_WIDTH = 4;
     
     localparam int LQ_SIZE = 80;
     localparam int SQ_SIZE = 80;
@@ -94,11 +95,26 @@ package AbstractSim;
     } OpSlotB;
 
 
+    typedef struct {
+        logic active;
+        InsId mid;
+        Mword adr;
+        
+        logic takenBranch;
+        logic exception;
+        logic refetch;
+        
+        Mword target;
+    } RetirementInfo;
+
+
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
-    
+    localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
+
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
+    typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
     
 
     typedef enum {
@@ -248,6 +264,8 @@ package AbstractSim;
             function automatic int reserve(input int vDest, input WriterId id);
                 int pDest = findFree();
                 
+                 //   if (vDest == -1) $error("reerving -1");
+                
                 if (!ignoreV(vDest)) begin
                     writersR[vDest] = id;
                     info[pDest] = '{SPECULATIVE, id};
@@ -357,8 +375,12 @@ package AbstractSim;
 
           
         function automatic int reserve(input UopName name, input int dest, input WriterId id);
+            //    if (dest == -1) $error("reserving -1");
+            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
-            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);  
+            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
+            
+            //    $error("pseudo vDest = %d", dest);
             return -1;
         endfunction
 
@@ -760,14 +782,18 @@ package AbstractSim;
 
          UOP_mem_lds,
         
-         UOP_br_z,
-         UOP_br_nz,
-         UOP_bc_l,
+             
+
+          //   UOP_br_z,  // Branch reg, with link
+          //   UOP_br_nz, // Branch reg, with link
+          //   UOP_bc_l,  // Branch link, with link
+
+            UOP_int_link //,
 
 
-             UOP_bc_z,
-             UOP_bc_nz,
-             UOP_bc_a
+//                 UOP_bc_z,  // Branch imm 
+//                 UOP_bc_nz, // Branch imm
+//                 UOP_bc_a   // Branch always
         };
     endfunction
 

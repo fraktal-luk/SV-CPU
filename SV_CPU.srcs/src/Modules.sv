@@ -59,7 +59,9 @@ module BranchSubpipe(
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
-        
+
+
+  
     assign stage0 = pE0;
     assign stage0_E = pE0_E;
                       
@@ -72,6 +74,15 @@ module BranchSubpipe(
         pD1 <= tickP(pD0);
 
         runExecBranch(p1_E.active, p1_E.TMP_oid);
+        
+        
+//        if (p1_E.active) begin
+//           // setCurrentCp(U2M(p1_E.TMP_oid));
+//        end
+        
+        if (!AbstractCore.lateEventInfo.redirect && AbstractCore.branchEventInfo.active) begin
+           setBtqTarget_N(AbstractCore.branchEventInfo.eventMid, AbstractCore.branchEventInfo.target);
+        end
     end
 
     assign p0_E = effP(p0);
@@ -145,7 +156,7 @@ module ExecBlock(ref InstructionMap insMap,
     
     UopPacket doneFloat0,  doneFloat1; 
     
-    UopPacket doneSys ;// = EMPTY_UOP_PACKET;
+    UopPacket doneSys;
     
 
     UopPacket doneRegular0_E, doneRegular1_E;
@@ -158,8 +169,7 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneSys_E;
 
 
-    UopPacket sysE0 //= EMPTY_UOP_PACKET
-              , sysE0_E;
+    UopPacket sysE0, sysE0_E;
 
 
 
@@ -263,15 +273,6 @@ module ExecBlock(ref InstructionMap insMap,
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
 
-
-    always @(posedge AbstractCore.clk) begin
-      // sysE0 <= performStoreData( tickP(theIssueQueues.issuedSysP[0]) );
-      // doneSys <= tickP(sysE0);
-                        //theIssueQueues.issuedSysP[0]);
-    end
-
-   // assign sysE0_E = effP(sysE0);
-   // assign doneSys_E = effP(doneSys);
 
 
     ReplayQueue replayQueue(
@@ -379,14 +380,15 @@ module ExecBlock(ref InstructionMap insMap,
     function automatic Mword calcRegularOp(input UidT uid);
         UopName uname = insMap.getU(uid).name;
         Mword3 args = getAndVerifyArgs(uid);
-        Mword result = calcArith(uname, args);  
+        Mword lk = getAdr(U2M(uid)) + 4;
+        Mword result = calcArith(uname, args, lk);  
         insMap.setActualResult(uid, result);
         
         return result;
     endfunction
 
 
-    function automatic Mword calcArith(UopName name, Mword args[3]);
+    function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
         Mword res = 'x;
         
         case (name)
@@ -420,6 +422,9 @@ module ExecBlock(ref InstructionMap insMap,
             UOP_int_rems:  res = remSignedW(args[0], args[1]);
            
             
+            UOP_int_link: res = linkAdr;
+            
+            
             // FP
             UOP_fp_move:   res = args[0];
             UOP_fp_or:     res = args[0] | args[1];
@@ -436,53 +441,74 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-
+    // TOPLEVEL
     function automatic UopPacket performBranchE0(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
+        if (!p.active) return p;
         begin
-            UopPacket res = p;
-            res.result = getBranchResult(p.active, p.TMP_oid);
-            return res;
+            UidT uid = p.TMP_oid;
+            UopName uname = insMap.getU(uid).name;
+            Mword3 args = getAndVerifyArgs(uid);
+            
+            logic dir = resolveBranchDirection(uname, args[0]);// reg
+            
+            p.result = dir;
         end
+        return p;
     endfunction
 
-    // TOPLEVEL
+
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+        
+            AbstractCore.theBq.execTarget = 'x;
+            AbstractCore.theBq.execLink = 'x; 
+        
         if (!active) return;
-        insMap.setActualResult(uid, getBranchResult(1, uid));
 
         setBranchInCore(uid);
         putMilestone(uid, InstructionMap::ExecRedirect);
     endtask
 
-    function automatic Mword getBranchResult(input logic active, input UidT uid);
-        if (!active) return 'x;
-        else return getAdr(U2M(uid)) + 4;
-    endfunction
 
     task automatic setBranchInCore(input UidT uid);
         UopName uname = insMap.getU(uid).name;
-        Mword3 args = getAndVerifyArgs(uid);
+        Mword3 args = //getAndVerifyArgs(uid);
+                      insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
         
-        logic dir = resolveBranchDirection(uname, args);
-        Mword takenTrg = takenTarget(uname, adr, args);
-
-        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == U2M(uid));
-        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == U2M(uid));
+        logic dir = resolveBranchDirection(uname, args[0]);// reg
+        Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
         Mword trg = dir ? takenTrg : adr + 4;
 
-        AbstractCore.branchTargetQueue[ind[0]].target = trg;
-        AbstractCore.branchCP = found[0];
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir,/* 0, 0,*/ adr, trg};
+            AbstractCore.theBq.execTarget = takenTrg;
+            AbstractCore.theBq.execLink = adr + 4;
+
+        //    TODO: lookup from BQ is available 1 cycle later
+        //    assert (takenTrg === AbstractCore.theBq.lookupTarget) else $error("Not matching target of %p: %d / %d", uname, takenTrg, AbstractCore.theSq.lookupTarget);
+        //    assert (adr + 4 === AbstractCore.theBq.lookupLink) else $error("Not matching link of %p: %d / %d", uname, adr + 4, AbstractCore.theSq.lookupLink);
+
+        setBtqTarget_N(U2M(uid), trg);
+        //setCurrentCp(U2M(uid));
+
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, adr, trg};
     endtask
 
 
-    function automatic logic resolveBranchDirection(input UopName uname, input Mword args[3]);
-        Mword condArg = args[0];
+//    task automatic setBtqTarget(input InsId id, input Mword target);
+//        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);        // Independent
+//        AbstractCore.branchTargetQueue[ind[0]].target = target;
+//    endtask
+
+//    task automatic setCurrentCp(input InsId id);
+//        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == id); // Independent
+//        AbstractCore.branchCP = found[0];
+//    endtask
+
+
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);
+        //Mword condArg = args[0];
         
-        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, args);
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
         
         case (uname)
             UOP_bc_z, UOP_br_z:  return condArg === 0;
@@ -505,14 +531,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     function automatic UopPacket performStoreData(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
-        
-           // if (p.TMP_oid.m > 1839) $display("... sd: %p", p.TMP_oid);
-        
+                
         begin
-            UopName uname = insMap.getU(p.TMP_oid).name;
-            Mword3 args//;
-                        = getAndVerifyArgs(p.TMP_oid);
             UopPacket res = p;
+            Mword3 args = getAndVerifyArgs(p.TMP_oid);
             res.result = args[2];
             return res;
         end
