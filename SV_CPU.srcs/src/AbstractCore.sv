@@ -36,7 +36,6 @@ module AbstractCore
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
     
-    BranchTargetEntry branchTargetQueue[$:BC_QUEUE_SIZE]; // TODO: remove when BQ starts providing taken targets at Commit
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
     //..............................
@@ -65,8 +64,6 @@ module AbstractCore
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
     //    Events evts;
 
-    //BranchCheckpoint branchCP;
-
 
     // Store interface
         // Committed
@@ -90,9 +87,7 @@ module AbstractCore
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
-    DataL1        dataCache(clk, 
-                            TMP_readReqs, TMP_readResps,
-                            TMP_writeInfos);
+    DataL1        dataCache(clk, TMP_readReqs, TMP_readResps, TMP_writeInfos);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -125,7 +120,7 @@ module AbstractCore
     always @(posedge clk) begin
         insMap.endCycle();
 
-        advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue, branchTargetQueue
+        advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
@@ -134,11 +129,11 @@ module AbstractCore
         end
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
-            redirectRest();     // stageRename1, renameInds, renamedEmul, registerTracker, memTracker,   branchTargetQueue, branchCheckpointQueue
+            redirectRest();     // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
         else
-            runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker,   branchTargetQueue, branchCheckpointQueue
+            runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
 
-        handleCompletion(); // registerTracker
+        handleWrites(); // registerTracker
 
         updateBookkeeping();
 
@@ -149,7 +144,7 @@ module AbstractCore
     end
 
 
-    task automatic handleCompletion();
+    task automatic handleWrites();
         writeResult(theExecBlock.doneRegular0_E);
         writeResult(theExecBlock.doneRegular1_E);
         writeResult(theExecBlock.doneFloat0_E);
@@ -178,8 +173,7 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        logic isSys = sqe.sys;
-        MemWriteInfo res = '{sqe.active && !isSys && !sqe.cancel, sqe.adr, sqe.val};
+        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val};
         return res;
     endfunction
 
@@ -285,10 +279,12 @@ module AbstractCore
             renamedEmul.setLike(retiredEmul);
             
             flushBranchCheckpointQueueAll();
-            flushBranchTargetQueueAll();
             
-            if (lateEventInfo.cOp == CO_reset) registerTracker.restoreReset();
-            else registerTracker.restoreStable();
+            if (lateEventInfo.cOp == CO_reset)
+                registerTracker.restoreReset();
+            else
+                registerTracker.restoreStable();
+
             registerTracker.flushAll();
             
             memTracker.flushAll();
@@ -303,7 +299,6 @@ module AbstractCore
             renamedEmul.tmpDataMem.copyFrom(causingCP.mem);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
-            flushBranchTargetQueuePartial(branchEventInfo.eventMid);
 
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
             registerTracker.flush(branchEventInfo.eventMid);
@@ -320,17 +315,9 @@ module AbstractCore
         while (branchCheckpointQueue.size() > 0) void'(branchCheckpointQueue.pop_back());
     endtask    
 
-    task automatic flushBranchTargetQueueAll();
-        while (branchTargetQueue.size() > 0) void'(branchTargetQueue.pop_back());
-    endtask
- 
     task automatic flushBranchCheckpointQueuePartial(input InsId id);
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].id > id) void'(branchCheckpointQueue.pop_back());
     endtask    
-
-    task automatic flushBranchTargetQueuePartial(input InsId id);
-        while (branchTargetQueue.size() > 0 && branchTargetQueue[$].id > id) void'(branchTargetQueue.pop_back());
-    endtask
 
 
     // Frontend/Rename
@@ -348,10 +335,6 @@ module AbstractCore
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds);
         branchCheckpointQueue.push_back(cp);
-    endtask
-
-    task automatic addToBtq(input InsId id);    
-        branchTargetQueue.push_back('{id, 'z});
     endtask
 
 
@@ -394,22 +377,17 @@ module AbstractCore
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
-
-              //  if (id >= 1839) $display("__ %p", mainUinfo);
                 
 
         uInfos = splitUop(mainUinfo);
-            ii.nUops = uInfos.size();
+        ii.nUops = uInfos.size();
             
-            //if (uInfos.size() > 1) $error(" Mid %d", id);
             
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];
-            int thisPhysDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
+            uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
 
-                if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
-
-            uInfos[u].physDest = thisPhysDest;
+            if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
         end
 
 
@@ -418,10 +396,7 @@ module AbstractCore
 
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
 
-        if (isBranchIns(ins)) begin
-            addToBtq(id);
-            saveCP(id); // Crucial state
-        end
+        if (isBranchIns(ins)) saveCP(id); // Crucial state
 
 
         updateInds(renameInds, id); // Crucial state
@@ -497,7 +472,7 @@ module AbstractCore
             InsId theId = robOut[i].mid;
             logic refetch, exception;
            
-                assert (robOut[i].mid == theRob.retirementGroup[i].mid) else $fatal(2, "not same ids: %d, %d", robOut[i].mid, theRob.retirementGroup[i].mid);
+            assert (robOut[i].mid == theRob.retirementGroup[i].mid) else $fatal(2, "not same ids: %d, %d", robOut[i].mid, theRob.retirementGroup[i].mid);
             
             if (robOut[i].active !== 1 || theId == -1) continue;
             if (cancelRest) $fatal(2, "Committing after break");
@@ -518,7 +493,6 @@ module AbstractCore
         
     endtask
 
-
     
     
     function automatic void checkUops(input InsId id);
@@ -528,10 +502,10 @@ module AbstractCore
             UopInfo uinfo = insMap.getU('{id, u});
             UopName uname = uinfo.name;
     
-            if (uopHasIntDest(uname) || uopHasFloatDest(uname)) // DB
-                assert (uinfo.resultA === uinfo.resultE) else
-                    $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
-            assert (uinfo.argError === 0) else $fatal(2, "Arg error on op %p\n%p", id, uinfo);
+            if (uopHasIntDest(uname) || uopHasFloatDest(uname)) begin // DB
+                assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
+                    else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+            end
         end
     endfunction
 
@@ -544,11 +518,11 @@ module AbstractCore
         Mword nextTrg;
         Word bits = fetchInstruction(dbProgMem, trg); // DB
 
+        checkUnimplementedInstruction(decodeId(id)); // All types of commit?
+
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (bits === info.basicData.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, info.basicData.bits); // TODO: check at Frontend?
-        
-            
-        
+
         if (info.refetch) return;
         
         // Only Normal commit
@@ -561,9 +535,7 @@ module AbstractCore
         nextTrg = retiredEmul.coreState.target; // DB
     
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
-        if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
-            //assert (branchTargetQueue[0].target === nextTrg) else $error("Mismatch in BQ id = %d, target: %h / %h", id, branchTargetQueue[0].target, nextTrg);
-            
+        if (!info.exception && isBranchUop(decMainUop(id))) begin // DB         
             if (retInfo.takenBranch === 1) begin
                 assert (retInfo.target === nextTrg) else $fatal(2, "MIsmatch of trg: %d, %d", retInfo.target, nextTrg);
             end
@@ -607,8 +579,6 @@ module AbstractCore
 
         verifyOnCommit(id, retInfo);
 
-        checkUnimplementedInstruction(decodeId(id)); // All types of commit?
-
 
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
@@ -620,7 +590,10 @@ module AbstractCore
 
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
 
-        releaseQueues(id); // All
+        if (isBranchUop(decMainUop(id))) begin // Br queue entry release
+            BranchCheckpoint bce = branchCheckpointQueue.pop_front();
+            assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
+        end
   
         if (refetch) begin
             coreDB.lastRefetched = TMP_properOp(id);
@@ -642,6 +615,7 @@ module AbstractCore
     endtask
 
 
+
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);
         Transaction tr = memTracker.findStore(id);
         StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), tr.adrAny, tr.val};       
@@ -656,15 +630,6 @@ module AbstractCore
         if (isLoadUop(decMainUop(id))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
         if (isStoreUop(decMainUop(id))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
-
-    task automatic releaseQueues(input InsId id);
-        if (isBranchUop(decMainUop(id))) begin // Br queue entry release
-            BranchCheckpoint bce = branchCheckpointQueue.pop_front();
-            BranchTargetEntry bte = branchTargetQueue.pop_front();
-            assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
-            assert (bte.id === id) else $error("Not matching op id: %p / %d", bte, id);
-        end
-    endtask
 
 
     function automatic Mword getSysReg(input Mword adr);
@@ -731,9 +696,6 @@ module AbstractCore
 
     function automatic UopPacket tickP(input UopPacket op);        
         if (shouldFlushPoison(op.poison)) begin
-//                string str = disasm(
-//                            insMap.get(U2M(op.TMP_oid)).basicData.bits);
-//                $error("%m  this flushed %p; %s\nbecause %p", decUname(op.TMP_oid), str, theExecBlock.memImagesTr[0][0].TMP_oid);
             putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
             return EMPTY_UOP_PACKET;
         end
@@ -759,9 +721,7 @@ module AbstractCore
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         foreach (memStage0[p])
-            if (checkMemDep(poison, memStage0[p]) && !(memStage0[p].status inside {ES_OK, ES_REDO, ES_INVALID})) begin
-                return 1;
-            end
+            if (checkMemDep(poison, memStage0[p]) && !(memStage0[p].status inside {ES_OK, ES_REDO, ES_INVALID})) return 1;
         return 0;
     endfunction
 
@@ -770,11 +730,5 @@ module AbstractCore
 
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
-
-
-        task automatic setBtqTarget_N(input InsId id, input Mword target);
-            int ind[$] = branchTargetQueue.find_first_index with (item.id == id);
-            branchTargetQueue[ind[0]].target = target;
-        endtask
 
 endmodule
