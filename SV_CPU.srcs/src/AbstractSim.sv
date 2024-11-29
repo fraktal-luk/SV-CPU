@@ -686,11 +686,15 @@ package AbstractSim;
             UOP_ctrl_refetch,
             UOP_ctrl_error,
             UOP_ctrl_call,
-            UOP_ctrl_send,
-                
-                // TMP
-                UOP_data_int,
-                UOP_data_fp
+            UOP_ctrl_send
+        };
+    endfunction
+
+
+    function automatic logic isStoreDataUop(input UopName name);
+        return name inside {
+            UOP_data_int,
+            UOP_data_fp
         };
     endfunction
 
@@ -782,18 +786,8 @@ package AbstractSim;
 
          UOP_mem_lds,
         
-             
-
-          //   UOP_br_z,  // Branch reg, with link
-          //   UOP_br_nz, // Branch reg, with link
-          //   UOP_bc_l,  // Branch link, with link
-
-            UOP_int_link //,
-
-
-//                 UOP_bc_z,  // Branch imm 
-//                 UOP_bc_nz, // Branch imm
-//                 UOP_bc_a   // Branch always
+        
+         UOP_int_link
         };
     endfunction
 

@@ -21,7 +21,8 @@ package Insmap;
         AbstractInstruction dec;
     } InsBasicData;
     
-    
+        
+        // UNUSED
         typedef struct {
             UopName name;
             int sources[3];
@@ -29,29 +30,29 @@ package Insmap;
         } UopDef;    
     
     
-        // What should be in base
-        typedef struct {
-            UopId id;
-            
-            logic status; // FUTURE: enum
-            
-            UopName name;
-            
-            int vDest;
-            int physDest;
-            
-            InsDependencies deps;
-            
-            Mword argsE[3]; // Args from emulation
-            Mword argsA[3]; // Actual args read from regs and bypass
-            Mword resultE;  // Result according to emulation
-            Mword resultA;  // Actual result
-            
-            logic argError;    // DB
-            logic resultError; // DB
-            
-            logic exception;   // Execution event from actual uarch
-        } UopInfo;
+    // What should be in base
+    typedef struct {
+        UopId id;
+        
+        logic status; // FUTURE: enum
+        
+        UopName name;
+        
+        int vDest;
+        int physDest;
+        
+        InsDependencies deps;
+        
+        Mword argsE[3]; // Args from emulation
+        Mword argsA[3]; // Actual args read from regs and bypass
+        Mword resultE;  // Result according to emulation
+        Mword resultA;  // Actual result
+        
+        logic argError;    // DB
+        logic resultError; // DB
+        
+        logic exception;   // Execution event from actual uarch
+    } UopInfo;
     
 
 
@@ -81,9 +82,7 @@ package Insmap;
 
 
 
-
-    function automatic InstructionInfo initInsInfo(
-                                                    input InsId id,
+    function automatic InstructionInfo initInsInfo( input InsId id,
                                                     input Mword adr,
                                                     input Word bits
                                                     );
@@ -108,7 +107,7 @@ package Insmap;
         InsId mids[$];
         Unum uids[$];
 
-            InsId lastId = -1;
+        InsId lastId = -1;
             
         InsId lastM = -1;
         Unum lastU = -1;
@@ -122,10 +121,7 @@ package Insmap;
         string dbStr;
 
 
-        function automatic void setRenamedNew(input InsId id,
-                                            input InstructionInfo argII,
-                                            input UopInfo argUI[$]
-                                            );
+        function automatic void setRenamedNew(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
             lastId = id;
             lastM++;
             assert (lastId == lastM) else $fatal(2, "wring idss");
@@ -133,14 +129,10 @@ package Insmap;
             mids.push_back(lastM);
             minfos[id] = argII;    
                 
-               // if (id > 1840) $display("getting M %d", lastM);
-                
             for (int u = 0; u < minfos[id].nUops; u++) begin                    
                 lastU++;
-                       // if (id > 1840) $display("   getting U %d", lastU);
-
                 
-                    assert (lastU == minfos[id].firstUop + u) else $error(" uuuuuuuuuuuuuu ");    
+                assert (lastU == minfos[id].firstUop + u) else $error(" uuuuuuuuuuuuuu ");    
                 uids.push_back(lastU);
                 uinfos[minfos[id].firstUop + u] = argUI.pop_front();
             end
@@ -158,26 +150,27 @@ package Insmap;
         endfunction 
         
 
-            function automatic string TMP_getStr();
-                string res;
-                InsId first = -1;
-                InsId last = -1;
-                
-                int size = mids.size();
-                
-                if (mids.size() > 0) begin
-                    first = mids[0];
-                    last = mids[$];
-                end
-                
-                $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
-                
-                return res;
-            endfunction
+        function automatic string TMP_getStr();
+            string res;
+            InsId first = -1;
+            InsId last = -1;
             
-            function automatic void setDbStr();
-                dbStr = TMP_getStr();
-            endfunction
+            int size = mids.size();
+            
+            if (mids.size() > 0) begin
+                first = mids[0];
+                last = mids[$];
+            end
+            
+            $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
+            
+            return res;
+        endfunction
+        
+        function automatic void setDbStr();
+            dbStr = TMP_getStr();
+        endfunction
+
     endclass
     
 
@@ -276,8 +269,6 @@ package Insmap;
 
         localparam int RECORD_ARRAY_SIZE = 20;
     
-            MilestoneTag lastRecordArr[RECORD_ARRAY_SIZE];
-
             InsId reissuedId = -1;    
     
             int renamedM = 0;
@@ -294,10 +285,6 @@ package Insmap;
             endfunction
 
 
-        // insinfo
-        function automatic void registerIndex(input InsId id);
-
-        endfunction
 
         // ins info
         function automatic InstructionInfo get(input InsId id);
@@ -316,11 +303,8 @@ package Insmap;
             assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
             
             uIndex = ii.firstUop + uid.s;
-                assert (uIndex == uid2unum(uid)) else $error("uIndex differes");
-
-            assert (insBase.uinfos.exists( uIndex /*U2M(uid)*/)) else $fatal(2, "wrong id %p", uid);
-            
-               // assert (uIndex == U2M(uid)) else $error("mismatchedd");
+            assert (uIndex == uid2unum(uid)) else $error("uIndex differes");
+            assert (insBase.uinfos.exists(uIndex)) else $fatal(2, "wrong id %p", uid);
             
             return insBase.uinfos[ uIndex ];
         endfunction
@@ -331,29 +315,11 @@ package Insmap;
         endfunction
         
 
-        /////// insinfo
-        
-        // DEPREC
-        function automatic void add(input InsId id, input Mword adr, input Word bits
-        );
 
-        endfunction
+        function automatic void TMP_func(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
+            insBase.setRenamedNew(id, argII, argUI);
 
-        // DEPREC
-        function automatic void setEncoding(input InsId id, input Word bits);
-
-        endfunction
-    
-
-        function automatic void TMP_func(input InsId id,
-                                        input InstructionInfo argII,
-                                        input UopInfo argUI[$]
-                                            );
-            insBase.setRenamedNew(id, 
-                                    argII, argUI
-                                    );
-
-                records[id] = new();
+            records[id] = new();
                 
             for (int u = 0; u < argII.nUops; u++) begin
                 recordsU[argII.firstUop + u] = new();
@@ -361,10 +327,10 @@ package Insmap;
         endfunction
         
 
-            function automatic Unum uid2unum(input UidT uid);
-                Unum base = insBase.minfos[U2M(uid)].firstUop;
-                return base + uid.s;
-            endfunction
+        function automatic Unum uid2unum(input UidT uid);
+            Unum base = insBase.minfos[U2M(uid)].firstUop;
+            return base + uid.s;
+        endfunction
             
 
         function automatic void setActualResult(input UidT uid, input Mword res);
@@ -414,17 +380,6 @@ package Insmap;
         function automatic void putMilestoneC(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
         endfunction
-
-        // milestones (helper)
-            function automatic void setRecordArr(ref MilestoneTag arr[RECORD_ARRAY_SIZE], input InsId id);
-                MilestoneTag def = '{___, -1};
-                MopRecord empty = new();
-                MopRecord rec = id == -1 ? empty : records[id];
-                arr = '{default: def};
-                
-                foreach(rec.tags[i]) arr[i] = rec.tags[i];
-            endfunction
-
 
 
         function automatic void commitCheck();
@@ -565,7 +520,6 @@ package Insmap;
         endfunction
     
             function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
-                  //  $display("Store reissued %d, %p", id, tags[$]);
                 if (reissuedId != -1) return;
                 
                 begin
@@ -658,7 +612,6 @@ package Insmap;
             MilestoneTag tags[$] = records[id].tags;
             ExecClass eclass = determineClass(tags);
 
-            //MilestoneTag tagsU[$] = recordsU[id].tags;
             for (int u = 0; u < nU; u++) begin
                 tagsU_N.push_back(recordsU[firstUop + u].tags);
             end
@@ -667,28 +620,25 @@ package Insmap;
             else if (eclass == EC_KilledOOO) return checkKilledOOO(id, tags, tagsU_N);
             else return checkRetired(id, tags, tagsU_N);
         endfunction
-        
 
-            function automatic void assertReissue();
-                assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
-            endfunction
+
+        function automatic void assertReissue();
+            assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
+        endfunction
         
     endclass
 
 
     typedef UopInfo UopInfoQ[$];
 
-    function automatic UopInfoQ splitUop(input UopInfo uinfo);
-            localparam logic CLEAR_ARG_2 = 1;
-    
+    function automatic UopInfoQ splitUop(input UopInfo uinfo);    
         int nDests = 0;
     
         UopInfoQ res;
         UopInfo current = uinfo;
         current.id.s = 0;
     
-        if (//current.name == UOP_ctrl_sync || 
-            isControlUop(current.name)  ) return res; // 0 uops
+        if (isControlUop(current.name)) return res; // 0 uops
         
         // Store ops: split into adr and data
         else if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
@@ -702,17 +652,15 @@ package Insmap;
             sd.deps.producers = '{default: UIDT_NONE};
             sd.argError = 'x;
 
-                sd.deps.types[2] = current.deps.types[2];
-                sd.deps.sources[2] = current.deps.sources[2];
-                sd.deps.producers[2] = current.deps.producers[2];
-                sd.argsE[2] = current.argsE[2];
+            sd.deps.types[2] = current.deps.types[2];
+            sd.deps.sources[2] = current.deps.sources[2];
+            sd.deps.producers[2] = current.deps.producers[2];
+            sd.argsE[2] = current.argsE[2];
             
-            if (CLEAR_ARG_2) begin
-                current.deps.types[2] = SRC_ZERO;
-                current.deps.sources[2] = 0;
-                current.deps.producers[2] = UIDT_NONE;
-                current.argsE[2] = 0;
-            end
+            current.deps.types[2] = SRC_ZERO;
+            current.deps.sources[2] = 0;
+            current.deps.producers[2] = UIDT_NONE;
+            current.argsE[2] = 0;
             
             res.push_back(current);
             res.push_back(sd);
@@ -728,17 +676,15 @@ package Insmap;
             sd.deps.producers = '{default: UIDT_NONE};
             sd.argError = 'x;
 
-                sd.deps.types[2] = current.deps.types[2];
-                sd.deps.sources[2] = current.deps.sources[2];
-                sd.deps.producers[2] = current.deps.producers[2];
-                sd.argsE[2] = current.argsE[2];
+            sd.deps.types[2] = current.deps.types[2];
+            sd.deps.sources[2] = current.deps.sources[2];
+            sd.deps.producers[2] = current.deps.producers[2];
+            sd.argsE[2] = current.argsE[2];
             
-            if (CLEAR_ARG_2) begin
-                current.deps.types[2] = SRC_ZERO;
-                current.deps.sources[2] = 0;
-                current.deps.producers[2] = UIDT_NONE;
-                current.argsE[2] = 0;
-            end
+            current.deps.types[2] = SRC_ZERO;
+            current.deps.sources[2] = 0;
+            current.deps.producers[2] = UIDT_NONE;
+            current.argsE[2] = 0;
             
             res.push_back(current);
             res.push_back(sd);
@@ -748,7 +694,8 @@ package Insmap;
             UopInfo lk;
             lk.id = '{current.id.m, 1};
             lk.name = UOP_int_link;
-                lk.vDest = current.vDest;
+            lk.vDest = current.vDest;
+                
             lk.physDest = -1;
             lk.argsE = '{default: 0};
             lk.deps.types = '{default: SRC_ZERO};
@@ -758,22 +705,10 @@ package Insmap;
 
             lk.resultE = current.resultE;
                 
-                current.vDest = -1;
-//                sd.deps.types[2] = current.deps.types[2];
-//                sd.deps.sources[2] = current.deps.sources[2];
-//                sd.deps.producers[2] = current.deps.producers[2];
-//                sd.argsE[2] = current.argsE[2];
-            
-//            if (CLEAR_ARG_2) begin
-//                current.deps.types[2] = SRC_ZERO;
-//                current.deps.sources[2] = 0;
-//                current.deps.producers[2] = UIDT_NONE;
-//                current.argsE[2] = 0;
-//                  current.physDest = -1;
-//            end
-            res.push_back(current);
+            current.vDest = -1;
 
-                res.push_back(lk);
+            res.push_back(current);
+            res.push_back(lk);
         end
         else
             res.push_back(current);

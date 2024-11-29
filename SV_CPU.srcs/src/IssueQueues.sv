@@ -422,7 +422,8 @@ module IssueQueueComplex(
                 UopName uname = decUname(uid);
 
                 if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
-                else if (isControlUop(uname)) res.sys[i] = '{1, uid};
+                else if (//isControlUop(uname) || 
+                         isStoreDataUop(uname)) res.sys[i] = '{1, uid};
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
                 else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
                 else res.regular[i] = '{1, uid};
