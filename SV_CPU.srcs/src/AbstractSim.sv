@@ -82,7 +82,7 @@ package AbstractSim;
     typedef struct {
         logic active;
         InsId id;
-            InsId mid;
+        //    InsId mid;
         Mword adr;
         Word bits;
     } OpSlotF;
@@ -108,7 +108,7 @@ package AbstractSim;
     } RetirementInfo;
 
 
-    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
+    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
     localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
 
