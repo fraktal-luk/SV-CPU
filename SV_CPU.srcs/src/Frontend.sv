@@ -17,7 +17,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fqSize = 0;
 
-    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
     int fetchCtr = 0;
@@ -68,8 +68,9 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
         fetchStage0 <= setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
         fetchStage1 <= setWords(fetchStage0, AbstractCore.instructionCacheOut);
+        fetchStage2 <= fetchStage1;
 
-        if (anyActiveFetch(fetchStage1)) fetchQueue.push_back(fetchStage1);
+        if (anyActiveFetch(fetchStage2)) fetchQueue.push_back(fetchStage2);
 
         stageRename0 <= readFromFQ();
     endtask
@@ -78,8 +79,10 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     task automatic flushFrontend();
         markKilledFrontStage(fetchStage0);
         markKilledFrontStage(fetchStage1);
+        markKilledFrontStage(fetchStage2);
         fetchStage0 <= EMPTY_STAGE;
         fetchStage1 <= EMPTY_STAGE;
+        fetchStage2 <= EMPTY_STAGE;
 
         foreach (fetchQueue[i])
             markKilledFrontStage(fetchQueue[i]);

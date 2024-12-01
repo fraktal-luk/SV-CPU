@@ -13,6 +13,8 @@ package Insmap;
     
     typedef int Unum;
         
+        
+        localparam InsId TRACKED_ID = 5818;
 
     typedef struct {
         Mword adr;
@@ -366,12 +368,18 @@ package Insmap;
         // For Mops
         function automatic void putMilestoneM(input InsId id, input Milestone kind, input int cycle);
             if (id == -1) return;
+            
+              //  if (id == TRACKED_ID) $error("milestoneM: %d, %p", id, kind);
+            
             records[id].tags.push_back('{kind, cycle});   
         endfunction
         
         // For uops
         function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
             if (uid == UIDT_NONE) return;
+            
+                          //  if (uid.m == TRACKED_ID) $error("milestone: %d, %p;\n%p", uid.m, kind, getU(uid));
+
             
             recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});
         endfunction

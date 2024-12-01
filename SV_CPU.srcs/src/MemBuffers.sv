@@ -21,6 +21,7 @@ module StoreQueue
 )
 (
     ref InstructionMap insMap,
+    ref MemTracker memTracker,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input OpSlotAB inGroup,
@@ -250,11 +251,23 @@ module StoreQueue
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
+            theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
+
 
             if (active !== 1) continue;
             if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
             resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
+            
+            if (resb.active) begin
+                theExecBlock.fromSqTr[p] <= memTracker.findStoreAll(U2M(resb.TMP_oid));
+                //assert (tr.owner != -1) else $fatal(2, "Forwarded store unknown to memTracker! %d", U2M(resb.TMP_oid));
+            end
+            else begin
+                theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
+            end
+            
+            
             theExecBlock.fromSq[p] <= resb;
         end
     endtask

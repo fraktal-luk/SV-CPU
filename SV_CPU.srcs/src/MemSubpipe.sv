@@ -22,7 +22,8 @@ module MemSubpipe#(
     input DataReadResp readResp,
     
     input UopPacket sqResp,
-    input UopPacket lqResp
+    input UopPacket lqResp,
+    input Transaction sqRespTr
 );
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
@@ -115,7 +116,7 @@ module MemSubpipe#(
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
         if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
-            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
+            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp, sqRespTr);
         
         effAdrE2 <= effAdrE1;
         
@@ -135,14 +136,18 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword memData = readResp.result;
 
         if (sqResp.active) begin
             UidT fwUid = sqResp.TMP_oid;
-            Transaction tr = AbstractCore.memTracker.findStoreAll(U2M(fwUid));
-            assert (tr.owner != -1) else $fatal(2, "Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
+            Transaction tr = sqRespTr;//AbstractCore.memTracker.findStoreAll(U2M(fwUid));
+            //    Transaction tr2 = ;
+            
+            //    assert (tr.owner == tr2.owner) else $error("different owners: %d, %d", tr.owner, tr2.owner); 
+            
+            assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
         
             if (sqResp.status == ES_INVALID) begin //
                 assert (wordOverlap(effAdrE1, tr.adr) && !wordInside(effAdrE1, tr.adr)) else $error("Adr inside or not overlapping");
@@ -173,12 +178,12 @@ module MemSubpipe#(
     
 
     // TOPLEVEL
-    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword3 args = getAndVerifyArgs(uid); // TODO: remove this repeated reading of args?
 
         if (isLoadMemUop(decUname(uid)))
-            return calcMemLoadE2(p, uid, readResp, sqResp, lqResp);
+            return calcMemLoadE2(p, uid, readResp, sqResp, lqResp, sqRespTr);
 
         if (isLoadSysUop(decUname(uid))) begin
             Mword val = getSysReg(args[1]);

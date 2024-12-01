@@ -183,6 +183,8 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket fromLq[N_MEM_PORTS];
     UopPacket fromBq[N_MEM_PORTS];
     
+        Transaction fromSqTr[N_MEM_PORTS];
+    
 
     // Int 0
     RegularSubpipe regular0(
@@ -218,7 +220,8 @@ module ExecBlock(ref InstructionMap insMap,
         readReqs[0],
         readResps[0],
         fromSq[0],
-        fromLq[0]
+        fromLq[0],
+        fromSqTr[0]
     );
 
 
@@ -232,7 +235,8 @@ module ExecBlock(ref InstructionMap insMap,
         readReqs[2],
         readResps[2],
         fromSq[2],
-        fromLq[2]
+        fromLq[2],
+        fromSqTr[2]
     );
 
 
