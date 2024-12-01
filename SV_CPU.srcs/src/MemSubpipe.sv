@@ -147,6 +147,7 @@ module MemSubpipe#(
             
             //    assert (tr.owner == tr2.owner) else $error("different owners: %d, %d", tr.owner, tr2.owner); 
             
+            // TODO: move checks with tr to SQ, so Transaction is not routed through core up to here
             assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
         
             if (sqResp.status == ES_INVALID) begin //
@@ -177,7 +178,6 @@ module MemSubpipe#(
     endfunction
     
 
-    // TOPLEVEL
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword3 args = getAndVerifyArgs(uid); // TODO: remove this repeated reading of args?

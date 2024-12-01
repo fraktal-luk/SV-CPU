@@ -35,6 +35,12 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     end
 
 
+    function automatic FetchStage makeIpStage(input Mword target);
+        FetchStage res = '{default: EMPTY_SLOT_F};
+        res = '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
+        return res;
+    endfunction
+
 
     task automatic redirectFront();
         Mword target;
@@ -43,27 +49,27 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         else if (branchEventInfo.redirect)  target = branchEventInfo.target;
         else $fatal(2, "Should never get here");
 
-        if (ipStage[0].id != -1) markKilledFrontStage(ipStage);
-        ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
+            markKilledFrontStage(ipStage);
+            
+            flushFrontend();
+    
+            markKilledFrontStage(stageRename0);
+            stageRename0 <= '{default: EMPTY_SLOT_F};
+
+        ipStage <= makeIpStage(target);
+
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;
-
         registerNewTarget(fetchCtr + FETCH_WIDTH, target);
-
-        flushFrontend();
-
-        markKilledFrontStage(stageRename0);
-        stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
 
     task automatic fetchAndEnqueue();
         if (AbstractCore.fetchAllow) begin
             Mword target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
-            ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
-
-            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
+            ipStage <= makeIpStage(target);
 
             fetchCtr <= fetchCtr + FETCH_WIDTH;
+            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
         end
 
         fetchStage0 <= setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
@@ -92,20 +98,17 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
 
     function automatic OpSlotAF readFromFQ();
-        OpSlotAF res = '{default: EMPTY_SLOT_F};
-
         // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
         if (fqSize > 0 && AbstractCore.renameAllow)
             return fetchQueue.pop_front();
-
-        return res;
+        else
+            return '{default: EMPTY_SLOT_F};
     endfunction
 
 
 
     function automatic logic anyActiveFetch(input FetchStage s);
-        foreach (s[i])
-            if (s[i].active) return 1;
+        foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
     

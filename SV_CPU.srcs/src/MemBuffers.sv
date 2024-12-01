@@ -259,9 +259,9 @@ module StoreQueue
 
             resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
             
+            // TODO: make checks here rather than in stage E2 of mem subpipe
             if (resb.active) begin
                 theExecBlock.fromSqTr[p] <= memTracker.findStoreAll(U2M(resb.TMP_oid));
-                //assert (tr.owner != -1) else $fatal(2, "Forwarded store unknown to memTracker! %d", U2M(resb.TMP_oid));
             end
             else begin
                 theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
