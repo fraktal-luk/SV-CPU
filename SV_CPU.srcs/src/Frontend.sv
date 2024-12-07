@@ -17,13 +17,18 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fqSize = 0;
 
-    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
-    Mword expectedTargetF2 = 'x;
+    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
+    Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
     int fetchCtr = 0;
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
-
+    
+    logic frontRed;
+    
+    
+    assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
+    
 
     task automatic TMP_cmp();
         foreach (fetchStage0[i]) begin
@@ -64,13 +69,26 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         end
         
         fetchStage1 <= setWords(fetchStage0, AbstractCore.instructionCacheOut);
-
-        fetchStage2 <= getStageF2(fetchStage1, expectedTargetF2);
-        if (anyActiveFetch(fetchStage1)) expectedTargetF2 <= getNextTargetF2(fetchStage1);
-
+        
+        performF2();
+    
         if (anyActiveFetch(fetchStage2)) fetchQueue.push_back(fetchStage2);
 
         stageRename0 <= readFromFQ();
+    endtask
+
+    
+    task automatic performF2();
+        FetchStage f1var = //clearBeforeStart(fetchStage1, expectedTargetF2);
+                            fetchStage1;
+        
+        fetchStage2 <= getStageF2(f1var, expectedTargetF2);
+        fetchStage2_A <= getStageF2(f1var, expectedTargetF2);
+
+        if (anyActiveFetch(f1var)) begin
+            expectedTargetF2 <= getNextTargetF2(f1var, expectedTargetF2);
+            expectedTargetF2_A <= TMP_getNextTarget(f1var, expectedTargetF2);
+        end
     endtask
 
 
@@ -88,6 +106,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchCtr <= fetchCtr + FETCH_WIDTH;
         
         expectedTargetF2 <= target;
+        expectedTargetF2_A <= target;
     endtask
 
     task automatic flushFrontend();
@@ -121,19 +140,127 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endfunction
 
 
-    function automatic FetchStage getStageF2(input FetchStage st, input Mword expectedTarget);
+    function automatic FetchStage clearBeforeStart(input FetchStage st, input Mword expectedTarget);
         FetchStage res = st;
-        
+
         foreach (res[i])
             res[i].active = !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
         
-        // Decode branches and decide if taken. Clear tail after taken branch
-        // ...
+        return res;       
+    endfunction
+
+
+    function automatic FetchStage clearAfterBranch(input FetchStage st, input int lastSlot);
+        FetchStage res = st;
+
+        foreach (res[i])
+            if (i > lastSlot) res[i].active = 0;
+
+        return res;        
+    endfunction
+
+
+
+    function automatic int scanBranches(input FetchStage st);
+        FetchStage res = st;
+
+        
+        Mword nextAdr = res[$size(st)-1].adr + 4;
+        int lastSlot = $size(st)-1;
+        
+        Mword takenTargets[$size(st)] = '{default: 'x};
+        logic active[$size(st)] = '{default: 'x};
+        logic constantBranches[$size(st)] = '{default: 'x};
+        logic predictedBranches[$size(st)] = '{default: 'x};
+        
+        // Decode branches and decide if taken.
+        foreach (res[i]) begin
+            AbstractInstruction ins = decodeAbstract(res[i].bits);
+            
+            active[i] = res[i].active;
+            constantBranches[i] = 0;
+            
+            if (isBranchImmIns(ins)) begin
+                Mword trg = res[i].adr + Mword'(ins.sources[1]);
+                takenTargets[i] = trg;
+                constantBranches[i] = 1;
+                predictedBranches[i] = isBranchAlwaysIns(ins);
+            
+               // $display("BranchImm %d -> %d: %p", res[i].adr, trg, ins.def.o);
+            end
+
+            if (isBranchRegIns(ins)) begin
+                
+            end
+            
+        end
+        
+        // Scan for first taken branch
+        foreach (res[i]) begin
+            if (!res[i].active) continue;
+            
+            if (constantBranches[i] && predictedBranches[i]) begin
+                nextAdr = takenTargets[i];
+                lastSlot = i;
+                break;
+            end
+        end
+        
+        
+        if ($time() <= 300) begin
+            $display("adr %d: tr = %p, a = %p, br = %p // %d, [%d] --> %d", res[0].adr, takenTargets, active, constantBranches, -1, lastSlot, nextAdr);
+        end
+ 
+        return lastSlot;
+    endfunction
+
+
+    function automatic FetchStage TMP_getStageF2(input FetchStage st, input Mword expectedTarget);
+        FetchStage res = st;
+
+        if (!anyActiveFetch(st)) return res;
+        
+        assert (!$isunknown(expectedTarget)) else $fatal(2, "expectedTarget not set");
+        
+        res = clearBeforeStart(res, expectedTarget);        
+
+        return res;
+    endfunction
+    
+
+        function automatic Mword TMP_getNextTarget(inout FetchStage st, input Mword expectedTarget);
+            FetchStage res = TMP_getStageF2(st, expectedTarget);
+            
+            Mword adr = res[$size(st)-1].adr + 4;
+            
+            foreach (res[i]) 
+                if (res[i].active) begin
+                    AbstractInstruction ins = decodeAbstract(res[i].bits);
+                    
+                    if (isBranchImmIns(ins)) begin
+                        if (isBranchAlwaysIns(ins)) begin
+                            adr = res[i].adr + Mword'(ins.sources[1]);
+                            break;
+                        end
+                    end
+                end
+            
+            return adr; 
+        endfunction
+
+
+    function automatic FetchStage getStageF2(input FetchStage st, input Mword expectedTarget);
+        FetchStage res = TMP_getStageF2(st, expectedTarget);
+ 
+        int lastSlot = scanBranches(res);
+        
+           // res = clearAfterLast(res, lastSlot);
         
         return res;
     endfunction
     
-    function automatic Mword getNextTargetF2(input FetchStage st);
+    
+    function automatic Mword getNextTargetF2(input FetchStage st, input Mword expectedTarget);
         // If no taken branches, increment base adr. Otherwise get taken target
         return st[0].adr + 4*FETCH_WIDTH;
     endfunction
