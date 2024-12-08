@@ -50,8 +50,15 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fqSize <= fetchQueue.size();
     end
 
+    task automatic redirectF2();
+        flushFrontendBeforeF2();
+ 
+        ipStage <= makeIpStage(expectedTargetF2);
 
-    task automatic fetchAndEnqueue();
+        fetchCtr <= fetchCtr + FETCH_WIDTH;   
+    endtask
+
+    task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
             Mword baseTrg = fetchLineBase(ipStage[0].adr);
             Mword target = baseTrg + 4*FETCH_WIDTH;
@@ -69,7 +76,15 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         end
         
         fetchStage1 <= setWords(fetchStage0, AbstractCore.instructionCacheOut);
-        
+    endtask
+
+
+    task automatic fetchAndEnqueue();
+        if (frontRed)
+            redirectF2();
+        else
+            fetchNormal();
+
         performF2();
     
         if (anyActiveFetch(fetchStage2)) fetchQueue.push_back(fetchStage2);
@@ -83,7 +98,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
                             fetchStage1;
         
         fetchStage2 <= getStageF2(f1var, expectedTargetF2);
-        fetchStage2_A <= getStageF2(f1var, expectedTargetF2);
+        fetchStage2_A <= getStageF2(f1var, expectedTargetF2_A);
 
         if (anyActiveFetch(f1var)) begin
             expectedTargetF2 <= getNextTargetF2(f1var, expectedTargetF2);
@@ -109,16 +124,21 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         expectedTargetF2_A <= target;
     endtask
 
-    task automatic flushFrontend();
+
+    task automatic flushFrontendBeforeF2();
         markKilledFrontStage(ipStage);
         markKilledFrontStage(fetchStage0);
         markKilledFrontStage(fetchStage1);
-        markKilledFrontStage(fetchStage2);
-        markKilledFrontStage(stageRename0);
-       
+
         ipStage <= EMPTY_STAGE;
         fetchStage0 <= EMPTY_STAGE;
         fetchStage1 <= EMPTY_STAGE;
+    endtask    
+
+    task automatic flushFrontendFromF2();
+        markKilledFrontStage(fetchStage2);
+        markKilledFrontStage(stageRename0);
+        
         fetchStage2 <= EMPTY_STAGE;
         expectedTargetF2 <= 'x;
 
@@ -128,6 +148,12 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchQueue.delete();
         
         stageRename0 <= '{default: EMPTY_SLOT_F};
+    endtask
+
+
+    task automatic flushFrontend();
+        flushFrontendBeforeF2();
+        flushFrontendFromF2();   
     endtask
 
 
@@ -254,7 +280,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
  
         int lastSlot = scanBranches(res);
         
-           // res = clearAfterLast(res, lastSlot);
+           res = clearAfterBranch(res, lastSlot);
         
         return res;
     endfunction
