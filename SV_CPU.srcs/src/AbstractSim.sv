@@ -85,6 +85,9 @@ package AbstractSim;
         //    InsId mid;
         Mword adr;
         Word bits;
+        
+        logic takenBranch;
+        Mword predictedTarget;
     } OpSlotF;
 
     typedef struct {
@@ -108,7 +111,7 @@ package AbstractSim;
     } RetirementInfo;
 
 
-    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x};
+    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
     localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
 
@@ -647,7 +650,6 @@ package AbstractSim;
         OpSlotB res;
         
         res.active = op.active;
-        res.mid = op.id;
         res.mid = -1;
         res.adr = op.adr;
         res.bits = op.bits;

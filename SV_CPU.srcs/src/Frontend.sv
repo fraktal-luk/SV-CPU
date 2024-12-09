@@ -15,6 +15,9 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
+    localparam logic ENABLE_FRONT_BRANCHES = 1;
+    
+
     int fqSize = 0;
 
     FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
@@ -54,6 +57,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         flushFrontendBeforeF2();
  
         ipStage <= makeIpStage(expectedTargetF2);
+
+        
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;   
     endtask
@@ -96,7 +101,13 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     task automatic performF2();
         FetchStage f1var = //clearBeforeStart(fetchStage1, expectedTargetF2);
                             fetchStage1;
-        
+    
+        if (frontRed) begin
+            fetchStage2 <= EMPTY_STAGE;
+            fetchStage2_A <= EMPTY_STAGE;
+            return;
+        end
+    
         fetchStage2 <= getStageF2(f1var, expectedTargetF2);
         fetchStage2_A <= getStageF2(f1var, expectedTargetF2_A);
 
@@ -176,11 +187,13 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endfunction
 
 
-    function automatic FetchStage clearAfterBranch(input FetchStage st, input int lastSlot);
+    function automatic FetchStage clearAfterBranch(input FetchStage st, input int branchSlot);
         FetchStage res = st;
-
+        
+        if (branchSlot == -1) return res;
+        
         foreach (res[i])
-            if (i > lastSlot) res[i].active = 0;
+            if (i > branchSlot) res[i].active = 0;
 
         return res;        
     endfunction
@@ -192,7 +205,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
         
         Mword nextAdr = res[$size(st)-1].adr + 4;
-        int lastSlot = $size(st)-1;
+        int branchSlot = -1;
         
         Mword takenTargets[$size(st)] = '{default: 'x};
         logic active[$size(st)] = '{default: 'x};
@@ -206,11 +219,12 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             active[i] = res[i].active;
             constantBranches[i] = 0;
             
-            if (isBranchImmIns(ins)) begin
+            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
                 Mword trg = res[i].adr + Mword'(ins.sources[1]);
                 takenTargets[i] = trg;
                 constantBranches[i] = 1;
                 predictedBranches[i] = isBranchAlwaysIns(ins);
+
             
                // $display("BranchImm %d -> %d: %p", res[i].adr, trg, ins.def.o);
             end
@@ -227,17 +241,17 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             
             if (constantBranches[i] && predictedBranches[i]) begin
                 nextAdr = takenTargets[i];
-                lastSlot = i;
+                branchSlot = i;
                 break;
             end
         end
         
         
         if ($time() <= 300) begin
-            $display("adr %d: tr = %p, a = %p, br = %p // %d, [%d] --> %d", res[0].adr, takenTargets, active, constantBranches, -1, lastSlot, nextAdr);
+           // $display("adr %d: tr = %p, a = %p, br = %p // %d, [%d] --> %d", res[0].adr, takenTargets, active, constantBranches, -1, lastSlot, nextAdr);
         end
  
-        return lastSlot;
+        return branchSlot;
     endfunction
 
 
@@ -262,8 +276,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             foreach (res[i]) 
                 if (res[i].active) begin
                     AbstractInstruction ins = decodeAbstract(res[i].bits);
-                    
-                    if (isBranchImmIns(ins)) begin
+                            
+                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
                         if (isBranchAlwaysIns(ins)) begin
                             adr = res[i].adr + Mword'(ins.sources[1]);
                             break;
@@ -278,9 +292,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     function automatic FetchStage getStageF2(input FetchStage st, input Mword expectedTarget);
         FetchStage res = TMP_getStageF2(st, expectedTarget);
  
-        int lastSlot = scanBranches(res);
+        int brSlot = scanBranches(res);
         
-           res = clearAfterBranch(res, lastSlot);
+        res = clearAfterBranch(res, brSlot);
+        
+        // Set prediction info
+        if (brSlot != -1) begin
+            res[brSlot].takenBranch = 1;
+        end
         
         return res;
     endfunction
@@ -288,7 +307,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     
     function automatic Mword getNextTargetF2(input FetchStage st, input Mword expectedTarget);
         // If no taken branches, increment base adr. Otherwise get taken target
-        return st[0].adr + 4*FETCH_WIDTH;
+        return //st[0].adr + 4*FETCH_WIDTH;
+               TMP_getNextTarget(st, expectedTarget);
     endfunction
 
 
@@ -325,7 +345,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         for (int i = 0; i < $size(res); i++) begin
             adr = baseAdr + 4*i;
             active = !$isunknown(target) && (adr >= target);
-            res[i] = '{active, -1, adr, 'x};
+            res[i] = '{active, -1, adr, 'x, 0, 'x};
         end
         
         return res;

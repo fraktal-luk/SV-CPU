@@ -471,18 +471,27 @@ module ExecBlock(ref InstructionMap insMap,
         Mword3 args = insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
         
+        logic predictedDir = insMap.get(U2M(uid)).frontBranch;
         logic dir = resolveBranchDirection(uname, args[0]);// reg
+        logic redirect = predictedDir ^ dir;
         Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
         Mword trg = dir ? takenTrg : adr + 4;
-
+        
+        assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");
+        
+          //  if (predictedDir) $display("Branch already taken in front %d, %p", U2M(uid), uname);
+        
         AbstractCore.theBq.execTarget = takenTrg;
         AbstractCore.theBq.execLink = adr + 4;
+
+        if (redirect)
+            putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
 
         //    TODO: lookup from BQ is available 1 cycle later
         //    assert (takenTrg === AbstractCore.theBq.lookupTarget) else $error("Not matching target of %p: %d / %d", uname, takenTrg, AbstractCore.theSq.lookupTarget);
         //    assert (adr + 4 === AbstractCore.theBq.lookupLink) else $error("Not matching link of %p: %d / %d", uname, adr + 4, AbstractCore.theSq.lookupLink);
 
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, adr, trg};
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, trg};
     endtask
     
 

@@ -256,7 +256,8 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotAB ops = TMP_front2rename(theFrontend.stageRename0);
+        OpSlotAF opsF = theFrontend.stageRename0;
+        OpSlotAB ops = TMP_front2rename(opsF);
 
         if (anyActiveB(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
@@ -265,7 +266,7 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
             
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits);   
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, opsF[i].predictedTarget);
         end
 
         stageRename1 <= ops;
@@ -338,7 +339,7 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits);
+    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg);
         AbstractInstruction ins = decodeAbstract(bits);
         InstructionInfo ii;
         UopInfo mainUinfo;
@@ -367,6 +368,9 @@ module AbstractCore
 
         ii.firstUop = insMap.insBase.lastU + 1;
         ii.nUops = -1;
+        
+        if (isBranchIns(ins))
+            ii.frontBranch = predictedDir;
 
 
         mainUinfo.id = '{id, -1};

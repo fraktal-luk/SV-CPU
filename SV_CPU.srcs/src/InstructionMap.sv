@@ -70,6 +70,8 @@ package Insmap;
         IndexSet inds;
         int slot; // UNUSED?
 
+            logic frontBranch;
+
         logic exception;
         logic refetch;
     } InstructionInfo;
@@ -93,8 +95,10 @@ package Insmap;
         
         res.basicData.adr = adr;
         res.basicData.bits = bits;
-        res.basicData.dec = decodeAbstract(bits);
-
+        res.basicData.dec = decodeAbstract(bits); // TODO: redundant because called in renameOp
+        
+            res.frontBranch = 'x;
+        
         res.exception = 0;
         res.refetch = 0;
 
@@ -198,6 +202,9 @@ package Insmap;
             SqEnter, SqFlush, SqExit,            
             LqEnter, LqFlush, LqExit,
 
+              ExecRedirect,            
+
+
             FlushOOO,
             
             FlushCommit,
@@ -231,7 +238,6 @@ package Insmap;
     
               ReadArg, // FUTURE: by source type
     
-              ExecRedirect,            
             //
                 
                 // UNUSED
