@@ -16,7 +16,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
 
     localparam logic ENABLE_FRONT_BRANCHES = 1;
-    
+
 
     int fqSize = 0;
 
@@ -26,12 +26,12 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fetchCtr = 0;
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
-    
+
     logic frontRed;
-    
-    
+
+
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
-    
+
 
     task automatic TMP_cmp();
         foreach (fetchStage0[i]) begin
@@ -43,13 +43,13 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     always @(posedge AbstractCore.clk) begin
                 TMP_cmp();
-    
-    
+
+
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectFront();
         else
             fetchAndEnqueue();
-            
+
         fqSize <= fetchQueue.size();
     end
 
@@ -58,15 +58,13 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
  
         ipStage <= makeIpStage(expectedTargetF2);
 
-        
-
         fetchCtr <= fetchCtr + FETCH_WIDTH;   
     endtask
 
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
             Mword baseTrg = fetchLineBase(ipStage[0].adr);
-            Mword target = baseTrg + 4*FETCH_WIDTH;
+            Mword target = baseTrg + 4*FETCH_WIDTH; // TODO: next line predictor
 
             ipStage <= makeIpStage(target);
 
@@ -79,7 +77,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         else begin
             fetchStage0 <= EMPTY_STAGE;
         end
-        
+
         fetchStage1 <= setWords(fetchStage0, AbstractCore.instructionCacheOut);
     endtask
 
@@ -91,23 +89,22 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             fetchNormal();
 
         performF2();
-    
+
         if (anyActiveFetch(fetchStage2)) fetchQueue.push_back(fetchStage2);
 
         stageRename0 <= readFromFQ();
     endtask
 
-    
+
     task automatic performF2();
-        FetchStage f1var = //clearBeforeStart(fetchStage1, expectedTargetF2);
-                            fetchStage1;
-    
+        FetchStage f1var = fetchStage1;
+
         if (frontRed) begin
             fetchStage2 <= EMPTY_STAGE;
             fetchStage2_A <= EMPTY_STAGE;
             return;
         end
-    
+
         fetchStage2 <= getStageF2(f1var, expectedTargetF2);
         fetchStage2_A <= getStageF2(f1var, expectedTargetF2_A);
 
@@ -128,7 +125,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         else $fatal(2, "Should never get here");
 
         ipStage <= makeIpStage(target);
-    
+
         fetchCtr <= fetchCtr + FETCH_WIDTH;
         
         expectedTargetF2 <= target;
@@ -149,7 +146,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     task automatic flushFrontendFromF2();
         markKilledFrontStage(fetchStage2);
         markKilledFrontStage(stageRename0);
-        
+
         fetchStage2 <= EMPTY_STAGE;
         expectedTargetF2 <= 'x;
 
@@ -157,7 +154,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             markKilledFrontStage(fetchQueue[i]);
 
         fetchQueue.delete();
-        
+
         stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
 
@@ -202,7 +199,6 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     function automatic int scanBranches(input FetchStage st);
         FetchStage res = st;
-
         
         Mword nextAdr = res[$size(st)-1].adr + 4;
         int branchSlot = -1;
@@ -223,10 +219,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
                 Mword trg = res[i].adr + Mword'(ins.sources[1]);
                 takenTargets[i] = trg;
                 constantBranches[i] = 1;
-                predictedBranches[i] = isBranchAlwaysIns(ins);
-
-            
-               // $display("BranchImm %d -> %d: %p", res[i].adr, trg, ins.def.o);
+                predictedBranches[i] = isBranchAlwaysIns(ins);            
             end
 
             if (isBranchRegIns(ins)) begin
@@ -268,25 +261,25 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endfunction
     
 
-        function automatic Mword TMP_getNextTarget(inout FetchStage st, input Mword expectedTarget);
-            FetchStage res = TMP_getStageF2(st, expectedTarget);
-            
-            Mword adr = res[$size(st)-1].adr + 4;
-            
-            foreach (res[i]) 
-                if (res[i].active) begin
-                    AbstractInstruction ins = decodeAbstract(res[i].bits);
-                            
-                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                        if (isBranchAlwaysIns(ins)) begin
-                            adr = res[i].adr + Mword'(ins.sources[1]);
-                            break;
-                        end
+    function automatic Mword TMP_getNextTarget(inout FetchStage st, input Mword expectedTarget);
+        FetchStage res = TMP_getStageF2(st, expectedTarget);
+        
+        Mword adr = res[$size(st)-1].adr + 4;
+        
+        foreach (res[i]) 
+            if (res[i].active) begin
+                AbstractInstruction ins = decodeAbstract(res[i].bits);
+                        
+                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                    if (isBranchAlwaysIns(ins)) begin
+                        adr = res[i].adr + Mword'(ins.sources[1]);
+                        break;
                     end
                 end
-            
-            return adr; 
-        endfunction
+            end
+        
+        return adr; 
+    endfunction
 
 
     function automatic FetchStage getStageF2(input FetchStage st, input Mword expectedTarget);
@@ -307,8 +300,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     
     function automatic Mword getNextTargetF2(input FetchStage st, input Mword expectedTarget);
         // If no taken branches, increment base adr. Otherwise get taken target
-        return //st[0].adr + 4*FETCH_WIDTH;
-               TMP_getNextTarget(st, expectedTarget);
+        return TMP_getNextTarget(st, expectedTarget);
     endfunction
 
 

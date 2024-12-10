@@ -135,67 +135,22 @@ module MemSubpipe#(
     endfunction
 
 
-    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
-        assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
-
-        if (sr.status == ES_INVALID) begin //
-            assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
-        end
-        else if (sr.status == ES_NOT_READY) begin
-            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
-        end
-        else begin
-            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
-        end
-    endfunction
-
-
+    // TODO: remove sqRespTr signal all the way up to Sq?
     function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword memData = readResp.result;
 
         if (sqResp.active) begin
-            UopPacket sr = sqResp;
-            UidT fwUid = sqResp.TMP_oid;
-            Transaction tr = sqRespTr;
-            
-            Mword eadr = effAdrE1;
-            
-            //    assert (tr.owner == tr2.owner) else $error("different owners: %d, %d", tr.owner, tr2.owner); 
-            
-            // TODO: move checks with tr to SQ, so Transaction is not routed through core up to here
-            checkSqResp(sr, tr, eadr);
-//            begin
-//                assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
-    
-//                if (sr.status == ES_INVALID) begin //
-//                    assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
-//                end
-//                else if (sr.status == ES_NOT_READY) begin
-//                    assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
-//                end
-//                else begin
-//                    assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
-//                end
-//            end
-            
-        
-            if (sqResp.status == ES_INVALID) begin //
-                //assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
-                        
+            if (sqResp.status == ES_INVALID) begin
                 res.status = ES_REDO;
                 insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
                 memData = 0; // TMP
             end
-            else if (sqResp.status == ES_NOT_READY) begin
-                //assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
-            
+            else if (sqResp.status == ES_NOT_READY) begin            
                 res.status = ES_NOT_READY;
                 memData = 0; // TMP
             end
-            else begin
-                //assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
-            
+            else begin            
                 memData = sqResp.result;
                 putMilestone(uid, InstructionMap::MemFwConsume);
             end

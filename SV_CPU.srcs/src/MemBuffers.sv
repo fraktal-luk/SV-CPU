@@ -260,9 +260,10 @@ module StoreQueue
 
             resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
             
-            // TODO: make checks here rather than in stage E2 of mem subpipe
             if (resb.active) begin
-                theExecBlock.fromSqTr[p] <= memTracker.findStoreAll(U2M(resb.TMP_oid));
+                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), adr);
+            
+                theExecBlock.fromSqTr[p] <= memTracker.findStoreAll(U2M(resb.TMP_oid)); // TODO: probably unneeded now
             end
             else begin
                 theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
@@ -321,6 +322,20 @@ module StoreQueue
         if (insMap.get(mid).mainUop == UOP_mem_sts) return; // Not checking sys stores
 
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
+    endfunction
+
+    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
+        assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
+
+        if (sr.status == ES_INVALID) begin //
+            assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
+        end
+        else if (sr.status == ES_NOT_READY) begin
+            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+        end
+        else begin
+            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+        end
     endfunction
 
 endmodule

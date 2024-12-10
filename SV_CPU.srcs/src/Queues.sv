@@ -118,11 +118,10 @@ package Queues;
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
             Entry fwEntry;
             
-            // TODO: classify matches (X covers Y means X includes Y)
             // Youngest older overlapping store:
             // Covers and has data -> OK
+            // Covers, not has data -> to RQ, wait ??
             // Not covers -> incomplete forward, refetch
-            // Not has data -> to RQ, wait ??
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
             else if (found.size() == 1) begin
