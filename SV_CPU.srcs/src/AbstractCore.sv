@@ -360,7 +360,7 @@ module AbstractCore
         deps = registerTracker.getArgDeps(ins); // For insMap
 
 
-        ii = initInsInfo(id, adr, bits);
+        ii = initInsInfo(id, adr, bits, ins);
         ii.mainUop = uopName;
         ii.inds = renameInds;
         ii.slot = currentSlot;
@@ -520,13 +520,10 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
-        Word bits = fetchInstruction(dbProgMem, trg); // DB
-
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
-        assert (bits === info.basicData.bits) else $fatal(2, "Commit: mm enc %h / %h", bits, info.basicData.bits); // TODO: check at Frontend?
-
+        
         if (info.refetch) return;
         
         // Only Normal commit

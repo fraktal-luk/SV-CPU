@@ -326,8 +326,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     function automatic FetchStage setWords(input FetchStage s, input FetchGroup fg);
         FetchStage res = s;
-        foreach (res[i])
+        foreach (res[i]) begin
+            if (res[i].active) begin
+                Word bits = fetchInstruction(AbstractCore.dbProgMem, res[i].adr); // DB
+                assert (fg[i] === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, fg[i], bits);
+            end
+            
             res[i].bits = fg[i];
+        end
         return res;
     endfunction
 

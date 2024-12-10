@@ -135,36 +135,66 @@ module MemSubpipe#(
     endfunction
 
 
+    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
+        assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
+
+        if (sr.status == ES_INVALID) begin //
+            assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
+        end
+        else if (sr.status == ES_NOT_READY) begin
+            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+        end
+        else begin
+            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+        end
+    endfunction
+
 
     function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword memData = readResp.result;
 
         if (sqResp.active) begin
+            UopPacket sr = sqResp;
             UidT fwUid = sqResp.TMP_oid;
-            Transaction tr = sqRespTr;//AbstractCore.memTracker.findStoreAll(U2M(fwUid));
-            //    Transaction tr2 = ;
+            Transaction tr = sqRespTr;
+            
+            Mword eadr = effAdrE1;
             
             //    assert (tr.owner == tr2.owner) else $error("different owners: %d, %d", tr.owner, tr2.owner); 
             
             // TODO: move checks with tr to SQ, so Transaction is not routed through core up to here
-            assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
+            checkSqResp(sr, tr, eadr);
+//            begin
+//                assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
+    
+//                if (sr.status == ES_INVALID) begin //
+//                    assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
+//                end
+//                else if (sr.status == ES_NOT_READY) begin
+//                    assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+//                end
+//                else begin
+//                    assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+//                end
+//            end
+            
         
             if (sqResp.status == ES_INVALID) begin //
-                assert (wordOverlap(effAdrE1, tr.adr) && !wordInside(effAdrE1, tr.adr)) else $error("Adr inside or not overlapping");
+                //assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
                         
                 res.status = ES_REDO;
                 insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
                 memData = 0; // TMP
             end
             else if (sqResp.status == ES_NOT_READY) begin
-                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
+                //assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
             
                 res.status = ES_NOT_READY;
                 memData = 0; // TMP
             end
             else begin
-                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
+                //assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
             
                 memData = sqResp.result;
                 putMilestone(uid, InstructionMap::MemFwConsume);
@@ -180,7 +210,7 @@ module MemSubpipe#(
 
     function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
-        Mword3 args = getAndVerifyArgs(uid); // TODO: remove this repeated reading of args?
+        Mword3 args = insMap.getU(uid).argsA;
 
         if (isLoadMemUop(decUname(uid)))
             return calcMemLoadE2(p, uid, readResp, sqResp, lqResp, sqRespTr);

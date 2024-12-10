@@ -178,7 +178,7 @@ module StoreQueue
         else if (IS_STORE_QUEUE)
             drainPointer = startPointer;
         else
-            drainPointer = startPointer;//-1;
+            drainPointer = startPointer;
 
 
             
@@ -208,7 +208,8 @@ module StoreQueue
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
                else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
 
-               putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress); // TODO: diffrentiate for BQ
+               if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
+                   putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
             end
         end
 

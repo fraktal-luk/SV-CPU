@@ -88,14 +88,15 @@ package Insmap;
 
     function automatic InstructionInfo initInsInfo( input InsId id,
                                                     input Mword adr,
-                                                    input Word bits
+                                                    input Word bits,
+                                                    input AbstractInstruction ins
                                                     );
         InstructionInfo res;
         res.id = id;
         
         res.basicData.adr = adr;
         res.basicData.bits = bits;
-        res.basicData.dec = decodeAbstract(bits); // TODO: redundant because called in renameOp
+        res.basicData.dec = ins;
         
             res.frontBranch = 'x;
         
