@@ -7,6 +7,8 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 
+import CacheDefs::*;
+
 
 module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
@@ -20,6 +22,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fqSize = 0;
 
+    InstructionCacheOutput cacheOut = EMPTY_INS_CACHE_OUTPUT;
+
     FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
     Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
@@ -28,6 +32,20 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
     logic frontRed;
+
+//    TODO: consider TLB miss!
+//      How to handle:
+//        CR_INVALID,    continue in pipeline, cause exception
+//            CR_NOT_MAPPED, // continue, exception
+//        CR_TLB_MISS
+//        CR_TAG_MISS,       treat as empty?  >> if so, must ensure that later fetch outputs are also ignored: otherwise we can omit a group and accept subsequent ones :((
+//                          better answer: cause redirect to missed address; maybe deactivate fetch block until line is filled?
+//        CR_HIT,        continue in pipeline; if desc says not executable then cause exception
+//        CR_MULTIPLE    cause (async?) error
+//
+//
+
+
 
 
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));

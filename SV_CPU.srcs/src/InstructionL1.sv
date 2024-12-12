@@ -8,6 +8,8 @@ import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
 
+import CacheDefs::*;
+
 
 module InstructionL1(
                 input logic clk,
