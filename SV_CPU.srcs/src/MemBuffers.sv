@@ -27,7 +27,8 @@ module StoreQueue
     input OpSlotAB inGroup,
     output OpSlotAB outGroup,
 
-    input UopPacket wrInputs[N_MEM_PORTS]
+    input UopPacket wrInputs[N_MEM_PORTS],
+    input UopPacket wrInputsE2[N_MEM_PORTS]
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -64,8 +65,8 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-        if (IS_STORE_QUEUE) handleForwardsS();
-        if (IS_LOAD_QUEUE)  handleHazardsL();
+        if (IS_STORE_QUEUE)  handleForwardsS();
+        if (IS_LOAD_QUEUE)   handleHazardsL();
         if (IS_BRANCH_QUEUE) handleBranch();
 
         update();
@@ -210,6 +211,29 @@ module StoreQueue
 
                if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
                    putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
+            end
+        end
+
+        if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
+            foreach (wrInputsE2[p]) begin
+                UopName uname;
+                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REDO, ES_ILLEGAL})) continue;
+
+                uname = decUname(wrInputsE2[p].TMP_oid);            
+                if (!HELPER::appliesU(uname)) continue;
+    
+                begin
+                   int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
+
+                   // TODO: update flag to refetch
+                   //foreach (found[i])
+                   if (wrInputsE2[p].status == ES_REDO)
+                       HELPER::setRefetch(content_N[found[0]]);
+                   else if (wrInputsE2[p].status == ES_ILLEGAL)
+                       HELPER::setError(content_N[found[0]]);                   
+                   //if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
+                   //else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
+                end
             end
         end
 

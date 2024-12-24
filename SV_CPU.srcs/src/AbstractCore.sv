@@ -100,11 +100,11 @@ module AbstractCore
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq, theExecBlock.toSqE2);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLq);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLq, theExecBlock.toLqE2);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq, '{default: EMPTY_UOP_PACKET});
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
@@ -577,6 +577,16 @@ module AbstractCore
         logic refetch = insInfo.refetch;
         logic exception = insInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+
+
+//                if (id >= 3238) begin
+//                    $error("Committing %d\n%p", id, retInfo);
+//                end
+
+                assert (retInfo.refetch === refetch) else $error("Not seen refetch: %d\n%p\n%p", id, insInfo, retInfo);
+                
+                // TODO: handle illegal adr for sys reg transfers
+                assert (retInfo.exception === exception) else $error("Not seen exc: %d\n%p\n%p", id, insInfo, retInfo);
 
             coreDB.lastII = insInfo;
             if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});

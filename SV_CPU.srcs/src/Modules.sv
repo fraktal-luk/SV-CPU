@@ -176,14 +176,16 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket toReplayQueue[N_MEM_PORTS];
 
     UopPacket toLq[N_MEM_PORTS];
+    UopPacket toLqE2[N_MEM_PORTS];
     UopPacket toSq[N_MEM_PORTS];
+    UopPacket toSqE2[N_MEM_PORTS];
     UopPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
     UopPacket fromSq[N_MEM_PORTS];
     UopPacket fromLq[N_MEM_PORTS];
     UopPacket fromBq[N_MEM_PORTS];
     
-        Transaction fromSqTr[N_MEM_PORTS];
+    //    Transaction fromSqTr[N_MEM_PORTS];
     
 
     // Int 0
@@ -220,8 +222,8 @@ module ExecBlock(ref InstructionMap insMap,
         readReqs[0],
         readResps[0],
         fromSq[0],
-        fromLq[0],
-        fromSqTr[0]
+        fromLq[0]
+        //fromSqTr[0]
     );
 
 
@@ -235,8 +237,8 @@ module ExecBlock(ref InstructionMap insMap,
         readReqs[2],
         readResps[2],
         fromSq[2],
-        fromLq[2],
-        fromSqTr[2]
+        fromLq[2]
+        //fromSqTr[2]
     );
 
 
@@ -285,12 +287,12 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic UopPacket memToComplete(input UopPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID})) return EMPTY_UOP_PACKET;
+        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID, ES_ILLEGAL})) return EMPTY_UOP_PACKET;
         else return p;
     endfunction
 
     function automatic UopPacket memToReplay(input UopPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID})) return p;
+        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID, ES_ILLEGAL})) return p;
         else return EMPTY_UOP_PACKET;
     endfunction
 
@@ -334,6 +336,9 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toSq = toLq;
+
+    assign toLqE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
+    assign toSqE2 = toLqE2;
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 

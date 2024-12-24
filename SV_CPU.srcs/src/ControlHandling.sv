@@ -98,13 +98,13 @@ package ControlHandling;
 
 
     function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception);
-        EventInfo res = '{1, id, CO_none, 1, /*0, 0,*/ adr, 'x};
+        EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) res.cOp = CO_exception;
         else begin
             case (uname)
-                // TODO: error
+                UOP_ctrl_error:    res.cOp = CO_undef;
                 UOP_ctrl_undef:    res.cOp = CO_undef;
                 UOP_ctrl_call:     res.cOp = CO_call;
                 UOP_ctrl_rete:     res.cOp = CO_retE;

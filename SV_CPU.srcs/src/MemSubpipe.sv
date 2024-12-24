@@ -22,8 +22,8 @@ module MemSubpipe#(
     input DataReadResp readResp,
     
     input UopPacket sqResp,
-    input UopPacket lqResp,
-    input Transaction sqRespTr
+    input UopPacket lqResp
+    //input Transaction sqRespTr
 );
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
@@ -81,6 +81,7 @@ module MemSubpipe#(
 
         if (p.active && (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) && adr > 31) begin
             insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+            res.status = ES_ILLEGAL;
             return res;
         end
         
@@ -115,8 +116,16 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
+        
+//            if (U2M(pE1.TMP_oid) == 3240) begin
+//               $display(">>> handling 3240; %p", pE1);
+//            end
+//            if (U2M(pE1.TMP_oid) == 3239) begin
+//               $display(">>> handling 3239; %p", pE1);
+//            end
+       
         if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
-            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp, sqRespTr);
+            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp, EMPTY_TRANSACTION);
         
         effAdrE2 <= effAdrE1;
         
@@ -135,7 +144,6 @@ module MemSubpipe#(
     endfunction
 
 
-    // TODO: remove sqRespTr signal all the way up to Sq?
     function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword memData = readResp.result;
@@ -179,6 +187,8 @@ module MemSubpipe#(
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
             if (lqResp.active) begin
+                //    $error("\n\n!!!!! Setting efetch for id = %d\n\n", U2M(lqResp.TMP_oid));
+            
                 insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
         end

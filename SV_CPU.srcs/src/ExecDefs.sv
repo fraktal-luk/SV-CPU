@@ -27,9 +27,10 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
-            ES_NOT_READY,
+        ES_NOT_READY,
         ES_REDO, // cause refetch
-            ES_INVALID
+        ES_INVALID,
+        ES_ILLEGAL
     } ExecStatus;
 
 

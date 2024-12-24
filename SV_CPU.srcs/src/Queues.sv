@@ -91,8 +91,13 @@ package Queues;
             static function void setError(ref Entry entry);
                 entry.error = 1;
             endfunction
-            
-            
+
+
+            static function void setRefetch(ref Entry entry);
+                entry.refetch = 1;
+            endfunction
+ 
+           
             static function logic isCommitted(input Entry entry);
                 return entry.committed; 
             endfunction
@@ -114,7 +119,7 @@ package Queues;
             endfunction
 
 
-        static function automatic UopPacket scanQueue(input Entry entries[SQ_SIZE], input InsId id, input Mword adr);
+        static function automatic UopPacket scanQueue(ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
             Entry fwEntry;
             
@@ -189,7 +194,10 @@ package Queues;
             static function void setError(ref Entry entry);
                 entry.error = 1;
             endfunction
-            
+ 
+            static function void setRefetch(ref Entry entry);
+                entry.refetch = 1;
+            endfunction           
             
             static function logic isCommitted(input Entry entry);
                 return 0; 
@@ -211,23 +219,28 @@ package Queues;
                 return 'x;
             endfunction
 
-        static function automatic UopPacket scanQueue(input Entry entries[LQ_SIZE], input InsId id, input Mword adr);
-            Entry found[$] = entries.find with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
+        static function automatic UopPacket scanQueue(ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
+            int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
+            
+//                if (id > 3230) begin
+//                    $error("store %d compared. %d", id, found.size());
+//                end
             
             if (found.size() == 0) return EMPTY_UOP_PACKET;
     
             // else: we have a match and the matching loads are incorrect
             foreach (found[i]) begin
-                setError(found[i]);
+                //setError(entries[found[i]]);
+                setRefetch(entries[found[i]]);
             end
             
             begin // 'active' indicates that some match has happened without furthr details
                 UopPacket res = EMPTY_UOP_PACKET;
                 
-                Entry oldestFound[$] = found.min with (item.mid);
+                int oldestFound[$] = found.min with (item);
                 
                 res.active = 1; 
-                res.TMP_oid = FIRST_U(oldestFound[0].mid);
+                res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
                            
                 return res;
             end
@@ -314,7 +327,11 @@ endclass
             
             static function void setError(ref Entry entry);
             endfunction
-            
+
+            static function void setRefetch(ref Entry entry);
+                //entry.error = 1;
+            endfunction
+          
             
             static function logic isCommitted(input Entry entry);
                 return 0; 
@@ -337,7 +354,7 @@ endclass
             endfunction
 
 
-        static function automatic UopPacket scanQueue(input Entry entries[BQ_SIZE], input InsId id, input Mword adr);
+        static function automatic UopPacket scanQueue(ref Entry entries[BQ_SIZE], input InsId id, input Mword adr);
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid == id);
             
             if (found.size() == 0) return EMPTY_UOP_PACKET;
