@@ -10,13 +10,14 @@ import ExecDefs::*;
 
 import CacheDefs::*;
 
-
+// FUTURE: access sizes: byte, hword, ... SIMD
 module DataL1(
                 input logic clk,
                 input DataReadReq readReqs[N_MEM_PORTS],
                 output DataReadResp readResps[N_MEM_PORTS],
                 input MemWriteInfo TMP_writeReqs[2]
               );
+    // TODO: outputs with status: hit/miss, line desc etc
 
 
     int tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0

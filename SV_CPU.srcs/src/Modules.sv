@@ -383,7 +383,7 @@ module ExecBlock(ref InstructionMap insMap,
         return result;
     endfunction
 
-
+    // TODO: make multicycle pipes for mul/div
     function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
         Mword res = 'x;
         
@@ -456,8 +456,8 @@ module ExecBlock(ref InstructionMap insMap,
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
         
-        AbstractCore.theBq.execTarget = 'x;
-        AbstractCore.theBq.execLink = 'x; 
+        //AbstractCore.theBq.execTarget = 'x;
+        //AbstractCore.theBq.execLink = 'x; 
     
         if (!active) return;
 
@@ -470,28 +470,26 @@ module ExecBlock(ref InstructionMap insMap,
         UopName uname = insMap.getU(uid).name;
         Mword3 args = insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
+        Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
         
         logic predictedDir = insMap.get(U2M(uid)).frontBranch;
         logic dir = resolveBranchDirection(uname, args[0]);// reg
         logic redirect = predictedDir ^ dir;
-        Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
-        Mword trg = dir ? takenTrg : adr + 4;
         
+        Mword expectedTrg = dir ? takenTrg : adr + 4;
+
+        Mword bqTarget = AbstractCore.theBq.lookupTarget;
+        Mword bqLink = AbstractCore.theBq.lookupLink;
+
+        Mword resolvedTarget = finalTarget(uname, dir, args[1], bqTarget, bqLink);
+        
+        assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
         assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");
-        
-          //  if (predictedDir) $display("Branch already taken in front %d, %p", U2M(uid), uname);
-        
-        AbstractCore.theBq.execTarget = takenTrg;
-        AbstractCore.theBq.execLink = adr + 4;
 
         if (redirect)
             putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
 
-        //    TODO: lookup from BQ is available 1 cycle later
-        //    assert (takenTrg === AbstractCore.theBq.lookupTarget) else $error("Not matching target of %p: %d / %d", uname, takenTrg, AbstractCore.theSq.lookupTarget);
-        //    assert (adr + 4 === AbstractCore.theBq.lookupLink) else $error("Not matching link of %p: %d / %d", uname, adr + 4, AbstractCore.theSq.lookupLink);
-
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, trg};
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, resolvedTarget};
     endtask
     
 
@@ -514,6 +512,15 @@ module ExecBlock(ref InstructionMap insMap,
         endcase  
     endfunction
 
+    function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
+        if (dir === 0) return bqLink;
+
+        case (uname)
+            UOP_br_z, UOP_br_nz:  return regValue;
+            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase 
+    endfunction
 
 
 
@@ -530,7 +537,8 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-
+        // FUTURE: Introduce forwarding of FP args
+        // FUTURE: 1c longer load pipe on FP side? 
     // Used before Exec0 to get final values
     function automatic Mword3 getAndVerifyArgs(input UidT uid);
         InsDependencies deps = insMap.getU(uid).deps;

@@ -252,7 +252,7 @@ module StoreQueue
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
-            theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
+            //theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
 
 
             if (active !== 1) continue;
@@ -263,10 +263,10 @@ module StoreQueue
             if (resb.active) begin
                 checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), adr);
             
-                theExecBlock.fromSqTr[p] <= memTracker.findStoreAll(U2M(resb.TMP_oid)); // TODO: probably unneeded now
+                //theExecBlock.fromSqTr[p] <= memTracker.findStoreAll(U2M(resb.TMP_oid));
             end
             else begin
-                theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
+                //theExecBlock.fromSqTr[p] <= EMPTY_TRANSACTION;
             end
             
             
@@ -295,7 +295,7 @@ module StoreQueue
 
 
     task automatic handleBranch();    
-        UopPacket p = theExecBlock.branch0.p1_E;
+        UopPacket p = theExecBlock.branch0.p0_E;
 
         lookupTarget <= 'x;
         lookupLink <= 'x;
@@ -310,6 +310,7 @@ module StoreQueue
 
             lookupTarget <= trg;
             lookupLink <= link;
+            
         end
     endtask
 

@@ -10,6 +10,8 @@ import Insmap::*;
 import ExecDefs::*;
 import ControlHandling::*;
 
+import CacheDefs::*;
+
 import Queues::*;
 
 
@@ -46,6 +48,7 @@ module AbstractCore
 
     Mword insAdr;
     Word instructionCacheOut[FETCH_WIDTH];
+    InstructionCacheOutput icacheOut;// = EMPTY_INS_CACHE_OUTPUT;
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
@@ -86,7 +89,7 @@ module AbstractCore
 
     ///////////////////////////
 
-    InstructionL1 instructionCache(clk, insAdr, instructionCacheOut);
+    InstructionL1 instructionCache(clk, insAdr, instructionCacheOut, icacheOut);
     DataL1        dataCache(clk, TMP_readReqs, TMP_readResps, TMP_writeInfos);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);

@@ -22,7 +22,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     int fqSize = 0;
 
-    InstructionCacheOutput cacheOut = EMPTY_INS_CACHE_OUTPUT;
+    InstructionCacheOutput cacheOut;// = EMPTY_INS_CACHE_OUTPUT;
 
     FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
     Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
@@ -33,7 +33,6 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
     logic frontRed;
 
-//    TODO: consider TLB miss!
 //      How to handle:
 //        CR_INVALID,    continue in pipeline, cause exception
 //            CR_NOT_MAPPED, // continue, exception
@@ -43,10 +42,9 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 //        CR_HIT,        continue in pipeline; if desc says not executable then cause exception
 //        CR_MULTIPLE    cause (async?) error
 //
-//
 
 
-
+    assign cacheOut = AbstractCore.icacheOut;
 
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
 
@@ -82,7 +80,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
             Mword baseTrg = fetchLineBase(ipStage[0].adr);
-            Mword target = baseTrg + 4*FETCH_WIDTH; // TODO: next line predictor
+            Mword target = baseTrg + 4*FETCH_WIDTH; // FUTURE: next line predictor
 
             ipStage <= makeIpStage(target);
 
@@ -96,7 +94,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             fetchStage0 <= EMPTY_STAGE;
         end
 
-        fetchStage1 <= setWords(fetchStage0, AbstractCore.instructionCacheOut);
+        fetchStage1 <= setWords(fetchStage0, /*AbstractCore.instructionCacheOut,*/ cacheOut);
     endtask
 
 
@@ -334,15 +332,17 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endtask
 
 
-    function automatic FetchStage setWords(input FetchStage s, input FetchGroup fg);
+    function automatic FetchStage setWords(input FetchStage s, /*input FetchGroup fg,*/ input InstructionCacheOutput cacheOut);
         FetchStage res = s;
         foreach (res[i]) begin
+            Word realBits = cacheOut.words[i];//fg[i];
+
             if (res[i].active) begin
                 Word bits = fetchInstruction(AbstractCore.dbProgMem, res[i].adr); // DB
-                assert (fg[i] === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, fg[i], bits);
+                assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             
-            res[i].bits = fg[i];
+            res[i].bits = realBits;
         end
         return res;
     endfunction
