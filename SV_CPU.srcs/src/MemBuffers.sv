@@ -225,7 +225,6 @@ module StoreQueue
                 begin
                    int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
-                   // TODO: update flag to refetch
                    //foreach (found[i])
                    if (wrInputsE2[p].status == ES_REDO)
                        HELPER::setRefetch(content_N[found[0]]);

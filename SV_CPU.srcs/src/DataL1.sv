@@ -15,10 +15,9 @@ module DataL1(
                 input logic clk,
                 input DataReadReq readReqs[N_MEM_PORTS],
                 output DataReadResp readResps[N_MEM_PORTS],
-                input MemWriteInfo TMP_writeReqs[2]
+                input MemWriteInfo TMP_writeReqs[2],
+                output DataCacheOutput readOut[N_MEM_PORTS]
               );
-    // TODO: outputs with status: hit/miss, line desc etc
-
 
     int tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
 
@@ -69,11 +68,9 @@ module DataL1(
         Mbyte writing[4];
         
         foreach (writing[i])
-            writing[i] = //writeData[0] >> 8*(3-i);
-                         TMP_writeReqs[0].value >> 8*(3-i);
+            writing[i] = TMP_writeReqs[0].value >> 8*(3-i);
         
         foreach (writing[i])
-            //if (writeReqs[0]) content[writeAddresses[0] + i] <= writing[i];
             if (TMP_writeReqs[0].req) content[TMP_writeReqs[0].adr + i] <= writing[i];
 
     endtask
@@ -96,11 +93,12 @@ module DataL1(
         
             readData[p] <= val;
             readResps[p] <= '{0, val};
+               readOut[p] <= '{1, CR_HIT, '{0}, val};
         end
     endtask
 
 
-    
+
     function automatic VirtualAddressLow adrLow(input EffectiveAddress adr);
         return adr[V_INDEX_BITS-1:0];
     endfunction

@@ -19,7 +19,8 @@ module MemSubpipe#(
     input UopPacket opP,
     
     output DataReadReq readReq,
-    input DataReadResp readResp,
+    //input DataReadResp readResp,
+    input DataCacheOutput cacheResp,
     
     input UopPacket sqResp,
     input UopPacket lqResp
@@ -125,8 +126,8 @@ module MemSubpipe#(
 //            end
        
         if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
-            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp, EMPTY_TRANSACTION);
-        
+            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, EMPTY_READ_RESP, cacheResp, sqResp, lqResp, EMPTY_TRANSACTION);
+
         effAdrE2 <= effAdrE1;
         
         pE2 <= stateE2;
@@ -144,9 +145,11 @@ module MemSubpipe#(
     endfunction
 
 
-    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
+    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
-        Mword memData = readResp.result;
+        Mword memData = //readResp.result;
+                        cacheResp.data;
+            
 
         if (sqResp.active) begin
             if (sqResp.status == ES_INVALID) begin
@@ -171,12 +174,12 @@ module MemSubpipe#(
     endfunction
     
 
-    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
+    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
         Mword3 args = insMap.getU(uid).argsA;
 
         if (isLoadMemUop(decUname(uid)))
-            return calcMemLoadE2(p, uid, readResp, sqResp, lqResp, sqRespTr);
+            return calcMemLoadE2(p, uid, readResp, cacheResp, sqResp, lqResp, sqRespTr);
 
         if (isLoadSysUop(decUname(uid))) begin
             Mword val = getSysReg(args[1]);

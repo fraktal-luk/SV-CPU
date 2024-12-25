@@ -49,6 +49,7 @@ module AbstractCore
     Mword insAdr;
     Word instructionCacheOut[FETCH_WIDTH];
     InstructionCacheOutput icacheOut;// = EMPTY_INS_CACHE_OUTPUT;
+    DataCacheOutput dcacheOuts[N_MEM_PORTS];// = EMPTY_INS_CACHE_OUTPUT;
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
@@ -90,7 +91,7 @@ module AbstractCore
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, instructionCacheOut, icacheOut);
-    DataL1        dataCache(clk, TMP_readReqs, TMP_readResps, TMP_writeInfos);
+    DataL1        dataCache(clk, TMP_readReqs, TMP_readResps, TMP_writeInfos, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -113,7 +114,8 @@ module AbstractCore
     //////////////////////////////////////////
 
     assign TMP_readReqs = theExecBlock.readReqs;
-    assign theExecBlock.readResps = TMP_readResps;
+    //assign theExecBlock.readResps = TMP_readResps;
+    assign theExecBlock.dcacheOuts = dcacheOuts;
 
     assign TMP_writeInfos[0] = writeInfo;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
@@ -526,9 +528,9 @@ module AbstractCore
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
-        
+
         if (info.refetch) return;
-        
+
         // Only Normal commit
         if (!info.exception) checkUops(id);
 
@@ -574,19 +576,13 @@ module AbstractCore
 
         // TODO: from {SLB}Q -> exception, refetch, target (if taken branch)
 
-        logic refetch = insInfo.refetch;
-        logic exception = insInfo.exception;
+        logic refetch = retInfo.refetch;
+        logic exception = retInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
 
-//                if (id >= 3238) begin
-//                    $error("Committing %d\n%p", id, retInfo);
-//                end
-
-                assert (retInfo.refetch === refetch) else $error("Not seen refetch: %d\n%p\n%p", id, insInfo, retInfo);
-                
-                // TODO: handle illegal adr for sys reg transfers
-                assert (retInfo.exception === exception) else $error("Not seen exc: %d\n%p\n%p", id, insInfo, retInfo);
+                assert (retInfo.refetch === insInfo.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, insInfo, retInfo);   
+                assert (retInfo.exception === insInfo.exception) else $error("Not seen exc: %d\n%p\n%p", id, insInfo, retInfo);
 
             coreDB.lastII = insInfo;
             if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});

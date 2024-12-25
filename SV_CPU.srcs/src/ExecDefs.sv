@@ -447,7 +447,7 @@ package ExecDefs;
         Mword adr;
     } DataReadReq;
 
-    localparam DataReadReq EMPTY_READ_REQ = '{1, 'x};
+    localparam DataReadReq EMPTY_READ_REQ = '{0, 'x};
 
     typedef struct {
         logic active;
