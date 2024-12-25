@@ -586,6 +586,11 @@ endmodule
 
 
 module CoreDB();
+        // dev, syntax check
+        Mbyte bytes4[4] = '{5, 6, 7, 8};
+        Mbyte bytes8[8] = '{'h6, 'ha, 0, 0, 0, 0, 2, 1};
+        Mbyte bytesTmp[4];
+        Mbyte bytesTmp2[4];
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
         
@@ -612,5 +617,11 @@ module CoreDB();
 
     logic cmp0, cmp1;
     Mword cmpmw0, cmpmw1, cmpmw2, cmpmw3;
+   
+   
+        assign cmpmw0 = {>>8{bytes4}};
+        assign cmpmw1 = {<<8{bytes4}};
+        assign bytesTmp = bytes8[1 +: 4];
+        assign bytesTmp2 = {>>{cmpmw0}};
    
 endmodule
