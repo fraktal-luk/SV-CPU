@@ -18,9 +18,12 @@ module DataL1(
                 output DataCacheOutput readOut[N_MEM_PORTS]
               );
 
+    // TLB
+    localparam int DATA_TLB_SIZE = 32;
+    
+    
+    // Data and tag arrays
     PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
-    //InstructionLineDesc descsForWay[BLOCKS_PER_WAY] = '{default: 0};
-
     Mbyte content[4096]; // So far this corresponds to way 0
 
 
@@ -82,13 +85,7 @@ module DataL1(
 
 
     task automatic handleWrites();
-//        MemWriteInfo wrInfo = TMP_writeReqs[0];        
-//        Mbyte wval[4];
-        
-//        wval = {>>{wrInfo.value}};
 
-//        if (wrInfo.req) content[wrInfo.adr +: 4] <= wval;
-        
         doWrite(TMP_writeReqs[0]);
     endtask
 
@@ -99,7 +96,6 @@ module DataL1(
     endtask
 
 
-    // TODO: change to larger size
     task automatic handleReads();
         foreach (accesses[p]) begin
             accesses[p] <= analyzeAccess(readReqs[p].adr, 4);
@@ -192,8 +188,6 @@ module DataL1(
         res.pHigh = res.vHigh; // Direct mapping of memory
         res.present = 1; // Obviously
         res.desc = '{0};
-        //res.canRead = 1;
-        //res.canWrite = 1;
 
         return res;
     endfunction

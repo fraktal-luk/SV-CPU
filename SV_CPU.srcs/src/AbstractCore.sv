@@ -48,8 +48,8 @@ module AbstractCore
 
     Mword insAdr;
     Word instructionCacheOut[FETCH_WIDTH];
-    InstructionCacheOutput icacheOut;// = EMPTY_INS_CACHE_OUTPUT;
-    DataCacheOutput dcacheOuts[N_MEM_PORTS];// = EMPTY_INS_CACHE_OUTPUT;
+    InstructionCacheOutput icacheOut;
+    DataCacheOutput dcacheOuts[N_MEM_PORTS];
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
@@ -84,14 +84,14 @@ module AbstractCore
     OpSlotAB robOut;
 
     DataReadReq TMP_readReqs[N_MEM_PORTS];
-    DataReadResp TMP_readResps[N_MEM_PORTS];
+    //DataReadResp TMP_readResps[N_MEM_PORTS];
     
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, instructionCacheOut, icacheOut);
-    DataL1        dataCache(clk, TMP_readReqs, /*TMP_readResps,*/ TMP_writeInfos, dcacheOuts);
+    DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -114,12 +114,10 @@ module AbstractCore
     //////////////////////////////////////////
 
     assign TMP_readReqs = theExecBlock.readReqs;
-    //assign theExecBlock.readResps = TMP_readResps;
     assign theExecBlock.dcacheOuts = dcacheOuts;
 
     assign TMP_writeInfos[0] = writeInfo;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
-
 
 
     always @(posedge clk) begin
@@ -364,7 +362,6 @@ module AbstractCore
         // General, per ins
         deps = registerTracker.getArgDeps(ins); // For insMap
 
-
         ii = initInsInfo(id, adr, bits, ins);
         ii.mainUop = uopName;
         ii.inds = renameInds;
@@ -373,10 +370,9 @@ module AbstractCore
 
         ii.firstUop = insMap.insBase.lastU + 1;
         ii.nUops = -1;
-        
+
         if (isBranchIns(ins))
             ii.frontBranch = predictedDir;
-
 
         mainUinfo.id = '{id, -1};
         mainUinfo.name = uopName;
@@ -386,12 +382,10 @@ module AbstractCore
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
-                
 
         uInfos = splitUop(mainUinfo);
-        ii.nUops = uInfos.size();
-            
-            
+        ii.nUops = uInfos.size(); 
+
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];
             uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
@@ -399,19 +393,15 @@ module AbstractCore
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
         end
 
-
         insMap.TMP_func(id, ii, uInfos);           
-
 
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 
-
         updateInds(renameInds, id); // Crucial state
 
             coreDB.lastRenamed = TMP_properOp(id);
-
 
         putMilestoneM(id, InstructionMap::Rename);
     endtask
@@ -528,6 +518,8 @@ module AbstractCore
         checkUnimplementedInstruction(decodeId(id)); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
+        assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
+        assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 
@@ -549,11 +541,11 @@ module AbstractCore
     endtask
 
 
-        function automatic OpSlotB TMP_properOp(input InsId id);
-            InstructionInfo insInfo = insMap.get(id);
-            OpSlotB op = '{1, insInfo.id, insInfo.basicData.adr, insInfo.basicData.bits};
-            return op;
-        endfunction
+    function automatic OpSlotB TMP_properOp(input InsId id);
+        InstructionInfo insInfo = insMap.get(id);
+        OpSlotB op = '{1, insInfo.id, insInfo.basicData.adr, insInfo.basicData.bits};
+        return op;
+    endfunction
 
 
     // Finish types:
@@ -574,21 +566,14 @@ module AbstractCore
     task automatic commitOp(input InsId id, RetirementInfo retInfo);
         InstructionInfo insInfo = insMap.get(id);
 
-        // TODO: from {SLB}Q -> exception, refetch, target (if taken branch)
-
         logic refetch = retInfo.refetch;
         logic exception = retInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
-
-
-                assert (retInfo.refetch === insInfo.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, insInfo, retInfo);   
-                assert (retInfo.exception === insInfo.exception) else $error("Not seen exc: %d\n%p\n%p", id, insInfo, retInfo);
 
             coreDB.lastII = insInfo;
             if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
         verifyOnCommit(id, retInfo);
-
 
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
@@ -621,9 +606,8 @@ module AbstractCore
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
-        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target /*branchTargetQueue[0].target*/, refetch, exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, refetch, exception);
     endtask
-
 
 
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);
@@ -675,11 +659,11 @@ module AbstractCore
         return insMap.get(id).mainUop;
     endfunction
 
-        // TEMP: to use where it's not just to determine uop name 
-        function automatic AbstractInstruction decodeId(input InsId id);
-            if (id == -1) return DEFAULT_ABS_INS;     
-            return insMap.get(id).basicData.dec;
-        endfunction
+    // TEMP: to use where it's not just to determine uop name 
+    function automatic AbstractInstruction decodeId(input InsId id);
+        if (id == -1) return DEFAULT_ABS_INS;     
+        return insMap.get(id).basicData.dec;
+    endfunction
 
     function automatic Mword getAdr(input InsId id);
         if (id == -1) return 'x;     
@@ -731,11 +715,11 @@ module AbstractCore
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         foreach (memStage0[p])
-            if (checkMemDep(poison, memStage0[p]) && !(memStage0[p].status inside {ES_OK, ES_REDO, ES_INVALID})) return 1;
+            if (checkMemDep(poison, memStage0[p]) && (memStage0[p].status inside {ES_NOT_READY, ES_UNALIGNED})) return 1;
         return 0;
     endfunction
 
- 
+
     assign insAdr = theFrontend.ipStage[0].adr;
 
     assign sig = lateEventInfo.cOp == CO_send;

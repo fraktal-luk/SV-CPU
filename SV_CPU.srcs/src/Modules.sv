@@ -164,7 +164,6 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket sysE0, sysE0_E;
 
 
-
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadResp readResps[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
@@ -185,8 +184,6 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket fromSq[N_MEM_PORTS];
     UopPacket fromLq[N_MEM_PORTS];
     UopPacket fromBq[N_MEM_PORTS];
-    
-    //    Transaction fromSqTr[N_MEM_PORTS];
     
 
     // Int 0
@@ -224,13 +221,10 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
         readReqs[0],
-        //readResps[0],
         dcacheOuts[0],
         fromSq[0],
         fromLq[0]
-        //fromSqTr[0]
     );
-
 
     // Mem 2 - for ReplayQueue only!
     MemSubpipe#(.HANDLE_UNALIGNED(1))
@@ -240,13 +234,10 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
         readReqs[2],
-        //readResps[2],
         dcacheOuts[2],
         fromSq[2],
         fromLq[2]
-        //fromSqTr[2]
     );
-
 
     // Vec 0
     RegularSubpipe float0(
@@ -273,10 +264,8 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
 
-
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
-
 
 
     ReplayQueue replayQueue(
@@ -466,10 +455,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-        
-        //AbstractCore.theBq.execTarget = 'x;
-        //AbstractCore.theBq.execLink = 'x; 
-    
+
         if (!active) return;
 
         setBranchInCore(uid);
@@ -533,8 +519,6 @@ module ExecBlock(ref InstructionMap insMap,
         endcase 
     endfunction
 
-
-
     function automatic UopPacket performStoreData(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
                 
@@ -545,8 +529,6 @@ module ExecBlock(ref InstructionMap insMap,
             return res;
         end
     endfunction
-
-
 
         // FUTURE: Introduce forwarding of FP args
         // FUTURE: 1c longer load pipe on FP side? 

@@ -17,14 +17,12 @@ module MemSubpipe#(
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input UopPacket opP,
-    
+
     output DataReadReq readReq,
-    //input DataReadResp readResp,
+
     input DataCacheOutput cacheResp,
-    
     input UopPacket sqResp,
     input UopPacket lqResp
-    //input Transaction sqRespTr
 );
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
@@ -117,14 +115,7 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
-        
-//            if (U2M(pE1.TMP_oid) == 3240) begin
-//               $display(">>> handling 3240; %p", pE1);
-//            end
-//            if (U2M(pE1.TMP_oid) == 3239) begin
-//               $display(">>> handling 3239; %p", pE1);
-//            end
-       
+
         if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
             stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, EMPTY_READ_RESP, cacheResp, sqResp, lqResp, EMPTY_TRANSACTION);
 
@@ -147,9 +138,7 @@ module MemSubpipe#(
 
     function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
-        Mword memData = //readResp.result;
-                        cacheResp.data;
-            
+        Mword memData = cacheResp.data;
 
         if (sqResp.active) begin
             if (sqResp.status == ES_INVALID) begin
@@ -189,9 +178,7 @@ module MemSubpipe#(
 
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
-            if (lqResp.active) begin
-                //    $error("\n\n!!!!! Setting efetch for id = %d\n\n", U2M(lqResp.TMP_oid));
-            
+            if (lqResp.active) begin            
                 insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
         end
