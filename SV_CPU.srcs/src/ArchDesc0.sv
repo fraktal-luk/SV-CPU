@@ -50,7 +50,8 @@ module ArchDesc0();
 
 
     Section common;
-    squeue tests;
+    squeue allSuites = '{"tests_all.txt", "tests_some.txt"};
+    
     string emulTestName, simTestName;
 
     Emulator emulSig;
@@ -81,23 +82,28 @@ module ArchDesc0();
         setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endtask
 
-
-    initial tests = readFile("tests_all.txt");
     initial common = processLines(readFile({"common_asm", ".txt"}));
 
     initial runEmul();
 
 
-    task automatic runEmul();
-        Emulator emul = new();
-        emulSig = emul;
-        #1;
-
+    task automatic runEmulSuite(ref Emulator emul, input squeue tests);
         foreach (tests[i]) begin
             squeue lineParts = breakLine(tests[i]);
             if (!isValidTest(lineParts)) continue;
             runTestEmul(lineParts[0], emul, DEFAULT_CALL_SECTION);
             #1;
+        end
+    endtask
+    
+    task automatic runEmul();
+        Emulator emul = new();
+        emulSig = emul;
+        #1;
+        
+        foreach (allSuites[i]) begin
+            squeue tests = readFile(allSuites[i]);
+            runEmulSuite(emul, tests);
         end
 
         runErrorTestEmul(emul);
@@ -115,10 +121,8 @@ module ArchDesc0();
         prepareTest(progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
             saveProgramToFile({"ZZZ_", name, ".txt"}, progMem);
-            
-        
+
         resetAll(emul);
-        
         performEmul(emul, dataMem);
     endtask
 
@@ -208,13 +212,22 @@ module ArchDesc0();
         logic writeEn;
         Mword writeAdr, writeValue;
         
-        task automatic runSim();
-            #CYCLE;
+        task automatic runSimSuite(input squeue tests);
             foreach (tests[i]) begin
                 squeue lineParts = breakLine(tests[i]);
                 if (!isValidTest(lineParts)) continue;
                 runTestSim(lineParts[0], DEFAULT_CALL_SECTION);
             end
+        endtask
+        
+        task automatic runSim();
+            #CYCLE;
+
+            foreach (allSuites[i]) begin
+                squeue tests = readFile(allSuites[i]);
+                runSimSuite(tests);
+            end            
+            
             runTestSim("events", TESTED_CALL_SECTION);
             runIntTestSim();
             
@@ -289,8 +302,6 @@ module ArchDesc0();
         
         AbstractCore core(
             .clk(clk),
-
-            //.writeReq(writeEn), .writeAdr(writeAdr), .writeOut(writeValue),
             
             .interrupt(int0),
             .reset(reset),
