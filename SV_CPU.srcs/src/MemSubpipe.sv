@@ -17,10 +17,10 @@ module MemSubpipe#(
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input UopPacket opP,
-    
+
     output DataReadReq readReq,
-    input DataReadResp readResp,
-    
+
+    input DataCacheOutput cacheResp,
     input UopPacket sqResp,
     input UopPacket lqResp
 );
@@ -80,6 +80,7 @@ module MemSubpipe#(
 
         if (p.active && (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) && adr > 31) begin
             insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+            res.status = ES_ILLEGAL;
             return res;
         end
         
@@ -114,9 +115,10 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
+
         if (stateE2.active && stateE2.status != ES_UNALIGNED) // CAREFUL: ES_UNALIGNED indicates that uop must be sent to RQ and is not handled now
-            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, readResp, sqResp, lqResp);
-        
+            stateE2 = calcMemE2(stateE2, stateE2.TMP_oid, EMPTY_READ_RESP, cacheResp, sqResp, lqResp, EMPTY_TRANSACTION);
+
         effAdrE2 <= effAdrE1;
         
         pE2 <= stateE2;
@@ -134,32 +136,21 @@ module MemSubpipe#(
     endfunction
 
 
-
-    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
-        Mword memData = readResp.result;
+        Mword memData = cacheResp.data;
 
         if (sqResp.active) begin
-            UidT fwUid = sqResp.TMP_oid;
-            Transaction tr = AbstractCore.memTracker.findStoreAll(U2M(fwUid));
-            assert (tr.owner != -1) else $fatal(2, "Forwarded store unknown by mmeTracker! %d", U2M(fwUid));
-        
-            if (sqResp.status == ES_INVALID) begin //
-                assert (wordOverlap(effAdrE1, tr.adr) && !wordInside(effAdrE1, tr.adr)) else $error("Adr inside or not overlapping");
-                        
+            if (sqResp.status == ES_INVALID) begin
                 res.status = ES_REDO;
                 insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
                 memData = 0; // TMP
             end
-            else if (sqResp.status == ES_NOT_READY) begin
-                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
-            
+            else if (sqResp.status == ES_NOT_READY) begin            
                 res.status = ES_NOT_READY;
                 memData = 0; // TMP
             end
-            else begin
-                assert (wordInside(effAdrE1, tr.adr)) else $error("Adr not inside");
-            
+            else begin            
                 memData = sqResp.result;
                 putMilestone(uid, InstructionMap::MemFwConsume);
             end
@@ -172,13 +163,12 @@ module MemSubpipe#(
     endfunction
     
 
-    // TOPLEVEL
-    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket calcMemE2(input UopPacket p, input UidT uid, input DataReadResp readResp, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
-        Mword3 args = getAndVerifyArgs(uid); // TODO: remove this repeated reading of args?
+        Mword3 args = insMap.getU(uid).argsA;
 
         if (isLoadMemUop(decUname(uid)))
-            return calcMemLoadE2(p, uid, readResp, sqResp, lqResp);
+            return calcMemLoadE2(p, uid, readResp, cacheResp, sqResp, lqResp, sqRespTr);
 
         if (isLoadSysUop(decUname(uid))) begin
             Mword val = getSysReg(args[1]);
@@ -188,7 +178,7 @@ module MemSubpipe#(
 
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
-            if (lqResp.active) begin
+            if (lqResp.active) begin            
                 insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
         end

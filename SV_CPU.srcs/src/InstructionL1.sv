@@ -8,11 +8,14 @@ import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
 
+import CacheDefs::*;
+
 
 module InstructionL1(
                 input logic clk,
                 input Mword readAddress,
-                output Word readData[FETCH_WIDTH]
+                output Word readData[FETCH_WIDTH],
+                output InstructionCacheOutput readOut
               );
 
     Word content[4096];
@@ -25,8 +28,14 @@ module InstructionL1(
     always @(posedge clk) begin
         automatic Mword truncatedAdr = readAddress & ~(4*FETCH_WIDTH-1);
     
-        foreach (readData[i])
+        foreach (readData[i]) begin
             readData[i] <= content[truncatedAdr/4 + i];
+            
+            readOut.active <= 1;
+            readOut.status <= CR_HIT;
+            readOut.desc <= '{1};
+            readOut.words[i] <= content[truncatedAdr/4 + i];
+        end
     end
 
 endmodule

@@ -21,12 +21,14 @@ module StoreQueue
 )
 (
     ref InstructionMap insMap,
+    ref MemTracker memTracker,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input OpSlotAB inGroup,
     output OpSlotAB outGroup,
 
-    input UopPacket wrInputs[N_MEM_PORTS]
+    input UopPacket wrInputs[N_MEM_PORTS],
+    input UopPacket wrInputsE2[N_MEM_PORTS]
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -35,6 +37,7 @@ module StoreQueue
     localparam InstructionMap::Milestone QUEUE_FLUSH = IS_BRANCH_QUEUE ? InstructionMap::BqFlush : IS_LOAD_QUEUE ? InstructionMap::LqFlush : InstructionMap::SqFlush;
     localparam InstructionMap::Milestone QUEUE_EXIT = IS_BRANCH_QUEUE ? InstructionMap::BqExit : IS_LOAD_QUEUE ? InstructionMap::LqExit : InstructionMap::SqExit;
 
+    localparam logic SQ_RETAIN = 1;
 
     typedef HELPER::Entry QEntry;
     localparam QEntry EMPTY_QENTRY = HELPER::EMPTY_QENTRY;
@@ -49,26 +52,23 @@ module StoreQueue
 
     QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
 
-    Mword lookupTarget = 'x, execTarget = 'x;
-    Mword lookupLink = 'x, execLink = 'x;
+    Mword lookupTarget = 'x, lookupLink = 'x;
 
+    QEntry outputQ[$:3*ROB_WIDTH];
+    QEntry outputQM[3*ROB_WIDTH] = '{default: HELPER::EMPTY_QENTRY}; 
 
-        QEntry outputQ[$:3*ROB_WIDTH];
-        QEntry outputQM[3*ROB_WIDTH] = '{default: HELPER::EMPTY_QENTRY}; 
-
-        typedef QEntry QM[3*ROB_WIDTH];
+    typedef QEntry QM[3*ROB_WIDTH];
 
 
 
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-        if (IS_STORE_QUEUE) handleForwardsS();
-        if (IS_LOAD_QUEUE)  handleHazardsL();
+        if (IS_STORE_QUEUE)  handleForwardsS();
+        if (IS_LOAD_QUEUE)   handleHazardsL();
         if (IS_BRANCH_QUEUE) handleBranch();
 
         update();
-
 
         if (lateEventInfo.redirect)
             flushAll();
@@ -87,9 +87,8 @@ module StoreQueue
             content_N[i] = EMPTY_QENTRY;
         end
         endPointer = startPointer;
-        
-            scanPointer = startPointer;
-            outputQ.delete();
+        scanPointer = startPointer;
+        outputQ.delete();
     endtask
 
 
@@ -111,9 +110,6 @@ module StoreQueue
     endtask
 
 
-    localparam logic SQ_RETAIN = 1;
-
-
     function automatic logic isScanned(input InsId id);
         return id != -1 && id <= AbstractCore.theRob.lastScanned;
     endfunction
@@ -127,10 +123,8 @@ module StoreQueue
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT_B};
 
-        while (isScanned(content_N[scanPointer % SIZE].mid)) begin
-                
-                outputQ.push_back(content_N[scanPointer % SIZE]);
-            
+        while (isScanned(content_N[scanPointer % SIZE].mid)) begin 
+            outputQ.push_back(content_N[scanPointer % SIZE]);
             scanPointer = (scanPointer+1) % (2*SIZE);
         end
 
@@ -139,16 +133,13 @@ module StoreQueue
             outGroup[nOut].mid <= thisId;
             outGroup[nOut].active <= 1;
             nOut++;
-                
-//               // if (outputQ.size() > 0) begin
-                    assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
-                    outputQ.pop_front();
-//               // end
-                
+
+            assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
+            outputQ.pop_front();
+
             putMilestoneM(thisId, QUEUE_EXIT);
 
-
-                HELPER::verifyOnCommit(insMap, content_N[startPointer % SIZE]);
+            HELPER::verifyOnCommit(insMap, content_N[startPointer % SIZE]);
 
             if (IS_STORE_QUEUE) begin
                 Mword actualAdr = HELPER::getAdr(content_N[startPointer % SIZE]);
@@ -177,20 +168,17 @@ module StoreQueue
         else if (IS_STORE_QUEUE)
             drainPointer = startPointer;
         else
-            drainPointer = startPointer;//-1;
+            drainPointer = startPointer;
 
-
-            
          outputQM = makeQM(outputQ);
-
     endtask
 
 
-        function automatic QM makeQM(input QEntry q[$:3*ROB_WIDTH]);
-            QM res = '{default: HELPER::EMPTY_QENTRY};
-            foreach (q[i]) res[i] = q[i];
-            return res;
-        endfunction
+    function automatic QM makeQM(input QEntry q[$:3*ROB_WIDTH]);
+        QM res = '{default: HELPER::EMPTY_QENTRY};
+        foreach (q[i]) res[i] = q[i];
+        return res;
+    endfunction
 
 
     task automatic update();
@@ -207,7 +195,27 @@ module StoreQueue
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
                else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
 
-               putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress); // TODO: diffrentiate for BQ
+               if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
+                   putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
+            end
+        end
+
+        if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
+            foreach (wrInputsE2[p]) begin
+                UopName uname;
+                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REDO, ES_ILLEGAL})) continue;
+
+                uname = decUname(wrInputsE2[p].TMP_oid);            
+                if (!HELPER::appliesU(uname)) continue;
+    
+                begin
+                   int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
+
+                   if (wrInputsE2[p].status == ES_REDO)
+                       HELPER::setRefetch(content_N[found[0]]);
+                   else if (wrInputsE2[p].status == ES_ILLEGAL)
+                       HELPER::setError(content_N[found[0]]);                   
+                end
             end
         end
 
@@ -255,6 +263,11 @@ module StoreQueue
             if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
             resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
+            
+            if (resb.active) begin
+                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), adr);
+            end
+
             theExecBlock.fromSq[p] <= resb;
         end
     endtask
@@ -280,7 +293,7 @@ module StoreQueue
 
 
     task automatic handleBranch();    
-        UopPacket p = theExecBlock.branch0.p1_E;
+        UopPacket p = theExecBlock.branch0.p0_E;
 
         lookupTarget <= 'x;
         lookupLink <= 'x;
@@ -307,6 +320,20 @@ module StoreQueue
         if (insMap.get(mid).mainUop == UOP_mem_sts) return; // Not checking sys stores
 
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
+    endfunction
+
+    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
+        assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
+
+        if (sr.status == ES_INVALID) begin //
+            assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
+        end
+        else if (sr.status == ES_NOT_READY) begin
+            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+        end
+        else begin
+            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+        end
     endfunction
 
 endmodule

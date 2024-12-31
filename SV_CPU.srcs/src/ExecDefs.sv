@@ -27,9 +27,10 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
-            ES_NOT_READY,
+        ES_NOT_READY,
         ES_REDO, // cause refetch
-            ES_INVALID
+        ES_INVALID,
+        ES_ILLEGAL
     } ExecStatus;
 
 
@@ -446,7 +447,7 @@ package ExecDefs;
         Mword adr;
     } DataReadReq;
 
-    localparam DataReadReq EMPTY_READ_REQ = '{1, 'x};
+    localparam DataReadReq EMPTY_READ_REQ = '{0, 'x};
 
     typedef struct {
         logic active;

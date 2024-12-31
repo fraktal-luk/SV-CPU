@@ -74,15 +74,7 @@ module BranchSubpipe(
         pD1 <= tickP(pD0);
 
         runExecBranch(p1_E.active, p1_E.TMP_oid);
-        
-        
-//        if (p1_E.active) begin
-//           // setCurrentCp(U2M(p1_E.TMP_oid));
-//        end
-        
-        if (!AbstractCore.lateEventInfo.redirect && AbstractCore.branchEventInfo.active) begin
-           setBtqTarget_N(AbstractCore.branchEventInfo.eventMid, AbstractCore.branchEventInfo.target);
-        end
+
     end
 
     assign p0_E = effP(p0);
@@ -172,9 +164,9 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket sysE0, sysE0_E;
 
 
-
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadResp readResps[N_MEM_PORTS];
+    DataCacheOutput dcacheOuts[N_MEM_PORTS];
     
     logic TMP_memAllow;
     
@@ -184,7 +176,9 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket toReplayQueue[N_MEM_PORTS];
 
     UopPacket toLq[N_MEM_PORTS];
+    UopPacket toLqE2[N_MEM_PORTS];
     UopPacket toSq[N_MEM_PORTS];
+    UopPacket toSqE2[N_MEM_PORTS];
     UopPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
     UopPacket fromSq[N_MEM_PORTS];
@@ -216,6 +210,9 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedBranchP[0]
     );
     
+    
+    // TODO: fix problems that will appear because of simultaneous mem ops (forwarding, hazards)
+    
     // Mem 0
     MemSubpipe#(.HANDLE_UNALIGNED(1))
     mem0(
@@ -223,12 +220,11 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
-            readReqs[0],
-            readResps[0],
-            fromSq[0],
-            fromLq[0]
+        readReqs[0],
+        dcacheOuts[0],
+        fromSq[0],
+        fromLq[0]
     );
-
 
     // Mem 2 - for ReplayQueue only!
     MemSubpipe#(.HANDLE_UNALIGNED(1))
@@ -237,12 +233,11 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         issuedReplayQueue,
-            readReqs[2],
-            readResps[2],
-            fromSq[2],
-            fromLq[2]
+        readReqs[2],
+        dcacheOuts[2],
+        fromSq[2],
+        fromLq[2]
     );
-
 
     // Vec 0
     RegularSubpipe float0(
@@ -269,10 +264,8 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
 
-
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
-
 
 
     ReplayQueue replayQueue(
@@ -289,12 +282,12 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic UopPacket memToComplete(input UopPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID})) return EMPTY_UOP_PACKET;
+        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID, ES_ILLEGAL})) return EMPTY_UOP_PACKET;
         else return p;
     endfunction
 
     function automatic UopPacket memToReplay(input UopPacket p);
-        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID})) return p;
+        if (!(p.status inside {ES_OK, ES_REDO, ES_INVALID, ES_ILLEGAL})) return p;
         else return EMPTY_UOP_PACKET;
     endfunction
 
@@ -310,7 +303,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0 = float0.stage0;
     assign doneFloat1 = float1.stage0;
 
-        assign doneSys = storeData0.stage0;
+    assign doneSys = storeData0.stage0;
 
 
 
@@ -324,11 +317,11 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
 
-        assign doneSys_E = storeData0.stage0_E;
+    assign doneSys_E = storeData0.stage0_E;
 
 
-      assign sysE0 = storeData0.stage0;
-      assign sysE0_E = storeData0.stage0_E;
+    assign sysE0 = storeData0.stage0;
+    assign sysE0_E = storeData0.stage0_E;
 
 
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
@@ -338,6 +331,9 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign toLq = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toSq = toLq;
+
+    assign toLqE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
+    assign toSqE2 = toLqE2;
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
@@ -387,7 +383,7 @@ module ExecBlock(ref InstructionMap insMap,
         return result;
     endfunction
 
-
+    // TODO: make multicycle pipes for mul/div
     function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
         Mword res = 'x;
         
@@ -459,10 +455,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     task automatic runExecBranch(input logic active, input UidT uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-        
-            AbstractCore.theBq.execTarget = 'x;
-            AbstractCore.theBq.execLink = 'x; 
-        
+
         if (!active) return;
 
         setBranchInCore(uid);
@@ -472,42 +465,32 @@ module ExecBlock(ref InstructionMap insMap,
 
     task automatic setBranchInCore(input UidT uid);
         UopName uname = insMap.getU(uid).name;
-        Mword3 args = //getAndVerifyArgs(uid);
-                      insMap.getU(uid).argsA;
+        Mword3 args = insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
-        
-        logic dir = resolveBranchDirection(uname, args[0]);// reg
         Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
-        Mword trg = dir ? takenTrg : adr + 4;
-
-            AbstractCore.theBq.execTarget = takenTrg;
-            AbstractCore.theBq.execLink = adr + 4;
-
-        //    TODO: lookup from BQ is available 1 cycle later
-        //    assert (takenTrg === AbstractCore.theBq.lookupTarget) else $error("Not matching target of %p: %d / %d", uname, takenTrg, AbstractCore.theSq.lookupTarget);
-        //    assert (adr + 4 === AbstractCore.theBq.lookupLink) else $error("Not matching link of %p: %d / %d", uname, adr + 4, AbstractCore.theSq.lookupLink);
-
-        setBtqTarget_N(U2M(uid), trg);
-        //setCurrentCp(U2M(uid));
-
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, dir, adr, trg};
-    endtask
-
-
-//    task automatic setBtqTarget(input InsId id, input Mword target);
-//        int ind[$] = AbstractCore.branchTargetQueue.find_first_index with (item.id == id);        // Independent
-//        AbstractCore.branchTargetQueue[ind[0]].target = target;
-//    endtask
-
-//    task automatic setCurrentCp(input InsId id);
-//        BranchCheckpoint found[$] = AbstractCore.branchCheckpointQueue.find with (item.id == id); // Independent
-//        AbstractCore.branchCP = found[0];
-//    endtask
-
-
-    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);
-        //Mword condArg = args[0];
         
+        logic predictedDir = insMap.get(U2M(uid)).frontBranch;
+        logic dir = resolveBranchDirection(uname, args[0]);// reg
+        logic redirect = predictedDir ^ dir;
+        
+        Mword expectedTrg = dir ? takenTrg : adr + 4;
+
+        Mword bqTarget = AbstractCore.theBq.lookupTarget;
+        Mword bqLink = AbstractCore.theBq.lookupLink;
+
+        Mword resolvedTarget = finalTarget(uname, dir, args[1], bqTarget, bqLink);
+        
+        assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
+        assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");
+
+        if (redirect)
+            putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
+
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, resolvedTarget};
+    endtask
+    
+
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
         assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
         
         case (uname)
@@ -526,8 +509,15 @@ module ExecBlock(ref InstructionMap insMap,
         endcase  
     endfunction
 
+    function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
+        if (dir === 0) return bqLink;
 
-
+        case (uname)
+            UOP_br_z, UOP_br_nz:  return regValue;
+            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase 
+    endfunction
 
     function automatic UopPacket performStoreData(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
@@ -540,9 +530,8 @@ module ExecBlock(ref InstructionMap insMap,
         end
     endfunction
 
-
-
-
+        // FUTURE: Introduce forwarding of FP args
+        // FUTURE: 1c longer load pipe on FP side? 
     // Used before Exec0 to get final values
     function automatic Mword3 getAndVerifyArgs(input UidT uid);
         InsDependencies deps = insMap.getU(uid).deps;
@@ -579,6 +568,11 @@ endmodule
 
 
 module CoreDB();
+        // dev, syntax check
+        Mbyte bytes4[4] = '{5, 6, 7, 8};
+        Mbyte bytes8[8] = '{'h6, 'ha, 0, 0, 0, 0, 2, 1};
+        Mbyte bytesTmp[4];
+        Mbyte bytesTmp2[4];
 
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
         
@@ -605,5 +599,11 @@ module CoreDB();
 
     logic cmp0, cmp1;
     Mword cmpmw0, cmpmw1, cmpmw2, cmpmw3;
+   
+   
+        assign cmpmw0 = {>>8{bytes4}};
+        assign cmpmw1 = {<<8{bytes4}};
+        assign bytesTmp = bytes8[1 +: 4];
+        assign bytesTmp2 = {>>{cmpmw0}};
    
 endmodule

@@ -346,12 +346,16 @@ module ReorderBuffer
             // Find corresponding entries of queues
             if (isStoreUop(insMap.get(mid).mainUop)) begin
                 StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
-                
+ 
+                res[i].refetch = entry[0].refetch;
+                res[i].exception = entry[0].error;               
             end
 
             if (isLoadUop(insMap.get(mid).mainUop)) begin
                  LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
-           
+                 
+                 res[i].refetch = entry[0].refetch;
+                 res[i].exception = entry[0].error;
             end
             
             if (isBranchUop(insMap.get(mid).mainUop)) begin

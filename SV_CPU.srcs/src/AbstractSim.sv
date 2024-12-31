@@ -36,6 +36,28 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
+
+
+    function automatic logic wordOverlap(input Mword wa, input Mword wb);
+        Mword aEnd = wa + 4; // Exclusive end
+        Mword bEnd = wb + 4; // Exclusive end
+        
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+        if (wb >= aEnd || wa >= bEnd) return 0;
+        else return 1;
+    endfunction
+    
+    // is a inside b
+    function automatic logic wordInside(input Mword wa, input Mword wb);
+        Mword aEnd = wa + 4; // Exclusive end
+        Mword bEnd = wb + 4; // Exclusive end
+        
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+       
+        return (wa >= wb && aEnd <= bEnd);
+    endfunction
+
+
 ////////////////////////////
     // Core structures
 
@@ -82,9 +104,12 @@ package AbstractSim;
     typedef struct {
         logic active;
         InsId id;
-            InsId mid;
+        //    InsId mid;
         Mword adr;
         Word bits;
+        
+        logic takenBranch;
+        Mword predictedTarget;
     } OpSlotF;
 
     typedef struct {
@@ -108,7 +133,7 @@ package AbstractSim;
     } RetirementInfo;
 
 
-    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, -1, 'x, 'x};
+    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
     localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
 
@@ -146,8 +171,6 @@ package AbstractSim;
         InsId eventMid;
         ControlOp cOp;
         logic redirect;
-           // logic sigOk;
-            //logic sigWrong;
         Mword adr;
         Mword target;
     } EventInfo;
@@ -180,9 +203,6 @@ package AbstractSim;
 
     //////////////////////////////////////
 
-
-//    typedef InsId WriterId;
-//    localparam WriterId WID_NONE = -1; 
     
     // Defs for tracking, insMap
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
@@ -195,9 +215,6 @@ package AbstractSim;
     } InsDependencies;
 
 
-//        typedef struct {
-        
-//        } UopPacket;
 
 
     class BranchCheckpoint;
@@ -263,9 +280,7 @@ package AbstractSim;
             
             function automatic int reserve(input int vDest, input WriterId id);
                 int pDest = findFree();
-                
-                 //   if (vDest == -1) $error("reerving -1");
-                
+                 
                 if (!ignoreV(vDest)) begin
                     writersR[vDest] = id;
                     info[pDest] = '{SPECULATIVE, id};
@@ -374,13 +389,10 @@ package AbstractSim;
         RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
 
           
-        function automatic int reserve(input UopName name, input int dest, input WriterId id);
-            //    if (dest == -1) $error("reserving -1");
-            
+        function automatic int reserve(input UopName name, input int dest, input WriterId id);            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
             if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
             
-            //    $error("pseudo vDest = %d", dest);
             return -1;
         endfunction
 
@@ -480,25 +492,6 @@ package AbstractSim;
 
     endclass
 
-
-    function automatic logic wordOverlap(input Mword wa, input Mword wb);
-        Mword aEnd = wa + 4; // Exclusive end
-        Mword bEnd = wb + 4; // Exclusive end
-        
-        if ($isunknown(wa) || $isunknown(wb)) return 0;
-        if (wb >= aEnd || wa >= bEnd) return 0;
-        else return 1;
-    endfunction
-    
-    // is a inside b
-    function automatic logic wordInside(input Mword wa, input Mword wb);
-        Mword aEnd = wa + 4; // Exclusive end
-        Mword bEnd = wb + 4; // Exclusive end
-        
-        if ($isunknown(wa) || $isunknown(wb)) return 0;
-       
-        return (wa >= wb && aEnd <= bEnd);
-    endfunction
     
 
     typedef struct {
@@ -556,10 +549,7 @@ package AbstractSim;
             loads.push_back('{id, 'x, val, adr});
         endfunction
 
-        function automatic void remove(input InsId id);
-        
-            //    if (id > 4600) $error("Memtracker remove %d", id);
-        
+        function automatic void remove(input InsId id);        
             assert (transactions[0].owner == id) begin
                 void'(transactions.pop_front());
                 if (stores.size() != 0 && stores[0].owner == id) begin
@@ -606,13 +596,7 @@ package AbstractSim;
             Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
-            
 
-//        function automatic Mword getStoreValue(input InsId id);
-//            Transaction allStores[$] = {committedStores, stores};
-//            Transaction writers[$] = allStores.find with (item.owner == id);
-//            return writers[0].val;
-//        endfunction
 
         function automatic Transaction findStore(input InsId id);
             Transaction writers[$] = stores.find with (item.owner == id);
@@ -647,7 +631,6 @@ package AbstractSim;
         OpSlotB res;
         
         res.active = op.active;
-        res.mid = op.id;
         res.mid = -1;
         res.adr = op.adr;
         res.bits = op.bits;
@@ -686,11 +669,15 @@ package AbstractSim;
             UOP_ctrl_refetch,
             UOP_ctrl_error,
             UOP_ctrl_call,
-            UOP_ctrl_send,
-                
-                // TMP
-                UOP_data_int,
-                UOP_data_fp
+            UOP_ctrl_send
+        };
+    endfunction
+
+
+    function automatic logic isStoreDataUop(input UopName name);
+        return name inside {
+            UOP_data_int,
+            UOP_data_fp
         };
     endfunction
 
@@ -782,18 +769,8 @@ package AbstractSim;
 
          UOP_mem_lds,
         
-             
-
-          //   UOP_br_z,  // Branch reg, with link
-          //   UOP_br_nz, // Branch reg, with link
-          //   UOP_bc_l,  // Branch link, with link
-
-            UOP_int_link //,
-
-
-//                 UOP_bc_z,  // Branch imm 
-//                 UOP_bc_nz, // Branch imm
-//                 UOP_bc_a   // Branch always
+        
+         UOP_int_link
         };
     endfunction
 

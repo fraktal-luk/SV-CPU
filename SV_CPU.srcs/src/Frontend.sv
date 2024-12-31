@@ -7,6 +7,8 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 
+import CacheDefs::*;
+
 
 module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
@@ -15,13 +17,308 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
+    localparam logic ENABLE_FRONT_BRANCHES = 1;
+
+
     int fqSize = 0;
 
-    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE;
+    InstructionCacheOutput cacheOut;// = EMPTY_INS_CACHE_OUTPUT;
+
+    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
+    Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
     int fetchCtr = 0;
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
+
+    logic frontRed;
+
+//      How to handle:
+//        CR_INVALID,    continue in pipeline, cause exception
+//            CR_NOT_MAPPED, // continue, exception
+//        CR_TLB_MISS
+//        CR_TAG_MISS,       treat as empty?  >> if so, must ensure that later fetch outputs are also ignored: otherwise we can omit a group and accept subsequent ones :((
+//                          better answer: cause redirect to missed address; maybe deactivate fetch block until line is filled?
+//        CR_HIT,        continue in pipeline; if desc says not executable then cause exception
+//        CR_MULTIPLE    cause (async?) error
+//
+
+
+    assign cacheOut = AbstractCore.icacheOut;
+
+    assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
+
+
+    task automatic TMP_cmp();
+        foreach (fetchStage0[i]) begin
+        //   assert (fetchStage0_A[i].active === fetchStage0[i].active) else $error("not eqq\n%p\n%p", fetchStage0, fetchStage0_A);
+        //   assert (!fetchStage0_A[i].active || fetchStage0_A[i] === fetchStage0[i]) else $error("not eq\n%p\n%p", fetchStage0_A[i], fetchStage0[i]);
+        end
+    endtask
+
+
+    always @(posedge AbstractCore.clk) begin
+                TMP_cmp();
+
+
+        if (lateEventInfo.redirect || branchEventInfo.redirect)
+            redirectFront();
+        else
+            fetchAndEnqueue();
+
+        fqSize <= fetchQueue.size();
+    end
+
+    task automatic redirectF2();
+        flushFrontendBeforeF2();
+ 
+        ipStage <= makeIpStage(expectedTargetF2);
+
+        fetchCtr <= fetchCtr + FETCH_WIDTH;   
+    endtask
+
+    task automatic fetchNormal();
+        if (AbstractCore.fetchAllow) begin
+            Mword baseTrg = fetchLineBase(ipStage[0].adr);
+            Mword target = baseTrg + 4*FETCH_WIDTH; // FUTURE: next line predictor
+
+            ipStage <= makeIpStage(target);
+
+            fetchCtr <= fetchCtr + FETCH_WIDTH;
+        end
+
+        if (anyActiveFetch(ipStage) && AbstractCore.fetchAllow) begin
+            fetchStage0 <= ipStage;
+        end
+        else begin
+            fetchStage0 <= EMPTY_STAGE;
+        end
+
+        fetchStage1 <= setWords(fetchStage0, /*AbstractCore.instructionCacheOut,*/ cacheOut);
+    endtask
+
+
+    task automatic fetchAndEnqueue();
+        if (frontRed)
+            redirectF2();
+        else
+            fetchNormal();
+
+        performF2();
+
+        if (anyActiveFetch(fetchStage2)) fetchQueue.push_back(fetchStage2);
+
+        stageRename0 <= readFromFQ();
+    endtask
+
+
+    task automatic performF2();
+        FetchStage f1var = fetchStage1;
+
+        if (frontRed) begin
+            fetchStage2 <= EMPTY_STAGE;
+            fetchStage2_A <= EMPTY_STAGE;
+            return;
+        end
+
+        fetchStage2 <= getStageF2(f1var, expectedTargetF2);
+        fetchStage2_A <= getStageF2(f1var, expectedTargetF2_A);
+
+        if (anyActiveFetch(f1var)) begin
+            expectedTargetF2 <= getNextTargetF2(f1var, expectedTargetF2);
+            expectedTargetF2_A <= TMP_getNextTarget(f1var, expectedTargetF2);
+        end
+    endtask
+
+
+    task automatic redirectFront();
+        Mword target;
+
+        flushFrontend();
+
+        if (lateEventInfo.redirect)         target = lateEventInfo.target;
+        else if (branchEventInfo.redirect)  target = branchEventInfo.target;
+        else $fatal(2, "Should never get here");
+
+        ipStage <= makeIpStage(target);
+
+        fetchCtr <= fetchCtr + FETCH_WIDTH;
+        
+        expectedTargetF2 <= target;
+        expectedTargetF2_A <= target;
+    endtask
+
+
+    task automatic flushFrontendBeforeF2();
+        markKilledFrontStage(ipStage);
+        markKilledFrontStage(fetchStage0);
+        markKilledFrontStage(fetchStage1);
+
+        ipStage <= EMPTY_STAGE;
+        fetchStage0 <= EMPTY_STAGE;
+        fetchStage1 <= EMPTY_STAGE;
+    endtask    
+
+    task automatic flushFrontendFromF2();
+        markKilledFrontStage(fetchStage2);
+        markKilledFrontStage(stageRename0);
+
+        fetchStage2 <= EMPTY_STAGE;
+        expectedTargetF2 <= 'x;
+
+        foreach (fetchQueue[i])
+            markKilledFrontStage(fetchQueue[i]);
+
+        fetchQueue.delete();
+
+        stageRename0 <= '{default: EMPTY_SLOT_F};
+    endtask
+
+
+    task automatic flushFrontend();
+        flushFrontendBeforeF2();
+        flushFrontendFromF2();   
+    endtask
+
+
+    function automatic OpSlotAF readFromFQ();
+        // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
+        if (fqSize > 0 && AbstractCore.renameAllow)
+            return fetchQueue.pop_front();
+        else
+            return '{default: EMPTY_SLOT_F};
+    endfunction
+
+
+    function automatic FetchStage clearBeforeStart(input FetchStage st, input Mword expectedTarget);
+        FetchStage res = st;
+
+        foreach (res[i])
+            res[i].active = !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+        
+        return res;       
+    endfunction
+
+
+    function automatic FetchStage clearAfterBranch(input FetchStage st, input int branchSlot);
+        FetchStage res = st;
+        
+        if (branchSlot == -1) return res;
+        
+        foreach (res[i])
+            if (i > branchSlot) res[i].active = 0;
+
+        return res;        
+    endfunction
+
+
+
+    function automatic int scanBranches(input FetchStage st);
+        FetchStage res = st;
+        
+        Mword nextAdr = res[$size(st)-1].adr + 4;
+        int branchSlot = -1;
+        
+        Mword takenTargets[$size(st)] = '{default: 'x};
+        logic active[$size(st)] = '{default: 'x};
+        logic constantBranches[$size(st)] = '{default: 'x};
+        logic predictedBranches[$size(st)] = '{default: 'x};
+        
+        // Decode branches and decide if taken.
+        foreach (res[i]) begin
+            AbstractInstruction ins = decodeAbstract(res[i].bits);
+            
+            active[i] = res[i].active;
+            constantBranches[i] = 0;
+            
+            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                Mword trg = res[i].adr + Mword'(ins.sources[1]);
+                takenTargets[i] = trg;
+                constantBranches[i] = 1;
+                predictedBranches[i] = isBranchAlwaysIns(ins);            
+            end
+
+            if (isBranchRegIns(ins)) begin
+                
+            end
+            
+        end
+        
+        // Scan for first taken branch
+        foreach (res[i]) begin
+            if (!res[i].active) continue;
+            
+            if (constantBranches[i] && predictedBranches[i]) begin
+                nextAdr = takenTargets[i];
+                branchSlot = i;
+                break;
+            end
+        end
+        
+        
+        if ($time() <= 300) begin
+           // $display("adr %d: tr = %p, a = %p, br = %p // %d, [%d] --> %d", res[0].adr, takenTargets, active, constantBranches, -1, lastSlot, nextAdr);
+        end
+ 
+        return branchSlot;
+    endfunction
+
+
+    function automatic FetchStage TMP_getStageF2(input FetchStage st, input Mword expectedTarget);
+        FetchStage res = st;
+
+        if (!anyActiveFetch(st)) return res;
+        
+        assert (!$isunknown(expectedTarget)) else $fatal(2, "expectedTarget not set");
+        
+        res = clearBeforeStart(res, expectedTarget);        
+
+        return res;
+    endfunction
+    
+
+    function automatic Mword TMP_getNextTarget(inout FetchStage st, input Mword expectedTarget);
+        FetchStage res = TMP_getStageF2(st, expectedTarget);
+        
+        Mword adr = res[$size(st)-1].adr + 4;
+        
+        foreach (res[i]) 
+            if (res[i].active) begin
+                AbstractInstruction ins = decodeAbstract(res[i].bits);
+                        
+                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                    if (isBranchAlwaysIns(ins)) begin
+                        adr = res[i].adr + Mword'(ins.sources[1]);
+                        break;
+                    end
+                end
+            end
+        
+        return adr; 
+    endfunction
+
+
+    function automatic FetchStage getStageF2(input FetchStage st, input Mword expectedTarget);
+        FetchStage res = TMP_getStageF2(st, expectedTarget);
+ 
+        int brSlot = scanBranches(res);
+        
+        res = clearAfterBranch(res, brSlot);
+        
+        // Set prediction info
+        if (brSlot != -1) begin
+            res[brSlot].takenBranch = 1;
+        end
+        
+        return res;
+    endfunction
+    
+    
+    function automatic Mword getNextTargetF2(input FetchStage st, input Mword expectedTarget);
+        // If no taken branches, increment base adr. Otherwise get taken target
+        return TMP_getNextTarget(st, expectedTarget);
+    endfunction
+
 
     function automatic logic anyActiveFetch(input FetchStage s);
         foreach (s[i]) if (s[i].active) return 1;
@@ -30,131 +327,44 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     
     // FUTURE: split along with split between FETCH_WIDTH and RENAME_WIDTH
     task automatic markKilledFrontStage(ref FetchStage stage);
-        foreach (stage[i]) begin
-            if (!stage[i].active) continue;
-            putMilestoneF(stage[i].id, InstructionMap::FlushFront);
-        end
+        foreach (stage[i])
+            if (stage[i].active) putMilestoneF(stage[i].id, InstructionMap::FlushFront);
     endtask
 
 
-    task automatic registerNewTarget(input int fCtr, input Mword target);
-        int slotPosition = (target/4) % FETCH_WIDTH;
-        Mword baseAdr = target & ~(4*FETCH_WIDTH-1);
-        for (int i = slotPosition; i < FETCH_WIDTH; i++) begin
-            Mword adr = baseAdr + 4*i;
-            InsId index = fCtr + i;
-            insMap.registerIndex(index);
-            putMilestoneF(index, InstructionMap::GenAddress);
-        end
-    endtask
-
-
-    function automatic FetchStage setActive(input FetchStage s, input logic on, input int ctr);
+    function automatic FetchStage setWords(input FetchStage s, /*input FetchGroup fg,*/ input InstructionCacheOutput cacheOut);
         FetchStage res = s;
-        Mword firstAdr = res[0].adr;
-        Mword baseAdr = res[0].adr & ~(4*FETCH_WIDTH-1);
-
-        if (!on) return EMPTY_STAGE;
-
         foreach (res[i]) begin
-            res[i].active = (((firstAdr/4) % FETCH_WIDTH <= i)) === 1;
-            res[i].id = res[i].active ? ctr + i : -1;
-            res[i].adr = res[i].active ? baseAdr + 4*i : 'x;
-        end
+            Word realBits = cacheOut.words[i];//fg[i];
 
-        return res;
-    endfunction
-
-    function automatic FetchStage setWords(input FetchStage s, input FetchGroup fg);
-        FetchStage res = s;
-        foreach (res[i])
-            if (res[i].active) res[i].bits = fg[i];
-        return res;
-    endfunction
-
-
-    task automatic flushFrontend();
-        markKilledFrontStage(fetchStage0);
-        markKilledFrontStage(fetchStage1);
-        fetchStage0 <= EMPTY_STAGE;
-        fetchStage1 <= EMPTY_STAGE;
-
-        foreach (fetchQueue[i]) begin
-            FetchStage current = fetchQueue[i];
-            markKilledFrontStage(current);
-        end
-        fetchQueue.delete();
-    endtask
-
-    task automatic redirectFront();
-        Mword target;
-
-        if (lateEventInfo.redirect)         target = lateEventInfo.target;
-        else if (branchEventInfo.redirect)  target = branchEventInfo.target;
-        else $fatal(2, "Should never get here");
-
-        if (ipStage[0].id != -1) markKilledFrontStage(ipStage);
-        ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
-
-        fetchCtr <= fetchCtr + FETCH_WIDTH;
-
-        registerNewTarget(fetchCtr + FETCH_WIDTH, target);
-
-        flushFrontend();
-
-        markKilledFrontStage(stageRename0);
-        stageRename0 <= '{default: EMPTY_SLOT_F};
-    endtask
-
-    task automatic fetchAndEnqueue();
-        FetchStage fetchStage0ua, ipStageU;
-        if (AbstractCore.fetchAllow) begin
-            Mword target = (ipStage[0].adr & ~(4*FETCH_WIDTH-1)) + 4*FETCH_WIDTH;
-            ipStage <= '{0: '{1, -1, -1, target, 'x}, default: EMPTY_SLOT_F};
-            fetchCtr <= fetchCtr + FETCH_WIDTH;
+            if (res[i].active) begin
+                Word bits = fetchInstruction(AbstractCore.dbProgMem, res[i].adr); // DB
+                assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
+            end
             
-            registerNewTarget(fetchCtr + FETCH_WIDTH, target);
+            res[i].bits = realBits;
         end
+        return res;
+    endfunction
 
-        ipStageU = setActive(ipStage, ipStage[0].active & AbstractCore.fetchAllow, fetchCtr);
 
-        fetchStage0 <= ipStageU;
-        fetchStage0ua = setWords(fetchStage0, AbstractCore.instructionCacheOut);
+    function automatic Mword fetchLineBase(input Mword adr);
+        return adr & ~(4*FETCH_WIDTH-1);
+    endfunction;
+
+    function automatic FetchStage makeIpStage(input Mword target);
+        FetchStage res = EMPTY_STAGE;
+        Mword baseAdr = fetchLineBase(target);
+        Mword adr;
+        logic active;
         
-        foreach (ipStageU[i]) if (ipStageU[i].active) begin
-            insMap.add(ipStageU[i].id, ipStageU[i].adr, ipStageU[i].bits);
-        end
-
-        foreach (fetchStage0ua[i]) if (fetchStage0ua[i].active) begin
-            insMap.setEncoding(fetchStage0ua[i].id, fetchStage0ua[i].bits);
-        end
-
-        fetchStage1 <= fetchStage0ua;
-        if (anyActiveFetch(fetchStage1)) fetchQueue.push_back(fetchStage1);
-    
-        stageRename0 <= readFromFQ();
-    endtask
-    
-    function automatic OpSlotAF readFromFQ();
-        OpSlotAF res = '{default: EMPTY_SLOT_F};
-
-        // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
-        if (fqSize > 0 && AbstractCore.renameAllow) begin
-            FetchStage fqOut_N = fetchQueue.pop_front();
-            foreach (fqOut_N[i]) res[i] = fqOut_N[i];
+        for (int i = 0; i < $size(res); i++) begin
+            adr = baseAdr + 4*i;
+            active = !$isunknown(target) && (adr >= target);
+            res[i] = '{active, -1, adr, 'x, 0, 'x};
         end
         
         return res;
     endfunction
-
-   
-    always @(posedge AbstractCore.clk) begin
-        if (lateEventInfo.redirect || branchEventInfo.redirect)
-            redirectFront();
-        else
-            fetchAndEnqueue();
-            
-        fqSize <= fetchQueue.size();
-    end
 
 endmodule
