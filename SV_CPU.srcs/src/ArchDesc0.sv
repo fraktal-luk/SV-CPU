@@ -7,6 +7,9 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 
+import Testing::*;
+
+
 module ArchDesc0();
 
     localparam int ITERATION_LIMIT = 2000;
