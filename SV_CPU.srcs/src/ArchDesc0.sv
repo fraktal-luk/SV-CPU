@@ -52,15 +52,24 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
+
     Section common;
     squeue allSuites = '{"tests_all.txt", "tests_some.txt"};
     
     string emulTestName, simTestName;
 
-    Emulator emulSig;
     Word progMem[4096];
     Mbyte dataMem[] = new[4096]('{default: 0});
 
+    Emulator emul_N = new();
+
+
+    class Runner1 extends TestRunner;
+        task automatic runTest(input string name);
+            runTestEmul(name, emul_N, DEFAULT_CALL_SECTION);
+            #1;
+        endtask
+    endclass
 
     function automatic logic isValidTest(input squeue line);
         if (line.size() > 1) $error("There should be 1 test per line");
@@ -90,30 +99,13 @@ module ArchDesc0();
     initial runEmul();
 
 
-    task automatic runEmulSuite(ref Emulator emul, input squeue tests);
-        foreach (tests[i]) begin
-            squeue lineParts = breakLine(tests[i]);
-            if (!isValidTest(lineParts)) continue;
-            runTestEmul(lineParts[0], emul, DEFAULT_CALL_SECTION);
-            #1;
-        end
-    endtask
     
     task automatic runEmul();
-        Emulator emul = new();
-        emulSig = emul;
-        #1;
-        
-        foreach (allSuites[i]) begin
-            squeue tests = readFile(allSuites[i]);
-            runEmulSuite(emul, tests);
-        end
-
-        runErrorTestEmul(emul);
-        #1;
-        runTestEmul("events", emul, TESTED_CALL_SECTION);
-        #1;
-        runIntTestEmul(emul);
+        Runner1 runner1 = new();
+        #1 runner1.runSuites(allSuites);
+        #1 runErrorTestEmul(emul_N);
+        #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
+        #1 runIntTestEmul(emul_N);
         #1;      
     endtask
 
@@ -144,11 +136,8 @@ module ArchDesc0();
 
             if (emul.writeToDo.active) writeArrayW(dataMem, emul.writeToDo.adr, emul.writeToDo.value);            
             emul.drain();
-
-            emulSig = emul;
             #1;
         end
-        emulSig = emul;
     endtask
 
     task automatic runIntTestEmul(ref Emulator emul);
@@ -171,11 +160,8 @@ module ArchDesc0();
 
             if (emul.writeToDo.active) writeArrayW(dataMem, emul.writeToDo.adr, emul.writeToDo.value);
             emul.drain();
-
-            emulSig = emul;
             #1;
         end
-        emulSig = emul;
     endtask
 
 
@@ -186,14 +172,10 @@ module ArchDesc0();
             if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (emul.status.send == 1) break;
-
             if (emul.writeToDo.active) writeArrayW(dmem, emul.writeToDo.adr, emul.writeToDo.value);
             emul.drain();
-
-            emulSig = emul;
             #1;
         end
-        emulSig = emul;
     endtask
 
     task automatic resetAll(ref Emulator emul);
@@ -207,6 +189,12 @@ module ArchDesc0();
 
     // Core sim
     generate
+        class SimRunner extends TestRunner;
+            task automatic runTest(input string name);
+                runTestSim(name, DEFAULT_CALL_SECTION);
+            endtask
+        endclass
+    
         Word programMem[4096];
 
         logic reset = 0, int0 = 0, done, wrong;
@@ -214,29 +202,20 @@ module ArchDesc0();
         Mword fetchAdr;       
         logic writeEn;
         Mword writeAdr, writeValue;
-        
-        task automatic runSimSuite(input squeue tests);
-            foreach (tests[i]) begin
-                squeue lineParts = breakLine(tests[i]);
-                if (!isValidTest(lineParts)) continue;
-                runTestSim(lineParts[0], DEFAULT_CALL_SECTION);
-            end
-        endtask
+
         
         task automatic runSim();
-            #CYCLE;
-
-            foreach (allSuites[i]) begin
-                squeue tests = readFile(allSuites[i]);
-                runSimSuite(tests);
-            end            
+            SimRunner runner = new();
+        
+            #CYCLE runner.runSuites(allSuites);  
+            
+                core.insMap.assertReissue();
             
             runTestSim("events", TESTED_CALL_SECTION);
             runIntTestSim();
             
             $display("All tests done;");
                 // Now assure that a pullback and reissue has happened because of mem replay 
-                core.insMap.assertReissue();
             $stop(2);
         endtask
         
@@ -246,7 +225,6 @@ module ArchDesc0();
             prepareTest(programMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
             startSim();
-            
             awaitResult();
         endtask
 
@@ -275,10 +253,8 @@ module ArchDesc0();
             core.instructionCache.setProgram(programMem);
             core.dataCache.reset();
             
-            #CYCLE;
-            reset <= 1;
-            #CYCLE;
-            reset <= 0;
+            #CYCLE reset <= 1;
+            #CYCLE reset <= 0;
             #CYCLE;
         endtask
 
@@ -319,9 +295,8 @@ module ArchDesc0();
     task automatic saveProgramToFile(input string fname, input Word progMem[4096]);
         int file = $fopen(fname, "w");
         squeue lines = disasmBlock(progMem);
-        foreach (lines[i]) begin
+        foreach (lines[i])
             $fdisplay(file, lines[i]);
-        end  
         $fclose(file);
     endtask
 

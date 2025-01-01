@@ -601,8 +601,7 @@ package Emulation;
 
         local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             if (isStoreSysIns(ins)) begin
-                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);
-                //modifyStatus(ins);
+                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);                
                 if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
                 else modifySysRegs(this.coreState, adr, ins);
             end
