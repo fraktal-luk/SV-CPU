@@ -71,6 +71,50 @@ package Emulation;
     const ExecResult DEFAULT_EXEC_RESULT = '{error: 0, regWrite: DEFAULT_REG_WRITE, memWrite: DEFAULT_MEM_WRITE, target: 'x};
 
 
+    // 4kB pages
+    class PageBasedProgramMem;
+        localparam PAGE_BYTES = 4096;
+        localparam PAGE_WORDS = PAGE_BYTES/4;
+        typedef Word Page[];
+        
+        Page pages[int];
+
+      
+        function automatic void resetPage(input Mword startAdr);
+            int index = startAdr/PAGE_BYTES;
+            pages[index] = '{default: 'x};
+        endfunction
+
+        function automatic void createPage(input Mword startAdr);
+            int index = startAdr/PAGE_BYTES;
+            pages[index] = new[PAGE_WORDS]('{default: 'x});
+        endfunction
+
+        function automatic void linkPage(input Mword startAdr, input Word arr[]);
+            int index = startAdr/PAGE_BYTES;
+            pages[index] = arr;
+        endfunction
+
+        function automatic void writePage(input Mword startAdr, input Word arr[]);
+            int index = startAdr/PAGE_BYTES;
+            Page pg = pages[index];
+            int size = arr.size() < PAGE_WORDS ? arr.size() : PAGE_WORDS;
+            int offset = 0;
+            while (offset < size)
+                pg[offset] = arr[offset++];
+            while (offset < PAGE_WORDS)
+                pg[offset++] = 'x;
+        endfunction
+        
+        function automatic Word fetch(input Mword startAdr);
+            int index = startAdr/PAGE_BYTES;
+            int offset = (startAdr%PAGE_BYTES)/4;
+            
+            return pages[index][offset];
+        endfunction
+        
+    endclass
+
 
     class SimpleMem;
         Mbyte bytes[4096];
@@ -456,6 +500,8 @@ package Emulation;
         CpuState coreState;
         
         Word progMem[] = new[4096];
+        PageBasedProgramMem progMem_N = new();
+        
         SimpleMem tmpDataMem = new();
         MemoryWrite writeToDo;
 
@@ -485,7 +531,10 @@ package Emulation;
             ExecResult execRes;
             Mword adr = this.coreState.target;
             Word bits = fetchInstruction(progMem, adr);
+                Word bits_N = progMem_N.fetch(adr);
             AbstractInstruction absIns = decodeAbstract(bits);
+
+                assert (bits_N === bits) else $error("Bits dofer %d, %x, %x", adr, bits, bits_N);
 
             execRes = processInstruction(adr, absIns, this.tmpDataMem);            
         endfunction 

@@ -340,6 +340,10 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             if (res[i].active) begin
                 // TODO: change to fronend emul when created
                 Word bits = fetchInstruction(AbstractCore.renamedEmul.progMem, res[i].adr); // DB
+                    Word bits_N = AbstractCore.renamedEmul.progMem_N.fetch(res[i].adr); // DB
+                    
+                    assert (bits_N === bits) else $error("Bits front dofer %d, %x, %x", res[i].adr, bits, bits_N);
+
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             

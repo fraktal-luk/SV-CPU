@@ -72,13 +72,16 @@ module ArchDesc0();
     task automatic setPrograms(ref Word mem[],
                               input Section testSec, input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec);
         mem = '{default: 'x};
-        writeProgram(mem, COMMON_ADR, common.words);          
+                 
         writeProgram(mem, 0, testSec.words);
+        
         writeProgram(mem, IP_RESET, resetSec.words);
         writeProgram(mem, IP_ERROR, errorSec.words);
         writeProgram(mem, IP_CALL, callSec.words);
         writeProgram(mem, IP_INT, intSec.words);
         writeProgram(mem, IP_EXC, excSec.words);
+        
+        writeProgram(mem, COMMON_ADR, common.words);
     endtask
 
 
@@ -87,10 +90,30 @@ module ArchDesc0();
         Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common, COMMON_ADR);
         setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endtask
-    
+
+
     task automatic runEmul();
         Runner1 runner1 = new();
+        
+            emul_N.progMem_N.linkPage(0, emul_N.progMem);
+        
+          //  PageBasedProgramMem pmem =  emul_N.progMem_N;
+        
+          //  emul_N.progMem_N.createPage(0);
+          //  emul_N.progMem_N.createPage(4096);
+            
+          //  PageBasedProgramMem pmem = new();
+          //  pmem.linkPage(0, common.words);
+        
+         //   pmem.createPage(4096);
+            
+        
         #1 runner1.runSuites(allSuites);
+        
+           // pmem.linkPage(0, emul_N.progMem);
+        
+           // $error("!!! %x %x %x %x", pmem.fetch(0), pmem.fetch(4), pmem.fetch(8), pmem.fetch(5005));
+        
         #1 runErrorTestEmul(emul_N);
         #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
         #1 runIntTestEmul(emul_N);
@@ -102,6 +125,9 @@ module ArchDesc0();
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
         emulTestName = name;
         prepareTest(emul.progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            
+            emul.progMem_N.linkPage(0, emul.progMem);
+           // $error("  cmp: %x %x %x", emul.progMem[1], emul.progMem_N.pages[0][1], 'z);
         
             saveProgramToFile({"ZZZ_", name, ".txt"}, emul.progMem);
 
@@ -113,7 +139,8 @@ module ArchDesc0();
     task automatic runErrorTestEmul(ref Emulator emul);
         emulTestName = "err signal";
         writeProgram(emul.progMem, 0, FAILING_SECTION.words);
-        
+                    emul.progMem_N.linkPage(0, emul.progMem);
+
         resetAll(emul);
 
         for (int iter = 0; 1; iter++) begin
@@ -128,6 +155,7 @@ module ArchDesc0();
     task automatic runIntTestEmul(ref Emulator emul);
         emulTestName = "int";
         prepareTest(emul.progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            emul.progMem_N.linkPage(0, emul.progMem);
 
         resetAll(emul);
 
@@ -185,7 +213,9 @@ module ArchDesc0();
 
         task automatic runSim();
             SimRunner runner = new();
-        
+
+                core.renamedEmul.progMem_N.linkPage(0, core.renamedEmul.progMem);
+
             #CYCLE runner.runSuites(allSuites);  
             
                 // Now assure that a pullback and reissue has happened because of mem replay
@@ -202,6 +232,7 @@ module ArchDesc0();
         task automatic runTestSim(input string name, input Section callSec);
             #CYCLE announce(name);
             prepareTest(core.renamedEmul.progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+                core.renamedEmul.progMem_N.linkPage(0, core.renamedEmul.progMem);
             
             startSim();
             awaitResult();
@@ -210,7 +241,8 @@ module ArchDesc0();
         task automatic runIntTestSim();
             #CYCLE announce("int");
             prepareTest(core.renamedEmul.progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
-            
+                core.renamedEmul.progMem_N.linkPage(0, core.renamedEmul.progMem);
+
             startSim();
 
             // The part that differs from regular sim test
