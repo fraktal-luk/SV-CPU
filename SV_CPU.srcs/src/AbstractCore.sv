@@ -30,8 +30,9 @@ module AbstractCore
 
     // DB
     CoreDB coreDB();
-    Word dbProgMem[4096];
-
+    //Word //dbProgMem[4096];
+    //     dbProgMem[] = new[4096];
+        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 

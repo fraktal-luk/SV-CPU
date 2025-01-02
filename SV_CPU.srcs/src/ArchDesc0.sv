@@ -28,7 +28,7 @@ module ArchDesc0();
     const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
 
-    typedef Mbyte DynamicDataMem[];
+    //typedef Mbyte DynamicDataMem[];
 
 
     const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
@@ -58,9 +58,6 @@ module ArchDesc0();
     
     string emulTestName, simTestName;
 
-    Word progMem[4096];
-    Mbyte dataMem[] = new[4096]('{default: 0});
-
     Emulator emul_N = new();
 
 
@@ -71,12 +68,9 @@ module ArchDesc0();
         endtask
     endclass
 
-    function automatic logic isValidTest(input squeue line);
-        if (line.size() > 1) $error("There should be 1 test per line");
-        return line.size() == 1;
-    endfunction
 
-    task automatic setPrograms(ref Word mem[4096], input Section testSec, input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec);
+    task automatic setPrograms(ref Word mem[],
+                              input Section testSec, input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec);
         mem = '{default: 'x};
         writeProgram(mem, COMMON_ADR, common.words);          
         writeProgram(mem, 0, testSec.words);
@@ -88,17 +82,11 @@ module ArchDesc0();
     endtask
 
 
-
-    task automatic prepareTest(ref Word mem[4096], input string name, input Section callSec, input Section intSec, input Section excSec);
+    task automatic prepareTest(ref Word mem[],
+                               input string name, input Section callSec, input Section intSec, input Section excSec);
         Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common, COMMON_ADR);
         setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endtask
-
-    initial common = processLines(readFile({"common_asm", ".txt"}));
-
-    initial runEmul();
-
-
     
     task automatic runEmul();
         Runner1 runner1 = new();
@@ -113,28 +101,25 @@ module ArchDesc0();
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
         emulTestName = name;
-        prepareTest(progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul.progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
-            saveProgramToFile({"ZZZ_", name, ".txt"}, progMem);
+            saveProgramToFile({"ZZZ_", name, ".txt"}, emul.progMem);
 
         resetAll(emul);
-        performEmul(emul, dataMem);
+        performEmul(emul);
     endtask
 
 
     task automatic runErrorTestEmul(ref Emulator emul);
         emulTestName = "err signal";
-        writeProgram(progMem, 0, FAILING_SECTION.words);
+        writeProgram(emul.progMem, 0, FAILING_SECTION.words);
         
         resetAll(emul);
 
         for (int iter = 0; 1; iter++) begin
-            emul.executeStep(progMem);
-            
+            emul.executeStep();
             if (emul.status.error == 1) break;
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "error sig");
-
-            if (emul.writeToDo.active) writeArrayW(dataMem, emul.writeToDo.adr, emul.writeToDo.value);            
             emul.drain();
             #1;
         end
@@ -142,7 +127,7 @@ module ArchDesc0();
 
     task automatic runIntTestEmul(ref Emulator emul);
         emulTestName = "int";
-        prepareTest(progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul.progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
 
         resetAll(emul);
 
@@ -152,37 +137,36 @@ module ArchDesc0();
                 #1;
             end
 
-            emul.executeStep(progMem);
-            
+            emul.executeStep();
             if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "events2");
             if (emul.status.send == 1) break;
-
-            if (emul.writeToDo.active) writeArrayW(dataMem, emul.writeToDo.adr, emul.writeToDo.value);
             emul.drain();
             #1;
         end
     endtask
 
 
-    task automatic performEmul(ref Emulator emul, ref DynamicDataMem dmem);
+    task automatic performEmul(ref Emulator emul);
         for (int iter = 0; 1; iter++) begin
-            emul.executeStep(progMem);
-            
+            emul.executeStep();
             if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (emul.status.send == 1) break;
-            if (emul.writeToDo.active) writeArrayW(dmem, emul.writeToDo.adr, emul.writeToDo.value);
             emul.drain();
             #1;
         end
     endtask
 
     task automatic resetAll(ref Emulator emul);
-        dataMem = '{default: 0};
         emul.reset();
         #1;
     endtask
+
+
+    initial common = processLines(readFile({"common_asm", ".txt"}));
+
+    initial runEmul();
 
     //////////////////////////////////////////////////////
     ////////////////////////////////////////////////
@@ -194,35 +178,30 @@ module ArchDesc0();
                 runTestSim(name, DEFAULT_CALL_SECTION);
             endtask
         endclass
-    
-        Word programMem[4096];
 
         logic reset = 0, int0 = 0, done, wrong;
-
         Mword fetchAdr;       
-        logic writeEn;
-        Mword writeAdr, writeValue;
 
-        
+
         task automatic runSim();
             SimRunner runner = new();
         
             #CYCLE runner.runSuites(allSuites);  
             
+                // Now assure that a pullback and reissue has happened because of mem replay
                 core.insMap.assertReissue();
             
             runTestSim("events", TESTED_CALL_SECTION);
             runIntTestSim();
             
             $display("All tests done;");
-                // Now assure that a pullback and reissue has happened because of mem replay 
             $stop(2);
         endtask
         
         
         task automatic runTestSim(input string name, input Section callSec);
             #CYCLE announce(name);
-            prepareTest(programMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(core.renamedEmul.progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
             startSim();
             awaitResult();
@@ -230,7 +209,7 @@ module ArchDesc0();
 
         task automatic runIntTestSim();
             #CYCLE announce("int");
-            prepareTest(programMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(core.renamedEmul.progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
             
             startSim();
 
@@ -249,8 +228,7 @@ module ArchDesc0();
         endtask
 
         task automatic startSim();
-            core.dbProgMem = programMem; // NOTE: duplication - remove?
-            core.instructionCache.setProgram(programMem);
+            core.instructionCache.setProgram(core.renamedEmul.progMem);
             core.dataCache.reset();
             
             #CYCLE reset <= 1;
@@ -274,10 +252,7 @@ module ArchDesc0();
         initial runSim();
 
         assign fetchAdr = core.insAdr; 
-        assign writeEn = core.writeInfo.req;
-        assign writeAdr = core.writeInfo.adr;
-        assign writeValue = core.writeInfo.value;
-        
+
         
         AbstractCore core(
             .clk(clk),
@@ -289,30 +264,6 @@ module ArchDesc0();
         );
 
     endgenerate
-
-
-    
-    task automatic saveProgramToFile(input string fname, input Word progMem[4096]);
-        int file = $fopen(fname, "w");
-        squeue lines = disasmBlock(progMem);
-        foreach (lines[i])
-            $fdisplay(file, lines[i]);
-        $fclose(file);
-    endtask
-
-    localparam int DISASM_LIMIT = 64;
-
-    function automatic squeue disasmBlock(input Word words[]);
-        squeue res;
-        string s;
-        foreach (words[i]) begin
-            $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
-            res.push_back(s);
-            
-            if (i == DISASM_LIMIT) break;
-        end
-        return res;
-    endfunction
 
 
 endmodule

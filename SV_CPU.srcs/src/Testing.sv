@@ -17,7 +17,7 @@ package Testing;
         task automatic run();
         
         endtask
-    
+
         task automatic runSuites(input squeue suites);
             foreach (suites[i]) begin
                 squeue tests = readFile(suites[i]);
@@ -37,6 +37,28 @@ package Testing;
         endtask
         
     endclass
-    
-     
+
+
+    task automatic saveProgramToFile(input string fname, input Word progMem[]);
+        int file = $fopen(fname, "w");
+        squeue lines = disasmBlock(progMem);
+        foreach (lines[i])
+            $fdisplay(file, lines[i]);
+        $fclose(file);
+    endtask
+
+    localparam int DISASM_LIMIT = 64;
+
+    function automatic squeue disasmBlock(input Word words[]);
+        squeue res;
+        string s;
+        foreach (words[i]) begin
+            $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
+            res.push_back(s);
+            
+            if (i == DISASM_LIMIT) break;
+        end
+        return res;
+    endfunction 
+
 endpackage

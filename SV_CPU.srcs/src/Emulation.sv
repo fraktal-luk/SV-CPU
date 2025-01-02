@@ -4,18 +4,6 @@ package Emulation;
     import InsDefs::*;
     import Asm::*;
 
-//        // UNUSED
-//        function automatic logic cmpMems(input Word a[4096], input Word b[4096]);
-//            foreach (a[i]) begin
-//                if (a[i] === b[i]) continue;
-                
-//                $error("Difference at [%d]: %h / %h", i, a[i], b[i]);
-//                return 0;
-//            end
-            
-//            $display("   mem match!");
-//            return 1;
-//        endfunction
 
     function automatic void writeArrayW(ref Mbyte mem[], input Mword adr, input Word val);
         mem[adr+0] = val[31:24];
@@ -24,7 +12,8 @@ package Emulation;
         mem[adr+3] = val[7:0];
     endfunction
 
-    function automatic void writeProgram(ref Word mem[4096], input Mword adr, input Word prog[]);
+    function automatic void writeProgram(ref Word mem[],//[4096],
+                                         input Mword adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
@@ -462,9 +451,11 @@ package Emulation;
 
     class Emulator;
         Mword ip;
-        string str;
+        string str; // Remove?
         CoreStatus status;
         CpuState coreState;
+        
+        Word progMem[] = new[4096];
         SimpleMem tmpDataMem = new();
         MemoryWrite writeToDo;
 
@@ -477,6 +468,7 @@ package Emulation;
             writeToDo = other.writeToDo;
         endfunction
 
+        // CAREFUL: clears data memory, doesn't affect progMem
         function automatic void reset();
             this.ip = 'x;
             this.str = "";
@@ -489,7 +481,7 @@ package Emulation;
         endfunction
         
         
-        function automatic void executeStep(input Word progMem[]);
+        function automatic void executeStep();//input Word progMem[]);
             ExecResult execRes;
             Mword adr = this.coreState.target;
             Word bits = fetchInstruction(progMem, adr);
