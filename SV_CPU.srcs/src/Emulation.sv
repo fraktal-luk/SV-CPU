@@ -90,7 +90,7 @@ package Emulation;
             pages[index] = new[PAGE_WORDS]('{default: 'x});
         endfunction
 
-        function automatic void linkPage(input Mword startAdr, input Word arr[]);
+        function automatic void assignPage(input Mword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
             pages[index] = arr;
         endfunction
@@ -532,7 +532,7 @@ package Emulation;
             Mword adr = this.coreState.target;
             Word bits = fetchInstruction(progMem, adr);
                 Word bits_N = progMem_N.fetch(adr);
-            AbstractInstruction absIns = decodeAbstract(bits);
+            AbstractInstruction absIns = decodeAbstract(bits_N);
 
                 assert (bits_N === bits) else $error("Bits dofer %d, %x, %x", adr, bits, bits_N);
 
