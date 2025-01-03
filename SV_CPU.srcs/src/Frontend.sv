@@ -15,14 +15,11 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     typedef Word FetchGroup[FETCH_WIDTH];
     typedef OpSlotF FetchStage[FETCH_WIDTH];
     localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
-
-
+    
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
-
     int fqSize = 0;
-
-    InstructionCacheOutput cacheOut;// = EMPTY_INS_CACHE_OUTPUT;
+    InstructionCacheOutput cacheOut;
 
     FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
     Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
@@ -49,17 +46,16 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
 
 
-    task automatic TMP_cmp();
-        foreach (fetchStage0[i]) begin
-        //   assert (fetchStage0_A[i].active === fetchStage0[i].active) else $error("not eqq\n%p\n%p", fetchStage0, fetchStage0_A);
-        //   assert (!fetchStage0_A[i].active || fetchStage0_A[i] === fetchStage0[i]) else $error("not eq\n%p\n%p", fetchStage0_A[i], fetchStage0[i]);
-        end
-    endtask
+        task automatic TMP_cmp();
+            foreach (fetchStage0[i]) begin
+            //   assert (fetchStage0_A[i].active === fetchStage0[i].active) else $error("not eqq\n%p\n%p", fetchStage0, fetchStage0_A);
+            //   assert (!fetchStage0_A[i].active || fetchStage0_A[i] === fetchStage0[i]) else $error("not eq\n%p\n%p", fetchStage0_A[i], fetchStage0[i]);
+            end
+        endtask
 
 
     always @(posedge AbstractCore.clk) begin
                 TMP_cmp();
-
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectFront();
@@ -77,6 +73,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchCtr <= fetchCtr + FETCH_WIDTH;   
     endtask
 
+    // FUTURE: introduce fetching by 1 instrution? (for unchached access)
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
             Mword baseTrg = fetchLineBase(ipStage[0].adr);
@@ -94,7 +91,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             fetchStage0 <= EMPTY_STAGE;
         end
 
-        fetchStage1 <= setWords(fetchStage0, /*AbstractCore.instructionCacheOut,*/ cacheOut);
+        fetchStage1 <= setWords(fetchStage0, cacheOut);
     endtask
 
 
@@ -332,18 +329,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     endtask
 
 
-    function automatic FetchStage setWords(input FetchStage s, /*input FetchGroup fg,*/ input InstructionCacheOutput cacheOut);
+    function automatic FetchStage setWords(input FetchStage s, input InstructionCacheOutput cacheOut);
         FetchStage res = s;
         foreach (res[i]) begin
-            Word realBits = cacheOut.words[i];//fg[i];
+            Word realBits = cacheOut.words[i];
 
             if (res[i].active) begin
                 // TODO: change to fronend emul when created
-                Word bits = fetchInstruction(AbstractCore.renamedEmul.progMem, res[i].adr); // DB
-                    Word bits_N = AbstractCore.renamedEmul.progMem_N.fetch(res[i].adr); // DB
-                    
-                    assert (bits_N === bits) else $error("Bits front dofer %d, %x, %x", res[i].adr, bits, bits_N);
-
+                Word bits = AbstractCore.renamedEmul.progMem_N.fetch(res[i].adr); // DB
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             

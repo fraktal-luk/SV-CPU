@@ -37,7 +37,7 @@ package AbstractSim;
 
 
 
-
+    // Helpers  TODO: better place for them?
     function automatic logic wordOverlap(input Mword wa, input Mword wb);
         Mword aEnd = wa + 4; // Exclusive end
         Mword bEnd = wb + 4; // Exclusive end
@@ -91,14 +91,8 @@ package AbstractSim;
     
     typedef UidT UidQueueT[$];
     
-
-
-        typedef UidT WriterId;
-        localparam WriterId WID_NONE = UIDT_NONE;
-
-        function automatic InsId TMP_W2M(input WriterId id);
-            return U2M(id);
-        endfunction
+    typedef UidT WriterId;
+    localparam WriterId WID_NONE = UIDT_NONE;
 
 
     typedef struct {
@@ -216,32 +210,27 @@ package AbstractSim;
 
 
 
-
     class BranchCheckpoint;
-    
-        function new(input InsId id, input CpuState state, input SimpleMem mem, 
+        function new(input InsId id,
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
-                    input IndexSet indexSet);
+                    input IndexSet indexSet, input Emulator em);
             this.id = id;
-            this.state = state;
-            this.mem = new();
-            this.mem.copyFrom(mem);
             this.intWriters = intWr;
             this.floatWriters = floatWr;
             this.intMapR = intMapR;
             this.floatMapR = floatMapR;
             this.inds = indexSet;
+            this.emul = em.copy();
         endfunction
 
         InsId id;
-        CpuState state;
-        SimpleMem mem;
         WriterId intWriters[32];
         WriterId floatWriters[32];
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
+        Emulator emul;
     endclass
 
 
@@ -340,7 +329,7 @@ package AbstractSim;
 
 
             function automatic void flush(input InsId id);
-                int inds[$] = info.find_index with (item.state == SPECULATIVE && TMP_W2M(item.owner) > id);
+                int inds[$] = info.find_index with (item.state == SPECULATIVE && U2M(item.owner) > id);
 
                 foreach (inds[i]) begin
                     int pDest = inds[i];
@@ -368,19 +357,18 @@ package AbstractSim;
                 MapR = intM;
                 writersR = intWriters;
             endfunction
-        
+
             function automatic void restoreStable();
                 MapR = MapC;
                 writersR = writersC;
             endfunction
-    
+
             function automatic void restoreReset();
                 MapR = MapC;
                 writersR = '{default: WID_NONE};
 
                 foreach (info[i])
-                    if (info[i].state == STABLE)
-                        regs[i] = 0;
+                    if (info[i].state == STABLE) regs[i] = 0;
             endfunction           
         endclass
 
@@ -658,7 +646,6 @@ package AbstractSim;
              UOP_fp_addi };
     endfunction    
 
-
     function automatic logic isControlUop(input UopName name);
         return name inside {
             UOP_ctrl_undef,
@@ -673,7 +660,6 @@ package AbstractSim;
         };
     endfunction
 
-
     function automatic logic isStoreDataUop(input UopName name);
         return name inside {
             UOP_data_int,
@@ -681,10 +667,6 @@ package AbstractSim;
         };
     endfunction
 
-
-    function automatic logic isBranchUop(input UopName name);
-        return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
-    endfunction
 
 //        function automatic logic isBranchImmIns(input UopName name);
 //            return name inside {"ja", "jl", "jz_i", "jnz_i"};
@@ -698,17 +680,32 @@ package AbstractSim;
 //            return name inside {"jz_r", "jnz_r"};
 //        endfunction       
         
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
+
+//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
+//        return ins.def.o inside {O_floatStoreW};
+//    endfunction
+    
+//    function automatic logic isStoreIns(input AbstractInstruction ins);
+//        return isStoreMemIns(ins) || isStoreSysIns(ins);
+//    endfunction
+
+    function automatic logic isBranchUop(input UopName name);
+        return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
+    endfunction
 
     function automatic logic isMemUop(input UopName name);
         return isLoadMemUop(name) || isStoreMemUop(name);
     endfunction
 
     function automatic logic isStoreUop(input UopName name);
-        return isStoreMemUop(name) || isStoreSysUop(name);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+        return isStoreMemUop(name) || isStoreSysUop(name);
     endfunction
 
     function automatic logic isLoadUop(input UopName name);
-        return isLoadMemUop(name) || isLoadSysUop(name);//(ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW, O_sysLoad});
+        return isLoadMemUop(name) || isLoadSysUop(name);
     endfunction
 
     function automatic logic isLoadSysUop(input UopName name);
@@ -719,26 +716,15 @@ package AbstractSim;
         return name inside {UOP_mem_ldi, UOP_mem_ldf};
     endfunction
 
-//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-//        return (ins.def.o inside {O_floatLoadW});
-//    endfunction
-
     function automatic logic isStoreMemUop(input UopName name);
         return name inside {UOP_mem_sti, UOP_mem_stf};
     endfunction
-
-//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
-//        return ins.def.o inside {O_floatStoreW};
-//    endfunction
-    
 
     function automatic logic isStoreSysUop(input UopName name);
         return name inside {UOP_mem_sts};
     endfunction
     
-//    function automatic logic isStoreIns(input AbstractInstruction ins);
-//        return isStoreMemIns(ins) || isStoreSysIns(ins);
-//    endfunction
+
 
 
     function automatic logic uopHasIntDest(input UopName name);

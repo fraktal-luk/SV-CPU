@@ -30,8 +30,6 @@ module AbstractCore
 
     // DB
     CoreDB coreDB();
-    //Word //dbProgMem[4096];
-    //     dbProgMem[] = new[4096];
         
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -85,8 +83,6 @@ module AbstractCore
     OpSlotAB robOut;
 
     DataReadReq TMP_readReqs[N_MEM_PORTS];
-    //DataReadResp TMP_readResps[N_MEM_PORTS];
-    
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
@@ -291,7 +287,7 @@ module AbstractCore
                 registerTracker.restoreStable();
 
             registerTracker.flushAll();
-            
+
             memTracker.flushAll();
             
             renameInds = commitInds;
@@ -300,8 +296,7 @@ module AbstractCore
             BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
-            renamedEmul.coreState = causingCP.state;
-            renamedEmul.tmpDataMem.copyFrom(causingCP.mem);
+            renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
 
@@ -335,10 +330,10 @@ module AbstractCore
     endtask
 
     task automatic saveCP(input InsId id);
-        BranchCheckpoint cp = new(id, renamedEmul.coreState, renamedEmul.tmpDataMem,
+        BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameInds);
+                                    renameInds, renamedEmul);
         branchCheckpointQueue.push_back(cp);
     endtask
 
@@ -355,7 +350,7 @@ module AbstractCore
 
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
-        result = computeResult(renamedEmul.coreState, adr, ins, renamedEmul.tmpDataMem); // Must be before modifying state. For ins map
+        result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
         target = renamedEmul.coreState.target; // For insMap
