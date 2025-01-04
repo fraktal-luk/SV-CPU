@@ -1,4 +1,4 @@
-; Unaligned access
+; Unaligned access, then chained 3 dependent ops
 $start
 
 	ldi_i r10, r0, 3

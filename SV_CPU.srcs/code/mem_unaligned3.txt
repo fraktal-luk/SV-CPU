@@ -1,4 +1,4 @@
-; Unaligned access
+; Unaligned access, loaded from previous overlapping store
 $start
 	
 	add_i r10, r0, 15

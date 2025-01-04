@@ -632,12 +632,6 @@ package Emulation;
     endclass
 
 
-    // Helper functions  TODO: better place for them?
-    function automatic void writeProgram(ref Word mem[], input Mword adr, input Word prog[]);
-        assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
-        foreach (prog[i]) mem[adr/4 + i] = prog[i];
-    endfunction
-
     function automatic void runInEmulator(ref Emulator emul, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
         ExecResult res = emul.processInstruction(adr, ins);

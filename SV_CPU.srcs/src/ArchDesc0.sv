@@ -51,7 +51,17 @@ module ArchDesc0();
 
 
     Section common;
-    squeue allSuites = '{"tests_all.txt", "tests_some.txt"};
+    squeue allSuites = '{
+        "Tests_basic.txt",
+        "Tests_mem_simple.txt",
+        
+        "Tests_mem_advanced.txt",
+        "Tests_mem_align.txt",
+        "Tests_sys_transfers.txt",
+        
+        "Tests_all.txt"
+        //"tests_some.txt" - TODO: remove this file
+    };
     
     string emulTestName, simTestName;
 
@@ -66,37 +76,11 @@ module ArchDesc0();
     endclass
 
 
-    task automatic setPrograms(ref Word mem[],
-                              input Section testSec, input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec);
-        mem = '{default: 'x};
-                 
-        writeProgram(mem, 0, testSec.words);
-        
-        writeProgram(mem, IP_RESET, resetSec.words);
-        writeProgram(mem, IP_ERROR, errorSec.words);
-        writeProgram(mem, IP_CALL, callSec.words);
-        writeProgram(mem, IP_INT, intSec.words);
-        writeProgram(mem, IP_EXC, excSec.words);
-        
-        writeProgram(mem, COMMON_ADR, common.words);
-    endtask
-
 
     task automatic prepareTest(ref Word mem[],
-                               input string name, input Section callSec, input Section intSec, input Section excSec);
+                               input string name, input Section callSec, input Section intSec, input Section excSec, input Mword commonAdr);
         Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common, COMMON_ADR);
-        setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
-    endtask
-
-
-    task automatic runEmul();
-        Runner1 runner1 = new();
-        
-        #1 runner1.runSuites(allSuites);
-        #1 runErrorTestEmul(emul_N);
-        #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
-        #1 runIntTestEmul(emul_N);
-        #1;      
+        setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec, common, commonAdr);
     endtask
 
 
@@ -105,7 +89,7 @@ module ArchDesc0();
             Word emul_progMem[] = new[4096];
 
         emulTestName = name;
-        prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
             
             emul.progMem_N.assignPage(0, emul_progMem);
             emul.progMem_N.assignPage(4096, common.words);
@@ -141,7 +125,7 @@ module ArchDesc0();
             Word emul_progMem[] = new[4096];
 
         emulTestName = "int";
-        prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
             emul.progMem_N.assignPage(0, emul_progMem);
 
         resetAll(emul);
@@ -182,6 +166,16 @@ module ArchDesc0();
     endtask
 
 
+    task automatic runEmul();
+        Runner1 runner1 = new();
+        runner1.announceSuites = 0;
+        #1 runner1.runSuites(allSuites);
+        #1 runErrorTestEmul(emul_N);
+        #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
+        #1 runIntTestEmul(emul_N);
+        #1;      
+    endtask
+
     initial common = processLines(readFile({"common_asm", ".txt"}));
 
     initial runEmul();
@@ -201,27 +195,11 @@ module ArchDesc0();
         Mword fetchAdr;       
 
 
-        task automatic runSim();
-            SimRunner runner = new();
-
-            #CYCLE runner.runSuites(allSuites);  
-            
-                // Now assure that a pullback and reissue has happened because of mem replay
-                core.insMap.assertReissue();
-            
-            runTestSim("events", TESTED_CALL_SECTION);
-            runIntTestSim();
-            
-            $display("All tests done;");
-            $stop(2);
-        endtask
-        
-        
         task automatic runTestSim(input string name, input Section callSec);
                 Word emul_progMem[] = new[4096];
 
             #CYCLE announce(name);
-            prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
                 core.renamedEmul.progMem_N.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem_N.assignPage(4096, common.words);
             
@@ -233,7 +211,7 @@ module ArchDesc0();
                 Word emul_progMem[] = new[4096];
 
             #CYCLE announce("int");
-            prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
                 core.renamedEmul.progMem_N.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem_N.assignPage(4096, common.words);
 
@@ -275,10 +253,6 @@ module ArchDesc0();
             #CYCLE;
         endtask
 
-        initial runSim();
-
-        assign fetchAdr = core.insAdr; 
-
         
         AbstractCore core(
             .clk(clk),
@@ -288,6 +262,29 @@ module ArchDesc0();
             .sig(done),
             .wrong(wrong)
         );
+
+
+        task automatic runSim();
+            SimRunner runner = new();
+
+            #CYCLE runner.runSuites(allSuites);  
+            
+                // Now assure that a pullback and reissue has happened because of mem replay
+                core.insMap.assertReissue();
+            
+            $display("Event tests");
+            
+            runTestSim("events", TESTED_CALL_SECTION);
+            runIntTestSim();
+            
+            $display("All tests done;");
+            $stop(2);
+        endtask
+
+
+        assign fetchAdr = core.insAdr; 
+
+        initial runSim();
 
     endgenerate
 

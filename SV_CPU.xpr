@@ -60,7 +60,7 @@
     <Option Name="IPStaticSourceDir" Val="$PIPUSERFILESDIR/ipstatic"/>
     <Option Name="EnableBDX" Val="FALSE"/>
     <Option Name="WTXSimLaunchSim" Val="1"/>
-    <Option Name="WTModelSimLaunchSim" Val="2868"/>
+    <Option Name="WTModelSimLaunchSim" Val="2890"/>
     <Option Name="WTQuestaLaunchSim" Val="0"/>
     <Option Name="WTIesLaunchSim" Val="0"/>
     <Option Name="WTVcsLaunchSim" Val="0"/>
@@ -286,7 +286,6 @@
       <File Path="$PSRCDIR/code/sf_deps4.txt"/>
       <File Path="$PSRCDIR/code/stores1.txt"/>
       <File Path="$PSRCDIR/code/sys_regs.txt"/>
-      <File Path="$PSRCDIR/code/tests_all.txt"/>
       <File Path="$PSRCDIR/code/shifts.txt"/>
       <File Path="$PSRCDIR/code/fp0.txt"/>
       <File Path="$PSRCDIR/code/sf_deps5.txt"/>
@@ -319,6 +318,12 @@
       <File Path="$PSRCDIR/code/mem_unaligned3.txt"/>
       <File Path="$PSRCDIR/code/mem_illegal_address.txt"/>
       <File Path="$PSRCDIR/code/tests_some.txt"/>
+      <File Path="$PSRCDIR/code/Tests_basic.txt"/>
+      <File Path="$PSRCDIR/code/Tests_mem_simple.txt"/>
+      <File Path="$PSRCDIR/code/Tests_all.txt"/>
+      <File Path="$PSRCDIR/code/Tests_mem_align.txt"/>
+      <File Path="$PSRCDIR/code/Tests_sys_transfers.txt"/>
+      <File Path="$PSRCDIR/code/Tests_mem_advanced.txt"/>
       <Config>
         <Option Name="DesignMode" Val="RTL"/>
         <Option Name="TopModule" Val="ArchDesc0"/>
