@@ -28,9 +28,6 @@ module ArchDesc0();
     const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
 
-    //typedef Mbyte DynamicDataMem[];
-
-
     const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
 
     const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
@@ -95,27 +92,7 @@ module ArchDesc0();
     task automatic runEmul();
         Runner1 runner1 = new();
         
-//            SparseDataMem sma = new();
-//            SparseDataMem smb;
-            
-//            sma.writeWord(3, 'h44332211);
-//            $error("// %p ", sma);
-//            smb = new sma;
-//            $error("// %p ", smb);
-            
-//            sma.writeWord(2, 0);
-                
-//            $error("// %p ", sma);    
-//            $error("// %p ", smb);    
-        
-        
-//            emul_N.progMem_N.assignPage(0, emul_N.progMem);
-        
-
-        
         #1 runner1.runSuites(allSuites);
-        
-        
         #1 runErrorTestEmul(emul_N);
         #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
         #1 runIntTestEmul(emul_N);
@@ -125,14 +102,13 @@ module ArchDesc0();
 
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
-        Word emul_progMem[] = new[4096];
+            Word emul_progMem[] = new[4096];
 
         emulTestName = name;
         prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
             emul.progMem_N.assignPage(0, emul_progMem);
             emul.progMem_N.assignPage(4096, common.words);
-           // $error("  cmp: %x %x %x", emul.progMem[1], emul.progMem_N.pages[0][1], 'z);
         
             saveProgramToFile({"ZZZ_", name, ".txt"}, emul_progMem);
 
@@ -142,7 +118,8 @@ module ArchDesc0();
 
 
     task automatic runErrorTestEmul(ref Emulator emul);
-        Word emul_progMem[] = new[4096];
+        time DELAY = 1;
+            Word emul_progMem[] = new[4096];
 
         emulTestName = "err signal";
         writeProgram(emul_progMem, 0, FAILING_SECTION.words);
@@ -155,12 +132,13 @@ module ArchDesc0();
             if (emul.status.error == 1) break;
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "error sig");
             emul.drain();
-            #1;
+            #DELAY;
         end
     endtask
 
     task automatic runIntTestEmul(ref Emulator emul);
-        Word emul_progMem[] = new[4096];
+        time DELAY = 1;
+            Word emul_progMem[] = new[4096];
 
         emulTestName = "int";
         prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
@@ -171,7 +149,7 @@ module ArchDesc0();
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
                 emul.interrupt();
-                #1;
+                #DELAY;
             end
 
             emul.executeStep();
@@ -179,25 +157,28 @@ module ArchDesc0();
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "events2");
             if (emul.status.send == 1) break;
             emul.drain();
-            #1;
+            #DELAY;
         end
     endtask
 
 
     task automatic performEmul(ref Emulator emul);
+        time DELAY = 1;
+
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
             if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (emul.status.send == 1) break;
             emul.drain();
-            #1;
+            #DELAY;
         end
     endtask
 
     task automatic resetAll(ref Emulator emul);
+        time DELAY = 1;
         emul.reset();
-        #1;
+        #DELAY;
     endtask
 
 
@@ -222,9 +203,6 @@ module ArchDesc0();
 
         task automatic runSim();
             SimRunner runner = new();
-
-             //   core.renamedEmul.progMem_N.assignPage(0, core.renamedEmul.progMem);
-            //    core.renamedEmul.progMem_N.assignPage(4096, common.words);
 
             #CYCLE runner.runSuites(allSuites);  
             
@@ -276,8 +254,7 @@ module ArchDesc0();
         endtask
 
         task automatic startSim();
-            core.instructionCache.setProgram(//core.renamedEmul.progMem);
-                                             core.renamedEmul.progMem_N.getPage(0));
+            core.instructionCache.setProgram(core.renamedEmul.progMem_N.getPage(0));
             core.dataCache.reset();
             
             #CYCLE reset <= 1;
