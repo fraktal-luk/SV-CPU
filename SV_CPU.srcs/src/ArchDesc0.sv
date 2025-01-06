@@ -97,7 +97,7 @@ module ArchDesc0();
             emul.progMem_N.assignPage(0, emul_progMem);
             emul.progMem_N.assignPage(4096, common.words);
         
-            saveProgramToFile({codeDir, "ZZZ_", name, ".txt"}, emul_progMem);
+            saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
         resetAll(emul);
         performEmul(emul);
@@ -179,7 +179,7 @@ module ArchDesc0();
         #1;      
     endtask
 
-    initial common = processLines(readFile({"common_asm", ".txt"}));
+    initial common = processLines(readFile({codeDir, "common_asm", ".txt"}));
 
     initial runEmul();
 

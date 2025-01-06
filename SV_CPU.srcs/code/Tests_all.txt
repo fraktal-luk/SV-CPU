@@ -4,12 +4,6 @@ branch_flush        ; has load
 ; memory (basic mem?)
 
 
-; mem more advanced
-mem_unaligned      ; mem
-mem_unaligned2       ; mem
-mem_unaligned3       ; mem
-
-
 ; sys regs
 sys_regs           ; sys transfers
 mem_illegal_address  ; sys regs, exc?
