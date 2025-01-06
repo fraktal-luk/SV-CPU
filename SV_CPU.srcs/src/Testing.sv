@@ -9,6 +9,9 @@ package Testing;
     import Insmap::*;    
 
 
+    string codeDir = "../../../../SV_CPU.srcs/code/";
+
+
     function automatic void writeProgram(ref Word mem[], input Mword adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
@@ -46,7 +49,7 @@ package Testing;
 
         task automatic runSuites(input squeue suites);
             foreach (suites[i]) begin
-                squeue tests = readFile(suites[i]);
+                squeue tests = readFile({codeDir, suites[i]});
                 if (announceSuites)
                     $display("Suite: %s", suites[i]);
                 runTests(tests);

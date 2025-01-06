@@ -51,7 +51,10 @@ module ArchDesc0();
 
 
     Section common;
+    
+    
     squeue allSuites = '{
+         //   {codeDir, "Tests_DUMMY.txt"},
         "Tests_basic.txt",
         "Tests_mem_simple.txt",
         
@@ -79,7 +82,7 @@ module ArchDesc0();
 
     task automatic prepareTest(ref Word mem[],
                                input string name, input Section callSec, input Section intSec, input Section excSec, input Mword commonAdr);
-        Section testProg = fillImports(processLines(readFile({name, ".txt"})), 0, common, COMMON_ADR);
+        Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
         setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec, common, commonAdr);
     endtask
 
@@ -94,7 +97,7 @@ module ArchDesc0();
             emul.progMem_N.assignPage(0, emul_progMem);
             emul.progMem_N.assignPage(4096, common.words);
         
-            saveProgramToFile({"ZZZ_", name, ".txt"}, emul_progMem);
+            saveProgramToFile({codeDir, "ZZZ_", name, ".txt"}, emul_progMem);
 
         resetAll(emul);
         performEmul(emul);
