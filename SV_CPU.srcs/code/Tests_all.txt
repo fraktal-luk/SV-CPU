@@ -1,0 +1,26 @@
+branch_flush        ; has load
+
+
+; memory (basic mem?)
+
+
+; sys regs
+sys_regs           ; sys transfers
+mem_illegal_address  ; sys regs, exc?
+mem_sys            ; sys transfers + mem
+
+
+
+; FP
+loads_fp           ; mem
+fp0                ; has mem
+
+; 
+use_lib0           ;   needs common
+
+; arith ops
+shifts             
+mul
+div_s
+div
+;;mul_div

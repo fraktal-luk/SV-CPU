@@ -60,7 +60,7 @@
     <Option Name="IPStaticSourceDir" Val="$PIPUSERFILESDIR/ipstatic"/>
     <Option Name="EnableBDX" Val="FALSE"/>
     <Option Name="WTXSimLaunchSim" Val="1"/>
-    <Option Name="WTModelSimLaunchSim" Val="2758"/>
+    <Option Name="WTModelSimLaunchSim" Val="2911"/>
     <Option Name="WTQuestaLaunchSim" Val="0"/>
     <Option Name="WTIesLaunchSim" Val="0"/>
     <Option Name="WTVcsLaunchSim" Val="0"/>
@@ -167,6 +167,13 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
+      <File Path="$PSRCDIR/src/Testing.sv">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
       <File Path="$PSRCDIR/src/DataL1.sv">
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -237,7 +244,7 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/src/CacheDefs.sv">
+      <File Path="$PSRCDIR/src/TempMems.sv">
         <FileInfo>
           <Attr Name="AutoDisabled" Val="1"/>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -245,7 +252,7 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/src/TempMems.sv">
+      <File Path="$PSRCDIR/src/Main.sv">
         <FileInfo>
           <Attr Name="AutoDisabled" Val="1"/>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -267,50 +274,6 @@
     </FileSet>
     <FileSet Name="sim_1" Type="SimulationSrcs" RelSrcDir="$PSRCDIR/sim_1" RelGenDir="$PGENDIR/sim_1">
       <Filter Type="Srcs"/>
-      <File Path="$PSRCDIR/code/branch_conditional.txt"/>
-      <File Path="$PSRCDIR/code/sf_deps3.txt"/>
-      <File Path="$PSRCDIR/code/sf_0.txt"/>
-      <File Path="$PSRCDIR/code/branches.txt"/>
-      <File Path="$PSRCDIR/code/stores0.txt"/>
-      <File Path="$PSRCDIR/code/events2.txt"/>
-      <File Path="$PSRCDIR/code/use_lib0.txt"/>
-      <File Path="$PSRCDIR/code/loads1.txt"/>
-      <File Path="$PSRCDIR/code/div.txt"/>
-      <File Path="$PSRCDIR/code/sf_deps4.txt"/>
-      <File Path="$PSRCDIR/code/stores1.txt"/>
-      <File Path="$PSRCDIR/code/sys_regs.txt"/>
-      <File Path="$PSRCDIR/code/tests_all.txt"/>
-      <File Path="$PSRCDIR/code/shifts.txt"/>
-      <File Path="$PSRCDIR/code/fp0.txt"/>
-      <File Path="$PSRCDIR/code/sf_deps5.txt"/>
-      <File Path="$PSRCDIR/code/alu.txt"/>
-      <File Path="$PSRCDIR/code/loads0.txt"/>
-      <File Path="$PSRCDIR/code/events.txt"/>
-      <File Path="$PSRCDIR/code/mul.txt"/>
-      <File Path="$PSRCDIR/code/loads_fp.txt"/>
-      <File Path="$PSRCDIR/code/loop2.txt"/>
-      <File Path="$PSRCDIR/code/suite_names.txt"/>
-      <File Path="$PSRCDIR/code/mul_div.txt"/>
-      <File Path="$PSRCDIR/code/sf_deps2.txt"/>
-      <File Path="$PSRCDIR/code/common_asm_2.txt"/>
-      <File Path="$PSRCDIR/code/primes.txt"/>
-      <File Path="$PSRCDIR/code/stores2.txt"/>
-      <File Path="$PSRCDIR/code/div_s.txt"/>
-      <File Path="$PSRCDIR/code/src.txt"/>
-      <File Path="$PSRCDIR/code/branch_register.txt"/>
-      <File Path="$PSRCDIR/code/sf_1.txt"/>
-      <File Path="$PSRCDIR/code/branch_flush.txt"/>
-      <File Path="$PSRCDIR/code/branch_link.txt"/>
-      <File Path="$PSRCDIR/code/sf_deps1.txt"/>
-      <File Path="$PSRCDIR/code/branches2.txt"/>
-      <File Path="$PSRCDIR/code/common_asm.txt"/>
-      <File Path="$PSRCDIR/code/mem_sys.txt"/>
-      <File Path="$PSRCDIR/code/loop1.txt"/>
-      <File Path="$PSRCDIR/code/sf_deps6.txt"/>
-      <File Path="$PSRCDIR/code/mem_unaligned.txt"/>
-      <File Path="$PSRCDIR/code/mem_unaligned2.txt"/>
-      <File Path="$PSRCDIR/code/mem_unaligned3.txt"/>
-      <File Path="$PSRCDIR/code/mem_illegal_address.txt"/>
       <Config>
         <Option Name="DesignMode" Val="RTL"/>
         <Option Name="TopModule" Val="ArchDesc0"/>
