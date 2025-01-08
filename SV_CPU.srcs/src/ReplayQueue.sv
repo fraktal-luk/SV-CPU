@@ -24,10 +24,11 @@ module ReplayQueue(
         logic used;
         logic active;
         logic ready;
+        ExecStatus execStatus;
         UidT uid;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, UIDT_NONE};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, ES_OK, UIDT_NONE};
 
     int numUsed = 0;
     logic accept;
@@ -85,7 +86,7 @@ module ReplayQueue(
             
              //   if (inPackets[i].status == ES_NOT_READY) $error("RQ accepts not ready FW");
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, inPackets[i].TMP_oid};
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, inPackets[i].status, inPackets[i].TMP_oid};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask

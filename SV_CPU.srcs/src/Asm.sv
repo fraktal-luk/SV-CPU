@@ -114,6 +114,7 @@ package Asm;
                 "-":      value = args[i].substr(0, args[i].len()-1).atoi();
                 "0", "1", "2", "3", "4", "5", "6", "7", "8", "9": 
                           value = args[i].atoi();
+                // TODO: add hex numbers!
                 default: $fatal("Wrong arg");
             endcase
             

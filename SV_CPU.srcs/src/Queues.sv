@@ -139,9 +139,9 @@ package Queues;
             end
 
             if (!wordInside(adr, fwEntry.adr))
-                return '{1, FIRST_U(fwEntry.mid), ES_INVALID,   EMPTY_POISON, 'x};
+                return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)
-                return '{1, FIRST_U(fwEntry.mid), ES_NOT_READY, EMPTY_POISON, 'x};
+                return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
             else
                 return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 

@@ -27,12 +27,16 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
-        ES_NOT_READY,
-        ES_REDO, // cause refetch
-        ES_INVALID,
+            ES_UNCACHED,
+        ES_SQ_MISS,
+        ES_REFETCH, // cause refetch
+        ES_CANT_FORWARD,
         ES_ILLEGAL
     } ExecStatus;
 
+    function automatic logic needsReplay(input ExecStatus status);
+        return status inside {ES_SQ_MISS};
+    endfunction
 
     typedef struct {
         logic active;

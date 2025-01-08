@@ -1,0 +1,16 @@
+; Uncached access...
+	
+	add_i r10, r0, 10
+	add_i r11, r0, 20
+	add_h r8, r0, 32768 ; address range of uncacheable
+	ldi_i r10, r8, 0    ; load from uncached range
+	
+	sti_i r10, r8, 4    ; store to uncached range
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+	add_i r0, r0, 0
+	
+$check
+	sys_call
+$error
+    sys_error

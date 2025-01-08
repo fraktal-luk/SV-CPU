@@ -203,7 +203,7 @@ module StoreQueue
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
             foreach (wrInputsE2[p]) begin
                 UopName uname;
-                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REDO, ES_ILLEGAL})) continue;
+                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
                 uname = decUname(wrInputsE2[p].TMP_oid);            
                 if (!HELPER::appliesU(uname)) continue;
@@ -211,7 +211,7 @@ module StoreQueue
                 begin
                    int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
-                   if (wrInputsE2[p].status == ES_REDO)
+                   if (wrInputsE2[p].status == ES_REFETCH)
                        HELPER::setRefetch(content_N[found[0]]);
                    else if (wrInputsE2[p].status == ES_ILLEGAL)
                        HELPER::setError(content_N[found[0]]);                   
@@ -325,10 +325,10 @@ module StoreQueue
     function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
         assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
 
-        if (sr.status == ES_INVALID) begin //
+        if (sr.status == ES_CANT_FORWARD) begin //
             assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
         end
-        else if (sr.status == ES_NOT_READY) begin
+        else if (sr.status == ES_SQ_MISS) begin
             assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
         end
         else begin
