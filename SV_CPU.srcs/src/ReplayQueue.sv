@@ -24,13 +24,14 @@ module ReplayQueue(
         logic used;
         logic active;
         logic ready;
+            int readyCnt;
             logic ready_N;
         ExecStatus execStatus;
         UidT uid;
         Mword adr;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, 0, ES_OK, UIDT_NONE, 'x};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x};
 
     int numUsed = 0;
     logic accept;
@@ -92,7 +93,7 @@ module ReplayQueue(
              //   if (inPackets[i].status == ES_NOT_READY) $error("RQ accepts not ready FW");
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, inPackets[i].active, 0, inPackets[i].status, inPackets[i].TMP_oid, effAdr};
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0 /*inPackets[i].active*/, 5,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
@@ -110,7 +111,16 @@ module ReplayQueue(
 
 
     task automatic wakeup();
+
+    
         UopPacket wrInput = AbstractCore.theSq.storeDataD2_E;
+
+            foreach (content[i]) begin
+                if (content[i].active && content[i].readyCnt > 0) begin
+                    content[i].readyCnt--;
+                    content[i].ready = (content[i].readyCnt == 0);
+                end
+            end
 
         // Entries waiting for SQ data fill
         //foreach (wrInputs[p]) begin
@@ -119,13 +129,15 @@ module ReplayQueue(
             if (wrInput.active !== 1) continue;
 
             uname = decUname(wrInput.TMP_oid);            
-            if (!isStoreMemUop(uname)) continue;
+            if (!(uname inside {UOP_data_int, UOP_data_fp})) continue;
+                
+            //    $display("  search RQ");
 
             begin
                int found[$] = content.find_index with ((item.adr === wrInput.result) && (U2M(item.uid) > U2M(wrInput.TMP_oid))); // TODO: overlap
 
-               foreach (found[i])
-                   content[found[i]].ready_N = 1;
+               foreach (found[j])
+                   content[found[j]].ready_N = 1;
                
                //    putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
             end
@@ -139,7 +151,7 @@ module ReplayQueue(
         selected <= EMPTY_ENTRY;
 
         foreach (content[i]) begin
-            if (content[i].active && content[i].ready) begin
+            if (content[i].active && (content[i].ready_N || content[i].ready)) begin
                 selected <= content[i];
                 
                 newPacket = '{1, content[i].uid, content[i].execStatus, EMPTY_POISON, 'x};
