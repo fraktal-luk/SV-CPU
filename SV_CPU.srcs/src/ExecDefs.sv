@@ -27,7 +27,8 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
-            ES_UNCACHED,
+            ES_UNCACHED_1,
+            ES_UNCACHED_2,
         ES_SQ_MISS,
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,

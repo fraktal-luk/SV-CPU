@@ -106,13 +106,14 @@ module MemSubpipe#(
         
         // Sys load/store
         if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-            // TODO: make this check in stage E1?
-            if (adr > 31) begin
-                insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
-                res.status = ES_ILLEGAL;
-                return res;
-            end
-            else begin
+//            // TODO: make this check in stage E1?
+//            if (adr > 31) begin
+//                insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+//                res.status = ES_ILLEGAL;
+//                return res;
+//            end
+//            else 
+                 begin
                 res.result = adr;
                 return res;
             end
@@ -120,16 +121,13 @@ module MemSubpipe#(
         
         // TODO: special mem ops: aq-rel,..
         //if ...
-        
-        
-        // TODO: check here if adr is illegal?
-        
+
         case (p.status)
             ES_SQ_MISS: ;
             // ES_TLB_MISS | ES_DATA_MISS: // integrate with SQ_MISS?
-            // ES_REPLAY_UNCACHED:
-            ES_OK: ; 
-            default: ; // TODO: fatal
+            ES_OK: ;
+            ES_SQ_MISS: ;
+            default: $fatal("Wrong status of memory op");
         endcase
         
         res.result = adr;
@@ -141,8 +139,52 @@ module MemSubpipe#(
     function automatic UopPacket updateE1(input UopPacket p);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
+        logic adrUncached = 0;
 
         if (!p.active) return res;
+        
+        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
+            if (res.result > 31) begin
+                insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+                res.status = ES_ILLEGAL;
+                return res;
+            end
+            else begin
+                return res;            
+            end
+        end
+        
+        // TODO: special mem ops
+        if (0) begin
+        
+        
+        end
+        
+
+        
+        case (p.status)
+            ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
+                res.status = ES_UNCACHED_2;
+            end
+
+            ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
+                res.status = ES_OK; // TMP
+            end 
+
+            // ES_TLB_MISS | ES_DATA_MISS: // integrate with SQ_MISS?
+            ES_SQ_MISS | ES_OK: begin
+                // TEMP!
+                if (res.result[31]) begin
+                    adrUncached = 1;
+                    $display("................................. Uncache adr: %h", res.result);
+                    res.status = ES_UNCACHED_1;    
+                end
+                
+            end
+
+            default: $fatal("Wrong status of memory op");
+        endcase
+        
         
         return res;
     endfunction
@@ -205,6 +247,9 @@ module MemSubpipe#(
         end
         else if (0) begin
             // TODO: add cases for TLB and data miss etc.
+            
+            
+            
         end
         else begin
             res.status = ES_OK;

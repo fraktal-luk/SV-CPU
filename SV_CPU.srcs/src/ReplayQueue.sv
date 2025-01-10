@@ -134,7 +134,7 @@ module ReplayQueue(
             //    $display("  search RQ");
 
             begin
-               int found[$] = content.find_index with ((item.adr === wrInput.result) && (U2M(item.uid) > U2M(wrInput.TMP_oid))); // TODO: overlap
+               int found[$] = content.find_index with ((item.adr === wrInput.result) && (U2M(item.uid) > U2M(wrInput.TMP_oid))); // TODO: overlap, and add condition that ES_SQ_MISS
 
                foreach (found[j])
                    content[found[j]].ready_N = 1;
