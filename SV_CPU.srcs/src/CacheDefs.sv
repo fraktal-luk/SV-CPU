@@ -15,7 +15,7 @@ package CacheDefs;
 
     typedef enum {
         CR_INVALID, // Address illegal
-        CR_NOT_MAPPED, // page table walk finds no mapping entry
+            CR_NOT_MAPPED, // page table walk finds no mapping entry
         CR_TLB_MISS,
         CR_TAG_MISS,
         CR_HIT,

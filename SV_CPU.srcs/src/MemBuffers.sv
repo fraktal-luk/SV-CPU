@@ -59,6 +59,13 @@ module StoreQueue
 
     typedef QEntry QM[3*ROB_WIDTH];
 
+    
+    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET;
+    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;
+
+    assign storeDataD0_E = effP(storeDataD0); 
+    assign storeDataD1_E = effP(storeDataD1); 
+    assign storeDataD2_E = effP(storeDataD2); 
 
 
     always @(posedge AbstractCore.clk) begin    
@@ -224,12 +231,20 @@ module StoreQueue
             UopPacket dataUop = theExecBlock.sysE0_E;
             if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
                 int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
+                Mword adr;      
                 assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
-
+                adr = HELPER::getAdr(content_N[dataFound[0]]);
+                
                 HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
 
                 putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+                
+                    dataUop.result = adr; // Save store adr to notify RQ that it is being filled 
             end
+            
+                storeDataD0 <= tickP(dataUop);
+                storeDataD1 <= tickP(storeDataD0);
+                storeDataD2 <= tickP(storeDataD1);
         end
     endtask
 

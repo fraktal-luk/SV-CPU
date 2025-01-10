@@ -445,6 +445,11 @@ package ExecDefs;
     endfunction
 
 
+        function automatic Mword calcEffectiveAddress(Mword3 args);
+            return args[0] + args[1];
+        endfunction
+
+
 //////////////////
     typedef struct {
         logic active;

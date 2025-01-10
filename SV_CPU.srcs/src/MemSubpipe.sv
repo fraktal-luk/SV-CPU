@@ -161,11 +161,6 @@ module MemSubpipe#(
         if (isLoadMemUop(decUname(uid)))
             return calcMemLoadE2(p, uid, cacheResp, sqResp, lqResp, sqRespTr);
 
-        if (isLoadSysUop(decUname(uid))) begin
-            Mword val = getSysReg(args[1]);
-            insMap.setActualResult(uid, val);
-            res.result = val;
-        end
 
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
@@ -174,33 +169,46 @@ module MemSubpipe#(
             end
         end
 
-        if (isStoreSysUop(decUname(uid))) begin
 
+        if (isLoadSysUop(decUname(uid))) begin
+            Mword val = getSysReg(args[1]);
+            insMap.setActualResult(uid, val);
+            res.result = val;
         end
 
-        // For store sys uops: nothing happens in this function
+        if (isStoreSysUop(decUname(uid))) begin
+            // For store sys uops: nothing happens in this function
+        end
 
         return res;
     endfunction
 
     function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
         UopPacket res = p;
-        Mword memData = cacheResp.data;
+        Mword memData;
 
         if (sqResp.active) begin
             if (sqResp.status == ES_CANT_FORWARD) begin
                 res.status = ES_REFETCH;
                 insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                memData = 0; // TMP
+                memData = 'x; // TMP
             end
             else if (sqResp.status == ES_SQ_MISS) begin            
                 res.status = ES_SQ_MISS;
-                memData = 0; // TMP
+                memData = 'x; // TMP
             end
-            else begin            
+            else begin
+                res.status = ES_OK;
                 memData = sqResp.result;
                 putMilestone(uid, InstructionMap::MemFwConsume);
             end
+        end
+        else if (0) begin
+            // TODO: add cases for TLB and data miss etc.
+        end
+        else begin
+            res.status = ES_OK;
+            memData = cacheResp.data;
         end
 
         insMap.setActualResult(uid, memData);
@@ -210,14 +218,12 @@ module MemSubpipe#(
     endfunction
 
 
+        function automatic Mword getEffectiveAddress(input UidT uid);
+            //if (uid == UIDT_NONE) return 'x;
+            return (uid == UIDT_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
+        endfunction
 
-    function automatic Mword getEffectiveAddress(input UidT uid);
-        //if (uid == UIDT_NONE) return 'x;
-        return (uid == UIDT_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
-    endfunction
-
-    function automatic Mword calcEffectiveAddress(Mword3 args);
-        return args[0] + args[1];
-    endfunction
-
+//        function automatic Mword calcEffectiveAddress(Mword3 args);
+//            return args[0] + args[1];
+//        endfunction
 endmodule
