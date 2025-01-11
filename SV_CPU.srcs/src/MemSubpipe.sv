@@ -92,7 +92,7 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, sqResp, lqResp, EMPTY_TRANSACTION);
+        stateE2 = updateE2(stateE2, cacheResp, sqResp, lqResp);
         pE2 <= stateE2;
     endtask
 
@@ -124,10 +124,10 @@ module MemSubpipe#(
 
         case (p.status)
             ES_SQ_MISS: ;
-            // ES_TLB_MISS | ES_DATA_MISS: // integrate with SQ_MISS?
+            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
             ES_OK: ;
             ES_SQ_MISS: ;
-            default: $fatal("Wrong status of memory op");
+            default: $fatal(2, "Wrong status of memory op");
         endcase
         
         res.result = adr;
@@ -165,14 +165,17 @@ module MemSubpipe#(
         case (p.status)
             ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
                 res.status = ES_UNCACHED_2;
+                    $display(".......................... uncached another pass, adr: %h", res.result);
             end
 
             ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
+                    $display(".......................... uncached final pass, adr: %h", res.result);
+
                 res.status = ES_OK; // TMP
             end 
 
-            // ES_TLB_MISS | ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_SQ_MISS | ES_OK: begin
+            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
+            ES_SQ_MISS, ES_OK: begin
                 // TEMP!
                 if (res.result[31]) begin
                     adrUncached = 1;
@@ -182,7 +185,7 @@ module MemSubpipe#(
                 
             end
 
-            default: $fatal("Wrong status of memory op");
+            default: $fatal(2, "Wrong status of memory op");
         endcase
         
         
@@ -190,8 +193,7 @@ module MemSubpipe#(
     endfunction
 
 
-    function automatic UopPacket updateE2(input UopPacket p,
-                                          input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
+    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
         Mword3 args;
@@ -200,67 +202,119 @@ module MemSubpipe#(
 
         args = insMap.getU(uid).argsA;
 
-        if (isLoadMemUop(decUname(uid)))
-            return calcMemLoadE2(p, uid, cacheResp, sqResp, lqResp, sqRespTr);
-
-
-        // Resp from LQ indicating that a younger load has a hazard
-        if (isStoreMemUop(decUname(uid))) begin
-            if (lqResp.active) begin
-                insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
-            end
-        end
-
 
         if (isLoadSysUop(decUname(uid))) begin
             Mword val = getSysReg(args[1]);
             insMap.setActualResult(uid, val);
             res.result = val;
+            return res;
         end
 
         if (isStoreSysUop(decUname(uid))) begin
             // For store sys uops: nothing happens in this function
+            
+            return res;
         end
-
-        return res;
-    endfunction
-
-    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp, input Transaction sqRespTr);
-        UopPacket res = p;
-        Mword memData;
-
-        if (sqResp.active) begin
-            if (sqResp.status == ES_CANT_FORWARD) begin
-                res.status = ES_REFETCH;
-                insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                memData = 'x; // TMP
-            end
-            else if (sqResp.status == ES_SQ_MISS) begin            
-                res.status = ES_SQ_MISS;
-                memData = 'x; // TMP
-            end
-            else begin
-                res.status = ES_OK;
-                memData = sqResp.result;
-                putMilestone(uid, InstructionMap::MemFwConsume);
-            end
-        end
-        else if (0) begin
-            // TODO: add cases for TLB and data miss etc.
+        
+        
+        
+        case (res.status)
+            ES_UNCACHED_1, ES_UNCACHED_2: ;
             
+            ES_SQ_MISS, ES_OK: begin
             
+            end
             
+            default: $fatal(2, "Wrong status");
+        endcase
+        
+        
+        // TODO: cache rsponse
+        // miss?
+        if (0) begin
+            // cacheResp: missed? etc
         end
         else begin
-            res.status = ES_OK;
-            memData = cacheResp.data;
-        end
+            if (isLoadMemUop(decUname(uid))) begin
+                UopPacket res = p;
+                Mword memData;
+    
+                if (sqResp.active) begin
+                    if (sqResp.status == ES_CANT_FORWARD) begin
+                        res.status = ES_REFETCH;
+                        insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+                        memData = 'x; // TMP
+                    end
+                    else if (sqResp.status == ES_SQ_MISS) begin            
+                        res.status = ES_SQ_MISS;
+                        memData = 'x; // TMP
+                    end
+                    else begin
+                        res.status = ES_OK;
+                        memData = sqResp.result;
+                        putMilestone(uid, InstructionMap::MemFwConsume);
+                    end
+                end
+                else begin //no forwarding 
+                    res.status = ES_OK;
+                    memData = cacheResp.data;
+                end
 
-        insMap.setActualResult(uid, memData);
-        res.result = memData;
+                insMap.setActualResult(uid, memData);
+                res.result = memData;
+        
+                return res;
+            end
+    
+    
+            // Resp from LQ indicating that a younger load has a hazard
+            if (isStoreMemUop(decUname(uid))) begin
+                if (lqResp.active) begin
+                    insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
+                end
+            end
+
+        end
 
         return res;
     endfunction
+
+//    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataCacheOutput cacheResp, input UopPacket sqResp);
+//        begin
+//            UopPacket res = p;
+//            Mword memData;
+    
+//            if (0) begin
+//                  // TODO: add cases for TLB and data miss etc.
+    
+//            end
+//            else if (sqResp.active) begin
+//                if (sqResp.status == ES_CANT_FORWARD) begin
+//                    res.status = ES_REFETCH;
+//                    insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+//                    memData = 'x; // TMP
+//                end
+//                else if (sqResp.status == ES_SQ_MISS) begin            
+//                    res.status = ES_SQ_MISS;
+//                    memData = 'x; // TMP
+//                end
+//                else begin
+//                    res.status = ES_OK;
+//                    memData = sqResp.result;
+//                    putMilestone(uid, InstructionMap::MemFwConsume);
+//                end
+//            end
+//            else begin
+//                res.status = ES_OK;
+//                memData = cacheResp.data;
+//            end
+    
+//            insMap.setActualResult(uid, memData);
+//            res.result = memData;
+    
+//            return res;
+//        end
+//    endfunction
 
 
         function automatic Mword getEffectiveAddress(input UidT uid);
