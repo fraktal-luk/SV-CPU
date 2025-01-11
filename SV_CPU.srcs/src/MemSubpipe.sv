@@ -24,6 +24,9 @@ module MemSubpipe#(
     input UopPacket sqResp,
     input UopPacket lqResp
 );
+
+        localparam logic DISP_UNCACHED = 0;
+
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
@@ -100,33 +103,18 @@ module MemSubpipe#(
 
     function automatic UopPacket updateE0(input UopPacket p, input Mword adr);
         UopPacket res = p;
-        UidT uid = p.TMP_oid; 
 
         if (!p.active) return res;
-        
-        // Sys load/store
-        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-//            // TODO: make this check in stage E1?
-//            if (adr > 31) begin
-//                insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
-//                res.status = ES_ILLEGAL;
-//                return res;
-//            end
-//            else 
-                 begin
-                res.result = adr;
-                return res;
-            end
-        end
         
         // TODO: special mem ops: aq-rel,..
         //if ...
 
         case (p.status)
-            ES_SQ_MISS: ;
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
             ES_OK: ;
             ES_SQ_MISS: ;
+            ES_UNCACHED_1: ;
+            ES_UNCACHED_2: ;
             default: $fatal(2, "Wrong status of memory op");
         endcase
         
@@ -139,7 +127,6 @@ module MemSubpipe#(
     function automatic UopPacket updateE1(input UopPacket p);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
-        logic adrUncached = 0;
 
         if (!p.active) return res;
         
@@ -147,11 +134,9 @@ module MemSubpipe#(
             if (res.result > 31) begin
                 insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
                 res.status = ES_ILLEGAL;
-                return res;
             end
-            else begin
-                return res;            
-            end
+            
+            return res;
         end
         
         // TODO: special mem ops
@@ -161,25 +146,22 @@ module MemSubpipe#(
         end
         
 
-        
         case (p.status)
             ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
+                if (DISP_UNCACHED) $display("..........................E1: uncached another pass, adr: %h", res.result);
                 res.status = ES_UNCACHED_2;
-                    $display(".......................... uncached another pass, adr: %h", res.result);
             end
 
             ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                    $display(".......................... uncached final pass, adr: %h", res.result);
-
-                res.status = ES_OK; // TMP
+                if (DISP_UNCACHED) $display("..........................E1: uncached final pass, adr: %h", res.result);
+                res.status = ES_OK;
             end 
 
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_SQ_MISS, ES_OK: begin
+            ES_SQ_MISS, ES_OK: begin // TODO: untangle ES_SQ_MISS from here? 
                 // TEMP!
                 if (res.result[31]) begin
-                    adrUncached = 1;
-                    $display("................................. Uncache adr: %h", res.result);
+                    if (DISP_UNCACHED) $display("..........................E1: Uncache adr: %h", res.result);
                     res.status = ES_UNCACHED_1;    
                 end
                 
@@ -193,6 +175,7 @@ module MemSubpipe#(
     endfunction
 
 
+
     function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
@@ -201,7 +184,6 @@ module MemSubpipe#(
         if (!p.active) return res;
 
         args = insMap.getU(uid).argsA;
-
 
         if (isLoadSysUop(decUname(uid))) begin
             Mword val = getSysReg(args[1]);
@@ -212,14 +194,20 @@ module MemSubpipe#(
 
         if (isStoreSysUop(decUname(uid))) begin
             // For store sys uops: nothing happens in this function
-            
             return res;
         end
         
         
-        
         case (res.status)
-            ES_UNCACHED_1, ES_UNCACHED_2: ;
+            ES_UNCACHED_1: begin
+                   if (DISP_UNCACHED) $display("..........................    E2: Uncache 1: %h", res.result);
+                return res;
+            end
+            
+            ES_UNCACHED_2: begin
+                    if (DISP_UNCACHED) $display("..........................    E2: Uncache 2: %h", res.result);
+                return res;
+            end
             
             ES_SQ_MISS, ES_OK: begin
             
@@ -229,100 +217,58 @@ module MemSubpipe#(
         endcase
         
         
-        // TODO: cache rsponse
-        // miss?
+        // TODO: cache response. Handle misses etc
         if (0) begin
             // cacheResp: missed? etc
+            
+            return res;
         end
-        else begin
-            if (isLoadMemUop(decUname(uid))) begin
-                UopPacket res = p;
-                Mword memData;
-    
-                if (sqResp.active) begin
-                    if (sqResp.status == ES_CANT_FORWARD) begin
-                        res.status = ES_REFETCH;
-                        insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                        memData = 'x; // TMP
-                    end
-                    else if (sqResp.status == ES_SQ_MISS) begin            
-                        res.status = ES_SQ_MISS;
-                        memData = 'x; // TMP
-                    end
-                    else begin
-                        res.status = ES_OK;
-                        memData = sqResp.result;
-                        putMilestone(uid, InstructionMap::MemFwConsume);
-                    end
-                end
-                else begin //no forwarding 
-                    res.status = ES_OK;
-                    memData = cacheResp.data;
-                end
-
-                insMap.setActualResult(uid, memData);
-                res.result = memData;
         
-                return res;
-            end
-    
-    
-            // Resp from LQ indicating that a younger load has a hazard
-            if (isStoreMemUop(decUname(uid))) begin
-                if (lqResp.active) begin
-                    insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
+        
+        // No misses or special actions, typical load/store
+        
+        if (isLoadMemUop(decUname(uid))) begin
+            if (sqResp.active) begin
+                if (sqResp.status == ES_CANT_FORWARD) begin
+                    res.status = ES_REFETCH;
+                    insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+                    res.result = 'x; // TMP
+                end
+                else if (sqResp.status == ES_SQ_MISS) begin            
+                    res.status = ES_SQ_MISS;
+                    res.result = 'x; // TMP
+                end
+                else begin
+                    res.status = ES_OK;
+                    res.result = sqResp.result;
+                    putMilestone(uid, InstructionMap::MemFwConsume);
                 end
             end
+            else begin //no forwarding 
+                res.status = ES_OK;
+                res.result = cacheResp.data;
+            end
 
+            insMap.setActualResult(uid, res.result);
+        end
+
+
+        // Resp from LQ indicating that a younger load has a hazard
+        if (isStoreMemUop(decUname(uid))) begin
+            if (lqResp.active) begin
+                insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
+            end
+            
+            res.status = ES_OK;
         end
 
         return res;
     endfunction
 
-//    function automatic UopPacket calcMemLoadE2(input UopPacket p, input UidT uid, input DataCacheOutput cacheResp, input UopPacket sqResp);
-//        begin
-//            UopPacket res = p;
-//            Mword memData;
-    
-//            if (0) begin
-//                  // TODO: add cases for TLB and data miss etc.
-    
-//            end
-//            else if (sqResp.active) begin
-//                if (sqResp.status == ES_CANT_FORWARD) begin
-//                    res.status = ES_REFETCH;
-//                    insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-//                    memData = 'x; // TMP
-//                end
-//                else if (sqResp.status == ES_SQ_MISS) begin            
-//                    res.status = ES_SQ_MISS;
-//                    memData = 'x; // TMP
-//                end
-//                else begin
-//                    res.status = ES_OK;
-//                    memData = sqResp.result;
-//                    putMilestone(uid, InstructionMap::MemFwConsume);
-//                end
-//            end
-//            else begin
-//                res.status = ES_OK;
-//                memData = cacheResp.data;
-//            end
-    
-//            insMap.setActualResult(uid, memData);
-//            res.result = memData;
-    
-//            return res;
-//        end
-//    endfunction
 
 
-        function automatic Mword getEffectiveAddress(input UidT uid);
-            //if (uid == UIDT_NONE) return 'x;
-            return (uid == UIDT_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
-        endfunction
+    function automatic Mword getEffectiveAddress(input UidT uid);
+        return (uid == UIDT_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
+    endfunction
 
-//        function automatic Mword calcEffectiveAddress(Mword3 args);
-//            return args[0] + args[1];
-//        endfunction
 endmodule

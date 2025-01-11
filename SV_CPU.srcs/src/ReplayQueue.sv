@@ -111,8 +111,6 @@ module ReplayQueue(
 
 
     task automatic wakeup();
-
-    
         UopPacket wrInput = AbstractCore.theSq.storeDataD2_E;
 
             foreach (content[i]) begin
@@ -123,25 +121,26 @@ module ReplayQueue(
             end
 
         // Entries waiting for SQ data fill
-        //foreach (wrInputs[p]) begin
         for (int i = 0; i < 1; i++) begin // Dummy loop to enable continue
             UopName uname;
             if (wrInput.active !== 1) continue;
-
+        
             uname = decUname(wrInput.TMP_oid);            
             if (!(uname inside {UOP_data_int, UOP_data_fp})) continue;
-                
-            //    $display("  search RQ");
-
+        
             begin
-               int found[$] = content.find_index with ((item.adr === wrInput.result) && (U2M(item.uid) > U2M(wrInput.TMP_oid))); // TODO: overlap, and add condition that ES_SQ_MISS
-
-               foreach (found[j])
+               int found[$] = content.find_index with ((item.execStatus == ES_SQ_MISS) && (item.adr === wrInput.result) && (U2M(item.uid) > U2M(wrInput.TMP_oid))); // TODO: overlap
+               foreach (found[j]) begin
                    content[found[j]].ready_N = 1;
-               
-               //    putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
+                    //    putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
+               end
             end
-       end
+        end
+        
+        // Entries waiting to be nonspeculative
+        begin
+            //int found[$] = content.find_index with (item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == );
+        end
     endtask
     
     

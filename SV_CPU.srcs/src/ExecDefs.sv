@@ -36,7 +36,7 @@ package ExecDefs;
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2};
     endfunction
 
     typedef struct {
