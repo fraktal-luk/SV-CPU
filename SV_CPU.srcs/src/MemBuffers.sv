@@ -59,6 +59,13 @@ module StoreQueue
 
     typedef QEntry QM[3*ROB_WIDTH];
 
+    
+    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET;
+    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;
+
+    assign storeDataD0_E = effP(storeDataD0); 
+    assign storeDataD1_E = effP(storeDataD1); 
+    assign storeDataD2_E = effP(storeDataD2); 
 
 
     always @(posedge AbstractCore.clk) begin    
@@ -203,7 +210,7 @@ module StoreQueue
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
             foreach (wrInputsE2[p]) begin
                 UopName uname;
-                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REDO, ES_ILLEGAL})) continue;
+                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
                 uname = decUname(wrInputsE2[p].TMP_oid);            
                 if (!HELPER::appliesU(uname)) continue;
@@ -211,7 +218,7 @@ module StoreQueue
                 begin
                    int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
-                   if (wrInputsE2[p].status == ES_REDO)
+                   if (wrInputsE2[p].status == ES_REFETCH)
                        HELPER::setRefetch(content_N[found[0]]);
                    else if (wrInputsE2[p].status == ES_ILLEGAL)
                        HELPER::setError(content_N[found[0]]);                   
@@ -224,12 +231,20 @@ module StoreQueue
             UopPacket dataUop = theExecBlock.sysE0_E;
             if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
                 int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
+                Mword adr;      
                 assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
-
+                adr = HELPER::getAdr(content_N[dataFound[0]]);
+                
                 HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
 
                 putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+                
+                    dataUop.result = adr; // Save store adr to notify RQ that it is being filled 
             end
+            
+                storeDataD0 <= tickP(dataUop);
+                storeDataD1 <= tickP(storeDataD0);
+                storeDataD2 <= tickP(storeDataD1);
         end
     endtask
 
@@ -325,10 +340,10 @@ module StoreQueue
     function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
         assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
 
-        if (sr.status == ES_INVALID) begin //
+        if (sr.status == ES_CANT_FORWARD) begin //
             assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
         end
-        else if (sr.status == ES_NOT_READY) begin
+        else if (sr.status == ES_SQ_MISS) begin
             assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
         end
         else begin

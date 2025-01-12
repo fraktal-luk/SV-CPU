@@ -220,7 +220,7 @@ module ReorderBuffer
     endtask
     
 
-    task automatic markCompleted();        
+    task automatic markCompleted();
         markPacketCompleted(theExecBlock.doneRegular0_E);
         markPacketCompleted(theExecBlock.doneRegular1_E);
     

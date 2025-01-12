@@ -641,29 +641,29 @@ module AbstractCore
     // General
 
     function automatic AbstractInstruction decId(input InsId id);
-        if (id == -1) return DEFAULT_ABS_INS;     
-        return insMap.get(id).basicData.dec;
+        //if (id == -1) return DEFAULT_ABS_INS;     
+        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
     endfunction
 
     function automatic UopName decUname(input UidT uid);
-        if (uid == UIDT_NONE) return UOP_none;     
-        return insMap.getU(uid).name;
+        //if (uid == UIDT_NONE) return UOP_none;     
+        return (uid == UIDT_NONE) ? UOP_none : insMap.getU(uid).name;
     endfunction
 
     function automatic UopName decMainUop(input InsId id);
-        if (id == -1) return UOP_none;     
-        return insMap.get(id).mainUop;
+        //if (id == -1) return UOP_none;     
+        return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
 
     // TEMP: to use where it's not just to determine uop name 
     function automatic AbstractInstruction decodeId(input InsId id);
-        if (id == -1) return DEFAULT_ABS_INS;     
-        return insMap.get(id).basicData.dec;
+        //if (id == -1) return DEFAULT_ABS_INS;     
+        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
     endfunction
 
     function automatic Mword getAdr(input InsId id);
-        if (id == -1) return 'x;     
-        return insMap.get(id).basicData.adr;
+        //if (id == -1) return 'x;     
+        return (id == -1) ? 'x : insMap.get(id).basicData.adr;
     endfunction
 
 
@@ -711,7 +711,7 @@ module AbstractCore
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         foreach (memStage0[p])
-            if (checkMemDep(poison, memStage0[p]) && (memStage0[p].status inside {ES_NOT_READY, ES_UNALIGNED})) return 1;
+            if (needsReplay(memStage0[p].status) && checkMemDep(poison, memStage0[p])) return 1;
         return 0;
     endfunction
 

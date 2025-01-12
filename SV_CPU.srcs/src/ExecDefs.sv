@@ -27,12 +27,17 @@ package ExecDefs;
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
-        ES_NOT_READY,
-        ES_REDO, // cause refetch
-        ES_INVALID,
+            ES_UNCACHED_1,
+            ES_UNCACHED_2,
+        ES_SQ_MISS,
+        ES_REFETCH, // cause refetch
+        ES_CANT_FORWARD,
         ES_ILLEGAL
     } ExecStatus;
 
+    function automatic logic needsReplay(input ExecStatus status);
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2};
+    endfunction
 
     typedef struct {
         logic active;
@@ -439,6 +444,11 @@ package ExecDefs;
         end
         return 0;
     endfunction
+
+
+        function automatic Mword calcEffectiveAddress(Mword3 args);
+            return args[0] + args[1];
+        endfunction
 
 
 //////////////////
