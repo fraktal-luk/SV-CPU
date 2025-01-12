@@ -19,72 +19,77 @@ module ReorderBuffer
     input OpSlotAB inGroup,
     output OpSlotAB outGroup
 );
-
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
-    int startPointer = 0, endPointer = 0;
-    int size;
-    logic allow;
-
     localparam int N_UOP_MAX = 2; // TODO: Number of uops a Mop can be split into
+
     typedef logic CompletedVec[N_UOP_MAX];
 
     typedef struct {
+        logic used;
         InsId mid;
         CompletedVec completed;
     } OpRecord;
     
-    const OpRecord EMPTY_RECORD = '{mid: -1, completed: '{default: 'x}};
+    localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};
+
     typedef OpRecord OpRecordA[WIDTH];
 
     typedef struct {
         OpRecord records[WIDTH];
     } Row;
+    
+    localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
+    typedef OpRecord QM[3*WIDTH];
+
+
+    int startPointer = 0, endPointer = 0;
+    int size;
+    logic allow;
 
     OpSlotAB outGroupPrev = '{default: EMPTY_SLOT_B};
 
     RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
 
-
-
     OpRecord commitQ[$:3*WIDTH];
     OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
-
-    typedef OpRecord QM[3*WIDTH];
-
-
-    const Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
-
-
 
     Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
 
     InsId lastScanned = -1, // last id whoch was transfered to output queue
           lastOut = -1;     // last accepted as committed
-    logic lastIsBreaking = 0;
-    logic commitStalled = 0;
-
+    logic lastIsBreaking = 0, commitStalled = 0;
+    logic lateEventOngoing;
 
     assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - 3);
+    
 
     always_comb outGroup = makeOutGroup(outRow);
-    always_comb retirementGroup = makeRetirementGroup();//outRow);
+    always_comb retirementGroup = makeRetirementGroup();
+    
+    always_comb lateEventOngoing = AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
+                                || AbstractCore.lateEventInfoWaiting.active
+                                || lastIsBreaking;
+
+    
+        // Experimental
+        typedef struct {
+            int row;
+            int slot;
+            InsId mid;
+        } TableIndex;
+
+        TableIndex indA = '{0, 0, -1}, indCommitted = '{-1, -1, -1};
 
 
-    always @(posedge AbstractCore.clk) begin
-        automatic Row outRowVar;
-        automatic Row arrayHeadRowVar;
 
-            outGroupPrev <= outGroup;
-            retirementGroupPrev <= retirementGroup;
+    task automatic readTable();
+        Row arrayHeadRowVar;
 
-        if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.active
-            || lastIsBreaking
-            )
+        if (lateEventOngoing)
             arrayHeadRowVar = EMPTY_ROW;
         else if (frontCompleted() && commitQ.size() <= 3*WIDTH - 2*WIDTH)
             arrayHeadRowVar = readOutRow();
@@ -93,24 +98,51 @@ module ReorderBuffer
 
         arrayHeadRow <= arrayHeadRowVar;
         lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
+    endtask
 
 
-        outRowVar = takeFromQueue(commitQ, commitStalled);
-
+    task automatic readQueue();
+        Row outRowVar = takeFromQueue(commitQ, commitStalled);
         outRow <= outRowVar;
         lastOut <= getLastOut(lastOut, outRowVar.records);
         lastIsBreaking <= isLastBreaking(outRowVar.records);
+    endtask
+
+
+
+    always @(posedge AbstractCore.clk) begin
+        outGroupPrev <= outGroup;
+        retirementGroupPrev <= retirementGroup;
+
+        readTable();
+        readQueue();
 
         insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
 
         markCompleted();
 
-        if (lateEventInfo.redirect)
+            if (lateEventInfo.redirect) begin
+                indA = '{startPointer, 0, -1};
+            end
+            else begin
+                while (entryCompleted(entryAt(indA))) begin
+                    if (entryAt(indA).mid != -1)
+                        indA.mid = entryAt(indA).mid;
+                    indA = incIndex(indA);
+                end
+            end
+
+
+        if (lateEventInfo.redirect) begin
             flushArrayAll();
-        else if (branchEventInfo.redirect)
+        end
+        else if (branchEventInfo.redirect) begin
             flushArrayPartial();
-        else if (anyActiveB(inGroup))
+        end
+        else if (anyActiveB(inGroup)) begin
             add(inGroup);
+        end
+
 
         commitQM <= makeQM(commitQ);
     end
@@ -123,11 +155,7 @@ module ReorderBuffer
     endfunction
 
     function automatic OpRecord tickRecord(input OpRecord rec);
-        if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.active
-            || lastIsBreaking
-            )
-        begin
+        if (lateEventOngoing) begin
             if (rec.mid != -1)
                 putMilestoneM(rec.mid, InstructionMap::FlushCommit);
             return EMPTY_RECORD;
@@ -141,7 +169,7 @@ module ReorderBuffer
 
         foreach (res.records[i])
             res.records[i] = tickRecord(row.records[i]);
-            
+
         return res;
     endfunction
 
@@ -155,24 +183,21 @@ module ReorderBuffer
 
     function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH], input logic stall);
         Row res = EMPTY_ROW;
-        
-        if (AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
-            || AbstractCore.lateEventInfoWaiting.active
-            || lastIsBreaking
-            ) begin
+
+        if (lateEventOngoing) begin
             foreach (q[i])
                 if (q[i].mid != -1) putMilestoneM(q[i].mid, InstructionMap::FlushCommit);
             q = '{};
         end
-        
+
         if (stall) return res; // Not removing from queue
-        
+
         foreach (res.records[i]) begin
             if (q.size() == 0) break;
             res.records[i] = q.pop_front();
             if (breaksCommitId(res.records[i].mid)) break;
         end
-        
+
         return res;
     endfunction
 
@@ -187,13 +212,13 @@ module ReorderBuffer
         endPointer = startPointer;
         array = '{default: EMPTY_ROW};
     endtask
-    
-    
+
+
     task automatic flushArrayPartial();
         logic clear = 0;
         InsId causingMid = branchEventInfo.eventMid;
         int p = startPointer;
-                    
+     
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
             for (int c = 0; c < WIDTH; c++) begin
@@ -205,32 +230,6 @@ module ReorderBuffer
             end
             p++;
         end
-    endtask
-    
-    
-    task automatic markPacketCompleted(input UopPacket p);         
-        if (!p.active) return;
-        
-        for (int r = 0; r < DEPTH; r++)
-            for (int c = 0; c < WIDTH; c++)
-                if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
-                    array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
-                    if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
-                end
-    endtask
-    
-
-    task automatic markCompleted();
-        markPacketCompleted(theExecBlock.doneRegular0_E);
-        markPacketCompleted(theExecBlock.doneRegular1_E);
-    
-        markPacketCompleted(theExecBlock.doneFloat0_E);
-        markPacketCompleted(theExecBlock.doneFloat1_E);
-    
-        markPacketCompleted(theExecBlock.doneBranch_E);
-        markPacketCompleted(theExecBlock.doneMem0_E);
-        markPacketCompleted(theExecBlock.doneMem2_E);
-        markPacketCompleted(theExecBlock.doneSys_E);
     endtask
 
 
@@ -261,8 +260,10 @@ module ReorderBuffer
             if (ops[i].active) begin
                 int nUops = insMap.get(ops[i].mid).nUops;
                 CompletedVec initialCompleted = initCompletedVec(nUops);
-                res[i] = '{ops[i].mid, initialCompleted};
+                res[i] = '{1, ops[i].mid, initialCompleted};
             end
+            else
+                res[i].used = 1; // Empty slots within occupied rows
         end
         return res;
     endfunction
@@ -312,7 +313,6 @@ module ReorderBuffer
         return brk;
     endfunction
 
-
     function automatic OpSlotAB makeOutGroup(input Row row);
         OpSlotAB res = '{default: EMPTY_SLOT_B};
         foreach (row.records[i]) begin
@@ -324,7 +324,8 @@ module ReorderBuffer
         return res;
     endfunction
 
-    function automatic RetirementInfoA makeRetirementGroup();//input Row row);
+
+    function automatic RetirementInfoA makeRetirementGroup();
         Row row = outRow;
         
         StoreQueueHelper::Entry outputSQ[3*ROB_WIDTH] = AbstractCore.theSq.outputQM;
@@ -339,21 +340,19 @@ module ReorderBuffer
             res[i].active = 1;
             res[i].mid = mid;
             
-                res[i].takenBranch = 0;
-                res[i].exception = 0;
-                res[i].refetch = 0;
+            res[i].takenBranch = 0;
+            res[i].exception = 0;
+            res[i].refetch = 0;
             
             // Find corresponding entries of queues
             if (isStoreUop(insMap.get(mid).mainUop)) begin
                 StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
- 
                 res[i].refetch = entry[0].refetch;
                 res[i].exception = entry[0].error;               
             end
 
             if (isLoadUop(insMap.get(mid).mainUop)) begin
                  LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
-                 
                  res[i].refetch = entry[0].refetch;
                  res[i].exception = entry[0].error;
             end
@@ -364,7 +363,7 @@ module ReorderBuffer
                 BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
                 res[i].takenBranch = entry[0].taken;
                 
-                if (uname inside {UOP_br_z, UOP_br_nz})
+                if (isBranchRegUop(uname))
                     res[i].target = entry[0].regTarget;
                 else
                     res[i].target = entry[0].immTarget;
@@ -373,6 +372,57 @@ module ReorderBuffer
 
         return res;
     endfunction
+
+
+    task automatic markCompleted();
+        markPacketCompleted(theExecBlock.doneRegular0_E);
+        markPacketCompleted(theExecBlock.doneRegular1_E);
+    
+        markPacketCompleted(theExecBlock.doneFloat0_E);
+        markPacketCompleted(theExecBlock.doneFloat1_E);
+    
+        markPacketCompleted(theExecBlock.doneBranch_E);
+        markPacketCompleted(theExecBlock.doneMem0_E);
+        markPacketCompleted(theExecBlock.doneMem2_E);
+        markPacketCompleted(theExecBlock.doneSys_E);
+    endtask
+
+    task automatic markPacketCompleted(input UopPacket p);         
+        if (!p.active) return;
+        
+        for (int r = 0; r < DEPTH; r++)
+            for (int c = 0; c < WIDTH; c++)
+                if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
+                    array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
+                    if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
+                end
+    endtask
+
+
+
+    // Experimental    
+    function automatic TableIndex incIndex(input TableIndex ind);
+        TableIndex res = ind;
+        
+        res.slot++;
+        if (res.slot == WIDTH) begin
+            res.slot = 0;
+            res.row = (res.row+1) % (2*DEPTH);
+        end
+        res.mid = -1;
+        
+        return res;
+    endfunction
+    
+    function automatic OpRecord entryAt(input TableIndex ind);
+        return array[ind.row % DEPTH].records[ind.slot];
+    endfunction
+    
+    function automatic logic entryCompleted(input OpRecord rec);
+        return rec.used && ((rec.mid == -1) || (rec.completed.and() !== 0)); // empty slots within used rows are by definition completed
+    endfunction
+    
+ 
 
 
 endmodule
