@@ -82,7 +82,16 @@ module ReorderBuffer
             InsId mid;
         } TableIndex;
 
-        TableIndex indA = '{0, 0, -1}, indCommitted = '{-1, -1, -1};
+        TableIndex indA = '{0, 0, -1}, indB = '{0, 0, -1}, indCommitted = '{-1, -1, -1};
+
+
+        function automatic logic ptrInRange(input int p, input int range[2], input int SIZE);
+            int start = range[0];
+            int endN = (range[1] - start + 2*SIZE) % (2*SIZE); // Adding 2*SIZE to ensure positive arg for modulo
+            int pN = (p - start + 2*SIZE) % (2*SIZE);          // Adding 2*SIZE to ensure positive arg for modulo
+            
+            return pN < endN;
+        endfunction
 
 
 
@@ -121,17 +130,6 @@ module ReorderBuffer
 
         markCompleted();
 
-            if (lateEventInfo.redirect) begin
-                indA = '{startPointer, 0, -1};
-            end
-            else begin
-                while (entryCompleted(entryAt(indA))) begin
-                    if (entryAt(indA).mid != -1)
-                        indA.mid = entryAt(indA).mid;
-                    indA = incIndex(indA);
-                end
-            end
-
 
         if (lateEventInfo.redirect) begin
             flushArrayAll();
@@ -143,9 +141,37 @@ module ReorderBuffer
             add(inGroup);
         end
 
+            
+            indsAB();
+                        
 
         commitQM <= makeQM(commitQ);
     end
+
+    
+        task automatic indsAB();
+            if (lateEventInfo.redirect) begin
+                indA = '{startPointer, 0, indA.mid};
+                    indB = '{startPointer, 0, -1};
+            end
+            else begin
+                while (entryCompleted(entryAt(indA))) begin
+                    if (entryAt(indA).mid != -1)
+                        indA.mid = entryAt(indA).mid;
+                    indA = incIndex(indA);
+                end
+                
+                while (ptrInRange(indB.row, '{startPointer, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
+                    indB = incIndex(indB);
+                end
+                
+                    if (indA.row != indB.row || indA.slot != indB.slot) begin
+                        $error("Differing inds %p, %p", indA, indB);
+                    end
+            end
+        endtask
+
+
 
 
     function automatic QM makeQM(input OpRecord q[$:3*WIDTH]);
@@ -221,11 +247,17 @@ module ReorderBuffer
      
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
+            logic rowContains = 0;
             for (int c = 0; c < WIDTH; c++) begin
-                if (row[c].mid == causingMid) endPointer = (p+1) % (2*DEPTH);
+                if (row[c].mid == causingMid) begin
+                    endPointer = (p+1) % (2*DEPTH);
+                    rowContains = 1;
+                end
                 if (row[c].mid > causingMid) begin
                     putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
+                    if (rowContains)
+                        array[p % DEPTH].records[c].used = 1;  // !!
                 end
             end
             p++;
@@ -286,7 +318,7 @@ module ReorderBuffer
         if (endPointer == startPointer) return 0;
 
         foreach (records[i])
-            if (records[i].mid != -1 && records[i].completed.and() === 0) // Will be 0 if has any 0 (also with XZ)
+            if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > indA.mid)) // Will be 0 if has any 0 (also with XZ)
                 return 0;
         
         return 1;
@@ -409,7 +441,6 @@ module ReorderBuffer
             res.slot = 0;
             res.row = (res.row+1) % (2*DEPTH);
         end
-        res.mid = -1;
         
         return res;
     endfunction
@@ -422,7 +453,9 @@ module ReorderBuffer
         return rec.used && ((rec.mid == -1) || (rec.completed.and() !== 0)); // empty slots within used rows are by definition completed
     endfunction
     
- 
+        function automatic logic entryCompleted_T(input OpRecord rec);
+            return (rec.mid == -1) || (rec.completed.and() !== 0); // empty slots within used rows are by definition completed
+        endfunction
 
 
 endmodule
