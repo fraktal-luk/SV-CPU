@@ -476,14 +476,13 @@ module AbstractCore
             exception = insMap.get(theId).exception;
 
             commitOp(theId, theRob.retirementGroup[i]);
-                
-                insMap.dealloc();
-                insMap.committedM++;
-            
+
+            // RET: generate late event
             if (breaksCommitId(theId)) begin
                 lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
                 cancelRest = 1;
             end
+            
         end
         
     endtask
@@ -569,39 +568,45 @@ module AbstractCore
             coreDB.lastII = insInfo;
             if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
+            if (refetch) begin
+                coreDB.lastRefetched = TMP_properOp(id);
+            end
+            else begin
+                coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
+                coreDB.nRetired++;
+            end
+
         verifyOnCommit(id, retInfo);
 
+        // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
             UopInfo uInfo = insMap.getU(uid);
             registerTracker.commit(decUname(uid), uInfo.vDest, uid, refetch || exception); // Need to modify to handle Exceptional and Hidden
         end
 
+        // RET: update WQ
         if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
 
+        // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
-
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
         end
   
-        if (refetch) begin
-            coreDB.lastRefetched = TMP_properOp(id);
-        end
-        else begin
-            coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
-            coreDB.nRetired++;
-        end
+
 
         // Need to modify to serve all types of commit            
         putMilestoneM(id, retireType);
         insMap.setRetired(id);
 
         // Elements related to crucial signals:
+        // RET: update inds
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
+        // RET: update target
         retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, refetch, exception);
     endtask
 

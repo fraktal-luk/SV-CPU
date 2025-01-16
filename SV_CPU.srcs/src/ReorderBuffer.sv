@@ -43,9 +43,20 @@ module ReorderBuffer
 
     typedef OpRecord QM[3*WIDTH];
 
+        typedef struct {
+            InsId id = -1;
+            logic refetch;
+            logic exception;
+        } RobResult;
+        
+        localparam RobResult EMPTY_ROB_RESULT = '{-1, 'x, 'x};
+        
+        typedef RobResult RRQ[$];
+        
 
-    int startPointer = 0, endPointer = 0;
-    int size;
+
+    int startPointer = 0, endPointer = 0,           drainPointer = 0;
+    int size, size_N;
     logic allow;
 
     OpSlotAB outGroupPrev = '{default: EMPTY_SLOT_B};
@@ -57,14 +68,21 @@ module ReorderBuffer
 
     Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
+        Row array_N[DEPTH] = '{default: EMPTY_ROW};
 
     InsId lastScanned = -1, // last id whoch was transfered to output queue
           lastOut = -1;     // last accepted as committed
     logic lastIsBreaking = 0, commitStalled = 0;
     logic lateEventOngoing;
 
+        RRQ rrq;
+        RobResult rrq_View[40];
+        int rrqSize = -1;
+
     assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
-    assign allow = (size < DEPTH - 3);
+        assign size_N = (endPointer - drainPointer + 2*DEPTH) % (2*DEPTH);
+    assign allow = (size < DEPTH - 3)
+                                        && (size_N < DEPTH - 3);
     
 
     always_comb outGroup = makeOutGroup(outRow);
@@ -118,6 +136,7 @@ module ReorderBuffer
     endtask
 
 
+        localparam logic DELAY_SCAN = 1;
 
     always @(posedge AbstractCore.clk) begin
         outGroupPrev <= outGroup;
@@ -127,6 +146,11 @@ module ReorderBuffer
         readQueue();
 
         insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
+
+
+            // Vqriant: Completed status set in this cycle won't be noticed yet
+            if (DELAY_SCAN) indsAB();
+
 
         markCompleted();
 
@@ -141,8 +165,8 @@ module ReorderBuffer
             add(inGroup);
         end
 
-            
-            indsAB();
+            // Variant: Completed status set in this cycle will be noticed
+            if (!DELAY_SCAN) indsAB();
                         
 
         commitQM <= makeQM(commitQ);
@@ -153,6 +177,7 @@ module ReorderBuffer
             if (lateEventInfo.redirect) begin
                 indA = '{startPointer, 0, indA.mid};
                     indB = '{startPointer, 0, -1};
+                    rrq.delete();
             end
             else begin
                 while (entryCompleted(entryAt(indA))) begin
@@ -162,12 +187,46 @@ module ReorderBuffer
                 end
                 
                 while (ptrInRange(indB.row, '{startPointer, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
+                        InsId thisMid = entryAt(indB).mid;
+
+                        if (entryAt(indB).mid != -1) begin
+                            logic rf = insMap.get(thisMid).refetch;
+                            logic ex = insMap.get(thisMid).exception;
+                            rrq.push_back('{thisMid, rf, ex});
+                        end
                     indB = incIndex(indB);
                 end
                 
                     if (indA.row != indB.row || indA.slot != indB.slot) begin
                         $error("Differing inds %p, %p", indA, indB);
                     end
+                    
+                    
+               
+                    while (rrq.size() > 0 && (rrq[0].id <= coreDB.lastRetired.mid || rrq[0].id <= coreDB.lastRefetched.mid)) void'(rrq.pop_front());
+               
+               while (1) begin
+               
+                    // head row contains something younger than last retired?
+                   int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
+                   
+                        if (size_N > 30) $fatal(2, "overwti");
+                    
+                   if (drainPointer == startPointer) break;
+                    
+                   if (fd.size() == 0) begin
+                       array_N[drainPointer % DEPTH] = EMPTY_ROW;
+                       drainPointer = (drainPointer+1) % (2*DEPTH);
+                   end
+                   else break;
+               end
+               
+               
+                    rrqSize <= rrq.size();
+               
+                    rrq_View = '{default: EMPTY_ROB_RESULT};
+                    foreach (rrq[i])
+                        rrq_View[i] = rrq[i];
             end
         endtask
 
@@ -237,6 +296,12 @@ module ReorderBuffer
 
         endPointer = startPointer;
         array = '{default: EMPTY_ROW};
+        
+        foreach (array_N[r]) begin
+            Row row = array_N[r];
+            foreach (row.records[c])
+                if (array_N[r].records[c].used !== 'z) array_N[r].records[c] = EMPTY_RECORD;
+        end
     endtask
 
 
@@ -256,8 +321,11 @@ module ReorderBuffer
                 if (row[c].mid > causingMid) begin
                     putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
-                    if (rowContains)
+                        array_N[p % DEPTH].records[c] = EMPTY_RECORD;
+                    if (rowContains) begin
                         array[p % DEPTH].records[c].used = 1;  // !!
+                        array_N[p % DEPTH].records[c].used = 1;  // !!
+                    end
                 end
             end
             p++;
@@ -272,6 +340,10 @@ module ReorderBuffer
             if (row.records[i].mid != -1) putMilestoneM(row.records[i].mid, InstructionMap::RobExit);
 
         array[startPointer % DEPTH] = EMPTY_ROW;
+            
+        foreach (row.records[k])    
+            array_N[startPointer % DEPTH].records[k].used = 'z;
+        
         startPointer = (startPointer+1) % (2*DEPTH);
         
         return row;
@@ -305,6 +377,7 @@ module ReorderBuffer
         OpRecordA rec = makeRecord(in);
             
         array[endPointer % DEPTH].records = makeRecord(in);
+            array_N[endPointer % DEPTH].records = makeRecord(in);
         endPointer = (endPointer+1) % (2*DEPTH);
         
         foreach (rec[i]) begin
@@ -426,6 +499,7 @@ module ReorderBuffer
             for (int c = 0; c < WIDTH; c++)
                 if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
                     array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
+                        array_N[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
                     if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
                 end
     endtask
