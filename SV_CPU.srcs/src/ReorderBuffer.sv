@@ -43,7 +43,6 @@ module ReorderBuffer
 
     typedef OpRecord QM[3*WIDTH];
 
-
     
         // Experimental
         typedef struct {
@@ -68,7 +67,6 @@ module ReorderBuffer
         typedef RobResult RRQ[$];
         
 
-
     int startPointer = 0, endPointer = 0,           drainPointer = 0;
     int size, size_N;
     logic allow;
@@ -77,16 +75,13 @@ module ReorderBuffer
 
     RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
 
-    OpRecord commitQ[$:3*WIDTH];
-    OpRecord commitQM[3*WIDTH] = '{default: EMPTY_RECORD}; 
-
     Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
         Row array_N[DEPTH] = '{default: EMPTY_ROW};
 
     InsId lastScanned = -1, // last id whoch was transfered to output queue
           lastOut = -1;     // last accepted as committed
-    logic lastIsBreaking = 0, commitStalled = 0;
+    logic lastIsBreaking = 0;
     logic lateEventOngoing;
 
         RRQ rrq;
@@ -112,63 +107,62 @@ module ReorderBuffer
         logic evtWaiting = 0;
 
 
-
-
-    task automatic readTable();
-        Row arrayHeadRowVar;
-
-        if (lateEventOngoing)
-            arrayHeadRowVar = EMPTY_ROW;
-        else if (frontCompleted() && commitQ.size() <= 3*WIDTH - 2*WIDTH)
-            arrayHeadRowVar = readOutRow();
-        else
-            arrayHeadRowVar = EMPTY_ROW;
-
-        arrayHeadRow <= arrayHeadRowVar;
-        lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
-    endtask
-
     
-    
-    function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH], input logic stall);
+    function automatic Row takeFromQueue(input Row row);
         Row res = EMPTY_ROW;
 
-        if (lateEventOngoing) begin
-            foreach (q[i])
-                if (q[i].mid != -1) putMilestoneM(q[i].mid, InstructionMap::FlushCommit);
-            q = '{};
-        end
-
-        if (stall) return res; // Not removing from queue
-
-        foreach (res.records[i]) begin
-            if (q.size() == 0) break;
-            res.records[i] = q.pop_front();
-            if (breaksCommitId(res.records[i].mid)) break;
+        foreach (row.records[i]) begin
+            if (row.records[i].mid != -1) begin
+                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+                res.records[i] = row.records[i];
+                if (breaksCommitId(row.records[i].mid)) break;
+            end
         end
 
         return res;
     endfunction
 
 
+    task automatic readTable();
+        Row arrayHeadRowVar;
+        Row outRowVar;
+        Row row;
 
-    function automatic void insertToQueue(ref OpRecord q[$:3*WIDTH], input Row row);
-        foreach (row.records[i])
-            if (row.records[i].mid != -1) begin
-                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-                q.push_back(row.records[i]);
-            end 
-//    endfunction
+        if (lateEventOngoing) begin
+            //arrayHeadRowVar = EMPTY_ROW;
+            
+            arrayHeadRow <= EMPTY_ROW;
+            //lastScanned <= getLastOut(lastScanned, EMPTY_ROW.records);
+        end
+        else begin
+            if (frontCompleted())
+                arrayHeadRowVar = readOutRow();
+            else
+                arrayHeadRowVar = EMPTY_ROW;
+                
+            arrayHeadRow <= arrayHeadRowVar;
+            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);   
+        end
 
-//    task automatic readQueue();
-        begin
-            Row outRowVar = takeFromQueue(q, commitStalled);
-                q.delete();
+
+
+
+        row = tickRow(arrayHeadRow);
+
+        if (lateEventOngoing) begin            
+            outRow <= EMPTY_ROW;
+            //lastOut <= getLastOut(lastOut, EMPTY_ROW.records);
+            lastIsBreaking <= 0;//isLastBreaking(EMPTY_ROW.records);
+        end
+        else begin
+            outRowVar = takeFromQueue(row);
+            
             outRow <= outRowVar;
             lastOut <= getLastOut(lastOut, outRowVar.records);
             lastIsBreaking <= isLastBreaking(outRowVar.records);
         end
-    endfunction
+
+    endtask
 
 
         localparam logic DELAY_SCAN = 1;
@@ -179,15 +173,10 @@ module ReorderBuffer
 
         readTable();
 
-        insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
-        //readQueue();
-
             // Vqriant: Completed status set in this cycle won't be noticed yet
             if (DELAY_SCAN) indsAB();
 
-
         markCompleted();
-
 
         if (lateEventInfo.redirect) begin
             flushArrayAll();
@@ -201,83 +190,73 @@ module ReorderBuffer
 
             // Variant: Completed status set in this cycle will be noticed
             if (!DELAY_SCAN) indsAB();
-                        
 
-        commitQM <= makeQM(commitQ);
     end
 
-    
-        task automatic indsAB();
-            if (lateEventInfo.redirect) begin
-                indA = '{startPointer, 0, indA.mid};
-                    indB = '{startPointer, 0, -1};
-                    rrq.delete();
-                
-                indReady = '{startPointer, 0, -1};
-                evtWaiting = 0;
+
+    task automatic indsAB();
+        if (lateEventInfo.redirect) begin
+            indA = '{startPointer, 0, indA.mid};
+                indB = '{startPointer, 0, -1};
+                rrq.delete();
+            
+            indReady = '{startPointer, 0, -1};
+            evtWaiting = 0;
+        end
+        else begin
+            
+            
+            // Advance indA, indB
+            while (entryCompleted(entryAt(indA))) begin
+                if (entryAt(indA).mid != -1)
+                    indA.mid = entryAt(indA).mid;
+                indA = incIndex(indA);
             end
-            else begin
-                
-                
-                // Advance indA, indB
-                while (entryCompleted(entryAt(indA))) begin
-                    if (entryAt(indA).mid != -1)
-                        indA.mid = entryAt(indA).mid;
-                    indA = incIndex(indA);
-                end
-                
-                while (ptrInRange(indB.row, '{startPointer, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
-                        InsId thisMid = entryAt(indB).mid;
+            
+            while (ptrInRange(indB.row, '{startPointer, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
+                    InsId thisMid = entryAt(indB).mid;
 
-                        if (entryAt(indB).mid != -1) begin
-                            logic ct = isControlUop(decMainUop(thisMid));
-                            logic rf = insMap.get(thisMid).refetch;
-                            logic ex = insMap.get(thisMid).exception;
-                            rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, ct, rf, ex});
-                        end
-                    indB = incIndex(indB);
-                end
-                
-                    if (indA.row != indB.row || indA.slot != indB.slot) begin
-                        $error("Differing inds %p, %p", indA, indB);
+                    if (entryAt(indB).mid != -1) begin
+                        logic ct = isControlUop(decMainUop(thisMid));
+                        logic rf = insMap.get(thisMid).refetch;
+                        logic ex = insMap.get(thisMid).exception;
+                        rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, ct, rf, ex});
                     end
-                    
-            end        
+                indB = incIndex(indB);
+            end
+            
+                if (indA.row != indB.row || indA.slot != indB.slot) begin
+                    $error("Differing inds %p, %p", indA, indB);
+                end
+                
+        end        
 
-  
-           while (rrq.size() > 0 && (rrq[0].id <= coreDB.lastRetired.mid || rrq[0].id <= coreDB.lastRefetched.mid)) void'(rrq.pop_front());
-           
-           while (1) begin
-                // head row contains something younger than last retired?
-               int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
-               
-                    if (size_N > 30) $fatal(2, "overwti");
-                
-               if (drainPointer == startPointer) break;
-                
-               if (fd.size() == 0) begin
-                   array_N[drainPointer % DEPTH] = EMPTY_ROW;
-                   drainPointer = (drainPointer+1) % (2*DEPTH);
-               end
-               else break;
-           end
-           
-            rrqSize <= rrq.size();
+
+       while (rrq.size() > 0 && (rrq[0].id <= coreDB.lastRetired.mid || rrq[0].id <= coreDB.lastRefetched.mid)) void'(rrq.pop_front());
        
-            rrq_View = '{default: EMPTY_ROB_RESULT};
-            foreach (rrq[i])
-                rrq_View[i] = rrq[i];
-            //end
-        endtask
+       while (1) begin
+            // head row contains something younger than last retired?
+           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
+           
+                if (size_N > 30) $fatal(2, "overwti");
+            
+           if (drainPointer == startPointer) break;
+            
+           if (fd.size() == 0) begin
+               array_N[drainPointer % DEPTH] = EMPTY_ROW;
+               drainPointer = (drainPointer+1) % (2*DEPTH);
+           end
+           else break;
+       end
+       
+        rrqSize <= rrq.size();
+   
+        rrq_View = '{default: EMPTY_ROB_RESULT};
+        foreach (rrq[i])
+            rrq_View[i] = rrq[i];
+        //end
+    endtask
 
-
-
-
-    function automatic QM makeQM(input OpRecord q[$:3*WIDTH]);
-        QM res = '{default: EMPTY_RECORD};
-        foreach (q[i]) res[i] = q[i];
-        return res;
-    endfunction
 
     function automatic OpRecord tickRecord(input OpRecord rec);
         if (lateEventOngoing) begin
