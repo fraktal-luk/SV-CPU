@@ -107,15 +107,10 @@ module ReorderBuffer
                                 || lastIsBreaking;
 
         TableIndex indA = '{0, 0, -1}, indB = '{0, 0, -1}, indCommitted = '{-1, -1, -1};
+        TableIndex indReady = '{0, 0, -1};
 
+        logic evtWaiting = 0;
 
-        function automatic logic ptrInRange(input int p, input int range[2], input int SIZE);
-            int start = range[0];
-            int endN = (range[1] - start + 2*SIZE) % (2*SIZE); // Adding 2*SIZE to ensure positive arg for modulo
-            int pN = (p - start + 2*SIZE) % (2*SIZE);          // Adding 2*SIZE to ensure positive arg for modulo
-            
-            return pN < endN;
-        endfunction
 
 
 
@@ -133,13 +128,47 @@ module ReorderBuffer
         lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
     endtask
 
+    
+    
+    function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH], input logic stall);
+        Row res = EMPTY_ROW;
 
-    task automatic readQueue();
-        Row outRowVar = takeFromQueue(commitQ, commitStalled);
-        outRow <= outRowVar;
-        lastOut <= getLastOut(lastOut, outRowVar.records);
-        lastIsBreaking <= isLastBreaking(outRowVar.records);
-    endtask
+        if (lateEventOngoing) begin
+            foreach (q[i])
+                if (q[i].mid != -1) putMilestoneM(q[i].mid, InstructionMap::FlushCommit);
+            q = '{};
+        end
+
+        if (stall) return res; // Not removing from queue
+
+        foreach (res.records[i]) begin
+            if (q.size() == 0) break;
+            res.records[i] = q.pop_front();
+            if (breaksCommitId(res.records[i].mid)) break;
+        end
+
+        return res;
+    endfunction
+
+
+
+    function automatic void insertToQueue(ref OpRecord q[$:3*WIDTH], input Row row);
+        foreach (row.records[i])
+            if (row.records[i].mid != -1) begin
+                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+                q.push_back(row.records[i]);
+            end 
+//    endfunction
+
+//    task automatic readQueue();
+        begin
+            Row outRowVar = takeFromQueue(q, commitStalled);
+                q.delete();
+            outRow <= outRowVar;
+            lastOut <= getLastOut(lastOut, outRowVar.records);
+            lastIsBreaking <= isLastBreaking(outRowVar.records);
+        end
+    endfunction
 
 
         localparam logic DELAY_SCAN = 1;
@@ -149,10 +178,9 @@ module ReorderBuffer
         retirementGroupPrev <= retirementGroup;
 
         readTable();
-        readQueue();
 
         insertToQueue(commitQ, tickRow(arrayHeadRow)); // must be after reading from queue!
-
+        //readQueue();
 
             // Vqriant: Completed status set in this cycle won't be noticed yet
             if (DELAY_SCAN) indsAB();
@@ -184,8 +212,14 @@ module ReorderBuffer
                 indA = '{startPointer, 0, indA.mid};
                     indB = '{startPointer, 0, -1};
                     rrq.delete();
+                
+                indReady = '{startPointer, 0, -1};
+                evtWaiting = 0;
             end
             else begin
+                
+                
+                // Advance indA, indB
                 while (entryCompleted(entryAt(indA))) begin
                     if (entryAt(indA).mid != -1)
                         indA.mid = entryAt(indA).mid;
@@ -264,33 +298,7 @@ module ReorderBuffer
         return res;
     endfunction
 
-    function automatic void insertToQueue(ref OpRecord q[$:3*WIDTH], input Row row);
-        foreach (row.records[i])
-            if (row.records[i].mid != -1) begin
-                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-                q.push_back(row.records[i]);
-            end 
-    endfunction
 
-    function automatic Row takeFromQueue(ref OpRecord q[$:3*WIDTH], input logic stall);
-        Row res = EMPTY_ROW;
-
-        if (lateEventOngoing) begin
-            foreach (q[i])
-                if (q[i].mid != -1) putMilestoneM(q[i].mid, InstructionMap::FlushCommit);
-            q = '{};
-        end
-
-        if (stall) return res; // Not removing from queue
-
-        foreach (res.records[i]) begin
-            if (q.size() == 0) break;
-            res.records[i] = q.pop_front();
-            if (breaksCommitId(res.records[i].mid)) break;
-        end
-
-        return res;
-    endfunction
 
 
     task automatic flushArrayAll();        
@@ -537,5 +545,26 @@ module ReorderBuffer
             return (rec.mid == -1) || (rec.completed.and() !== 0); // empty slots within used rows are by definition completed
         endfunction
 
+        function automatic logic ptrInRange(input int p, input int range[2], input int SIZE);
+            int start = range[0];
+            int endN = (range[1] - start + 2*SIZE) % (2*SIZE); // Adding 2*SIZE to ensure positive arg for modulo
+            int pN = (p - start + 2*SIZE) % (2*SIZE);          // Adding 2*SIZE to ensure positive arg for modulo
+            
+            return pN < endN;
+        endfunction
+
+        function automatic int TMP_int(input TableIndex ind);
+            return ind.row * WIDTH + ind.slot;
+        endfunction
+
+        function automatic logic indexInRange(input TableIndex p, input TableIndex range[2], input int SIZE);            
+            int TSIZE = SIZE * WIDTH;
+            
+            int start = TMP_int(range[0]);
+            int endN = (TMP_int(range[1]) - start + 2*TSIZE) % (2*TSIZE); // Adding 2*SIZE to ensure positive arg for modulo
+            int pN = (TMP_int(p) - start + 2*TSIZE) % (2*TSIZE);          // Adding 2*SIZE to ensure positive arg for modulo
+            
+            return pN < endN;
+        endfunction
 
 endmodule
