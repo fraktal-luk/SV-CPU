@@ -67,9 +67,19 @@ module ReorderBuffer
         typedef RobResult RRQ[$];
         
 
-    int startPointer = 0, endPointer = 0,           drainPointer = 0;
+    int savedPointer = 0,
+        startPointer = 0,
+        startPointer_ArrHead = 0, // Probably should be the point to restore endPointer + startPointer!
+        startPointer_OutRow = 0,  endPointer = 0,           drainPointer = 0;
     int size, size_N;
     logic allow;
+
+        int backupPointer;
+        
+        assign backupPointer = //startPointer;
+                               //startPointer_ArrHead;
+                               savedPointer;
+
 
     OpSlotAB outGroupPrev = '{default: EMPTY_SLOT_B};
 
@@ -123,16 +133,37 @@ module ReorderBuffer
     endfunction
 
 
+    function automatic OpRecord tickRecord(input OpRecord rec);
+        if (lateEventOngoing) begin
+            if (rec.mid != -1)
+                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
+            return EMPTY_RECORD;
+        end
+        else
+            return rec;
+    endfunction
+
+    function automatic Row tickRow(input Row row);
+        Row res;
+
+        foreach (res.records[i])
+            res.records[i] = tickRecord(row.records[i]);
+
+        return res;
+    endfunction
+
+
+
     task automatic readTable();
         Row arrayHeadRowVar;
         Row outRowVar;
         Row row;
 
-        if (lateEventOngoing) begin
-            //arrayHeadRowVar = EMPTY_ROW;
-            
+        startPointer_OutRow = startPointer_ArrHead;
+        startPointer_ArrHead = startPointer;
+
+        if (lateEventOngoing) begin            
             arrayHeadRow <= EMPTY_ROW;
-            //lastScanned <= getLastOut(lastScanned, EMPTY_ROW.records);
         end
         else begin
             if (frontCompleted())
@@ -151,15 +182,17 @@ module ReorderBuffer
 
         if (lateEventOngoing) begin            
             outRow <= EMPTY_ROW;
-            //lastOut <= getLastOut(lastOut, EMPTY_ROW.records);
-            lastIsBreaking <= 0;//isLastBreaking(EMPTY_ROW.records);
+            lastIsBreaking <= 0;
         end
         else begin
             outRowVar = takeFromQueue(row);
             
             outRow <= outRowVar;
             lastOut <= getLastOut(lastOut, outRowVar.records);
+            
             lastIsBreaking <= isLastBreaking(outRowVar.records);
+                
+            savedPointer = (startPointer_OutRow + 1) % (2*DEPTH);
         end
 
     endtask
@@ -196,11 +229,11 @@ module ReorderBuffer
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
-            indA = '{startPointer, 0, indA.mid};
-                indB = '{startPointer, 0, -1};
+            indA = '{backupPointer, 0, indA.mid};
+                indB = '{backupPointer, 0, -1};
                 rrq.delete();
             
-            indReady = '{startPointer, 0, -1};
+            indReady = '{backupPointer, 0, -1};
             evtWaiting = 0;
         end
         else begin
@@ -213,7 +246,7 @@ module ReorderBuffer
                 indA = incIndex(indA);
             end
             
-            while (ptrInRange(indB.row, '{startPointer, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
+            while (ptrInRange(indB.row, '{/*startPointer*/ startPointer_OutRow, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
                     InsId thisMid = entryAt(indB).mid;
 
                     if (entryAt(indB).mid != -1) begin
@@ -240,7 +273,7 @@ module ReorderBuffer
            
                 if (size_N > 30) $fatal(2, "overwti");
             
-           if (drainPointer == startPointer) break;
+           if (drainPointer == /*startPointer*/ startPointer_OutRow) break;
             
            if (fd.size() == 0) begin
                array_N[drainPointer % DEPTH] = EMPTY_ROW;
@@ -258,26 +291,6 @@ module ReorderBuffer
     endtask
 
 
-    function automatic OpRecord tickRecord(input OpRecord rec);
-        if (lateEventOngoing) begin
-            if (rec.mid != -1)
-                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
-            return EMPTY_RECORD;
-        end
-        else
-            return rec;
-    endfunction
-
-    function automatic Row tickRow(input Row row);
-        Row res;
-
-        foreach (res.records[i])
-            res.records[i] = tickRecord(row.records[i]);
-
-        return res;
-    endfunction
-
-
 
 
     task automatic flushArrayAll();        
@@ -287,7 +300,12 @@ module ReorderBuffer
                 putMilestoneM(row[c].mid, InstructionMap::RobFlush);
         end
 
-        endPointer = startPointer;
+        endPointer = backupPointer;
+        startPointer = backupPointer;
+            startPointer_ArrHead = backupPointer;
+            startPointer_OutRow = backupPointer;
+        
+        
         array = '{default: EMPTY_ROW};
         
         foreach (array_N[r]) begin
@@ -334,9 +352,12 @@ module ReorderBuffer
 
         array[startPointer % DEPTH] = EMPTY_ROW;
             
-        foreach (row.records[k])    
-            array_N[startPointer % DEPTH].records[k].used = 'z;
-        
+//        foreach (row.records[k])    
+//            array_N[startPointer % DEPTH].records[k].used = 'z;
+
+            foreach (row.records[k])    
+                array_N[startPointer_ArrHead % DEPTH].records[k].used = 'z;
+                
         startPointer = (startPointer+1) % (2*DEPTH);
         
         return row;
