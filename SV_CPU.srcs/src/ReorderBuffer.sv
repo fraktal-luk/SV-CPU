@@ -56,7 +56,7 @@ module ReorderBuffer
         
         typedef struct {
             InsId id = -1;
-                TableIndex tableIndex = EMPTY_TABLE_INDEX;
+            TableIndex tableIndex = EMPTY_TABLE_INDEX;
             logic control;
             logic refetch;
             logic exception;
@@ -67,18 +67,16 @@ module ReorderBuffer
         typedef RobResult RRQ[$];
         
 
-    int savedPointer = 0,
-        startPointer = 0,
-        startPointer_ArrHead = 0, // Probably should be the point to restore endPointer + startPointer!
-        startPointer_OutRow = 0,  endPointer = 0,           drainPointer = 0;
+    int drainPointer = 0, startPointer = 0,
+        endPointer = 0;
     int size, size_N;
     logic allow;
 
         int backupPointer;
         
-        assign backupPointer = //startPointer;
-                               //startPointer_ArrHead;
-                               savedPointer;
+        always_comb backupPointer = (indCommitted.row + 1) % (2*DEPTH);                   
+
+        InsId midCommitted = -1;
 
 
     OpSlotAB outGroupPrev = '{default: EMPTY_SLOT_B};
@@ -111,10 +109,8 @@ module ReorderBuffer
                                 || AbstractCore.lateEventInfoWaiting.active
                                 || lastIsBreaking;
 
-        TableIndex indA = '{0, 0, -1}, indB = '{0, 0, -1}, indCommitted = '{-1, -1, -1};
-        TableIndex indReady = '{0, 0, -1};
-
-        logic evtWaiting = 0;
+    TableIndex indA = '{0, 0, -1}, indB = '{0, 0, -1},
+               indCommitted = '{0, 0, -1}; // TODO: try row -1 to start with 0 after first reset. Also '{0, 0, -1} implies that slot 0,0 is committed
 
 
     
@@ -153,14 +149,10 @@ module ReorderBuffer
     endfunction
 
 
-
     task automatic readTable();
         Row arrayHeadRowVar;
         Row outRowVar;
         Row row;
-
-        startPointer_OutRow = startPointer_ArrHead;
-        startPointer_ArrHead = startPointer;
 
         if (lateEventOngoing) begin            
             arrayHeadRow <= EMPTY_ROW;
@@ -176,8 +168,6 @@ module ReorderBuffer
         end
 
 
-
-
         row = tickRow(arrayHeadRow);
 
         if (lateEventOngoing) begin            
@@ -190,24 +180,21 @@ module ReorderBuffer
             outRow <= outRowVar;
             lastOut <= getLastOut(lastOut, outRowVar.records);
             
-            lastIsBreaking <= isLastBreaking(outRowVar.records);
-                
-            savedPointer = (startPointer_OutRow + 1) % (2*DEPTH);
+            lastIsBreaking <= isLastBreaking(outRowVar.records);                
         end
 
     endtask
 
 
-        localparam logic DELAY_SCAN = 1;
-
     always @(posedge AbstractCore.clk) begin
+        doRetirement();
+    
         outGroupPrev <= outGroup;
         retirementGroupPrev <= retirementGroup;
 
         readTable();
 
-            // Vqriant: Completed status set in this cycle won't be noticed yet
-            if (DELAY_SCAN) indsAB();
+        indsAB();
 
         markCompleted();
 
@@ -221,24 +208,42 @@ module ReorderBuffer
             add(inGroup);
         end
 
-            // Variant: Completed status set in this cycle will be noticed
-            if (!DELAY_SCAN) indsAB();
-
     end
+
+
+    task automatic doRetirement();
+        foreach (outGroup[i]) begin
+            InsId thisMid = outGroup[i].mid;
+            RobResult rr[$];
+            TableIndex ti = indCommitted;
+            
+            if (thisMid == -1) continue;
+            
+            rr = rrq.find with (item.id == thisMid);
+            
+            while (1) begin
+                ti = incIndex(ti);
+                array_N[ti.row].records[ti.slot].used = 'z;                
+                if (ti.row == rr[0].tableIndex.row && ti.slot == rr[0].tableIndex.slot) break;
+            end
+
+            midCommitted <= rr[0].id;
+            indCommitted <= rr[0].tableIndex;
+
+            if (breaksCommitId(thisMid)) break;
+        end
+    endtask;
+
 
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
             indA = '{backupPointer, 0, indA.mid};
                 indB = '{backupPointer, 0, -1};
-                rrq.delete();
-            
-            indReady = '{backupPointer, 0, -1};
-            evtWaiting = 0;
+                rrq.delete();            
         end
         else begin
-            
-            
+                   
             // Advance indA, indB
             while (entryCompleted(entryAt(indA))) begin
                 if (entryAt(indA).mid != -1)
@@ -246,21 +251,21 @@ module ReorderBuffer
                 indA = incIndex(indA);
             end
             
-            while (ptrInRange(indB.row, '{/*startPointer*/ startPointer_OutRow, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
-                    InsId thisMid = entryAt(indB).mid;
+            while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
+                InsId thisMid = entryAt(indB).mid;
 
-                    if (entryAt(indB).mid != -1) begin
-                        logic ct = isControlUop(decMainUop(thisMid));
-                        logic rf = insMap.get(thisMid).refetch;
-                        logic ex = insMap.get(thisMid).exception;
-                        rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, ct, rf, ex});
-                    end
+                if (entryAt(indB).mid != -1) begin
+                    logic ct = isControlUop(decMainUop(thisMid));
+                    logic rf = insMap.get(thisMid).refetch;
+                    logic ex = insMap.get(thisMid).exception;
+                    rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, ct, rf, ex});
+                end
                 indB = incIndex(indB);
             end
-            
-                if (indA.row != indB.row || indA.slot != indB.slot) begin
-                    $error("Differing inds %p, %p", indA, indB);
-                end
+
+            if (indA.row != indB.row || indA.slot != indB.slot) begin
+                $error("Differing inds %p, %p", indA, indB);
+            end
                 
         end        
 
@@ -271,10 +276,9 @@ module ReorderBuffer
             // head row contains something younger than last retired?
            int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
            
-                if (size_N > 30) $fatal(2, "overwti");
-            
-           if (drainPointer == /*startPointer*/ startPointer_OutRow) break;
-            
+           // FUTURE: this will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
+           if (drainPointer == indCommitted.row) break;
+
            if (fd.size() == 0) begin
                array_N[drainPointer % DEPTH] = EMPTY_ROW;
                drainPointer = (drainPointer+1) % (2*DEPTH);
@@ -287,9 +291,7 @@ module ReorderBuffer
         rrq_View = '{default: EMPTY_ROB_RESULT};
         foreach (rrq[i])
             rrq_View[i] = rrq[i];
-        //end
     endtask
-
 
 
 
@@ -300,18 +302,17 @@ module ReorderBuffer
                 putMilestoneM(row[c].mid, InstructionMap::RobFlush);
         end
 
-        endPointer = backupPointer;
         startPointer = backupPointer;
-            startPointer_ArrHead = backupPointer;
-            startPointer_OutRow = backupPointer;
-        
-        
+        endPointer = backupPointer;
+      
         array = '{default: EMPTY_ROW};
         
         foreach (array_N[r]) begin
             Row row = array_N[r];
-            foreach (row.records[c])
-                if (array_N[r].records[c].used !== 'z) array_N[r].records[c] = EMPTY_RECORD;
+            foreach (row.records[c]) begin
+                if (array_N[r].records[c].mid > indCommitted.mid)
+                    array_N[r].records[c] = EMPTY_RECORD;
+            end
         end
     endtask
 
@@ -351,13 +352,6 @@ module ReorderBuffer
             if (row.records[i].mid != -1) putMilestoneM(row.records[i].mid, InstructionMap::RobExit);
 
         array[startPointer % DEPTH] = EMPTY_ROW;
-            
-//        foreach (row.records[k])    
-//            array_N[startPointer % DEPTH].records[k].used = 'z;
-
-            foreach (row.records[k])    
-                array_N[startPointer_ArrHead % DEPTH].records[k].used = 'z;
-                
         startPointer = (startPointer+1) % (2*DEPTH);
         
         return row;
