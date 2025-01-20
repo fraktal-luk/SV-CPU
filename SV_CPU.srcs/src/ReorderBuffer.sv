@@ -67,7 +67,8 @@ module ReorderBuffer
         typedef RobResult RRQ[$];
         
 
-    int drainPointer = 0, startPointer = 0,
+    int drainPointer = -1,
+        startPointer = 0,
         endPointer = 0;
     int size, size_N;
     logic allow;
@@ -88,7 +89,8 @@ module ReorderBuffer
         Row array_N[DEPTH] = '{default: EMPTY_ROW};
 
     InsId lastScanned = -1, // last id whoch was transfered to output queue
-          lastOut = -1;     // last accepted as committed
+          lastOut = -1,     // last accepted as committed
+          last_indB = -1;
     logic lastIsBreaking = 0;
     logic lateEventOngoing;
 
@@ -109,8 +111,8 @@ module ReorderBuffer
                                 || AbstractCore.lateEventInfoWaiting.active
                                 || lastIsBreaking;
 
-    TableIndex indA = '{0, 0, -1}, indB = '{0, 0, -1},
-               indCommitted = '{0, 0, -1}; // TODO: try row -1 to start with 0 after first reset. Also '{0, 0, -1} implies that slot 0,0 is committed
+    TableIndex indB = '{0, 0, -1},
+               indCommitted = '{-1, -1, -1}; // CAREFUL
 
 
     
@@ -238,56 +240,36 @@ module ReorderBuffer
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
-            indA = '{backupPointer, 0, indA.mid};
-                indB = '{backupPointer, 0, -1};
-                rrq.delete();            
+            indB = '{backupPointer, 0, -1};
+            rrq.delete();            
         end
-        else begin
-                   
-            // Advance indA, indB
-            while (entryCompleted(entryAt(indA))) begin
-                if (entryAt(indA).mid != -1)
-                    indA.mid = entryAt(indA).mid;
-                indA = incIndex(indA);
-            end
-            
+        else begin            
             while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
                 InsId thisMid = entryAt(indB).mid;
-
-                if (entryAt(indB).mid != -1) begin
+    
+                if (thisMid != -1) begin
                     logic ct = isControlUop(decMainUop(thisMid));
                     logic rf = insMap.get(thisMid).refetch;
                     logic ex = insMap.get(thisMid).exception;
                     rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, ct, rf, ex});
+                    last_indB = thisMid;
                 end
                 indB = incIndex(indB);
-            end
-
-            if (indA.row != indB.row || indA.slot != indB.slot) begin
-                $error("Differing inds %p, %p", indA, indB);
-            end
-                
+            end                
         end        
-
-
-       while (rrq.size() > 0 && (rrq[0].id <= coreDB.lastRetired.mid || rrq[0].id <= coreDB.lastRefetched.mid)) void'(rrq.pop_front());
-       
-       while (1) begin
-            // head row contains something younger than last retired?
+    
+        while (rrq.size() > 0 && (rrq[0].id <= coreDB.lastRetired.mid || rrq[0].id <= coreDB.lastRefetched.mid)) void'(rrq.pop_front());
+        
+        // FUTURE: this condition will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
+        while (drainPointer != indCommitted.row) begin
            int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
-           
-           // FUTURE: this will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
-           if (drainPointer == indCommitted.row) break;
-
-           if (fd.size() == 0) begin
-               array_N[drainPointer % DEPTH] = EMPTY_ROW;
-               drainPointer = (drainPointer+1) % (2*DEPTH);
-           end
-           else break;
-       end
+           if (fd.size() != 0) break;
+           array_N[drainPointer % DEPTH] = EMPTY_ROW;
+           drainPointer = (drainPointer+1) % (2*DEPTH);
+        end
        
         rrqSize <= rrq.size();
-   
+        
         rrq_View = '{default: EMPTY_ROB_RESULT};
         foreach (rrq[i])
             rrq_View[i] = rrq[i];
@@ -383,7 +365,7 @@ module ReorderBuffer
 
     task automatic add(input OpSlotAB in);
         OpRecordA rec = makeRecord(in);
-            
+
         array[endPointer % DEPTH].records = makeRecord(in);
             array_N[endPointer % DEPTH].records = makeRecord(in);
         endPointer = (endPointer+1) % (2*DEPTH);
@@ -399,7 +381,7 @@ module ReorderBuffer
         if (endPointer == startPointer) return 0;
 
         foreach (records[i])
-            if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > indA.mid))
+            if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > /*indB.mid*/ last_indB))
                 return 0;
         
         return 1;
