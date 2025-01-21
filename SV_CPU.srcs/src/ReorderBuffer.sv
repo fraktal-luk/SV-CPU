@@ -111,81 +111,10 @@ module ReorderBuffer
                                 || AbstractCore.lateEventInfoWaiting.active
                                 || lastIsBreaking;
 
-    TableIndex indB = '{0, 0, -1},
+    TableIndex indB = '{0, 0, -1}, indRH = '{0, 0, -1},
                indCommitted = '{-1, -1, -1}; // CAREFUL
 
 
-    
-    function automatic Row takeFromQueue(input Row row);
-        Row res = EMPTY_ROW;
-
-        foreach (row.records[i]) begin
-            if (row.records[i].mid != -1) begin
-                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-                res.records[i] = row.records[i];
-                if (breaksCommitId(row.records[i].mid)) break;
-            end
-        end
-
-        return res;
-    endfunction
-
-
-    function automatic OpRecord tickRecord(input OpRecord rec);
-        if (lateEventOngoing) begin
-            if (rec.mid != -1)
-                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
-            return EMPTY_RECORD;
-        end
-        else
-            return rec;
-    endfunction
-
-    function automatic Row tickRow(input Row row);
-        Row res;
-
-        foreach (res.records[i])
-            res.records[i] = tickRecord(row.records[i]);
-
-        return res;
-    endfunction
-
-
-    task automatic readTable();
-        Row arrayHeadRowVar;
-        Row outRowVar;
-        Row row;
-
-        if (lateEventOngoing) begin            
-            arrayHeadRow <= EMPTY_ROW;
-        end
-        else begin
-            if (frontCompleted())
-                arrayHeadRowVar = readOutRow();
-            else
-                arrayHeadRowVar = EMPTY_ROW;
-                
-            arrayHeadRow <= arrayHeadRowVar;
-            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);   
-        end
-
-
-        row = tickRow(arrayHeadRow);
-
-        if (lateEventOngoing) begin            
-            outRow <= EMPTY_ROW;
-            lastIsBreaking <= 0;
-        end
-        else begin
-            outRowVar = takeFromQueue(row);
-            
-            outRow <= outRowVar;
-            lastOut <= getLastOut(lastOut, outRowVar.records);
-            
-            lastIsBreaking <= isLastBreaking(outRowVar.records);                
-        end
-
-    endtask
 
 
     always @(posedge AbstractCore.clk) begin
@@ -238,20 +167,96 @@ module ReorderBuffer
 
 
 
+    function automatic Row takeFromQueue(input Row row);
+        Row res = EMPTY_ROW;
+
+        foreach (row.records[i]) begin
+            if (row.records[i].mid != -1) begin
+                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+                res.records[i] = row.records[i];
+                if (breaksCommitId(row.records[i].mid)) break;
+            end
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic OpRecord tickRecord(input OpRecord rec);
+        if (lateEventOngoing) begin
+            if (rec.mid != -1)
+                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
+            return EMPTY_RECORD;
+        end
+        else
+            return rec;
+    endfunction
+
+    function automatic Row tickRow(input Row row);
+        Row res;
+
+        foreach (res.records[i])
+            res.records[i] = tickRecord(row.records[i]);
+
+        return res;
+    endfunction
+
+
+    task automatic readTable();
+        Row arrayHeadRowVar;
+        Row outRowVar;
+        Row row;
+
+        if (lateEventOngoing) begin            
+            arrayHeadRow <= EMPTY_ROW;
+        end
+        else begin
+            arrayHeadRowVar = readArrRow();
+    
+            foreach (arrayHeadRowVar.records[i])
+                if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
+                   
+            arrayHeadRow <= arrayHeadRowVar;
+            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);   
+        end
+
+
+        row = tickRow(arrayHeadRow);
+
+        if (lateEventOngoing) begin            
+            outRow <= EMPTY_ROW;
+            lastIsBreaking <= 0;
+        end
+        else begin
+            outRowVar = takeFromQueue(row);
+            
+            outRow <= outRowVar;
+            lastOut <= getLastOut(lastOut, outRowVar.records);
+            
+            lastIsBreaking <= isLastBreaking(outRowVar.records);                
+        end
+
+    endtask
+
+
+
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
             indB = '{backupPointer, 0, -1};
+            indRH = '{backupPointer, 0, -1};
             rrq.delete();            
         end
-        else begin            
+        else begin
+            while (indexInRange(indRH, '{indCommitted, indB}, DEPTH)) begin
+                indRH = incIndex(indRH);
+            end
+             
             while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
                 InsId thisMid = entryAt(indB).mid;
-    
+
                 if (thisMid != -1) begin
-                    logic ct = isControlUop(decMainUop(thisMid));
-                    logic rf = insMap.get(thisMid).refetch;
-                    logic ex = insMap.get(thisMid).exception;
-                    rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, ct, rf, ex});
+                    InstructionInfo info = insMap.get(thisMid);
+                    rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, isControlUop(info.mainUop), info.refetch, info.exception});
                     last_indB = thisMid;
                 end
                 indB = incIndex(indB);
@@ -277,7 +282,8 @@ module ReorderBuffer
 
 
 
-    task automatic flushArrayAll();        
+    task automatic flushArrayAll();
+           
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
             foreach (row[c])
@@ -302,7 +308,7 @@ module ReorderBuffer
     task automatic flushArrayPartial();
         logic clear = 0;
         InsId causingMid = branchEventInfo.eventMid;
-        int p = startPointer;
+        int p = startPointer; // TODO: change to actual not committed head?
      
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
@@ -327,18 +333,44 @@ module ReorderBuffer
     endtask
 
 
-    function automatic Row readOutRow();
-        Row row = array[startPointer % DEPTH];
-        
-        foreach (row.records[i])
-            if (row.records[i].mid != -1) putMilestoneM(row.records[i].mid, InstructionMap::RobExit);
 
-        array[startPointer % DEPTH] = EMPTY_ROW;
-        startPointer = (startPointer+1) % (2*DEPTH);
-        
-        return row;
-    endfunction
+//        function automatic Row readOutRow();
+//            Row row = array[startPointer % DEPTH];
+
+//            array[startPointer % DEPTH] = EMPTY_ROW;
+//            startPointer = (startPointer+1) % (2*DEPTH);
+            
+//            return row;
+//        endfunction
+
+
+        function automatic logic frontCompleted();
+            OpRecordA records = array[startPointer % DEPTH].records;
+            if (endPointer == startPointer) return 0;
     
+            foreach (records[i])
+                if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > /*indB.mid*/ last_indB))
+                    return 0;
+            
+            return 1;
+        endfunction
+
+        function automatic Row readArrRow();
+            Row res;
+        
+            if (frontCompleted()) begin
+                res = array[startPointer % DEPTH];
+                array[startPointer % DEPTH] = EMPTY_ROW;
+                startPointer = (startPointer+1) % (2*DEPTH);
+                //return readOutRow();
+                
+                return res;
+            end
+            else
+                return EMPTY_ROW;
+        endfunction
+
+
 
     function automatic CompletedVec initCompletedVec(input int n);
         CompletedVec res = '{default: 'x};
@@ -375,18 +407,7 @@ module ReorderBuffer
             if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
         end
     endtask
-    
-    function automatic logic frontCompleted();
-        OpRecordA records = array[startPointer % DEPTH].records;
-        if (endPointer == startPointer) return 0;
-
-        foreach (records[i])
-            if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > /*indB.mid*/ last_indB))
-                return 0;
-        
-        return 1;
-    endfunction
-    
+       
     
     function automatic InsId getLastOut(input InsId prev, input OpRecordA recs);
         InsId tmp = prev;
@@ -512,10 +533,7 @@ module ReorderBuffer
     function automatic OpRecord entryAt(input TableIndex ind);
         return array[ind.row % DEPTH].records[ind.slot];
     endfunction
-    
-    function automatic logic entryCompleted(input OpRecord rec);
-        return rec.used && ((rec.mid == -1) || (rec.completed.and() !== 0)); // empty slots within used rows are by definition completed
-    endfunction
+
     
         function automatic logic entryCompleted_T(input OpRecord rec);
             return (rec.mid == -1) || (rec.completed.and() !== 0); // empty slots within used rows are by definition completed
