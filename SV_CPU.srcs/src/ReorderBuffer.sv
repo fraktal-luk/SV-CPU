@@ -84,7 +84,7 @@ module ReorderBuffer
 
     RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
 
-    Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
+    Row arrayHeadRow = EMPTY_ROW, arrayHeadPart = EMPTY_ROW, outRow = EMPTY_ROW;
     Row array[DEPTH] = '{default: EMPTY_ROW};
         Row array_N[DEPTH] = '{default: EMPTY_ROW};
 
@@ -111,7 +111,7 @@ module ReorderBuffer
                                 || AbstractCore.lateEventInfoWaiting.active
                                 || lastIsBreaking;
 
-    TableIndex indB = '{0, 0, -1}, indRH = '{0, 0, -1},
+    TableIndex indB = '{0, 0, -1}, indRH = '{0, 0, -1}, ind_Start = '{0, 0, -1},
                indCommitted = '{-1, -1, -1}; // CAREFUL
 
 
@@ -203,25 +203,29 @@ module ReorderBuffer
 
 
     task automatic readTable();
-        Row arrayHeadRowVar;
+        Row arrayHeadRowVar, arrayHeadPartVar;
         Row outRowVar;
         Row row;
 
         if (lateEventOngoing) begin            
             arrayHeadRow <= EMPTY_ROW;
+                arrayHeadPart <= EMPTY_ROW;
         end
         else begin
+                    arrayHeadPartVar = readRowPart();
             arrayHeadRowVar = readArrRow();
     
             foreach (arrayHeadRowVar.records[i])
                 if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
                    
             arrayHeadRow <= arrayHeadRowVar;
+                arrayHeadPart <= arrayHeadPartVar;
             lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);   
         end
 
 
         row = tickRow(arrayHeadRow);
+                      //arrayHeadPart);
 
         if (lateEventOngoing) begin            
             outRow <= EMPTY_ROW;
@@ -242,6 +246,7 @@ module ReorderBuffer
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
+            ind_Start = '{backupPointer, 0, -1};
             indB = '{backupPointer, 0, -1};
             indRH = '{backupPointer, 0, -1};
             rrq.delete();            
@@ -346,6 +351,7 @@ module ReorderBuffer
 
         function automatic logic frontCompleted();
             OpRecordA records = array[startPointer % DEPTH].records;
+                
             if (endPointer == startPointer) return 0;
     
             foreach (records[i])
@@ -368,6 +374,26 @@ module ReorderBuffer
             end
             else
                 return EMPTY_ROW;
+        endfunction
+
+
+        function automatic Row readRowPart();
+            Row head = array[startPointer % DEPTH];
+            Row res = EMPTY_ROW;
+        
+            foreach (head.records[i]) begin
+                    if (i < ind_Start.slot) continue;
+            
+                if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) begin
+                    break;
+                end
+                
+                res.records[i] = head.records[i];
+                
+                ind_Start = incIndex(ind_Start);
+            end
+            
+            return res;
         endfunction
 
 
