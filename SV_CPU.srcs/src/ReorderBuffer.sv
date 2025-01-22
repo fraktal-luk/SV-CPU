@@ -70,7 +70,7 @@ module ReorderBuffer
     int drainPointer = -1,
         startPointer = 0,
         endPointer = 0;
-    int size, size_N;
+    int size = 0, size_N;
     logic allow;
 
         int backupPointer;
@@ -98,11 +98,10 @@ module ReorderBuffer
         RobResult rrq_View[40];
         int rrqSize = -1;
 
-    assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
+    //assign size = (endPointer - startPointer + 2*DEPTH) % (2*DEPTH);
         assign size_N = (endPointer - drainPointer + 2*DEPTH) % (2*DEPTH);
-    assign allow = (size < DEPTH - 3)
+    assign allow = 1 //(size < DEPTH - 3)
                                         && (size_N < DEPTH - 3);
-    
 
     always_comb outGroup = makeOutGroup(outRow);
     always_comb retirementGroup = makeRetirementGroup();
@@ -113,8 +112,6 @@ module ReorderBuffer
 
     TableIndex indB = '{0, 0, -1}, indRH = '{0, 0, -1}, ind_Start = '{0, 0, -1},
                indCommitted = '{-1, -1, -1}; // CAREFUL
-
-
 
 
     always @(posedge AbstractCore.clk) begin
@@ -203,7 +200,7 @@ module ReorderBuffer
 
 
     task automatic readTable();
-        Row arrayHeadRowVar, arrayHeadPartVar;
+        Row arrayHeadRowVar, arrayHeadWholeVar, arrayHeadPartVar;
         Row outRowVar;
         Row row;
 
@@ -212,8 +209,13 @@ module ReorderBuffer
                 arrayHeadPart <= EMPTY_ROW;
         end
         else begin
-                    arrayHeadPartVar = readRowPart();
-            arrayHeadRowVar = readArrRow();
+                arrayHeadPartVar = readRowPart();
+                arrayHeadWholeVar = readArrRow();
+            
+                    if (startPointer != ind_Start.row) $error("differ  %d / %d", startPointer, ind_Start.row);
+            
+            arrayHeadRowVar = arrayHeadWholeVar;
+                              //arrayHeadPartVar;
     
             foreach (arrayHeadRowVar.records[i])
                 if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
@@ -225,7 +227,6 @@ module ReorderBuffer
 
 
         row = tickRow(arrayHeadRow);
-                      //arrayHeadPart);
 
         if (lateEventOngoing) begin            
             outRow <= EMPTY_ROW;
@@ -292,14 +293,22 @@ module ReorderBuffer
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
             foreach (row[c])
-                putMilestoneM(row[c].mid, InstructionMap::RobFlush);
+                if (row[c].mid > indCommitted.mid) putMilestoneM(row[c].mid, InstructionMap::RobFlush);
         end
 
         startPointer = backupPointer;
         endPointer = backupPointer;
       
-        array = '{default: EMPTY_ROW};
-        
+       // array = '{default: EMPTY_ROW};
+
+        foreach (array[r]) begin
+            Row row = array[r];
+            foreach (row.records[c]) begin
+                if (array[r].records[c].mid > indCommitted.mid)
+                    array[r].records[c] = EMPTY_RECORD;
+            end
+        end
+         
         foreach (array_N[r]) begin
             Row row = array_N[r];
             foreach (row.records[c]) begin
@@ -311,9 +320,10 @@ module ReorderBuffer
 
 
     task automatic flushArrayPartial();
-        logic clear = 0;
+        //logic clear = 0;
         InsId causingMid = branchEventInfo.eventMid;
         int p = startPointer; // TODO: change to actual not committed head?
+                //ind_Start.row;
      
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
@@ -339,23 +349,13 @@ module ReorderBuffer
 
 
 
-//        function automatic Row readOutRow();
-//            Row row = array[startPointer % DEPTH];
-
-//            array[startPointer % DEPTH] = EMPTY_ROW;
-//            startPointer = (startPointer+1) % (2*DEPTH);
-            
-//            return row;
-//        endfunction
-
-
         function automatic logic frontCompleted();
             OpRecordA records = array[startPointer % DEPTH].records;
                 
             if (endPointer == startPointer) return 0;
     
             foreach (records[i])
-                if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > /*indB.mid*/ last_indB))
+                if (records[i].mid != -1 && (records[i].completed.and() === 0      || records[i].mid > last_indB))
                     return 0;
             
             return 1;
@@ -367,9 +367,7 @@ module ReorderBuffer
             if (frontCompleted()) begin
                 res = array[startPointer % DEPTH];
                 array[startPointer % DEPTH] = EMPTY_ROW;
-                startPointer = (startPointer+1) % (2*DEPTH);
-                //return readOutRow();
-                
+                startPointer = (startPointer+1) % (2*DEPTH);                
                 return res;
             end
             else
@@ -379,17 +377,13 @@ module ReorderBuffer
 
         function automatic Row readRowPart();
             Row head = array[startPointer % DEPTH];
+            //Row head = array[ind_Start.row % DEPTH];
             Row res = EMPTY_ROW;
         
             foreach (head.records[i]) begin
-                    if (i < ind_Start.slot) continue;
-            
-                if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) begin
-                    break;
-                end
-                
+                if (i < ind_Start.slot) continue;
+                if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) break;
                 res.records[i] = head.records[i];
-                
                 ind_Start = incIndex(ind_Start);
             end
             
