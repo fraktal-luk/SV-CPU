@@ -92,6 +92,9 @@ module ReorderBuffer
           lastOut = -1,     // last accepted as committed
           last_indB = -1;
     logic lastIsBreaking = 0;
+             logic arBr_Part = 0;
+             logic arBr_Whole = 0;
+    
     logic lateEventOngoing;
 
         RRQ rrq;
@@ -136,6 +139,10 @@ module ReorderBuffer
             add(inGroup);
         end
 
+
+                    if (startPointer != ind_Start.row) $error("differ  %d / %d", startPointer, ind_Start.row);
+
+
     end
 
 
@@ -162,21 +169,6 @@ module ReorderBuffer
         end
     endtask;
 
-
-
-    function automatic Row takeFromQueue(input Row row);
-        Row res = EMPTY_ROW;
-
-        foreach (row.records[i]) begin
-            if (row.records[i].mid != -1) begin
-                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-                res.records[i] = row.records[i];
-                if (breaksCommitId(row.records[i].mid)) break;
-            end
-        end
-
-        return res;
-    endfunction
 
 
     function automatic OpRecord tickRecord(input OpRecord rec);
@@ -207,15 +199,22 @@ module ReorderBuffer
         if (lateEventOngoing) begin            
             arrayHeadRow <= EMPTY_ROW;
                 arrayHeadPart <= EMPTY_ROW;
+                
+                
+            //  arBr_Part <= 0;
+             // arBr_Whole <= 0;
         end
         else begin
                 arrayHeadPartVar = readRowPart();
                 arrayHeadWholeVar = readArrRow();
             
-                    if (startPointer != ind_Start.row) $error("differ  %d / %d", startPointer, ind_Start.row);
+      
+               // arBr_Part <=  isAnyBreaking(arrayHeadPartVar.records);
+              //  arBr_Whole <= isAnyBreaking(arrayHeadWholeVar.records);
+      
             
-            arrayHeadRowVar = arrayHeadWholeVar;
-                              //arrayHeadPartVar;
+            arrayHeadRowVar = //arrayHeadWholeVar;
+                              arrayHeadPartVar;
     
             foreach (arrayHeadRowVar.records[i])
                 if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
@@ -242,6 +241,21 @@ module ReorderBuffer
         end
 
     endtask
+
+
+        function automatic Row takeFromQueue(input Row row);
+            Row res = EMPTY_ROW;
+    
+            foreach (row.records[i]) begin
+                if (row.records[i].mid != -1) begin
+                    assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+                    res.records[i] = row.records[i];
+                    if (breaksCommitId(row.records[i].mid)) break;
+                end
+            end
+    
+            return res;
+        endfunction
 
 
 
@@ -448,6 +462,16 @@ module ReorderBuffer
                 
         return brk;
     endfunction
+
+        function automatic logic isAnyBreaking(input OpRecordA recs);
+            logic brk = 0;
+            
+            foreach (recs[i])
+                if  (recs[i].mid != -1)
+                    if (breaksCommitId(recs[i].mid)) return 1;
+                    
+            return 0;
+        endfunction
 
     function automatic OpSlotAB makeOutGroup(input Row row);
         OpSlotAB res = '{default: EMPTY_SLOT_B};
