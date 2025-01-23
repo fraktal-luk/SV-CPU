@@ -80,8 +80,6 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    OpSlotAB robOut;
-
     DataReadReq TMP_readReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
@@ -96,7 +94,7 @@ module AbstractCore
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
     OpSlotAB sqOut, lqOut, bqOut;
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
         theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq, theExecBlock.toSqE2);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
@@ -463,13 +461,11 @@ module AbstractCore
         logic cancelRest = 0;
         // Don't commit anything more if event is being handled
 
-        foreach (robOut[i]) begin
-            InsId theId = robOut[i].mid;
+        foreach (theRob.retirementGroup[i]) begin
+            InsId theId = theRob.retirementGroup[i].mid;
             logic refetch, exception;
-           
-            assert (robOut[i].mid == theRob.retirementGroup[i].mid) else $fatal(2, "not same ids: %d, %d", robOut[i].mid, theRob.retirementGroup[i].mid);
-            
-            if (robOut[i].active !== 1 || theId == -1) continue;
+
+            if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
             if (cancelRest) $fatal(2, "Committing after break");
             
             refetch = insMap.get(theId).refetch;
