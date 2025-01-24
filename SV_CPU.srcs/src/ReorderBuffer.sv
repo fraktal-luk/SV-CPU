@@ -81,7 +81,7 @@ module ReorderBuffer
     
     InsId lastScanned = -1, // last id whoch was transfered to output queue
           lastOut = -1;     // last accepted as committed
-    logic lateEventOngoing, lastIsBreaking = 0;
+    logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
     
     TableIndex indB = '{0, 0, -1},
                ind_Start = '{0, 0, -1},
@@ -110,6 +110,8 @@ module ReorderBuffer
     always @(posedge AbstractCore.clk) begin
         retirementGroupPrev <= retirementGroup;
 
+        advanceDrain();
+
         doRetirement();
 
         readTable();
@@ -130,35 +132,7 @@ module ReorderBuffer
 
     end
 
-    
-    
-    task automatic TMP_setZ(input RobResult r);
-        TableIndex ti = indCommitted;
-    
-        while (1) begin
-            ti = incIndex(ti);
-            array_N[ti.row].records[ti.slot].used = 'z;                
-            if (ti.row == r.tableIndex.row && ti.slot == r.tableIndex.slot) break;
-        end
-    endtask
 
-
-    task automatic doRetirement();
-        foreach (outRow.records[i]) begin
-            InsId thisMid = outRow.records[i].mid;
-            RobResult rr[$];
-            
-            if (thisMid == -1) continue;
-            
-            rr = rrq.find with (item.id == thisMid);
-
-            TMP_setZ(rr[0]);
-
-            indCommitted <= rr[0].tableIndex;
-
-            if (breaksCommitId(thisMid)) break;
-        end
-    endtask;
 
 
 
@@ -182,37 +156,66 @@ module ReorderBuffer
     endfunction
 
 
-
-
-    function automatic Row takeFromQueue(input Row row);
-        Row res = EMPTY_ROW;
-
-        foreach (row.records[i]) begin
-            if (row.records[i].mid != -1) begin
-                assert (row.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-                res.records[i] = row.records[i];
-                if (breaksCommitId(row.records[i].mid)) break;
-            end
-        end
-
-        return res;
-    endfunction
-
-
     function automatic Row readRowPart();
         Row head = array[ind_Start.row % DEPTH];
         Row res = EMPTY_ROW;
     
         foreach (head.records[i]) begin
             if (i < ind_Start.slot) continue;
+            
             if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) break;
-            res.records[i] = head.records[i];
+            
             ind_Start = incIndex(ind_Start);
+            
+            if (head.records[i].mid == -1) continue;
+            
+            res.records[i] = head.records[i];
+
+            assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+            
+            if (breaksCommitId(head.records[i].mid)) break;
         end
         
         return res;
     endfunction
     
+    
+    task automatic TMP_setZ(input RobResult r);
+        TableIndex ti = indCommitted;
+    
+        while (1) begin
+            ti = incIndex(ti);
+            array_N[ti.row].records[ti.slot].used = 'z;                
+            if (ti.row == r.tableIndex.row && ti.slot == r.tableIndex.slot) break;
+        end
+    endtask
+
+
+
+    task automatic advanceDrain();
+        // FUTURE: this condition will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
+        while (drainPointer != indCommitted.row) begin
+           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
+           if (fd.size() != 0) break;
+           array_N[drainPointer % DEPTH] = EMPTY_ROW;
+           drainPointer = (drainPointer+1) % (2*DEPTH);
+        end
+    endtask
+
+    task automatic doRetirement();
+        foreach (outRow.records[i]) begin
+            InsId thisMid = outRow.records[i].mid;
+            RobResult r;
+            
+            if (thisMid == -1) continue;
+            r = rrq.pop_front();
+
+            TMP_setZ(r);
+            indCommitted <= r.tableIndex;
+            if (breaksCommitId(thisMid)) break;
+        end
+    endtask;
+
 
     task automatic readTable();
         Row arrayHeadRowVar, outRowVar, row;
@@ -227,7 +230,7 @@ module ReorderBuffer
                 if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
 
             arrayHeadRow <= arrayHeadRowVar;
-            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);   
+            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
         end
 
 
@@ -238,7 +241,7 @@ module ReorderBuffer
             lastIsBreaking <= 0;
         end
         else begin
-            outRowVar = takeFromQueue(row);
+            outRowVar = row;
             outRow <= outRowVar;
             lastOut <= getLastOut(lastOut, outRowVar.records);
             lastIsBreaking <= isLastBreaking(outRowVar.records);                
@@ -265,26 +268,12 @@ module ReorderBuffer
             end                
         end        
 
-        while (rrq.size() > 0 && (rrq[0].id <= coreDB.lastRetired.mid || rrq[0].id <= coreDB.lastRefetched.mid)) void'(rrq.pop_front());
 
-        advanceDrain();
-        
         rrqSize <= rrq.size();
         
         rrq_View = '{default: EMPTY_ROB_RESULT};
         foreach (rrq[i])
             rrq_View[i] = rrq[i];
-    endtask
-
-
-    task automatic advanceDrain();
-        // FUTURE: this condition will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
-        while (drainPointer != indCommitted.row) begin
-           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
-           if (fd.size() != 0) break;
-           array_N[drainPointer % DEPTH] = EMPTY_ROW;
-           drainPointer = (drainPointer+1) % (2*DEPTH);
-        end
     endtask
 
 
@@ -296,7 +285,6 @@ module ReorderBuffer
                 if (row[c].mid > indCommitted.mid) putMilestoneM(row[c].mid, InstructionMap::RobFlush);
         end
 
-        endPointer = backupPointer;
       
         foreach (array[r]) begin
             Row row = array[r];
@@ -313,6 +301,8 @@ module ReorderBuffer
                     array_N[r].records[c] = EMPTY_RECORD;
             end
         end
+        
+        endPointer = backupPointer;
     endtask
 
 
