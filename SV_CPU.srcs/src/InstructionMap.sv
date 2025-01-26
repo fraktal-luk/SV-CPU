@@ -279,22 +279,7 @@ package Insmap;
         localparam int RECORD_ARRAY_SIZE = 20;
     
             InsId reissuedId = -1;    
-    
-            int renamedM = 0;
             
-            int committedM = 0;
-                        
-            
-            function automatic void alloc();
-
-            endfunction
-
-            function automatic void dealloc();
-
-            endfunction
-
-
-
         // ins info
         function automatic InstructionInfo get(input InsId id);
             assert (insBase.minfos.exists(id)) else $fatal(2, "wrong id %d", id);

@@ -114,6 +114,8 @@ module ReplayQueue(
         UopPacket wrInput = AbstractCore.theSq.storeDataD2_E;
 
             foreach (content[i]) begin
+                    if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1}) continue;
+            
                 if (content[i].active && content[i].readyCnt > 0) begin
                     content[i].readyCnt--;
                     content[i].ready = (content[i].readyCnt == 0);
@@ -139,7 +141,15 @@ module ReplayQueue(
         
         // Entries waiting to be nonspeculative
         begin
-            //int found[$] = content.find_index with (item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == );
+            int found[$] = content.find_index with (!item.ready_N && item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == theRob.indNextToCommit.mid);
+            
+            assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
+            
+            if (found.size() != 0) begin
+                 //   $display("Wajeup mid %d", U2M(content[found[0]].uid));
+                content[found[0]].ready_N = 1;
+                
+            end
         end
     endtask
     

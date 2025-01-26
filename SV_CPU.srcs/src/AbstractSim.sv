@@ -696,6 +696,10 @@ package AbstractSim;
         return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
     endfunction
 
+    function automatic logic isBranchRegUop(input UopName name);
+        return name inside {UOP_br_z, UOP_br_nz};
+    endfunction
+
     function automatic logic isMemUop(input UopName name);
         return isLoadMemUop(name) || isStoreMemUop(name);
     endfunction

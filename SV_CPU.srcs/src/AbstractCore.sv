@@ -80,8 +80,6 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    OpSlotAB robOut;
-
     DataReadReq TMP_readReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
@@ -96,7 +94,7 @@ module AbstractCore
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
     OpSlotAB sqOut, lqOut, bqOut;
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1, robOut);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
         theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq, theExecBlock.toSqE2);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
@@ -463,27 +461,24 @@ module AbstractCore
         logic cancelRest = 0;
         // Don't commit anything more if event is being handled
 
-        foreach (robOut[i]) begin
-            InsId theId = robOut[i].mid;
+        foreach (theRob.retirementGroup[i]) begin
+            InsId theId = theRob.retirementGroup[i].mid;
             logic refetch, exception;
-           
-            assert (robOut[i].mid == theRob.retirementGroup[i].mid) else $fatal(2, "not same ids: %d, %d", robOut[i].mid, theRob.retirementGroup[i].mid);
-            
-            if (robOut[i].active !== 1 || theId == -1) continue;
+
+            if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
             if (cancelRest) $fatal(2, "Committing after break");
             
             refetch = insMap.get(theId).refetch;
             exception = insMap.get(theId).exception;
 
             commitOp(theId, theRob.retirementGroup[i]);
-                
-                insMap.dealloc();
-                insMap.committedM++;
-            
+
+            // RET: generate late event
             if (breaksCommitId(theId)) begin
                 lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
                 cancelRest = 1;
             end
+            
         end
         
     endtask
@@ -569,39 +564,45 @@ module AbstractCore
             coreDB.lastII = insInfo;
             if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
+            if (refetch) begin
+                coreDB.lastRefetched = TMP_properOp(id);
+            end
+            else begin
+                coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
+                coreDB.nRetired++;
+            end
+
         verifyOnCommit(id, retInfo);
 
+        // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
             UopInfo uInfo = insMap.getU(uid);
             registerTracker.commit(decUname(uid), uInfo.vDest, uid, refetch || exception); // Need to modify to handle Exceptional and Hidden
         end
 
+        // RET: update WQ
         if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
 
+        // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
-
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
         end
   
-        if (refetch) begin
-            coreDB.lastRefetched = TMP_properOp(id);
-        end
-        else begin
-            coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
-            coreDB.nRetired++;
-        end
+
 
         // Need to modify to serve all types of commit            
         putMilestoneM(id, retireType);
         insMap.setRetired(id);
 
         // Elements related to crucial signals:
+        // RET: update inds
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
+        // RET: update target
         retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, refetch, exception);
     endtask
 
