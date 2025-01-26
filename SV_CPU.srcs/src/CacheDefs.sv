@@ -28,8 +28,13 @@ package CacheDefs;
     
     typedef struct {
         logic allowed;
+            logic canRead;
+            logic canWrite;
+            logic canExec;
+            logic cached;
     } DataLineDesc;
 
+    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
 
     typedef struct {
         logic active;
@@ -56,7 +61,7 @@ package CacheDefs;
     localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
         0,
         CR_INVALID,
-        '{0},
+        DEFAULT_DATA_LINE_DESC,
         'x
     };
 

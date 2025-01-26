@@ -21,6 +21,8 @@ module DataL1(
     // TLB
     localparam int DATA_TLB_SIZE = 32;
     
+        localparam logic DONT_TRANSLATE = 1; // TMP
+        
     
     // Data and tag arrays
     PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
@@ -63,7 +65,7 @@ module DataL1(
         present: 0,
         vHigh: 'x,
         pHigh: 'x,
-        desc: '{0}
+        desc: DEFAULT_DATA_LINE_DESC
     };
 
 
@@ -112,7 +114,7 @@ module DataL1(
                 AccessInfo acc = analyzeAccess(vadr, 4);
                 Translation tr = translateAddress(vadr);
                 
-                DataCacheOutput thisResult = doReadAccess(acc);
+                DataCacheOutput thisResult = doReadAccess(acc, tr);
                 
                 PhysicalAddressHigh wayTag = tagsForWay[acc.block];
                 // if tr.present then:
@@ -126,14 +128,14 @@ module DataL1(
     endtask
 
 
-    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo);
+    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr);
         DataCacheOutput res;
 
         Mbyte chosenWord[4] = content[aInfo.adr +: 4];
         Mword wval = {>>{chosenWord}};
         Word val = Mword'(wval);
 
-        res = '{1, CR_HIT, '{0}, val};
+        res = '{1, CR_HIT, tr.desc, val};
 
         return res;
     endfunction 
@@ -182,12 +184,24 @@ module DataL1(
 
         if ($isunknown(adr)) return res;
 
+        // Not translated - so far address is mappend to the same  
+
         res.vHigh = adrHigh(adr);
 
         // TMP:
         res.pHigh = res.vHigh; // Direct mapping of memory
         res.present = 1; // Obviously
-        res.desc = '{0};
+        res.desc = '{
+            allowed: 1,
+            canRead: 1,
+            canWrite: 1,
+            canExec: 1,
+            cached: 1
+        };
+        
+        // TMP: uncached rnge
+        if (adr[31])
+            res.desc.cached = 0;
 
         return res;
     endfunction
