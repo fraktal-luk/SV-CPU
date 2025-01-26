@@ -124,76 +124,34 @@ module MemSubpipe#(
     endfunction
 
 
-    
-    
-    
-        function automatic UopPacket TMP_updateSysTransfer(input UopPacket p);
-            UopPacket res = p;
-            UidT uid = p.TMP_oid;
-
-            if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-                if (res.result > 31) begin
-                    insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
-                    res.status = ES_ILLEGAL;
-                end
-                
-                //return res;
-            end
-            
-            return res;
-            
-        endfunction
-
-
-        function automatic UopPacket TMP_updateStatus(input UopPacket p);
-            UopPacket res = p;
-            UidT uid = p.TMP_oid;
-
-            case (p.status)
-                ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
-                    if (DISP_UNCACHED) $display("..........................E1: uncached another pass, adr: %h", res.result);
-                    res.status = ES_UNCACHED_2;
-                end
-    
-                ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                    if (DISP_UNCACHED) $display("..........................E1: uncached final pass, adr: %h", res.result);
-                    res.status = ES_OK;
-                end 
-    
-                // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-                ES_SQ_MISS, ES_OK: begin // TODO: untangle ES_SQ_MISS from here? 
-                    // TEMP!
-                    if (res.result[31]) begin
-                        if (DISP_UNCACHED) $display("..........................E1: Uncache adr: %h", res.result);
-                        res.status = ES_UNCACHED_1;    
-                    end
-                    
-                end
-    
-                default: $fatal(2, "Wrong status of memory op");
-            endcase
-            
-            return res;
-            
-        endfunction
-
-
 
     function automatic UopPacket updateE1(input UopPacket p);
         UopPacket res = p;
+        return res;
+    endfunction
+
+
+    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p);
+        UopPacket res = p;
         UidT uid = p.TMP_oid;
 
-        if (!p.active) return res;
-        
-        //res = TMP_updateSysTransfer(res);
+        Mword3 args = insMap.getU(uid).argsA;
 
-        
-        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin            
-            return res;
+        if (res.result > 31) begin
+            insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+            res.status = ES_ILLEGAL;
+               // res.result = 'x;  // TODO: In Emulation, if access causes exceptino, set value to 'x, and do it here
         end
         
-        //res = TMP_updateStatus(res);
-        
+        if (isLoadSysUop(decUname(uid))) begin
+            Mword val = getSysReg(args[1]);
+            insMap.setActualResult(uid, val);
+            res.result = val;
+        end
+
+        if (isStoreSysUop(decUname(uid))) begin
+        end
+
         return res;
     endfunction
 
@@ -202,60 +160,41 @@ module MemSubpipe#(
     function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
-        Mword3 args;
 
         if (!p.active) return res;
 
-        args = insMap.getU(uid).argsA;
-
+        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
             res = TMP_updateSysTransfer(res);
-
-
-        if (isLoadSysUop(decUname(uid))) begin
-            Mword val = getSysReg(args[1]);
-            insMap.setActualResult(uid, val);
-            res.result = val;
-            return res;
-        end
-
-        if (isStoreSysUop(decUname(uid))) begin
-            // For store sys uops: nothing happens in this function
             return res;
         end
         
-            res = TMP_updateStatus(res);
+        // 
+        case (p.status)
+            ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
+                if (DISP_UNCACHED) $display("..........................E1: uncached another pass, adr: %h", res.result);
+                res.status = ES_UNCACHED_2;
+                return res; // To RQ again
+            end
 
-        
-        
-            case (res.status)
-                ES_UNCACHED_1: begin
-                       if (DISP_UNCACHED) $display("..........................    E2: Uncache 1: %h", res.result);
-                    return res;
+            ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
+                if (DISP_UNCACHED) $display("..........................E1: uncached final pass, adr: %h", res.result);
+                res.status = ES_OK; // Go on to handle mem result
+            end 
+
+            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
+            ES_SQ_MISS, ES_OK: begin // TODO: untangle ES_SQ_MISS from here? 
+                // TEMP!
+                if (res.result[31]) begin
+                    if (DISP_UNCACHED) $display("..........................E1: Uncache adr: %h", res.result);
+                    res.status = ES_UNCACHED_1;  
+                    return res; // go to RQ
                 end
-                
-                ES_UNCACHED_2: begin
-                        if (DISP_UNCACHED) $display("..........................    E2: Uncache 2: %h", res.result);
-                    return res;
-                end
-                
-                ES_SQ_MISS, ES_OK: begin
-                
-                end
-                
-                default: $fatal(2, "Wrong status");
-            endcase
-        
-        
-        // TODO: cache response. Handle misses etc
-        if (0) begin
-            // cacheResp: missed? etc
-            
-            return res;
-        end
-        
-        
+            end
+
+            default: $fatal(2, "Wrong status of memory op");
+        endcase
+
         // No misses or special actions, typical load/store
-        
         if (isLoadMemUop(decUname(uid))) begin
             if (sqResp.active) begin
                 if (sqResp.status == ES_CANT_FORWARD) begin
@@ -288,7 +227,7 @@ module MemSubpipe#(
                 insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
             
-            res.status = ES_OK;
+            res.status = ES_OK; // TODO: don't set to OK if misses etc
         end
 
         return res;
