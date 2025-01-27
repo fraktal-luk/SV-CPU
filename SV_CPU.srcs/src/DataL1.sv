@@ -23,10 +23,54 @@ module DataL1(
     
         localparam logic DONT_TRANSLATE = 1; // TMP
         
+    typedef Mbyte DataBlock[BLOCK_SIZE];
+    
+    
+    
+    
+        function automatic logic isRangeUncached(input Mword adr);
+            return adr[31];
+        endfunction 
+    
+        function automatic logic isRangeDataMiss(input Mword adr);
+            return adr[30];
+        endfunction 
+
+
+  
     
     // Data and tag arrays
     PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
     Mbyte content[4096]; // So far this corresponds to way 0
+
+        // CAREFUL: below only for addresses in the range for data miss tests 
+        DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+        int       fillingCounters[Mword];
+
+
+        task automatic handleFills();
+            foreach (fillingCounters[a]) begin
+                    $error("Entry: %h -> %d", a, fillingCounters[a]);
+            
+                if (fillingCounters[a] == 0) begin
+                    allocInMissRange(a);
+                    fillingCounters.delete(a);
+                end
+                else
+                    fillingCounters[a]--;
+            end
+            
+        endtask 
+
+        task automatic scheduleBlockFill(input Mword adr);
+            Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+
+            if (!fillingCounters.exists(physBase));
+                fillingCounters[physBase] = 15;
+            
+            
+                $error("started cnt %h", physBase);
+        endtask
 
 
     typedef struct {
@@ -58,6 +102,7 @@ module DataL1(
         logic present; // TLB hit
         VirtualAddressHigh vHigh;
         PhysicalAddressHigh pHigh;
+            Mword phys;
         DataLineDesc desc;
     } Translation;
 
@@ -65,6 +110,7 @@ module DataL1(
         present: 0,
         vHigh: 'x,
         pHigh: 'x,
+            phys: 'x,
         desc: DEFAULT_DATA_LINE_DESC
     };
 
@@ -75,6 +121,9 @@ module DataL1(
 
 
     always @(posedge clk) begin
+        handleFills();
+    
+    
         handleReads();
         handleWrites();
         
@@ -83,6 +132,9 @@ module DataL1(
 
     function automatic void reset();
         content = '{default: 0};
+        
+            filledBlocks.delete();
+            fillingCounters.delete();
     endfunction
 
 
@@ -98,17 +150,50 @@ module DataL1(
     endtask
 
 
-    task automatic handleReads();
-        foreach (accesses[p]) begin
-            accesses[p] <= analyzeAccess(readReqs[p].adr, 4);
-            translations[p] <= translateAddress(readReqs[p].adr);
-        end
+        
+        
+        function automatic logic isPhysPresent(input Mword adr);
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
+            
+            return filledBlocks.exists(physBlockBase);
+        endfunction
+
+
+        function automatic Mword readFromMissRange(input Mword adr);
+            // TODO: for now only word-sized
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+            DataBlock block = filledBlocks[physBlockBase];
+            PhysicalAddressLow physLow = adrLow(adr);
+
+            Mbyte chosenWord[4] = block[physLow +: 4];
+            Mword wval = {>>{chosenWord}};
+            Word val = Mword'(wval);
+            
+            return val;
+        endfunction
+
+
+        function automatic void allocInMissRange(input Mword adr);
+            // TODO: for now only word-sized
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+            DataBlock block = '{default: 0};
+            
+            filledBlocks[physBlockBase] = block;
+            
+                $error("Allocating block at %h", physBlockBase);
+        endfunction
+        
+
+    task automatic handleReads();
         foreach (readReqs[p]) begin
             Mword vadr = readReqs[p].adr;
 
             if ($isunknown(vadr)) begin
                 readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
+                
+                    accesses[p] <= DEFAULT_ACCESS_INFO;
+                    translations[p] <= DEFAULT_TRANSLATION;
             end
             else begin
                 AccessInfo acc = analyzeAccess(vadr, 4);
@@ -120,8 +205,25 @@ module DataL1(
                 // if tr.present then:
                 // now compare tr.pHigh to wayTag
                 // if match, re.desc is applied and thisResult.data is applied 
-                
+                    
+                    // TMP: testing data miss handling
+                    if (isRangeDataMiss(tr.phys)) begin
+                        if (isPhysPresent(tr.phys)) begin
+                            thisResult.data = readFromMissRange(tr.phys);
+                        end
+                        else begin
+                            thisResult.status = CR_TAG_MISS;
+                            
+                                $error("must allocate %h", tr.phys);
+                            
+                            scheduleBlockFill(tr.phys);
+                        end
+                    end
+                    
                 readOut[p] <= thisResult;
+                
+                    accesses[p] <= acc;
+                    translations[p] <= tr;
             end
 
         end
@@ -198,7 +300,9 @@ module DataL1(
             canExec: 1,
             cached: 1
         };
-        
+
+            res.phys = {res.pHigh, adrLow(adr)};
+            
         // TMP: uncached rnge
         if (adr[31])
             res.desc.cached = 0;

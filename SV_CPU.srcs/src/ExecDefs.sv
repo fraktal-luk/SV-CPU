@@ -30,13 +30,14 @@ package ExecDefs;
             ES_UNCACHED_1,
             ES_UNCACHED_2,
         ES_SQ_MISS,
+            ES_DATA_MISS,
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
         ES_ILLEGAL
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS};
     endfunction
 
     typedef struct {
@@ -504,8 +505,9 @@ package ExecDefs;
     localparam int PHYS_ADR_BITS = 40;
 
     typedef logic[PHYS_ADR_BITS-1:V_INDEX_BITS] PhysicalAddressHigh;
+    typedef VirtualAddressLow PhysicalAddressLow;
 
-
+    // Caches
     localparam int BLOCK_SIZE = 64;
     localparam int WAY_SIZE = 4096;
     

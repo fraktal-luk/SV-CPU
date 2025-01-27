@@ -183,13 +183,12 @@ module MemSubpipe#(
 
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
             ES_SQ_MISS, ES_OK: begin // TODO: untangle ES_SQ_MISS from here? 
-                // TEMP!
-                
-//                //    assert (!cacheResp.desc.cached === res.result[31]) else $error("not same c statys");
-                
-//                if (!cacheResp.desc.cached) begin
-//                    //$error("uncached acc");
-//                end
+                if (cacheResp.status == CR_TAG_MISS) begin
+                    $error("Data access misses: %h", res.result);
+                        
+                        //res.status = ES_DATA_MISS;
+                        //return res;
+                end
                 
                 if (!cacheResp.desc.cached) begin
                     if (DISP_UNCACHED) $error("..........................E1: Uncache adr: %h", res.result);
