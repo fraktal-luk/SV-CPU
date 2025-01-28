@@ -115,6 +115,7 @@ module MemSubpipe#(
             ES_SQ_MISS: ;
             ES_UNCACHED_1: ;
             ES_UNCACHED_2: ;
+                ES_DATA_MISS: ;
             default: $fatal(2, "Wrong status of memory op");
         endcase
         
@@ -182,12 +183,12 @@ module MemSubpipe#(
             end 
 
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_SQ_MISS, ES_OK: begin // TODO: untangle ES_SQ_MISS from here? 
+            ES_SQ_MISS, ES_OK,   ES_DATA_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
                 if (cacheResp.status == CR_TAG_MISS) begin
-                    $error("Data access misses: %h", res.result);
+                  //  $error("Data access misses: %h", res.result);
                         
-                        //res.status = ES_DATA_MISS;
-                        //return res;
+                        res.status = ES_DATA_MISS;
+                        return res;
                 end
                 
                 if (!cacheResp.desc.cached) begin

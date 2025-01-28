@@ -93,7 +93,7 @@ module ReplayQueue(
              //   if (inPackets[i].status == ES_NOT_READY) $error("RQ accepts not ready FW");
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0 /*inPackets[i].active*/, 5,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr};
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0 /*inPackets[i].active*/, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
@@ -112,9 +112,10 @@ module ReplayQueue(
 
     task automatic wakeup();
         UopPacket wrInput = AbstractCore.theSq.storeDataD2_E;
-
+            
+            // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin
-                    if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1}) continue;
+                    if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1,    ES_DATA_MISS}) continue;
             
                 if (content[i].active && content[i].readyCnt > 0) begin
                     content[i].readyCnt--;
@@ -149,6 +150,16 @@ module ReplayQueue(
                  //   $display("Wajeup mid %d", U2M(content[found[0]].uid));
                 content[found[0]].ready_N = 1;
                 
+            end
+        end
+        
+        if (AbstractCore.dataCache.notifyFill) begin
+            foreach (content[i]) begin
+                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
+                    content[i].ready_N = 1;
+                    
+                    //$error("wakeup in RQ:  %d, %h", U2M(content[i].uid), AbstractCore.dataCache.notifiedAdr);
+                end
             end
         end
     endtask

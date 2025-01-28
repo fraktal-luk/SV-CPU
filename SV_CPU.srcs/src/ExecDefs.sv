@@ -514,5 +514,14 @@ package ExecDefs;
     
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
 
+    function automatic VirtualAddressLow adrLow(input EffectiveAddress adr);
+        return adr[V_INDEX_BITS-1:0];
+    endfunction
+
+    function automatic VirtualAddressHigh adrHigh(input EffectiveAddress adr);
+        return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
+    endfunction
+
+
 
 endpackage

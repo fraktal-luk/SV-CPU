@@ -37,6 +37,8 @@ module DataL1(
         endfunction 
 
 
+    logic notifyFill = 0;
+    Mword notifiedAdr = 'x;
   
     
     // Data and tag arrays
@@ -46,20 +48,33 @@ module DataL1(
         // CAREFUL: below only for addresses in the range for data miss tests 
         DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
         int       fillingCounters[Mword];
-
+        Mword     readyToFill[$];
 
         task automatic handleFills();
+            Mword adr;
+            
+                notifyFill <= 0;
+                notifiedAdr <= 'x;
+            
             foreach (fillingCounters[a]) begin
-                    $error("Entry: %h -> %d", a, fillingCounters[a]);
+               //     $error("Entry: %h -> %d", a, fillingCounters[a]);
             
                 if (fillingCounters[a] == 0) begin
-                    allocInMissRange(a);
-                    fillingCounters.delete(a);
+                    readyToFill.push_back(a);
+                    fillingCounters[a] = -1;
                 end
                 else
                     fillingCounters[a]--;
             end
             
+            if (readyToFill.size() == 0) return;
+            
+            adr = readyToFill.pop_front();
+            allocInMissRange(adr);
+            fillingCounters.delete(adr);
+ 
+                notifyFill <= 1;
+                notifiedAdr <= adr;           
         endtask 
 
         task automatic scheduleBlockFill(input Mword adr);
@@ -69,7 +84,7 @@ module DataL1(
                 fillingCounters[physBase] = 15;
             
             
-                $error("started cnt %h", physBase);
+              //  $error("started cnt %h", physBase);
         endtask
 
 
@@ -135,6 +150,7 @@ module DataL1(
         
             filledBlocks.delete();
             fillingCounters.delete();
+            readyToFill.delete();
     endfunction
 
 
@@ -154,11 +170,15 @@ module DataL1(
         
         function automatic logic isPhysPresent(input Mword adr);
             Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-
-            
             return filledBlocks.exists(physBlockBase);
         endfunction
 
+        function automatic logic isPhysPending(input Mword adr);
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+            return fillingCounters.exists(physBlockBase);
+        endfunction
+        
+        
 
         function automatic Mword readFromMissRange(input Mword adr);
             // TODO: for now only word-sized
@@ -181,7 +201,7 @@ module DataL1(
             
             filledBlocks[physBlockBase] = block;
             
-                $error("Allocating block at %h", physBlockBase);
+            //    $error("Allocating block at %h", physBlockBase);
         endfunction
         
 
@@ -211,10 +231,14 @@ module DataL1(
                         if (isPhysPresent(tr.phys)) begin
                             thisResult.data = readFromMissRange(tr.phys);
                         end
+                        else if (isPhysPending(tr.phys)) begin
+                            thisResult.status = CR_TAG_MISS; // Already sent for allocation
+
+                        end
                         else begin
                             thisResult.status = CR_TAG_MISS;
                             
-                                $error("must allocate %h", tr.phys);
+                              //  $error("must allocate %h", tr.phys);
                             
                             scheduleBlockFill(tr.phys);
                         end
@@ -242,15 +266,6 @@ module DataL1(
         return res;
     endfunction 
 
-
-
-    function automatic VirtualAddressLow adrLow(input EffectiveAddress adr);
-        return adr[V_INDEX_BITS-1:0];
-    endfunction
-
-    function automatic VirtualAddressHigh adrHigh(input EffectiveAddress adr);
-        return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
-    endfunction
 
 
     function automatic AccessInfo analyzeAccess(input EffectiveAddress adr, input int accessSize);
