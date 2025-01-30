@@ -9,7 +9,6 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
-    //import UopList::*;
 
 
     localparam int N_INT_PORTS = 4;
@@ -447,81 +446,9 @@ package ExecDefs;
     endfunction
 
 
-        function automatic Mword calcEffectiveAddress(Mword3 args);
-            return args[0] + args[1];
-        endfunction
-
-
-//////////////////
-    typedef struct {
-        logic active;
-        Mword adr;
-    } DataReadReq;
-
-    localparam DataReadReq EMPTY_READ_REQ = '{0, 'x};
-
-    typedef struct {
-        logic active;
-        Mword result;
-    } DataReadResp;
-
-    localparam DataReadResp EMPTY_READ_RESP = '{1, 'x};
-
-    // Write buffer
-    typedef struct {
-        logic active;
-        InsId mid;
-        logic cancel;
-        logic sys;
-        Mword adr;
-        Mword val;
-    } StoreQueueEntry;
-
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x};
-
-    typedef struct {
-        logic req;
-        Mword adr;
-        Mword value;
-    } MemWriteInfo;
-    
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
-
-
-   
-//////////////////
-// Cache specific
-
-    typedef Dword EffectiveAddress;
-
-    localparam int PAGE_SIZE = 4096;
-
-    localparam int V_INDEX_BITS = 12;
-    localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
-    
-    typedef logic[V_INDEX_BITS-1:0] VirtualAddressLow;
-    typedef logic[$size(EffectiveAddress)-1:V_INDEX_BITS] VirtualAddressHigh;
-
-    localparam int PHYS_ADR_BITS = 40;
-
-    typedef logic[PHYS_ADR_BITS-1:V_INDEX_BITS] PhysicalAddressHigh;
-    typedef VirtualAddressLow PhysicalAddressLow;
-
-    // Caches
-    localparam int BLOCK_SIZE = 64;
-    localparam int WAY_SIZE = 4096;
-    
-    
-    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
-
-    function automatic VirtualAddressLow adrLow(input EffectiveAddress adr);
-        return adr[V_INDEX_BITS-1:0];
+    function automatic Mword calcEffectiveAddress(Mword3 args);
+        return args[0] + args[1];
     endfunction
-
-    function automatic VirtualAddressHigh adrHigh(input EffectiveAddress adr);
-        return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
-    endfunction
-
 
 
 endpackage

@@ -50,14 +50,24 @@ module DataL1(
         int       fillingCounters[Mword];
         Mword     readyToFill[$];
 
+
+
+    AccessInfo accesses[N_MEM_PORTS];
+    Translation translations[N_MEM_PORTS];        
+
+
+
+
+
+
+
         task automatic handleFills();
             Mword adr;
             
-                notifyFill <= 0;
-                notifiedAdr <= 'x;
-            
+            notifyFill <= 0;
+            notifiedAdr <= 'x;
+        
             foreach (fillingCounters[a]) begin
-               //     $error("Entry: %h -> %d", a, fillingCounters[a]);
             
                 if (fillingCounters[a] == 0) begin
                     readyToFill.push_back(a);
@@ -72,82 +82,20 @@ module DataL1(
             adr = readyToFill.pop_front();
             allocInMissRange(adr);
             fillingCounters.delete(adr);
- 
-                notifyFill <= 1;
-                notifiedAdr <= adr;           
+
+            notifyFill <= 1;
+            notifiedAdr <= adr;           
         endtask 
 
         task automatic scheduleBlockFill(input Mword adr);
             Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
             if (!fillingCounters.exists(physBase));
-                fillingCounters[physBase] = 15;
-            
-            
-              //  $error("started cnt %h", physBase);
+                fillingCounters[physBase] = 15;            
         endtask
-
-
-    typedef struct {
-        EffectiveAddress adr;
-        int accessSize;
-        VirtualAddressHigh aHigh;
-        VirtualAddressLow aLow;
-        int block;
-        int blockOffset;
-        logic unaligned;
-        logic blockCross;
-        logic pageCross;
-    } AccessInfo;
-
-    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-        adr: 'x,
-        accessSize: -1,
-        aHigh: 'x,
-        aLow: 'x,
-        block: -1,
-        blockOffset: -1,
-        unaligned: 'x,
-        blockCross: 'x,
-        pageCross: 'x 
-    };
-
-
-    typedef struct {
-        logic present; // TLB hit
-        VirtualAddressHigh vHigh;
-        PhysicalAddressHigh pHigh;
-            Mword phys;
-        DataLineDesc desc;
-    } Translation;
-
-    localparam Translation DEFAULT_TRANSLATION = '{
-        present: 0,
-        vHigh: 'x,
-        pHigh: 'x,
-            phys: 'x,
-        desc: DEFAULT_DATA_LINE_DESC
-    };
-
-
-    AccessInfo accesses[N_MEM_PORTS];
-    Translation translations[N_MEM_PORTS];        
-
-
-
-    always @(posedge clk) begin
-        handleFills();
-    
-    
-        handleReads();
-        handleWrites();
-        
-    end
-
 
     function automatic void reset();
         content = '{default: 0};
-        
             filledBlocks.delete();
             fillingCounters.delete();
             readyToFill.delete();
@@ -155,7 +103,6 @@ module DataL1(
 
 
     task automatic handleWrites();
-
         doWrite(TMP_writeReqs[0]);
     endtask
 
@@ -164,7 +111,6 @@ module DataL1(
         Mbyte wval[4] = {>>{wrInfo.value}};
         if (wrInfo.req) content[wrInfo.adr +: 4] <= wval;
     endtask
-
 
         
         
@@ -199,9 +145,7 @@ module DataL1(
             Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
             DataBlock block = '{default: 0};
             
-            filledBlocks[physBlockBase] = block;
-            
-            //    $error("Allocating block at %h", physBlockBase);
+            filledBlocks[physBlockBase] = block;            
         endfunction
         
 
@@ -211,43 +155,37 @@ module DataL1(
 
             if ($isunknown(vadr)) begin
                 readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
-                
-                    accesses[p] <= DEFAULT_ACCESS_INFO;
-                    translations[p] <= DEFAULT_TRANSLATION;
+                accesses[p] <= DEFAULT_ACCESS_INFO;
+                translations[p] <= DEFAULT_TRANSLATION;
             end
             else begin
                 AccessInfo acc = analyzeAccess(vadr, 4);
                 Translation tr = translateAddress(vadr);
-                
+                PhysicalAddressHigh wayTag = tagsForWay[acc.block];
+               
                 DataCacheOutput thisResult = doReadAccess(acc, tr);
                 
-                PhysicalAddressHigh wayTag = tagsForWay[acc.block];
                 // if tr.present then:
                 // now compare tr.pHigh to wayTag
                 // if match, re.desc is applied and thisResult.data is applied 
                     
-                    // TMP: testing data miss handling
-                    if (isRangeDataMiss(tr.phys)) begin
-                        if (isPhysPresent(tr.phys)) begin
-                            thisResult.data = readFromMissRange(tr.phys);
-                        end
-                        else if (isPhysPending(tr.phys)) begin
-                            thisResult.status = CR_TAG_MISS; // Already sent for allocation
-
-                        end
-                        else begin
-                            thisResult.status = CR_TAG_MISS;
-                            
-                              //  $error("must allocate %h", tr.phys);
-                            
-                            scheduleBlockFill(tr.phys);
-                        end
+                // TMP: testing data miss handling
+                if (isRangeDataMiss(tr.phys)) begin
+                    if (isPhysPresent(tr.phys)) begin
+                        thisResult.data = readFromMissRange(tr.phys);
                     end
+                    else if (isPhysPending(tr.phys)) begin
+                        thisResult.status = CR_TAG_MISS; // Already sent for allocation
+                    end
+                    else begin
+                        thisResult.status = CR_TAG_MISS;                            
+                        scheduleBlockFill(tr.phys);
+                    end
+                end
                     
                 readOut[p] <= thisResult;
-                
-                    accesses[p] <= acc;
-                    translations[p] <= tr;
+                accesses[p] <= acc;
+                translations[p] <= tr;
             end
 
         end
@@ -267,33 +205,6 @@ module DataL1(
     endfunction 
 
 
-
-    function automatic AccessInfo analyzeAccess(input EffectiveAddress adr, input int accessSize);
-        AccessInfo res;
-        
-        VirtualAddressLow aLow = adrLow(adr);
-        VirtualAddressHigh aHigh = adrHigh(adr);
-        
-        int block = aLow / BLOCK_SIZE;
-        int blockOffset = aLow % BLOCK_SIZE;
-        
-        if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-        
-        res.adr = adr;
-        res.accessSize = accessSize;
-        
-        res.aHigh = aHigh;
-        res.aLow = aLow;
-        
-        res.block = block;
-        res.blockOffset = blockOffset;
-        
-        res.unaligned = (aLow % accessSize) > 0;
-        res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-        res.pageCross = (aLow + accessSize) > PAGE_SIZE;
-
-        return res;
-    endfunction
 
 
     function automatic Translation translateAddress(input EffectiveAddress adr);
@@ -324,5 +235,14 @@ module DataL1(
 
         return res;
     endfunction
+
+
+    always @(posedge clk) begin
+        handleFills();
+    
+        handleReads();
+        handleWrites();    
+    end
+
 
 endmodule

@@ -165,7 +165,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     DataReadReq readReqs[N_MEM_PORTS];
-    DataReadResp readResps[N_MEM_PORTS];
+    //DataReadResp readResps[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     
     logic TMP_memAllow;
