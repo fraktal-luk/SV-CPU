@@ -165,7 +165,7 @@ module MemSubpipe#(
                 end
                 else if (cacheResp.status == CR_TLB_MISS) begin
                     res.status = ES_TLB_MISS;
-                        $error("TLB misses at %h", res.result);
+                      //  $error("TLB misses at %h", res.result);
                     return res;
                 end
 

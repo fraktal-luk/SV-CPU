@@ -72,7 +72,7 @@ module DataL1(
 
 
 
-        task automatic handleFills();
+        task automatic handleBlockFills();
             Mword adr;
             
             notifyFill <= 0;
@@ -98,6 +98,43 @@ module DataL1(
             notifiedAdr <= adr;           
         endtask 
 
+
+        task automatic handleTlbFills();
+            Mword adr;
+            
+            notifyTlbFill <= 0;
+            notifiedTlbAdr <= 'x;
+        
+            foreach (mappingFillCounters[a]) begin
+            
+                     //   $error("Entry  %h -> %d", a, mappingFillCounters[a]);
+            
+                if (mappingFillCounters[a] == 0) begin
+                    readyMappingsToFill.push_back(a);
+                    mappingFillCounters[a] = -1;
+                end
+                else
+                    mappingFillCounters[a]--;
+            end
+            
+            if (readyMappingsToFill.size() == 0) return;
+            
+            adr = readyMappingsToFill.pop_front();
+            allocInTlb(adr);
+            mappingFillCounters.delete(adr);
+
+            notifyTlbFill <= 1;
+            notifiedTlbAdr <= adr;           
+        endtask 
+        
+
+        task automatic handleFills();
+            handleBlockFills();
+            handleTlbFills();
+        endtask
+
+
+
         function automatic void scheduleBlockFill(input Mword adr);
             Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
@@ -107,6 +144,8 @@ module DataL1(
 
         function automatic void scheduleTlbFill(input Mword adr);
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+
+               // $error(">>>  Alocating  ");
 
             if (!mappingFillCounters.exists(pageBase))
                 mappingFillCounters[pageBase] = 12;  
@@ -177,13 +216,22 @@ module DataL1(
 
 
         function automatic void allocInMissRange(input Mword adr);
-            // TODO: for now only word-sized
             Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
             DataBlock block = '{default: 0};
             
             filledBlocks[physBlockBase] = block;            
         endfunction
-        
+
+        function automatic void allocInTlb(input Mword adr);
+            Translation DUMMY; 
+            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+            //DataBlock block = '{default: 0};
+            
+                  //  $error("Flling mapping: %h", adr);
+            
+            filledMappings[pageBase] = DUMMY;            
+        endfunction
+       
 
     task automatic handleReads();
         foreach (readReqs[p]) begin

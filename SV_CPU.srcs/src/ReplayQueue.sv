@@ -168,7 +168,7 @@ module ReplayQueue(
                 if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedTlbAdr)) begin// TODO: consider that cache fill by physical adr!
                     content[i].ready_N = 1;
                     
-                    $error("wakeup in RQ:  %d, %h", U2M(content[i].uid), AbstractCore.dataCache.notifiedTlbAdr);
+                   // $error("wakeup in RQ:  %d, %h", U2M(content[i].uid), AbstractCore.dataCache.notifiedTlbAdr);
                 end
             end
         end
