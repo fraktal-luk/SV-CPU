@@ -25,8 +25,7 @@ module DataL1(
         
     typedef Mbyte DataBlock[BLOCK_SIZE];
     
-    
-    
+
     
         function automatic logic isRangeUncached(input Mword adr);
             return adr[31];
@@ -47,7 +46,6 @@ module DataL1(
     logic notifyTlbFill = 0;
     Mword notifiedTlbAdr = 'x;
 
-
    
         // CAREFUL: below only for addresses in the range for data miss tests 
         DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
@@ -58,7 +56,6 @@ module DataL1(
         Translation   filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
         int       mappingFillCounters[Mword];
         Mword     readyMappingsToFill[$];
-
 
 
 
@@ -104,14 +101,14 @@ module DataL1(
         function automatic void scheduleBlockFill(input Mword adr);
             Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
-            if (!blockFillCounters.exists(physBase));
+            if (!blockFillCounters.exists(physBase))
                 blockFillCounters[physBase] = 15;            
         endfunction
 
         function automatic void scheduleTlbFill(input Mword adr);
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
 
-            if (!mappingFillCounters.exists(pageBase));
+            if (!mappingFillCounters.exists(pageBase))
                 mappingFillCounters[pageBase] = 12;  
         endfunction
         
@@ -120,13 +117,13 @@ module DataL1(
         content = '{default: 0};
         tagsForWay = '{default: 0};
         
-            filledBlocks.delete();
-            blockFillCounters.delete();
-            readyBlocksToFill.delete();
-            
-            filledMappings.delete();
-            mappingFillCounters.delete();
-            readyMappingsToFill.delete();
+        filledBlocks.delete();
+        blockFillCounters.delete();
+        readyBlocksToFill.delete();
+        
+        filledMappings.delete();
+        mappingFillCounters.delete();
+        readyMappingsToFill.delete();
     endfunction
 
 
@@ -221,7 +218,6 @@ module DataL1(
             res.status = CR_TLB_MISS;
             return res;
         end
-        
         
         // if tr.present then:
         // now compare tr.pHigh to wayTag

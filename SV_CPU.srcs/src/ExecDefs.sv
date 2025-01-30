@@ -30,13 +30,14 @@ package ExecDefs;
             ES_UNCACHED_2,
         ES_SQ_MISS,
             ES_DATA_MISS,
+            ES_TLB_MISS,
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
         ES_ILLEGAL
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS};
     endfunction
 
     typedef struct {

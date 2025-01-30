@@ -115,7 +115,7 @@ module ReplayQueue(
             
             // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin
-                    if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1,    ES_DATA_MISS}) continue;
+                    if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1,    ES_DATA_MISS    /*, ES_TLB_MISS*/   }) continue;
             
                 if (content[i].active && content[i].readyCnt > 0) begin
                     content[i].readyCnt--;
@@ -155,10 +155,20 @@ module ReplayQueue(
         
         if (AbstractCore.dataCache.notifyFill) begin
             foreach (content[i]) begin
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
+                if (blockBaseD(content[i].adr) === blockBaseD(AbstractCore.dataCache.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
                     content[i].ready_N = 1;
                     
                     //$error("wakeup in RQ:  %d, %h", U2M(content[i].uid), AbstractCore.dataCache.notifiedAdr);
+                end
+            end
+        end
+        
+        if (AbstractCore.dataCache.notifyTlbFill) begin
+            foreach (content[i]) begin
+                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedTlbAdr)) begin// TODO: consider that cache fill by physical adr!
+                    content[i].ready_N = 1;
+                    
+                    $error("wakeup in RQ:  %d, %h", U2M(content[i].uid), AbstractCore.dataCache.notifiedTlbAdr);
                 end
             end
         end

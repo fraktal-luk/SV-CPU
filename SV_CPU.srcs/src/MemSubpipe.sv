@@ -116,6 +116,7 @@ module MemSubpipe#(
             ES_UNCACHED_1: ;
             ES_UNCACHED_2: ;
                 ES_DATA_MISS: ;
+                ES_TLB_MISS: ;
             default: $fatal(2, "Wrong status of memory op");
         endcase
         
@@ -130,6 +131,57 @@ module MemSubpipe#(
         UopPacket res = p;
         return res;
     endfunction
+
+
+    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+        UopPacket res = p;
+        UidT uid = p.TMP_oid;
+
+        if (!p.active) return res;
+
+        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
+            res = TMP_updateSysTransfer(res);
+            return res;
+        end
+
+        case (p.status)
+            ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
+                if (DISP_UNCACHED) $display("..........................E1: uncached another pass, adr: %h", res.result);
+                res.status = ES_UNCACHED_2;
+                return res; // To RQ again
+            end
+
+            ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
+                if (DISP_UNCACHED) $display("..........................E1: uncached final pass, adr: %h", res.result);
+                res.status = ES_OK; // Go on to handle mem result
+            end 
+
+            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
+            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
+                if (cacheResp.status == CR_TAG_MISS) begin
+                  //  $error("Data access misses: %h", res.result);
+                    res.status = ES_DATA_MISS;
+                    return res;
+                end
+                else if (cacheResp.status == CR_TLB_MISS) begin
+                    res.status = ES_TLB_MISS;
+                        $error("TLB misses at %h", res.result);
+                    return res;
+                end
+
+                if (!cacheResp.desc.cached) begin
+                    if (DISP_UNCACHED) $error("..........................E1: Uncache adr: %h", res.result);
+                    res.status = ES_UNCACHED_1;  
+                    return res; // go to RQ
+                end
+            end
+
+            default: $fatal(2, "Wrong status of memory op");
+        endcase
+
+        return updateE2_Regular(p, cacheResp, sqResp, lqResp);
+    endfunction
+
 
 
     function automatic UopPacket TMP_updateSysTransfer(input UopPacket p);
@@ -156,50 +208,9 @@ module MemSubpipe#(
         return res;
     endfunction
 
-
-
-    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket updateE2_Regular(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
-
-        if (!p.active) return res;
-
-        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-            res = TMP_updateSysTransfer(res);
-            return res;
-        end
-        
-        // 
-        case (p.status)
-            ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
-                if (DISP_UNCACHED) $display("..........................E1: uncached another pass, adr: %h", res.result);
-                res.status = ES_UNCACHED_2;
-                return res; // To RQ again
-            end
-
-            ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                if (DISP_UNCACHED) $display("..........................E1: uncached final pass, adr: %h", res.result);
-                res.status = ES_OK; // Go on to handle mem result
-            end 
-
-            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_SQ_MISS, ES_OK,   ES_DATA_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
-                if (cacheResp.status == CR_TAG_MISS) begin
-                  //  $error("Data access misses: %h", res.result);
-                        
-                        res.status = ES_DATA_MISS;
-                        return res;
-                end
-                
-                if (!cacheResp.desc.cached) begin
-                    if (DISP_UNCACHED) $error("..........................E1: Uncache adr: %h", res.result);
-                    res.status = ES_UNCACHED_1;  
-                    return res; // go to RQ
-                end
-            end
-
-            default: $fatal(2, "Wrong status of memory op");
-        endcase
 
         // No misses or special actions, typical load/store
         if (isLoadMemUop(decUname(uid))) begin
@@ -227,7 +238,6 @@ module MemSubpipe#(
             insMap.setActualResult(uid, res.result);
         end
 
-
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
             if (lqResp.active) begin
@@ -239,7 +249,6 @@ module MemSubpipe#(
 
         return res;
     endfunction
-
 
 
     function automatic Mword getEffectiveAddress(input UidT uid);

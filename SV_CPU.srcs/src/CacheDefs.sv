@@ -128,7 +128,13 @@ package CacheDefs;
 
     // Caches
     localparam int BLOCK_SIZE = 64;
-    localparam int WAY_SIZE = 4096;
+    
+    localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
+    
+    typedef logic[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS] BlockBaseD;
+    
+    localparam int WAY_SIZE = 4096; // TODO: specific for each cache?
+    
     
     
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
@@ -141,8 +147,9 @@ package CacheDefs;
         return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
     endfunction
 
-
-
+    function automatic BlockBaseD blockBaseD(input EffectiveAddress adr);
+        return adr[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS];
+    endfunction
 
 
     typedef struct {
