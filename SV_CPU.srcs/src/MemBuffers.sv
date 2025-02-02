@@ -218,10 +218,8 @@ module StoreQueue
                 begin
                    int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
-                   if (wrInputsE2[p].status == ES_REFETCH)
-                       HELPER::setRefetch(content_N[found[0]]);
-                   else if (wrInputsE2[p].status == ES_ILLEGAL)
-                       HELPER::setError(content_N[found[0]]);                   
+                   if (wrInputsE2[p].status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
+                   else if (wrInputsE2[p].status == ES_ILLEGAL) HELPER::setError(content_N[found[0]]);                   
                 end
             end
         end
@@ -231,20 +229,20 @@ module StoreQueue
             UopPacket dataUop = theExecBlock.sysE0_E;
             if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
                 int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
-                Mword adr;      
+                //Mword adr;      
                 assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
-                adr = HELPER::getAdr(content_N[dataFound[0]]);
+                //adr = HELPER::getAdr(content_N[dataFound[0]]);
                 
                 HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
 
                 putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
                 
-                    dataUop.result = adr; // Save store adr to notify RQ that it is being filled 
+                dataUop.result = HELPER::getAdr(content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
             end
             
-                storeDataD0 <= tickP(dataUop);
-                storeDataD1 <= tickP(storeDataD0);
-                storeDataD2 <= tickP(storeDataD1);
+            storeDataD0 <= tickP(dataUop);
+            storeDataD1 <= tickP(storeDataD0);
+            storeDataD2 <= tickP(storeDataD1);
         end
     endtask
 

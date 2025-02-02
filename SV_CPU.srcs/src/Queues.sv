@@ -122,27 +122,19 @@ package Queues;
         static function automatic UopPacket scanQueue(ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
             Entry fwEntry;
-            
-            // Youngest older overlapping store:
-            // Covers and has data -> OK
-            // Covers, not has data -> to RQ, wait ??
-            // Not covers -> incomplete forward, refetch
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
-            else if (found.size() == 1) begin
-                fwEntry = found[0];
-            end
-            else begin
+            else begin // Youngest older overlapping store:
                 Entry sorted[$] = found[0:$];
                 sorted.sort with (item.mid);
                 fwEntry = sorted[$];
             end
 
-            if (!wordInside(adr, fwEntry.adr))
+            if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-            else if (!fwEntry.valReady)
+            else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
-            else
+            else                                // Covers and has data -> OK
                 return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 
         endfunction
@@ -219,32 +211,22 @@ package Queues;
                 return 'x;
             endfunction
 
+
         static function automatic UopPacket scanQueue(ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
+            UopPacket res = EMPTY_UOP_PACKET;
             int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
             
-//                if (id > 3230) begin
-//                    $error("store %d compared. %d", id, found.size());
-//                end
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            if (found.size() == 0) return res;
     
-            // else: we have a match and the matching loads are incorrect
-            foreach (found[i]) begin
-                //setError(entries[found[i]]);
-                setRefetch(entries[found[i]]);
-            end
+            foreach (found[i]) setRefetch(entries[found[i]]); // We have a match so matching loads are incorrect
             
             begin // 'active' indicates that some match has happened without furthr details
-                UopPacket res = EMPTY_UOP_PACKET;
-                
                 int oldestFound[$] = found.min with (item);
-                
-                res.active = 1; 
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
-                           
-                return res;
+                res.active = 1; 
             end
-    
+            
+            return res;
         endfunction
 
 
@@ -264,9 +246,8 @@ endclass
             logic trgReady;
             Mword linkAdr;
             Mword predictedTarget;
-            //Mword realTarget;
-                Mword immTarget;
-                Mword regTarget;
+            Mword immTarget;
+            Mword regTarget;
         } Entry;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, /*'x,*/ 'x, 'x};
@@ -297,11 +278,7 @@ endclass
             // If branch immediate, calculate target for taken
             if (ui.name inside {UOP_bc_a, UOP_bc_l, UOP_bc_z, UOP_bc_nz})
                 res.immTarget = ii.basicData.adr + ui.argsE[1];
-            
-            // If imm, real target is known
-//            if (isBranchImmIns(abs))
-//                res.realTarget = ii.basicData.adr + ui.argsA[1];
-            
+
             return res;
         endfunction
         
@@ -361,8 +338,6 @@ endclass
 
             begin // 'active' indicates that some match has happened without furthr details
                 UopPacket res = EMPTY_UOP_PACKET;
-                
-                //res.
                 
                 return res;
             end
