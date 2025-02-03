@@ -232,6 +232,7 @@ module ArchDesc0();
         task announce(input string name);
             simTestName = name;
             $display("> RUN: %s", name);
+            //    $display(">> %t", $time());
         endtask
 
         task automatic startSim();

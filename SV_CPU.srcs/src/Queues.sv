@@ -292,8 +292,6 @@ endclass
             entry.condReady = 1;
             entry.trgReady = 1;
             
-            //entry.realTarget = brInfo.target;
-            
             if (name inside {UOP_br_z, UOP_br_nz})
                 entry.regTarget = trgArg;
      
