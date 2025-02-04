@@ -24,9 +24,9 @@ module DataL1(
         localparam logic DONT_TRANSLATE = 1; // TMP
         
     typedef Mbyte DataBlock[BLOCK_SIZE];
-    
 
-    
+
+
         function automatic logic isRangeUncached(input Mword adr);
             return adr[31];
         endfunction 
@@ -38,15 +38,15 @@ module DataL1(
         function automatic logic isRangeTlbMiss(input Mword adr);
             return adr[29];
         endfunction 
-        
+
 
     logic notifyFill = 0;
     Mword notifiedAdr = 'x;
-  
+
     logic notifyTlbFill = 0;
     Mword notifiedTlbAdr = 'x;
 
-   
+
         // CAREFUL: below only for addresses in the range for data miss tests 
         DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
         int       blockFillCounters[Mword];
@@ -71,7 +71,6 @@ module DataL1(
 
 
 
-
         task automatic handleBlockFills();
             Mword adr;
             
@@ -79,7 +78,6 @@ module DataL1(
             notifiedAdr <= 'x;
         
             foreach (blockFillCounters[a]) begin
-            
                 if (blockFillCounters[a] == 0) begin
                     readyBlocksToFill.push_back(a);
                     blockFillCounters[a] = -1;
@@ -105,10 +103,7 @@ module DataL1(
             notifyTlbFill <= 0;
             notifiedTlbAdr <= 'x;
         
-            foreach (mappingFillCounters[a]) begin
-            
-                     //   $error("Entry  %h -> %d", a, mappingFillCounters[a]);
-            
+            foreach (mappingFillCounters[a]) begin            
                 if (mappingFillCounters[a] == 0) begin
                     readyMappingsToFill.push_back(a);
                     mappingFillCounters[a] = -1;
@@ -145,8 +140,6 @@ module DataL1(
         function automatic void scheduleTlbFill(input Mword adr);
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
 
-               // $error(">>>  Alocating  ");
-
             if (!mappingFillCounters.exists(pageBase))
                 mappingFillCounters[pageBase] = 12;  
         endfunction
@@ -170,17 +163,16 @@ module DataL1(
         doWrite(TMP_writeReqs[0]);
     endtask
 
-
+    // TODO: handle writing to blocs in dynamic allocated region!
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mbyte wval[4] = {>>{wrInfo.value}};
         if (wrInfo.req) content[wrInfo.adr +: 4] <= wval;
     endtask
 
-        
-        
+
         function automatic logic isPhysPresent(input Mword adr);
             Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            return filledBlocks.exists(physBlockBase);
+            return !isRangeDataMiss(adr) || filledBlocks.exists(physBlockBase);
         endfunction
 
         function automatic logic isPhysPending(input Mword adr);
@@ -191,15 +183,15 @@ module DataL1(
  
         function automatic logic isTlbPresent(input Mword adr);
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            return filledMappings.exists(pageBase);
+            return !isRangeTlbMiss(adr) || filledMappings.exists(pageBase);
         endfunction
 
         function automatic logic isTlbPending(input Mword adr);
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
             return mappingFillCounters.exists(pageBase);
         endfunction
-   
-        
+
+
 
         function automatic Mword readFromMissRange(input Mword adr);
             // TODO: for now only word-sized
@@ -225,9 +217,6 @@ module DataL1(
         function automatic void allocInTlb(input Mword adr);
             Translation DUMMY; 
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            //DataBlock block = '{default: 0};
-            
-                  //  $error("Flling mapping: %h", adr);
             
             filledMappings[pageBase] = DUMMY;            
         endfunction
@@ -249,7 +238,6 @@ module DataL1(
                
                 DataCacheOutput thisResult = doReadAccess(acc, tr);
 
-                    
                 readOut[p] <= thisResult;
                 accesses[p] <= acc;
                 translations[p] <= tr;
@@ -260,7 +248,7 @@ module DataL1(
 
 
     function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr);
-        DataCacheOutput res = doDefaultReadAccess(aInfo, tr);
+        DataCacheOutput res;
         
         if (!tr.present) begin
             res.status = CR_TLB_MISS;
@@ -270,16 +258,19 @@ module DataL1(
         // if tr.present then:
         // now compare tr.pHigh to wayTag
         // if match, re.desc is applied and res.data is applied 
+        res = '{1, CR_HIT, tr.desc, 'x};
 
-        // TMP: testing data miss handling
-        if (isRangeDataMiss(tr.phys)) begin
-            if (isPhysPresent(tr.phys)) begin
+        if (!isPhysPresent(tr.phys)) begin
+           res.status = CR_TAG_MISS;
+           if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
+        end
+        else begin
+            res = doDefaultReadAccess(aInfo, tr);
+           
+            if (tr.phys <= $size(content)) // Read from small array
+                res = doDefaultReadAccess(aInfo, tr);
+            else if (isRangeDataMiss(tr.phys))
                 res.data = readFromMissRange(tr.phys);
-            end
-            else begin
-               res.status = CR_TAG_MISS;
-               if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
-            end
         end
         
         return res;
@@ -306,18 +297,11 @@ module DataL1(
 
         res.vHigh = adrHigh(adr);
 
-        if (isRangeTlbMiss(adr)) begin
-            if (isTlbPresent(adr)) begin
-                // read the mapping
-                    // TMP: fallthrough to normal identity translation
-            end
-            else begin
-                res.present = 0;
-                if (!isTlbPending(adr)) scheduleTlbFill(adr);
-                return res;
-            end
+        if (!isTlbPresent(adr)) begin
+            res.present = 0;
+            if (!isTlbPending(adr)) scheduleTlbFill(adr);
+            return res;
         end
-
 
         // TMP: in "mapping always present" range:
         res.present = 1; // Obviously
@@ -333,7 +317,7 @@ module DataL1(
         res.phys = {res.pHigh, adrLow(adr)};
             
         // TMP: uncached rnge
-        if (adr[31])
+        if (isRangeUncached(adr))
             res.desc.cached = 0;
 
         return res;
