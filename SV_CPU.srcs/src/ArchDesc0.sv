@@ -54,7 +54,6 @@ module ArchDesc0();
     
     
     squeue allSuites = '{
-         //   {codeDir, "Tests_DUMMY.txt"},
         "Tests_basic.txt",
         "Tests_mem_simple.txt",
         
@@ -63,7 +62,6 @@ module ArchDesc0();
         "Tests_sys_transfers.txt",
         
         "Tests_all.txt"
-        //"tests_some.txt" - TODO: remove this file
     };
     
     string emulTestName, simTestName;

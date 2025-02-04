@@ -209,9 +209,7 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedBranchP[0]
     );
-    
-    
-    // TODO: fix problems that will appear because of simultaneous mem ops (forwarding, hazards)
+
     
     // Mem 0
     MemSubpipe#(.HANDLE_UNALIGNED(1))
