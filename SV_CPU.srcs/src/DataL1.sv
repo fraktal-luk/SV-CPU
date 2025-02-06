@@ -27,38 +27,6 @@ module DataL1(
 
 
 
-        function automatic logic isRangeUncached(input Mword adr);
-            return adr[31];
-        endfunction 
-    
-
-
-            function automatic logic isDynamicDataRange(input Mword adr);
-                return adr[30];
-            endfunction
-
-            function automatic logic isStaticDataRange(input Mword adr);
-                return !isDynamicDataRange(adr);
-            endfunction
-
-            function automatic logic isDynamicTlbRange(input Mword adr);
-                return adr[29];
-            endfunction
-
-            function automatic logic isStaticTlbRange(input Mword adr);
-                return !isDynamicTlbRange(adr);
-            endfunction
-
-
-        function automatic logic isRangeDataMiss(input Mword adr);
-            return adr[30];
-        endfunction
-        
-        function automatic logic isRangeTlbMiss(input Mword adr);
-            return adr[29];
-        endfunction
-
-
     logic notifyFill = 0;
     Mword notifiedAdr = 'x;
 
@@ -66,15 +34,15 @@ module DataL1(
     Mword notifiedTlbAdr = 'x;
 
 
-        // CAREFUL: below only for addresses in the range for data miss tests 
-        DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
-        int       blockFillCounters[Mword];
-        Mword     readyBlocksToFill[$];
+    // CAREFUL: below only for addresses in the range for data miss tests 
+    DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+    int       blockFillCounters[Mword];
+    Mword     readyBlocksToFill[$];
 
-        // CAREFUL: below only for addresses in the range for TLB miss tests 
-        Translation   filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
-        int       mappingFillCounters[Mword];
-        Mword     readyMappingsToFill[$];
+    // CAREFUL: below only for addresses in the range for TLB miss tests 
+    Translation   filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+    int       mappingFillCounters[Mword];
+    Mword     readyMappingsToFill[$];
 
 
 
@@ -90,80 +58,95 @@ module DataL1(
 
 
 
-        task automatic handleBlockFills();
-            Mword adr;
-            
-            notifyFill <= 0;
-            notifiedAdr <= 'x;
+    function automatic logic isUncachedRange(input Mword adr);
+        return adr[31];
+    endfunction
+
+    function automatic logic isStaticDataRange(input Mword adr);
+        return adr < $size(content);
+    endfunction
+
+    function automatic logic isStaticTlbRange(input Mword adr);        
+        return isUncachedRange(adr) // TEMP: uncached region is mapped by default
+                || adr < 'h80000; // TEMP: Let's give 1M for static mappings
+    endfunction
+
+
+
+    task automatic handleBlockFills();
+        Mword adr;
         
-            foreach (blockFillCounters[a]) begin
-                if (blockFillCounters[a] == 0) begin
-                    readyBlocksToFill.push_back(a);
-                    blockFillCounters[a] = -1;
-                end
-                else
-                    blockFillCounters[a]--;
+        notifyFill <= 0;
+        notifiedAdr <= 'x;
+    
+        foreach (blockFillCounters[a]) begin
+            if (blockFillCounters[a] == 0) begin
+                readyBlocksToFill.push_back(a);
+                blockFillCounters[a] = -1;
             end
-            
-            if (readyBlocksToFill.size() == 0) return;
-            
-            adr = readyBlocksToFill.pop_front();
-            allocInMissRange(adr);
-            blockFillCounters.delete(adr);
-
-            notifyFill <= 1;
-            notifiedAdr <= adr;           
-        endtask 
-
-
-        task automatic handleTlbFills();
-            Mword adr;
-            
-            notifyTlbFill <= 0;
-            notifiedTlbAdr <= 'x;
+            else
+                blockFillCounters[a]--;
+        end
         
-            foreach (mappingFillCounters[a]) begin            
-                if (mappingFillCounters[a] == 0) begin
-                    readyMappingsToFill.push_back(a);
-                    mappingFillCounters[a] = -1;
-                end
-                else
-                    mappingFillCounters[a]--;
+        if (readyBlocksToFill.size() == 0) return;
+        
+        adr = readyBlocksToFill.pop_front();
+        allocInDynamicRange(adr);
+        blockFillCounters.delete(adr);
+
+        notifyFill <= 1;
+        notifiedAdr <= adr;           
+    endtask 
+
+
+    task automatic handleTlbFills();
+        Mword adr;
+        
+        notifyTlbFill <= 0;
+        notifiedTlbAdr <= 'x;
+    
+        foreach (mappingFillCounters[a]) begin            
+            if (mappingFillCounters[a] == 0) begin
+                readyMappingsToFill.push_back(a);
+                mappingFillCounters[a] = -1;
             end
-            
-            if (readyMappingsToFill.size() == 0) return;
-            
-            adr = readyMappingsToFill.pop_front();
-            allocInTlb(adr);
-            mappingFillCounters.delete(adr);
-
-            notifyTlbFill <= 1;
-            notifiedTlbAdr <= adr;           
-        endtask 
+            else
+                mappingFillCounters[a]--;
+        end
         
-
-        task automatic handleFills();
-            handleBlockFills();
-            handleTlbFills();
-        endtask
-
-
-
-        function automatic void scheduleBlockFill(input Mword adr);
-            Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-
-            if (!blockFillCounters.exists(physBase))
-                blockFillCounters[physBase] = 15;            
-        endfunction
-
-        function automatic void scheduleTlbFill(input Mword adr);
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-
-            if (!mappingFillCounters.exists(pageBase))
-                mappingFillCounters[pageBase] = 12;  
-        endfunction
+        if (readyMappingsToFill.size() == 0) return;
         
-        
+        adr = readyMappingsToFill.pop_front();
+        allocInTlb(adr);
+        mappingFillCounters.delete(adr);
+
+        notifyTlbFill <= 1;
+        notifiedTlbAdr <= adr;           
+    endtask 
+    
+
+    task automatic handleFills();
+        handleBlockFills();
+        handleTlbFills();
+    endtask
+
+
+
+    function automatic void scheduleBlockFill(input Mword adr);
+        Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+
+        if (!blockFillCounters.exists(physBase))
+            blockFillCounters[physBase] = 15;            
+    endfunction
+
+    function automatic void scheduleTlbFill(input Mword adr);
+        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+
+        if (!mappingFillCounters.exists(pageBase))
+            mappingFillCounters[pageBase] = 12;  
+    endfunction
+
+
     function automatic void reset();
         content = '{default: 0};
         tagsForWay = '{default: 0};
@@ -189,56 +172,69 @@ module DataL1(
     endtask
 
 
-        function automatic logic isPhysPresent(input Mword adr);
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            return isRangeUncached(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
-        endfunction
+    function automatic logic isPhysPresent(input Mword adr);
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        return isUncachedRange(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
+    endfunction
 
-        function automatic logic isPhysPending(input Mword adr);
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            return blockFillCounters.exists(physBlockBase);
-        endfunction
+    function automatic logic isPhysPending(input Mword adr);
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        return blockFillCounters.exists(physBlockBase);
+    endfunction
+    
+
+    function automatic logic isTlbPresent(input Mword adr);
+        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
+    endfunction
+
+    function automatic logic isTlbPending(input Mword adr);
+        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+        return mappingFillCounters.exists(pageBase);
+    endfunction
+
+
+
+    function automatic Mword readFromStaticRange(input Mword adr /*input AccessInfo aInfo */ /*, input Translation tr*/);
+        Mbyte chosenWord[4] = content[adr +: 4];
+        Mword wval = {>>{chosenWord}};
+        Word val = Mword'(wval);
+
+        //DataCacheOutput res;// = '{1, CR_HIT, tr.desc, val};
+            
+        //    res.data = val;
+        return val; //res;
+    endfunction 
+
+    function automatic Mword readFromDynamicRange(input Mword adr);
+        // TODO: for now only word-sized
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        DataBlock block = filledBlocks[physBlockBase];
+        PhysicalAddressLow physLow = adrLow(adr);
+
+        Mbyte chosenWord[4] = block[physLow +: 4];
+        Mword wval = {>>{chosenWord}};
+        Word val = Mword'(wval);
+
+        //    DataCacheOutput res = '{1, CR_HIT, tr.desc, val};
+
+        return val;
+    endfunction
+
+
+    function automatic void allocInDynamicRange(input Mword adr);
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        DataBlock block = '{default: 0};
         
- 
-        function automatic logic isTlbPresent(input Mword adr);
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            return !isRangeTlbMiss(adr) || filledMappings.exists(pageBase);
-        endfunction
+        filledBlocks[physBlockBase] = block;            
+    endfunction
 
-        function automatic logic isTlbPending(input Mword adr);
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            return mappingFillCounters.exists(pageBase);
-        endfunction
-
-
-
-        function automatic Mword readFromDynamicRange(input Mword adr);
-            // TODO: for now only word-sized
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            DataBlock block = filledBlocks[physBlockBase];
-            PhysicalAddressLow physLow = adrLow(adr);
-
-            Mbyte chosenWord[4] = block[physLow +: 4];
-            Mword wval = {>>{chosenWord}};
-            Word val = Mword'(wval);
-            
-            return val;
-        endfunction
-
-
-        function automatic void allocInMissRange(input Mword adr);
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            DataBlock block = '{default: 0};
-            
-            filledBlocks[physBlockBase] = block;            
-        endfunction
-
-        function automatic void allocInTlb(input Mword adr);
-            Translation DUMMY; 
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            
-            filledMappings[pageBase] = DUMMY;            
-        endfunction
+    function automatic void allocInTlb(input Mword adr);
+        Translation DUMMY; 
+        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+        
+        filledMappings[pageBase] = DUMMY;            
+    endfunction
        
 
     task automatic handleReads();
@@ -281,38 +277,19 @@ module DataL1(
 
         if (!isPhysPresent(tr.phys)) begin
            res.status = CR_TAG_MISS;
-              //  res.data = 0;
            if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
         end
-        else begin
-            //res = doDefaultReadAccess(aInfo, tr);
-           
-            if (isRangeUncached(tr.phys))
+        else begin           
+            if (isUncachedRange(tr.phys))
                 res.data = 0; // Read uncached mem
             else if (tr.phys <= $size(content)) // Read from small array
-                res = doDefaultReadAccess(aInfo, tr);
-            else if (isRangeDataMiss(tr.phys))
+                res.data = readFromStaticRange(tr.phys /*aInfo*/ /*, tr*/);//.data;
+            else
                 res.data = readFromDynamicRange(tr.phys);
-            else begin
-                    //$error("Other kind of access: %h", tr.phys);
-                res.data = 0;
-            end
         end
         
         return res;
-    endfunction 
-
-    function automatic DataCacheOutput doDefaultReadAccess(input AccessInfo aInfo, input Translation tr);
-        DataCacheOutput res;
-
-        Mbyte chosenWord[4] = content[aInfo.adr +: 4];
-        Mword wval = {>>{chosenWord}};
-        Word val = Mword'(wval);
-
-        res = '{1, CR_HIT, tr.desc, val};
-
-        return res;
-    endfunction 
+    endfunction
 
 
 
@@ -341,9 +318,9 @@ module DataL1(
         };
 
         res.phys = {res.pHigh, adrLow(adr)};
-            
+
         // TMP: uncached rnge
-        if (isRangeUncached(adr))
+        if (isUncachedRange(adr))
             res.desc.cached = 0;
 
         return res;
@@ -352,9 +329,9 @@ module DataL1(
 
     always @(posedge clk) begin
         handleFills();
-    
+
         handleReads();
-        handleWrites();    
+        handleWrites();
     end
 
 

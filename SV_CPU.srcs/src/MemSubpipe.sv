@@ -159,7 +159,7 @@ module MemSubpipe#(
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
                 if (cacheResp.status == CR_TAG_MISS) begin
-                  //  $error("Data access misses: %h", res.result);
+                      //   $error("Data access misses: %h", res.result);
                     res.status = ES_DATA_MISS;
                     return res;
                 end
