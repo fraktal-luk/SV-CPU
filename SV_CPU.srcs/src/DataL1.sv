@@ -31,13 +31,32 @@ module DataL1(
             return adr[31];
         endfunction 
     
+
+
+            function automatic logic isDynamicDataRange(input Mword adr);
+                return adr[30];
+            endfunction
+
+            function automatic logic isStaticDataRange(input Mword adr);
+                return !isDynamicDataRange(adr);
+            endfunction
+
+            function automatic logic isDynamicTlbRange(input Mword adr);
+                return adr[29];
+            endfunction
+
+            function automatic logic isStaticTlbRange(input Mword adr);
+                return !isDynamicTlbRange(adr);
+            endfunction
+
+
         function automatic logic isRangeDataMiss(input Mword adr);
             return adr[30];
-        endfunction 
-
+        endfunction
+        
         function automatic logic isRangeTlbMiss(input Mword adr);
             return adr[29];
-        endfunction 
+        endfunction
 
 
     logic notifyFill = 0;
@@ -172,7 +191,7 @@ module DataL1(
 
         function automatic logic isPhysPresent(input Mword adr);
             Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            return !isRangeDataMiss(adr) || filledBlocks.exists(physBlockBase);
+            return isRangeUncached(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
         endfunction
 
         function automatic logic isPhysPending(input Mword adr);
@@ -193,7 +212,7 @@ module DataL1(
 
 
 
-        function automatic Mword readFromMissRange(input Mword adr);
+        function automatic Mword readFromDynamicRange(input Mword adr);
             // TODO: for now only word-sized
             Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
             DataBlock block = filledBlocks[physBlockBase];
@@ -262,15 +281,22 @@ module DataL1(
 
         if (!isPhysPresent(tr.phys)) begin
            res.status = CR_TAG_MISS;
+              //  res.data = 0;
            if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
         end
         else begin
-            res = doDefaultReadAccess(aInfo, tr);
+            //res = doDefaultReadAccess(aInfo, tr);
            
-            if (tr.phys <= $size(content)) // Read from small array
+            if (isRangeUncached(tr.phys))
+                res.data = 0; // Read uncached mem
+            else if (tr.phys <= $size(content)) // Read from small array
                 res = doDefaultReadAccess(aInfo, tr);
             else if (isRangeDataMiss(tr.phys))
-                res.data = readFromMissRange(tr.phys);
+                res.data = readFromDynamicRange(tr.phys);
+            else begin
+                    //$error("Other kind of access: %h", tr.phys);
+                res.data = 0;
+            end
         end
         
         return res;
