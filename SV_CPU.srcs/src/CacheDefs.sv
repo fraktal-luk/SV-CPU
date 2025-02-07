@@ -67,24 +67,16 @@ package CacheDefs;
 
 
 
-
-
-
-
 //////////////////
     typedef struct {
         logic active;
+            logic store;            
+            logic uncachedReq;
         Mword adr;
     } DataReadReq;
 
-    localparam DataReadReq EMPTY_READ_REQ = '{0, 'x};
+    localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x};
 
-//    typedef struct {
-//        logic active;
-//        Mword result;
-//    } DataReadResp;
-
-//    localparam DataReadResp EMPTY_READ_RESP = '{1, 'x};
 
     // Write buffer
     typedef struct {

@@ -32,7 +32,7 @@ module MemSubpipe#(
 
     UopPacket stage0, stage0_E;
     
-    logic readActive = 0;
+    logic readActive = 0, storeFlag = 0, uncachedFlag = 0;
     Mword effAdrE0 = 'x;
 
     assign stage0 = pE2;
@@ -51,7 +51,9 @@ module MemSubpipe#(
         pD1 <= tickP(pD0);
     end
 
-    assign readReq = '{readActive, effAdrE0};
+    assign readReq = '{
+        readActive, storeFlag, uncachedFlag, effAdrE0
+    };
 
 
     assign p0_E = effP(p0);
@@ -81,7 +83,11 @@ module MemSubpipe#(
         UopPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
 
-        readActive <= stateE0.active;
+           UopName uname = decUname(stateE0.TMP_oid);
+
+        readActive <= stateE0.active && !isMemUop(uname);
+            storeFlag <= isStoreUop(uname);
+            uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
         effAdrE0 <= adr;
 
         pE0 <= updateE0(stateE0, adr);
