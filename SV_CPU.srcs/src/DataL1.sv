@@ -165,10 +165,43 @@ module DataL1(
         doWrite(TMP_writeReqs[0]);
     endtask
 
-    // TODO: handle writing to blocs in dynamic allocated region!
+
+    function automatic void writeToStaticRange(input Mword adr, input Mword val);
+        localparam int ACCESS_SIZE = 4;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        content[adr +: ACCESS_SIZE] = wval;
+    endfunction
+    
+    function automatic void writeToDynamicRange(input Mword adr, input Mword val);
+        localparam int ACCESS_SIZE = 4;
+        
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
+    endfunction
+
+
+    // TODO: handle writing to static, dynamic and uncached, with possible block crosing and region crossing! 
     task automatic doWrite(input MemWriteInfo wrInfo);
-        Mbyte wval[4] = {>>{wrInfo.value}};
-        if (wrInfo.req) content[wrInfo.adr +: 4] <= wval;
+        Mword adr = wrInfo.adr;
+        Mword val = wrInfo.value;
+
+        if (!wrInfo.req) return;
+
+        if (isUncachedRange(adr)) begin
+        end
+        else if (isStaticDataRange(adr)) begin
+           // Mbyte wval[4] = {>>{val}};
+            //content[adr +: 4] <= wval;
+            writeToStaticRange(adr, val);
+        end
+        else begin 
+            writeToDynamicRange(adr, val);
+        end
+    
     endtask
 
 
@@ -195,28 +228,32 @@ module DataL1(
 
 
 
-    function automatic Mword readFromStaticRange(input Mword adr /*input AccessInfo aInfo */ /*, input Translation tr*/);
-        Mbyte chosenWord[4] = content[adr +: 4];
-        Mword wval = {>>{chosenWord}};
-        Word val = Mword'(wval);
+    function automatic Mword readFromStaticRange(input Mword adr);
+        localparam int ACCESS_SIZE = 4;
 
-        //DataCacheOutput res;// = '{1, CR_HIT, tr.desc, val};
-            
-        //    res.data = val;
-        return val; //res;
+        Mbyte chosenWord[ACCESS_SIZE];
+        Mword wval;
+        Word val;
+
+        chosenWord = content[adr +: ACCESS_SIZE];
+
+        wval = {>>{chosenWord}};
+        val = Mword'(wval);
+
+        return val;
     endfunction 
 
     function automatic Mword readFromDynamicRange(input Mword adr);
         // TODO: for now only word-sized
+        localparam int ACCESS_SIZE = 4;
+        
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
         DataBlock block = filledBlocks[physBlockBase];
-        PhysicalAddressLow physLow = adrLow(adr);
+        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
 
-        Mbyte chosenWord[4] = block[physLow +: 4];
+        Mbyte chosenWord[ACCESS_SIZE] = block[physLow +: ACCESS_SIZE];
         Mword wval = {>>{chosenWord}};
         Word val = Mword'(wval);
-
-        //    DataCacheOutput res = '{1, CR_HIT, tr.desc, val};
 
         return val;
     endfunction
@@ -327,11 +364,20 @@ module DataL1(
     endfunction
 
 
+        Mword dummy0, dummy1, dummy2;
+    
+        Mbyte kkk[8] = '{0,1,2,3,4,5,6,7};
+
+
     always @(posedge clk) begin
         handleFills();
 
         handleReads();
         handleWrites();
+        
+             dummy0 <=   {>>{kkk[4 +: 4]}};
+             dummy1 <=   {>>{kkk[5 +: 4]}};
+             dummy2 <=   {>>{kkk[6 +: 4]}};
     end
 
 
