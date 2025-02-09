@@ -58,6 +58,27 @@ package AbstractSim;
     endfunction
 
 
+        function automatic logic memOverlap(input Mword wa, input int sizeA, input Mword wb, input int sizeB);
+            Mword aEnd = wa + sizeA; // Exclusive end
+            Mword bEnd = wb + sizeB; // Exclusive end
+            
+            if ($isunknown(wa) || $isunknown(wb)) return 0;
+
+            return (wa < bEnd && wb < aEnd);
+        endfunction
+        
+        // is a inside b
+        function automatic logic memInside(input Mword wa, input int sizeA, input Mword wb, input int sizeB);
+            Mword aEnd = wa + sizeA; // Exclusive end
+            Mword bEnd = wb + sizeB; // Exclusive end
+            
+            if ($isunknown(wa) || $isunknown(wb)) return 0;
+           
+            return (wa >= wb && aEnd <= bEnd);
+        endfunction
+
+
+
 ////////////////////////////
     // Core structures
 

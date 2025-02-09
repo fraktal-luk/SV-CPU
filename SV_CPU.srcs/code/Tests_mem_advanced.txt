@@ -1,2 +1,7 @@
 
 mem_uncached0
+
+mem_data_miss_0
+mem_data_miss_store
+
+mem_tlb_miss_0

@@ -165,7 +165,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     DataReadReq readReqs[N_MEM_PORTS];
-    DataReadResp readResps[N_MEM_PORTS];
+    //DataReadResp readResps[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     
     logic TMP_memAllow;
@@ -209,9 +209,7 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedBranchP[0]
     );
-    
-    
-    // TODO: fix problems that will appear because of simultaneous mem ops (forwarding, hazards)
+
     
     // Mem 0
     MemSubpipe#(.HANDLE_UNALIGNED(1))
