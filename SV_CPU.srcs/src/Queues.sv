@@ -34,11 +34,12 @@ package Queues;
             Mword adr;
             logic valReady;
             Mword val;
+            logic uncached;
             logic committed;
             logic dontForward;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
     
         
 //        static function automatic logic applies(input AbstractInstruction ins);
@@ -56,6 +57,7 @@ package Queues;
             res.refetch = 0;
             res.adrReady = 0;
             res.valReady = 0;
+            res.uncached = 0;
             res.committed = 0;
             res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
             return res;
@@ -72,7 +74,11 @@ package Queues;
             
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti, UOP_mem_stf, UOP_mem_sts}) begin
+            if (p.status == ES_UNCACHED_1) begin
+                entry.uncached = 1;
+                //    $error("uncached: %d", U2M(p.TMP_oid));
+            end
+            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti, UOP_mem_stf, UOP_mem_sts}) begin
                 entry.adrReady = 1;
                 entry.adr = p.result;
             end

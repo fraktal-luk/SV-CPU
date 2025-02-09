@@ -82,12 +82,11 @@ module MemSubpipe#(
     task automatic performE0();    
         UopPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
+        UopName uname = decUname(stateE0.TMP_oid);
 
-           UopName uname = decUname(stateE0.TMP_oid);
-
-        readActive <= stateE0.active && !isMemUop(uname);
-            storeFlag <= isStoreUop(uname);
-            uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
+        readActive <= stateE0.active && isMemUop(uname);
+        storeFlag <= isStoreUop(uname);
+        uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
         effAdrE0 <= adr;
 
         pE0 <= updateE0(stateE0, adr);
@@ -111,21 +110,7 @@ module MemSubpipe#(
         UopPacket res = p;
 
         if (!p.active) return res;
-        
-        // TODO: special mem ops: aq-rel,..
-        //if ...
-
-        case (p.status)
-            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_OK: ;
-            ES_SQ_MISS: ;
-            ES_UNCACHED_1: ;
-            ES_UNCACHED_2: ;
-                ES_DATA_MISS: ;
-                ES_TLB_MISS: ;
-            default: $fatal(2, "Wrong status of memory op");
-        endcase
-        
+      
         res.result = adr;
         
         return res; 
@@ -165,13 +150,11 @@ module MemSubpipe#(
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
                 if (cacheResp.status == CR_TAG_MISS) begin
-                      //   $error("Data access misses: %h", res.result);
                     res.status = ES_DATA_MISS;
                     return res;
                 end
                 else if (cacheResp.status == CR_TLB_MISS) begin
                     res.status = ES_TLB_MISS;
-                      //  $error("TLB misses at %h", res.result);
                     return res;
                 end
 

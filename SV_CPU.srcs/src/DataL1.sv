@@ -44,6 +44,16 @@ module DataL1(
     int       mappingFillCounters[Mword];
     Mword     readyMappingsToFill[$];
 
+        
+        // TODO: include adr
+        typedef struct {
+            logic ongoing = 0;
+            logic ready = 0;
+            Mword data = 'x;
+            int counter = -1;
+        } UncachedRead;
+
+        UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
 
 
     // Data and tag arrays
@@ -123,12 +133,27 @@ module DataL1(
         notifyTlbFill <= 1;
         notifiedTlbAdr <= adr;           
     endtask 
-    
+
+    task automatic handleUncachedData();
+        if (uncachedReads[0].ongoing) begin
+            if (--uncachedReads[0].counter == 0) begin
+                uncachedReads[0].ongoing = 0;
+                uncachedReads[0].ready = 1;
+                uncachedReads[0].data = 0;
+            end
+        end
+    endtask
+
+  
 
     task automatic handleFills();
         handleBlockFills();
         handleTlbFills();
+            
+        handleUncachedData();
+
     endtask
+
 
 
 
@@ -192,10 +217,9 @@ module DataL1(
         if (!wrInfo.req) return;
 
         if (isUncachedRange(adr)) begin
+            // TODO: use 'uncached' flag in wrInfo (to add)
         end
         else if (isStaticDataRange(adr)) begin
-           // Mbyte wval[4] = {>>{val}};
-            //content[adr +: 4] <= wval;
             writeToStaticRange(adr, val);
         end
         else begin 
@@ -293,6 +317,14 @@ module DataL1(
                 readOut[p] <= thisResult;
                 accesses[p] <= acc;
                 translations[p] <= tr;
+                
+                
+                // Initiate uncached read
+                if (readReqs[p].active && !readReqs[p].store && readReqs[p].uncachedReq) begin
+                    uncachedReads[0].ongoing = 1;
+                    uncachedReads[0].counter = 8;
+                end
+                
             end
 
         end
@@ -317,8 +349,13 @@ module DataL1(
            if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
         end
         else begin           
-            if (isUncachedRange(tr.phys))
-                res.data = 0; // Read uncached mem
+            if (isUncachedRange(tr.phys)) begin
+                res.data = 0; // TODO: actual data word
+                // Clear used transfer
+                uncachedReads[0].ready = 0;
+                uncachedReads[0].data = 'x;
+                    
+            end
             else if (tr.phys <= $size(content)) // Read from small array
                 res.data = readFromStaticRange(tr.phys /*aInfo*/ /*, tr*/);//.data;
             else
@@ -364,9 +401,8 @@ module DataL1(
     endfunction
 
 
-        Mword dummy0, dummy1, dummy2;
-    
-        Mbyte kkk[8] = '{0,1,2,3,4,5,6,7};
+   //     Mword dummy0, dummy1, dummy2;
+  //      Mbyte kkk[8] = '{0,1,2,3,4,5,6,7};
 
 
     always @(posedge clk) begin
@@ -375,9 +411,9 @@ module DataL1(
         handleReads();
         handleWrites();
         
-             dummy0 <=   {>>{kkk[4 +: 4]}};
-             dummy1 <=   {>>{kkk[5 +: 4]}};
-             dummy2 <=   {>>{kkk[6 +: 4]}};
+//             dummy0 <=   {>>{kkk[4 +: 4]}};
+//             dummy1 <=   {>>{kkk[5 +: 4]}};
+//             dummy2 <=   {>>{kkk[6 +: 4]}};
     end
 
 

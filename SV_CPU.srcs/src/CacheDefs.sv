@@ -84,11 +84,12 @@ package CacheDefs;
         InsId mid;
         logic cancel;
         logic sys;
+            logic uncached;
         Mword adr;
         Mword val;
     } StoreQueueEntry;
 
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x};
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x};
 
     typedef struct {
         logic req;

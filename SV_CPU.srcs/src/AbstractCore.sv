@@ -609,7 +609,12 @@ module AbstractCore
 
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);
         Transaction tr = memTracker.findStore(id);
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), tr.adrAny, tr.val};       
+        
+        // Extract 'uncached' info
+        int found[$] = theSq.content_N.find_index with (item.mid == id);
+        logic uncached = theSq.content_N[found[0]].uncached;
+        
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
