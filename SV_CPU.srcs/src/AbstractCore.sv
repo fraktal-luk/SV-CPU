@@ -346,6 +346,8 @@ module AbstractCore
         Mword argVals[3];
         UopName uopName = OP_DECODING_TABLE[ins.mnemonic];
 
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
+
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map

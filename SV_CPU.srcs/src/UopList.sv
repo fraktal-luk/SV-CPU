@@ -21,6 +21,9 @@ package UopList;
          UOP_int_add,
          UOP_int_sub,
         
+            UOP_int_cgtu,
+            UOP_int_cgts,
+        
          UOP_int_shlc,
          UOP_int_shac,
          UOP_int_rotc,
@@ -73,7 +76,9 @@ package UopList;
 
 
     const UopName OP_DECODING_TABLE[string] = '{
-        default:      UOP_ctrl_undef,
+        //default:      UOP_ctrl_undef,
+        
+        "unknown":    UOP_ctrl_undef,
         
         "undef":      UOP_ctrl_undef,
     
@@ -86,6 +91,9 @@ package UopList;
 
         "add_r":      UOP_int_add,
         "sub_r":      UOP_int_sub,
+
+            "cgt_u":   UOP_int_cgtu,
+            "cgt_s":   UOP_int_cgts,
 
         "shl_i":      UOP_int_shlc,
         "sha_i":      UOP_int_shac,

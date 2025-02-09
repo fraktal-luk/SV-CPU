@@ -764,6 +764,9 @@ package AbstractSim;
          UOP_int_add,
          UOP_int_sub,
         
+            UOP_int_cgtu,
+            UOP_int_cgts,
+        
          UOP_int_shlc,
          UOP_int_shac,
          UOP_int_rotc,

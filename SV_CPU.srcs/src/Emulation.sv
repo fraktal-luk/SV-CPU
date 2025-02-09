@@ -655,7 +655,7 @@ package Emulation;
             int size = -1;
             
             case (ins.def.o)
-                //O_intStoreD: size = 48;
+                //O_intStoreD: size = 8;
                 O_intStoreW: size = 4;
                 O_intStoreRelW: size = 4;
                 O_intStoreB: size = 1;

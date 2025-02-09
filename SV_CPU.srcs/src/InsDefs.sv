@@ -69,6 +69,8 @@ package InsDefs;
             add_r,
             sub_r,
             
+                cgt_u, cgt_s,
+                
             shl_i, shl_r, //-- direction defined by shift value, not opcode 
             sha_i, sha_r, //--   
             rot_i, rot_r,
@@ -398,8 +400,8 @@ package InsDefs;
         "add_h":      F_intImm16,
         "add_r":      F_int2R,
         "sub_r":      F_int2R,
-            "cgt_u":      F_intImm16,
-            "cgt_s":      F_intImm16,
+            "cgt_u":      F_int2R,
+            "cgt_s":      F_int2R,
             
         "shl_i":      F_intImm10, 
         
