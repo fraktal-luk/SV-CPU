@@ -163,7 +163,7 @@ package Emulation;
     endfunction
 
     function automatic logic isLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW});
+        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
     endfunction
 
     function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
@@ -171,7 +171,7 @@ package Emulation;
     endfunction
 
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
+        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
     endfunction
 
     function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
@@ -200,6 +200,9 @@ package Emulation;
             O_intSub,
             O_intAddH,
             
+                O_intCmpGtU,
+                O_intCmpGtS,
+            
             O_intMul,
             O_intMulHU,
             O_intMulHS,
@@ -214,6 +217,11 @@ package Emulation;
             
             O_intLoadW,
             O_intLoadD,
+                
+                O_intLoadB,
+                
+                O_intLoadAqW,
+                O_intStoreRelW,
             
             O_sysLoad
         };
@@ -299,6 +307,9 @@ package Emulation;
             O_intAdd:  result = vals[0] + vals[1];
             O_intSub:  result = vals[0] - vals[1];
             O_intAddH: result = vals[0] + (vals[1] << 16);
+            
+                O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
+                O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
             
             O_intMul:   result = vals[0] * vals[1];
             O_intMulHU: result = (Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
@@ -493,6 +504,9 @@ package Emulation;
                 O_intLoadW: begin
                     result = dataMem_N.readWord(adr);
                 end
+                O_intLoadB: result = dataMem_N.readWord(adr); // TODO
+                O_intLoadAqW: result = dataMem_N.readWord(adr); // TODO
+                
                 O_intLoadD: ;
                 O_floatLoadW: begin
                     result = dataMem_N.readWord(adr);
