@@ -85,6 +85,9 @@ package InsDefs;
             
             ldi_i, ldi_r, //-- int
             sti_i, sti_r,
+                
+                e_lb,
+                e_sb,
             
             ldf_i, ldf_r, //-- float
             stf_i, stf_r, 

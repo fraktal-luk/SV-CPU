@@ -738,11 +738,11 @@ package AbstractSim;
     endfunction
 
     function automatic logic isLoadMemUop(input UopName name);
-        return name inside {UOP_mem_ldi, UOP_mem_ldf};
+        return name inside {UOP_mem_ldi, UOP_mem_ldf,    UOP_mem_ldib};
     endfunction
 
     function automatic logic isStoreMemUop(input UopName name);
-        return name inside {UOP_mem_sti, UOP_mem_stf};
+        return name inside {UOP_mem_sti, UOP_mem_stf,    UOP_mem_stib};
     endfunction
 
     function automatic logic isStoreSysUop(input UopName name);
@@ -780,7 +780,8 @@ package AbstractSim;
          UOP_int_remu,
         
          UOP_mem_ldi,
-
+            UOP_mem_ldib,
+            
          UOP_mem_lds,
         
         

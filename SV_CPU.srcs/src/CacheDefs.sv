@@ -68,14 +68,20 @@ package CacheDefs;
 
 
 //////////////////
+    // Transfer size in bytes
+    typedef enum {
+        SIZE_NONE, SIZE_1, SIZE_4, SIZE_8
+    } AccessSize;
+
     typedef struct {
         logic active;
             logic store;            
             logic uncachedReq;
         Mword adr;
+        AccessSize size;
     } DataReadReq;
 
-    localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x};
+    localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
 
 
     // Write buffer
@@ -87,17 +93,19 @@ package CacheDefs;
             logic uncached;
         Mword adr;
         Mword val;
+            AccessSize size;
     } StoreQueueEntry;
 
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x};
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, SIZE_NONE};
 
     typedef struct {
         logic req;
         Mword adr;
         Mword value;
+            AccessSize size;
     } MemWriteInfo;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE};
 
 
    

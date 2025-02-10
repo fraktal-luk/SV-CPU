@@ -43,6 +43,9 @@ package UopList;
          UOP_mem_ldi,
          UOP_mem_sti,
         
+            UOP_mem_ldib,
+            UOP_mem_stib,
+        
          UOP_mem_ldf,
          UOP_mem_stf,
     
@@ -116,7 +119,9 @@ package UopList;
         
         "ldf_i":      UOP_mem_ldf,
         "stf_i":      UOP_mem_stf,
-
+                
+            "e_lb":    UOP_mem_ldib,
+            "e_sb":    UOP_mem_stib,
         
         "lds":        UOP_mem_lds,
         "sts":        UOP_mem_sts,

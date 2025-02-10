@@ -171,7 +171,7 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val};
+        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, SIZE_NONE};
         return res;
     endfunction
 
@@ -616,7 +616,7 @@ module AbstractCore
         int found[$] = theSq.content_N.find_index with (item.mid == id);
         logic uncached = theSq.content_N[found[0]].uncached;
         
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val};       
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, SIZE_NONE};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
