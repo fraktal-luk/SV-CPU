@@ -86,7 +86,10 @@ module MemSubpipe#(
         UopName uname = decUname(stateE0.TMP_oid);
 
         
-            readSize = 0 ? SIZE_1 : SIZE_4;
+            readSize = (uname inside {UOP_mem_ldib, UOP_mem_stib}) ? SIZE_1 : SIZE_4;
+            
+            if (!stateE0.active) readSize = SIZE_NONE;
+            
         readActive <= stateE0.active && isMemUop(uname);
         storeFlag <= isStoreUop(uname);
         uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
@@ -210,11 +213,11 @@ module MemSubpipe#(
                 if (sqResp.status == ES_CANT_FORWARD) begin
                     res.status = ES_REFETCH;
                     insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                    res.result = 'x; // TMP
+                    res.result = 0; // TMP
                 end
                 else if (sqResp.status == ES_SQ_MISS) begin            
                     res.status = ES_SQ_MISS;
-                    res.result = 'x; // TMP
+                    res.result = 0; // TMP
                 end
                 else begin
                     res.status = ES_OK;

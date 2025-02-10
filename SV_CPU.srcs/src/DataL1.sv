@@ -251,10 +251,10 @@ module DataL1(
     endfunction
 
 
-
-    function automatic Mword readFromStaticRange(input Mword adr);
+    function automatic Mword readWordStatic(input Mword adr);
         localparam int ACCESS_SIZE = 4;
-
+        // TODO: introduce variable access size
+        
         Mbyte chosenWord[ACCESS_SIZE];
         Mword wval;
         Word val;
@@ -265,18 +265,85 @@ module DataL1(
         val = Mword'(wval);
 
         return val;
+    endfunction
+
+    function automatic Mword readByteStatic(input Mword adr);
+        localparam int ACCESS_SIZE = 1;
+        // TODO: introduce variable access size
+        
+        Mbyte chosenWord[ACCESS_SIZE];
+        Mbyte wval;
+        Word val;
+
+        chosenWord = content[adr +: ACCESS_SIZE];
+
+        wval = {>>{chosenWord}};
+        val = Mword'(wval);
+           // $error("read byte: %h, %h", adr, val);
+
+        return val;
+    endfunction
+
+
+
+
+    function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
+//        localparam int ACCESS_SIZE = 4;
+//        // TODO: introduce variable access size
+        
+//        Mbyte chosenWord[ACCESS_SIZE];
+//        Mword wval;
+//        Word val;
+
+//        chosenWord = content[adr +: ACCESS_SIZE];
+
+//        wval = {>>{chosenWord}};
+//        val = Mword'(wval);
+
+        if (size == SIZE_1) return readByteStatic(adr);
+        else if (size == SIZE_4) return readWordStatic(adr);
+        else $error("Wrong access size");
+
+        return 'x;
     endfunction 
 
-    function automatic Mword readFromDynamicRange(input Mword adr);
-        // TODO: for now only word-sized
+
+
+    function automatic Mword readFromDynamicRange(input Mword adr, input AccessSize size);
+        // TODO: introduce variable access size
         localparam int ACCESS_SIZE = 4;
         
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
         DataBlock block = filledBlocks[physBlockBase];
         PhysicalAddressLow physLow = adr % BLOCK_SIZE;
 
-        Mbyte chosenWord[ACCESS_SIZE] = block[physLow +: ACCESS_SIZE];
+//        Mbyte chosenWord[ACCESS_SIZE] = block[physLow +: ACCESS_SIZE];
+//        Mword wval = {>>{chosenWord}};
+//        Word val = Mword'(wval);
+
+        if (size == SIZE_1) return readByteDynamic(block, physLow);
+        else if (size == SIZE_4) return readWordDynamic(block, physLow);
+        else $error("Wrong access size");
+
+        return 'x;
+    endfunction
+
+
+    function automatic Mword readWordDynamic(input DataBlock block, input int offset);
+        localparam int ACCESS_SIZE = 4;
+
+        Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
         Mword wval = {>>{chosenWord}};
+        Word val = Mword'(wval);
+
+        return val;
+    endfunction
+
+    function automatic Mword readByteDynamic(input DataBlock block, input int offset);
+        localparam int ACCESS_SIZE = 1;
+
+        Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
+        Mbyte wval = {>>{chosenWord}};
         Word val = Mword'(wval);
 
         return val;
@@ -308,7 +375,7 @@ module DataL1(
                 translations[p] <= DEFAULT_TRANSLATION;
             end
             else begin
-                AccessInfo acc = analyzeAccess(vadr, 4);
+                AccessInfo acc = analyzeAccess(vadr, readReqs[p].size);
                 Translation tr = translateAddress(vadr);
                 PhysicalAddressHigh wayTag = tagsForWay[acc.block];
                
@@ -357,9 +424,9 @@ module DataL1(
                     
             end
             else if (tr.phys <= $size(content)) // Read from small array
-                res.data = readFromStaticRange(tr.phys /*aInfo*/ /*, tr*/);//.data;
+                res.data = readFromStaticRange(tr.phys, aInfo.size);
             else
-                res.data = readFromDynamicRange(tr.phys);
+                res.data = readFromDynamicRange(tr.phys, aInfo.size);
         end
         
         return res;

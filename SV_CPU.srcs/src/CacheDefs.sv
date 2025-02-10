@@ -155,7 +155,7 @@ package CacheDefs;
 
     typedef struct {
         EffectiveAddress adr;
-        int accessSize;
+        AccessSize size;
         VirtualAddressHigh aHigh;
         VirtualAddressLow aLow;
         int block;
@@ -167,7 +167,7 @@ package CacheDefs;
 
     localparam AccessInfo DEFAULT_ACCESS_INFO = '{
         adr: 'x,
-        accessSize: -1,
+        size: SIZE_NONE,
         aHigh: 'x,
         aLow: 'x,
         block: -1,
@@ -196,7 +196,7 @@ package CacheDefs;
 
 
 
-    function automatic AccessInfo analyzeAccess(input EffectiveAddress adr, input int accessSize);
+    function automatic AccessInfo analyzeAccess(input EffectiveAddress adr, input AccessSize accessSize);
         AccessInfo res;
         
         VirtualAddressLow aLow = adrLow(adr);
@@ -205,10 +205,17 @@ package CacheDefs;
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
         
+        int byteSize = -1;
+        
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
         
+        case (accessSize)
+            SIZE_1: byteSize = 1;
+            SIZE_4: byteSize = 4;
+        endcase
+        
         res.adr = adr;
-        res.accessSize = accessSize;
+        res.size = accessSize;
         
         res.aHigh = aHigh;
         res.aLow = aLow;
@@ -216,9 +223,9 @@ package CacheDefs;
         res.block = block;
         res.blockOffset = blockOffset;
         
-        res.unaligned = (aLow % accessSize) > 0;
-        res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-        res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+        res.unaligned = (aLow % byteSize) > 0;
+        res.blockCross = (blockOffset + byteSize) > BLOCK_SIZE;
+        res.pageCross = (aLow + byteSize) > PAGE_SIZE;
 
         return res;
     endfunction
