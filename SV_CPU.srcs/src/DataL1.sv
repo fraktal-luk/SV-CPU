@@ -217,7 +217,7 @@ module DataL1(
         if (!wrInfo.req) return;
 
         if (isUncachedRange(adr)) begin
-            // TODO: use 'uncached' flag in wrInfo (to add)
+            // TODO: use 'uncached' flag in wrInfo
         end
         else if (isStaticDataRange(adr)) begin
             writeToStaticRange(adr, val);
@@ -253,7 +253,6 @@ module DataL1(
 
     function automatic Mword readWordStatic(input Mword adr);
         localparam int ACCESS_SIZE = 4;
-        // TODO: introduce variable access size
         
         Mbyte chosenWord[ACCESS_SIZE];
         Mword wval;
@@ -269,7 +268,6 @@ module DataL1(
 
     function automatic Mword readByteStatic(input Mword adr);
         localparam int ACCESS_SIZE = 1;
-        // TODO: introduce variable access size
         
         Mbyte chosenWord[ACCESS_SIZE];
         Mbyte wval;
@@ -288,18 +286,6 @@ module DataL1(
 
 
     function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
-//        localparam int ACCESS_SIZE = 4;
-//        // TODO: introduce variable access size
-        
-//        Mbyte chosenWord[ACCESS_SIZE];
-//        Mword wval;
-//        Word val;
-
-//        chosenWord = content[adr +: ACCESS_SIZE];
-
-//        wval = {>>{chosenWord}};
-//        val = Mword'(wval);
-
         if (size == SIZE_1) return readByteStatic(adr);
         else if (size == SIZE_4) return readWordStatic(adr);
         else $error("Wrong access size");
@@ -309,17 +295,10 @@ module DataL1(
 
 
 
-    function automatic Mword readFromDynamicRange(input Mword adr, input AccessSize size);
-        // TODO: introduce variable access size
-        localparam int ACCESS_SIZE = 4;
-        
+    function automatic Mword readFromDynamicRange(input Mword adr, input AccessSize size);        
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
         DataBlock block = filledBlocks[physBlockBase];
         PhysicalAddressLow physLow = adr % BLOCK_SIZE;
-
-//        Mbyte chosenWord[ACCESS_SIZE] = block[physLow +: ACCESS_SIZE];
-//        Mword wval = {>>{chosenWord}};
-//        Word val = Mword'(wval);
 
         if (size == SIZE_1) return readByteDynamic(block, physLow);
         else if (size == SIZE_4) return readWordDynamic(block, physLow);

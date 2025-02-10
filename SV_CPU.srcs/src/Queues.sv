@@ -8,6 +8,7 @@ package Queues;
     
     import AbstractSim::*;
     import Insmap::*;
+    import CacheDefs::*;
     import ExecDefs::*;
     
     import UopList::*;
@@ -34,12 +35,13 @@ package Queues;
             Mword adr;
             logic valReady;
             Mword val;
+                AccessSize size;
             logic uncached;
             logic committed;
             logic dontForward;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x /*,  'x, 'x*/};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE, 'x, 'x, 'x};
     
         
 //        static function automatic logic applies(input AbstractInstruction ins);
@@ -57,6 +59,7 @@ package Queues;
             res.refetch = 0;
             res.adrReady = 0;
             res.valReady = 0;
+                res.size = (imap.get(id).mainUop == UOP_mem_stib)? SIZE_1 : SIZE_4;
             res.uncached = 0;
             res.committed = 0;
             res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
@@ -125,8 +128,11 @@ package Queues;
             endfunction
 
 
-        static function automatic UopPacket scanQueue(ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-            Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && wordOverlap(item.adr, adr));
+        static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
+            // TODO: check for overlap based on transaction sizes
+            //Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, 4, adr, 4));
+            AccessSize loadSize = (imap.get(id).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+            Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, item.size, adr, loadSize));
             Entry fwEntry;
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
@@ -135,8 +141,13 @@ package Queues;
                 sorted.sort with (item.mid);
                 fwEntry = sorted[$];
             end
-
-            if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
+            
+               // assert(wordInside(adr, fwEntry.adr) === memInside(adr, loadSize, fwEntry.adr, fwEntry.size)) else $error("not same: (%h, %d), (%h, %d)", adr, loadSize, fwEntry.adr, fwEntry.size);
+               // assert (loadSize != SIZE_1) else $error ("load 1 b %h", adr);
+            
+            // TODO: take into accout access size
+            //if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
+            if (!memInside(adr, loadSize, fwEntry.adr, fwEntry.size))  // Not includes completely -> incomplete forward, refetch
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
@@ -218,7 +229,7 @@ package Queues;
             endfunction
 
 
-        static function automatic UopPacket scanQueue(ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
+        static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
             UopPacket res = EMPTY_UOP_PACKET;
             int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
             
@@ -335,7 +346,7 @@ endclass
             endfunction
 
 
-        static function automatic UopPacket scanQueue(ref Entry entries[BQ_SIZE], input InsId id, input Mword adr);
+        static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[BQ_SIZE], input InsId id, input Mword adr);
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid == id);
             
             if (found.size() == 0) return EMPTY_UOP_PACKET;

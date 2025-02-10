@@ -263,6 +263,9 @@ module StoreQueue
 
             logic active = loadOp.active;
             Mword adr = loadOp.result;
+           // AccessSize size = SIZE_NONE;
+           // AccessSize trSize = SIZE_NONE;
+            
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
@@ -270,10 +273,15 @@ module StoreQueue
             if (active !== 1) continue;
             if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
-            
+
+            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), adr);
+
+
             if (resb.active) begin
-                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), adr);
+                AccessSize size = (insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                AccessSize trSize = (insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+            
+                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
@@ -294,7 +302,7 @@ module StoreQueue
             if (active !== 1) continue;
             if (!isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
+            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask
@@ -346,17 +354,17 @@ module StoreQueue
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
     endfunction
 
-    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
+    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
         assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
-            assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
+            assert (memOverlap(eadr, esize, tr.adr, trSize) && !memInside(eadr, esize, tr.adr, trSize)) else $error("Adr inside or not overlapping");
         end
         else if (sr.status == ES_SQ_MISS) begin
-            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+            assert (memInside(eadr, esize, tr.adr, trSize)) else $error("Adr not inside");
         end
         else begin
-            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+            assert (memInside(eadr, esize, tr.adr, trSize)) else $error("Adr not inside");
         end
     endfunction
 
