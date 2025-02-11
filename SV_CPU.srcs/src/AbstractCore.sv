@@ -391,7 +391,7 @@ module AbstractCore
 
         insMap.TMP_func(id, ii, uInfos);           
 
-        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
+        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, uopName, ins, argVals); // DB
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 

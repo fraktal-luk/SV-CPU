@@ -147,7 +147,7 @@ package Queues;
             
             // TODO: take into accout access size
             //if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
-            if (!memInside(adr, loadSize, fwEntry.adr, fwEntry.size))  // Not includes completely -> incomplete forward, refetch
+            if (!memInside(adr, BYTE_SIZE(loadSize), fwEntry.adr, BYTE_SIZE(fwEntry.size)) || (loadSize != fwEntry.size))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};

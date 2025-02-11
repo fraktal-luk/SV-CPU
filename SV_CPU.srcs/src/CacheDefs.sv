@@ -68,10 +68,7 @@ package CacheDefs;
 
 
 //////////////////
-    // Transfer size in bytes
-    typedef enum {
-        SIZE_NONE, SIZE_1, SIZE_4, SIZE_8
-    } AccessSize;
+
 
     typedef struct {
         logic active;

@@ -116,6 +116,26 @@ package AbstractSim;
     localparam WriterId WID_NONE = UIDT_NONE;
 
 
+    // Transfer size in bytes
+    typedef enum {
+        SIZE_NONE, SIZE_1, SIZE_4, SIZE_8
+    } AccessSize;
+    
+    function automatic AccessSize getTransactionSize(input UopName uname);
+        if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+        else if (isMemUop(uname)) return SIZE_4;
+        else return SIZE_NONE;
+    endfunction
+    
+    function automatic int BYTE_SIZE(input AccessSize asize);
+        case (asize)
+            SIZE_1: return 1;
+            SIZE_4: return 4;
+            default: return -1;
+        endcase
+    endfunction
+    
+
     typedef struct {
         logic active;
         InsId id;
@@ -507,10 +527,11 @@ package AbstractSim;
         InsId owner;
         Mword adr;
         Mword val;
-        Mword adrAny; 
+        Mword adrAny;
+            AccessSize size;
     } Transaction;
 
-    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x};
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, SIZE_NONE};
 
 
     class MemTracker;
@@ -519,15 +540,16 @@ package AbstractSim;
         Transaction loads[$];
         Transaction committedStores[$]; // Not included in transactions
         
-        function automatic void add(input InsId id, input AbstractInstruction ins, input Mword argVals[3]);
+        function automatic void add(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword argVals[3]);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
+            AccessSize size = getTransactionSize(uname);
     
             if (isStoreMemIns(ins)) begin 
                 Mword value = argVals[2];
-                addStore(id, effAdr, value);
+                addStore(id, effAdr, value, size);
             end
             if (isLoadMemIns(ins)) begin
-                addLoad(id, effAdr, 'x);
+                addLoad(id, effAdr, 'x, size);
             end
             if (isStoreSysIns(ins)) begin 
                 Mword value = argVals[2];
@@ -538,24 +560,24 @@ package AbstractSim;
             end
         endfunction
 
-        function automatic void addStore(input InsId id, input Mword adr, input Mword val);
-            transactions.push_back('{id, adr, val, adr});
-            stores.push_back('{id, adr, val, adr});
+        function automatic void addStore(input InsId id, input Mword adr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, size});
+            stores.push_back('{id, adr, val, adr, size});
         endfunction
 
-        function automatic void addLoad(input InsId id, input Mword adr, input Mword val);            
-            transactions.push_back('{id, adr, val, adr});
-            loads.push_back('{id, adr, val, adr});
+        function automatic void addLoad(input InsId id, input Mword adr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, size});
+            loads.push_back('{id, adr, val, adr, size});
         endfunction
 
         function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
-            transactions.push_back('{id, 'x, val, adr});
-            stores.push_back('{id, 'x, val, adr});
+            transactions.push_back('{id, 'x, val, adr, SIZE_NONE});
+            stores.push_back('{id, 'x, val, adr, SIZE_NONE});
         endfunction
 
         function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
-            transactions.push_back('{id, 'x, val, adr});
-            loads.push_back('{id, 'x, val, adr});
+            transactions.push_back('{id, 'x, val, adr, SIZE_NONE});
+            loads.push_back('{id, 'x, val, adr, SIZE_NONE});
         endfunction
 
         function automatic void remove(input InsId id);        
@@ -588,23 +610,26 @@ package AbstractSim;
             while (stores.size() != 0 && stores[$].owner > id) void'(stores.pop_back());
             while (loads.size() != 0 && loads[$].owner > id) void'(loads.pop_back());
         endfunction
-
-
-        function automatic Transaction checkTransaction_Overlap(input InsId id);
-            Transaction allStores[$] = {committedStores, stores};
         
-            Transaction read[$] = transactions.find_first with (item.owner == id); 
-            Transaction writers[$] = allStores.find with (wordOverlap(item.adr, read[0].adr) && item.owner < id);
-            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
-        endfunction
-
-        function automatic Transaction checkTransaction_Inside(input InsId id);
-            Transaction allStores[$] = {committedStores, stores};
         
-            Transaction read[$] = transactions.find_first with (item.owner == id); 
-            Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
-            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
-        endfunction
+        // !!!! unused functions?
+            // TODO: handle diffrent sizes
+            function automatic Transaction checkTransaction_Overlap(input InsId id);
+                Transaction allStores[$] = {committedStores, stores};
+            
+                Transaction read[$] = transactions.find_first with (item.owner == id); 
+                Transaction writers[$] = allStores.find with (memOverlap(item.adr, BYTE_SIZE(item.size), read[0].adr, BYTE_SIZE(read[0].size)) && item.owner < id);
+                return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
+            endfunction
+            
+            // TODO: handle different sizes
+            function automatic Transaction checkTransaction_Inside(input InsId id);
+                Transaction allStores[$] = {committedStores, stores};
+            
+                Transaction read[$] = transactions.find_first with (item.owner == id); 
+                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
+                return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
+            endfunction
 
 
         function automatic Transaction findStore(input InsId id);

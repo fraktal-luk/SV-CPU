@@ -280,7 +280,11 @@ module StoreQueue
             if (resb.active) begin
                 AccessSize size = (insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
                 AccessSize trSize = (insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-            
+                
+                // TODO: if resb is not the last matching store, denote this fact.
+                // At Commit assure that a store did not get its value from FW other than the latest matching one - if it gets Retire normal, raise an error
+                // Remember that no FW is a valid result if the latest mtching store has left SQ
+                //  >> Mark whether there is a younger matching FW in MemTracker than the one found in SQ
                 checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
 
@@ -358,13 +362,14 @@ module StoreQueue
         assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
-            assert (memOverlap(eadr, esize, tr.adr, trSize) && !memInside(eadr, esize, tr.adr, trSize)) else $error("Adr inside or not overlapping");
+            assert (memOverlap(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize)) && 
+                    (!memInside(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize)) || (esize != trSize))) else $error("Adr inside or not overlapping");
         end
         else if (sr.status == ES_SQ_MISS) begin
-            assert (memInside(eadr, esize, tr.adr, trSize)) else $error("Adr not inside");
+            assert (memInside(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize))) else $error("Adr not inside");
         end
         else begin
-            assert (memInside(eadr, esize, tr.adr, trSize)) else $error("Adr not inside");
+            assert (memInside(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize))) else $error("Adr not inside");
         end
     endfunction
 
