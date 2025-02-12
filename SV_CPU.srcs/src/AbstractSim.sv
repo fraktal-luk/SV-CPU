@@ -118,7 +118,10 @@ package AbstractSim;
 
     // Transfer size in bytes
     typedef enum {
-        SIZE_NONE, SIZE_1, SIZE_4, SIZE_8
+        SIZE_NONE = 0,
+        SIZE_1 = 1,
+        SIZE_4 = 4,
+        SIZE_8 = 8
     } AccessSize;
     
     function automatic AccessSize getTransactionSize(input UopName uname);
@@ -127,13 +130,15 @@ package AbstractSim;
         else return SIZE_NONE;
     endfunction
     
-    function automatic int BYTE_SIZE(input AccessSize asize);
-        case (asize)
-            SIZE_1: return 1;
-            SIZE_4: return 4;
-            default: return -1;
-        endcase
-    endfunction
+//    function automatic int (input AccessSize asize);
+//            return asize;
+        
+//        case (asize)
+//            SIZE_1: return 1;
+//            SIZE_4: return 4;
+//            default: return -1;
+//        endcase
+//    endfunction
     
 
     typedef struct {
@@ -618,7 +623,7 @@ package AbstractSim;
                 Transaction allStores[$] = {committedStores, stores};
             
                 Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find with (memOverlap(item.adr, BYTE_SIZE(item.size), read[0].adr, BYTE_SIZE(read[0].size)) && item.owner < id);
+                Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.adr, (item.size), read[0].adr, (read[0].size)));
                 return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
             endfunction
             

@@ -359,17 +359,25 @@ module StoreQueue
     endfunction
 
     function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
-        assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
+        Transaction latestOverlap = memTracker.checkTransaction_Overlap(U2M(sr.TMP_oid));
+ 
+        // TODO: if sr source is not latestOverlap, denote this fact somewhere.
+        // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
+        // If the final value was not from FW, it's OK because latestOvarlap could have retired before the load commits.
+        //    assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr");
+        
+        assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
-            assert (memOverlap(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize)) && 
-                    (!memInside(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize)) || (esize != trSize))) else $error("Adr inside or not overlapping");
+            assert (
+                    ((esize != trSize) || !memInside(eadr, (esize), tr.adr, (trSize)) )
+                      && memOverlap(eadr, (esize), tr.adr, (trSize)) ) else $error("Adr (same size and inside) or not overlapping");
         end
         else if (sr.status == ES_SQ_MISS) begin
-            assert (memInside(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize))) else $error("Adr not inside");
+            assert (memInside(eadr, (esize), tr.adr, (trSize))) else $error("Adr not inside");
         end
         else begin
-            assert (memInside(eadr, BYTE_SIZE(esize), tr.adr, BYTE_SIZE(trSize))) else $error("Adr not inside");
+            assert (memInside(eadr, (esize), tr.adr, (trSize))) else $error("Adr not inside");
         end
     endfunction
 

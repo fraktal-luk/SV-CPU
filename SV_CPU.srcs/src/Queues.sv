@@ -147,7 +147,7 @@ package Queues;
             
             // TODO: take into accout access size
             //if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
-            if (!memInside(adr, BYTE_SIZE(loadSize), fwEntry.adr, BYTE_SIZE(fwEntry.size)) || (loadSize != fwEntry.size))  // don't allow FW of different size because shifting would be needed
+            if ((loadSize != fwEntry.size) || !memInside(adr, (loadSize), fwEntry.adr, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
@@ -171,9 +171,10 @@ package Queues;
             logic refetch;
             logic adrReady;
             Mword adr;
+                AccessSize size;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
 
 //        static function automatic logic applies(input AbstractInstruction ins);
 //            return isLoadIns(ins);
@@ -189,6 +190,7 @@ package Queues;
             res.adrReady = 0;
             res.error = 0;
             res.refetch = 0;
+                res.size = (imap.get(id).mainUop == UOP_mem_ldib)? SIZE_1 : SIZE_4;
             return res;
         endfunction
         
@@ -231,7 +233,8 @@ package Queues;
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
             UopPacket res = EMPTY_UOP_PACKET;
-            int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && wordOverlap(item.adr, adr));
+            AccessSize trSize = (imap.get(id).mainUop == UOP_mem_stib) ? SIZE_1 : SIZE_4;
+            int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
             
             if (found.size() == 0) return res;
     
