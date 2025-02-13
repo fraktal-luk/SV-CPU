@@ -33,6 +33,7 @@ module MemSubpipe#(
     UopPacket stage0, stage0_E;
     
     logic readActive = 0, storeFlag = 0, uncachedFlag = 0;
+    AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
 
     assign stage0 = pE2;
@@ -52,7 +53,7 @@ module MemSubpipe#(
     end
 
     assign readReq = '{
-        readActive, storeFlag, uncachedFlag, effAdrE0
+        readActive, storeFlag, uncachedFlag, effAdrE0, readSize
     };
 
 
@@ -84,6 +85,11 @@ module MemSubpipe#(
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
 
+        
+            readSize = (uname inside {UOP_mem_ldib, UOP_mem_stib}) ? SIZE_1 : SIZE_4;
+            
+            if (!stateE0.active) readSize = SIZE_NONE;
+            
         readActive <= stateE0.active && isMemUop(uname);
         storeFlag <= isStoreUop(uname);
         uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
@@ -207,11 +213,11 @@ module MemSubpipe#(
                 if (sqResp.status == ES_CANT_FORWARD) begin
                     res.status = ES_REFETCH;
                     insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                    res.result = 'x; // TMP
+                    res.result = 0; // TMP
                 end
                 else if (sqResp.status == ES_SQ_MISS) begin            
                     res.status = ES_SQ_MISS;
-                    res.result = 'x; // TMP
+                    res.result = 0; // TMP
                 end
                 else begin
                     res.status = ES_OK;

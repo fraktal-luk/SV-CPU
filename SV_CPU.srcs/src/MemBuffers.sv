@@ -263,6 +263,9 @@ module StoreQueue
 
             logic active = loadOp.active;
             Mword adr = loadOp.result;
+           // AccessSize size = SIZE_NONE;
+           // AccessSize trSize = SIZE_NONE;
+            
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
@@ -270,10 +273,19 @@ module StoreQueue
             if (active !== 1) continue;
             if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(content_N, U2M(loadOp.TMP_oid), adr);
-            
+
+            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), adr);
+
+
             if (resb.active) begin
-                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), adr);
+                AccessSize size = (insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                AccessSize trSize = (insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                
+                // TODO: if resb is not the last matching store, denote this fact.
+                // At Commit assure that a store did not get its value from FW other than the latest matching one - if it gets Retire normal, raise an error
+                // Remember that no FW is a valid result if the latest mtching store has left SQ
+                //  >> Mark whether there is a younger matching FW in MemTracker than the one found in SQ
+                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
@@ -294,7 +306,7 @@ module StoreQueue
             if (active !== 1) continue;
             if (!isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
+            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask
@@ -346,17 +358,26 @@ module StoreQueue
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
     endfunction
 
-    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input Mword eadr);
-        assert (tr.owner != -1) else $error("Forwarded store unknown by mmeTracker! %d", U2M(sr.TMP_oid));
+    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
+        Transaction latestOverlap = memTracker.checkTransaction_Overlap(U2M(sr.TMP_oid));
+ 
+        // TODO: if sr source is not latestOverlap, denote this fact somewhere.
+        // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
+        // If the final value was not from FW, it's OK because latestOvarlap could have retired before the load commits.
+        //    assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr");
+        
+        assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
-            assert (wordOverlap(eadr, tr.adr) && !wordInside(eadr, tr.adr)) else $error("Adr inside or not overlapping");
+            assert (
+                    ((esize != trSize) || !memInside(eadr, (esize), tr.adr, (trSize)) )
+                      && memOverlap(eadr, (esize), tr.adr, (trSize)) ) else $error("Adr (same size and inside) or not overlapping");
         end
         else if (sr.status == ES_SQ_MISS) begin
-            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+            assert (memInside(eadr, (esize), tr.adr, (trSize))) else $error("Adr not inside");
         end
         else begin
-            assert (wordInside(eadr, tr.adr)) else $error("Adr not inside");
+            assert (memInside(eadr, (esize), tr.adr, (trSize))) else $error("Adr not inside");
         end
     endfunction
 

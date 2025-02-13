@@ -396,6 +396,9 @@ module ExecBlock(ref InstructionMap insMap,
             UOP_int_add:  res = args[0] + args[1];
             UOP_int_sub:  res = args[0] - args[1];
             
+                UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
+                UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
+            
             UOP_int_shlc:
                             if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
                             else                       res = $unsigned(args[0]) >> -args[1];

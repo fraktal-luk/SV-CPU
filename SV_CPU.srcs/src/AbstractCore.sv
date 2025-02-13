@@ -171,7 +171,7 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val};
+        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, SIZE_NONE};
         return res;
     endfunction
 
@@ -346,6 +346,8 @@ module AbstractCore
         Mword argVals[3];
         UopName uopName = OP_DECODING_TABLE[ins.mnemonic];
 
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
+
         // For insMap and mem queues
         argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
         result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
@@ -389,7 +391,7 @@ module AbstractCore
 
         insMap.TMP_func(id, ii, uInfos);           
 
-        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, ins, argVals); // DB
+        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, uopName, ins, argVals); // DB
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 
@@ -569,7 +571,7 @@ module AbstractCore
             end
             else begin
                 coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
-                coreDB.nRetired++;
+                //coreDB.nRetired++;
             end
 
         verifyOnCommit(id, retInfo);
@@ -613,8 +615,9 @@ module AbstractCore
         // Extract 'uncached' info
         int found[$] = theSq.content_N.find_index with (item.mid == id);
         logic uncached = theSq.content_N[found[0]].uncached;
+        AccessSize size = decMainUop(id) == UOP_mem_stib ? SIZE_1 : SIZE_4;
         
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val};       
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, size};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask

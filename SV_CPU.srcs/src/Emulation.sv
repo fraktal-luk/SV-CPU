@@ -28,9 +28,10 @@ package Emulation;
         bit active;
         Mword adr;
         Mword value;
+            int size;
     } MemoryWrite;
 
-    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, value: 'x};
+    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, value: 'x, size: -1};
 
     typedef struct {
         logic wrInt;
@@ -113,13 +114,25 @@ package Emulation;
             Mbyte bytes[4] = {>>{value}};
             foreach (bytes[i]) content[startAdr+i] = bytes[i];
         endfunction
+
+        function automatic void writeByte(input Mword startAdr, input Mbyte value);
+            Mbyte bytes[1] = {>>{value}};
+            foreach (bytes[i]) content[startAdr+i] = bytes[i];
+        endfunction
+
  
         function automatic Word readWord(input Mword startAdr);
             Mbyte bytes[4];
             foreach (bytes[i]) bytes[i] = content.exists(startAdr+i) ? content[startAdr+i] : 0;
             return {>>{bytes}};
         endfunction
-        
+
+        function automatic Mbyte readByte(input Mword startAdr);
+            Mbyte bytes[1];
+            foreach (bytes[i]) bytes[i] = content.exists(startAdr+i) ? content[startAdr+i] : 0;
+            return {>>{bytes}};
+        endfunction
+       
     endclass
 
     
@@ -147,7 +160,7 @@ package Emulation;
         
 
     function automatic logic isMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD, O_floatLoadW, O_floatStoreW};
+        return ins.def.o inside {O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD, O_floatLoadW, O_floatStoreW,  O_intLoadB,  O_intStoreB,  O_intLoadAqW, O_intStoreRelW};
     endfunction
     
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
@@ -163,7 +176,7 @@ package Emulation;
     endfunction
 
     function automatic logic isLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW});
+        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
     endfunction
 
     function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
@@ -171,7 +184,7 @@ package Emulation;
     endfunction
 
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW};
+        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
     endfunction
 
     function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
@@ -200,6 +213,9 @@ package Emulation;
             O_intSub,
             O_intAddH,
             
+                O_intCmpGtU,
+                O_intCmpGtS,
+            
             O_intMul,
             O_intMulHU,
             O_intMulHS,
@@ -214,6 +230,11 @@ package Emulation;
             
             O_intLoadW,
             O_intLoadD,
+                
+                O_intLoadB,
+                
+                O_intLoadAqW,
+                O_intStoreRelW,
             
             O_sysLoad
         };
@@ -299,6 +320,9 @@ package Emulation;
             O_intAdd:  result = vals[0] + vals[1];
             O_intSub:  result = vals[0] - vals[1];
             O_intAddH: result = vals[0] + (vals[1] << 16);
+            
+                O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
+                O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
             
             O_intMul:   result = vals[0] * vals[1];
             O_intMulHU: result = (Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
@@ -493,6 +517,9 @@ package Emulation;
                 O_intLoadW: begin
                     result = dataMem_N.readWord(adr);
                 end
+                O_intLoadB: result = dataMem_N.readByte(adr); // TODO
+                O_intLoadAqW: result = dataMem_N.readWord(adr); // TODO
+                
                 O_intLoadD: ;
                 O_floatLoadW: begin
                     result = dataMem_N.readWord(adr);
@@ -540,8 +567,13 @@ package Emulation;
                 this.writeToDo = getMemWrite(ins, args);
             end
             
-            if (this.writeToDo.active)
-                dataMem_N.writeWord(writeToDo.adr, writeToDo.value);
+            if (this.writeToDo.active) begin
+                case (writeToDo.size)
+                    1: dataMem_N.writeByte(writeToDo.adr, Mbyte'(writeToDo.value));
+                    4: dataMem_N.writeWord(writeToDo.adr, writeToDo.value);
+                    default: $error("Wrong store size %d/ %p", adr, ins);
+                endcase
+            end
 
             if (isSysIns(ins))
                 performSys(adr, ins, args);
@@ -620,8 +652,18 @@ package Emulation;
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
             logic en = !exceptionCaused(ins, effAdr);
+            int size = -1;
             
-            if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2]};
+            case (ins.def.o)
+                //O_intStoreD: size = 8;
+                O_intStoreW: size = 4;
+                O_intStoreRelW: size = 4;
+                O_intStoreB: size = 1;
+                O_floatStoreW: size = 4;
+                default: ;
+            endcase
+            
+            if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2], size};
             return res;
         endfunction
 

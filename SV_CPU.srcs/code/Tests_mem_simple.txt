@@ -11,3 +11,6 @@ sf_deps3
 sf_deps4
 sf_deps5
 sf_deps6
+
+mem_byte
+mem_byte_store

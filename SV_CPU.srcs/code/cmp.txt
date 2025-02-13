@@ -1,0 +1,50 @@
+	add_i r1, r0, 1
+	add_i r2, r0, 2
+	add_i r31, r0, -1
+	add_r r0, r0, r0
+
+	cgt_u	r10, r0, r0  ;    N
+	cgt_u	r11, r1, r1  ;    N
+	cgt_u   r12, r31, r31;    N
+	cgt_u   r13, r0, r1  ;    N
+	cgt_u   r14, r1, r0  ;    Y
+	cgt_u	r15, r0, r31 ;    N
+	cgt_u	r16, r1, r31 ;    N
+	cgt_u	r17, r31, r1 ;    Y
+	
+ 	jnz_i   r10, $error
+ 	jnz_i   r11, $error
+ 	jnz_i   r12, $error
+ 	jnz_i   r13, $error
+ 	jz_i   r14, $error
+ 	jnz_i   r15, $error
+ 	jnz_i   r16, $error
+ 	jz_i   r17, $error
+
+	cgt_s	r10, r0, r0  ;    N
+	cgt_s	r11, r1, r1  ;    N
+	cgt_s   r12, r31, r31;    N
+	cgt_s   r13, r0, r1  ;    N
+	cgt_s   r14, r1, r0  ;    Y
+	cgt_s	r15, r0, r31 ;    Y
+	cgt_s	r16, r1, r31 ;    Y
+	cgt_s	r17, r31, r1 ;    N
+
+ 	jnz_i   r10, $error
+ 	jnz_i   r11, $error
+ 	jnz_i   r12, $error
+ 	jnz_i   r13, $error
+ 	jz_i   r14, $error
+ 	jz_i   r15, $error
+ 	jz_i   r16, $error
+ 	jnz_i   r17, $error
+
+	sys_call
+$error
+    sys_error
+
+
+	
+
+
+ 

@@ -19,7 +19,8 @@ fp0                ; has mem
 use_lib0           ;   needs common
 
 ; arith ops
-shifts             
+shifts
+cmp         
 mul
 div_s
 div

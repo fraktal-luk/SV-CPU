@@ -69,6 +69,8 @@ package InsDefs;
             add_r,
             sub_r,
             
+                cgt_u, cgt_s,
+                
             shl_i, shl_r, //-- direction defined by shift value, not opcode 
             sha_i, sha_r, //--   
             rot_i, rot_r,
@@ -83,6 +85,9 @@ package InsDefs;
             
             ldi_i, ldi_r, //-- int
             sti_i, sti_r,
+                
+                e_lb,
+                e_sb,
             
             ldf_i, ldf_r, //-- float
             stf_i, stf_r, 
@@ -146,6 +151,12 @@ package InsDefs;
         P_intStoreW16 = 21,
         P_floatLoadW16 = 22,
         P_floatStoreW16 = 23,
+            
+            P_intLoadB16 = 24,
+            P_intStoreB16 = 25,
+
+            P_intLoadAqW16 = 26,
+            P_intStoreRelW16 = 27,
 
         P_none = -1
     } Primary;
@@ -197,10 +208,13 @@ package InsDefs;
         T_intAnd   = 32*S_intLogic + 0,
         T_intOr    = 32*S_intLogic + 1,
         T_intXor   = 32*S_intLogic + 2,
-    
+
         T_intAdd   = 32*S_intArith + 0,
         T_intSub   = 32*S_intArith + 1,
-    
+
+            T_intCmpGtU = 32*S_intArith + 2,
+            T_intCmpGtS = 32*S_intArith + 3,
+
         T_intMul   = 32*S_intMul + 0,
         T_intMulHU = 32*S_intMul + 1,
         T_intMulHS = 32*S_intMul + 2,
@@ -208,16 +222,16 @@ package InsDefs;
         T_intDivS  = 32*S_intMul + 9,
         T_intRemU  = 32*S_intMul + 10,
         T_intRemS  = 32*S_intMul + 11,
-    
+
         T_floatMove = 32*S_floatMove + 0,
-        
+
         T_floatOr     = 32*S_floatArith + 0,
         T_floatAddInt = 32*S_floatArith + 1,
-      
-      
+
+
         T_jumpRegZ  = 32*S_jumpReg + 0,
         T_jumpRegNZ = 32*S_jumpReg + 1,
-        
+
         T_none = -1
 
     } Ternary;
@@ -280,6 +294,8 @@ package InsDefs;
         O_intAnd, O_intOr, O_intXor,
         O_intAdd, O_intSub,
         O_intAddH,
+            O_intCmpGtU, O_intCmpGtS,
+        
         O_intMul, O_intMulHU, O_intMulHS,
         O_intDivU, O_intDivS,
         O_intRemU, O_intRemS,
@@ -294,6 +310,10 @@ package InsDefs;
         O_intLoadW, O_intLoadD,
         O_intStoreW, O_intStoreD,
         O_floatLoadW, O_floatStoreW,
+        
+            O_intLoadB, O_intStoreB,
+            O_intLoadAqW, O_intStoreRelW,
+        
         O_sysLoad, O_sysStore
     } Operation;
 
@@ -317,7 +337,9 @@ package InsDefs;
         "add_h":      '{P_addH, S_none, T_none, O_intAddH},//intImm16,
         "add_r":      '{P_intAlu, S_intArith, T_intAdd, O_intAdd},//int2R,
         "sub_r":      '{P_intAlu, S_intArith, T_intSub, O_intSub},//int2R,
-        
+            "cgt_u":      '{P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
+            "cgt_s":      '{P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
+                
         "shl_i":      '{P_intAluImm, S_intShiftLogical, T_none, O_intShiftLogical},//intImm10, 
         "sha_i":      '{P_intAluImm, S_intShiftArith, T_none, O_intShiftArith},//intImm10, 
         "rot_i":      '{P_intAluImm, S_intRotate, T_none, O_intRotate},//intImm10, 
@@ -339,7 +361,13 @@ package InsDefs;
         
         "ldf_i":      '{P_floatLoadW16,  S_none, T_none, O_floatLoadW},//floatLoad16,
         "stf_i":      '{P_floatStoreW16,  S_none, T_none, O_floatStoreW},//floatStore16,
-//            //stf_r, 
+
+            "e_lb":     '{P_intLoadB16, S_none, T_none, O_intLoadB},//IntImm16
+            "e_sb":     '{P_intStoreB16, S_none, T_none, O_intStoreB},//IntImm16
+
+            "e_ldaq":      '{P_intLoadAqW16, S_none, T_none, O_intLoadAqW},//IntImm16
+            "e_strel":     '{P_intStoreRelW16, S_none, T_none, O_intStoreRelW},//IntImm16
+                        
         
         "lds":        '{P_sysMem,  S_sysLoad, T_none, O_sysLoad},//sysLoad, //-- load sys
         "sts":        '{P_sysMem,  S_sysStore, T_none, O_sysStore},//sysStore, //-- store sys
@@ -375,7 +403,9 @@ package InsDefs;
         "add_h":      F_intImm16,
         "add_r":      F_int2R,
         "sub_r":      F_int2R,
-        
+            "cgt_u":      F_int2R,
+            "cgt_s":      F_int2R,
+            
         "shl_i":      F_intImm10, 
         
         "sha_i":      F_intImm10,
@@ -400,6 +430,12 @@ package InsDefs;
         
         "ldf_i":      F_floatLoad16,
         "stf_i":      F_floatStore16,
+
+            "e_lb":    F_intImm16,
+            "e_sb":    F_intStore16,
+                       
+            "e_ldaq":  F_intImm16,
+            "e_strel": F_intStore16,
 
         "lds":        F_sysLoad, //-- load sys
         "sts":        F_sysStore, //-- store sys

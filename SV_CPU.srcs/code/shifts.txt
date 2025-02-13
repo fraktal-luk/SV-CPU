@@ -29,6 +29,3 @@
 	sys_call
 $error
     sys_error
-
-
- 
