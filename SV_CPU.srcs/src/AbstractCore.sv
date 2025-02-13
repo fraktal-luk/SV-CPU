@@ -571,7 +571,7 @@ module AbstractCore
             end
             else begin
                 coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
-                coreDB.nRetired++;
+                //coreDB.nRetired++;
             end
 
         verifyOnCommit(id, retInfo);
