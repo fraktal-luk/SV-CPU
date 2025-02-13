@@ -81,7 +81,7 @@ package Queues;
                 entry.uncached = 1;
                 //    $error("uncached: %d", U2M(p.TMP_oid));
             end
-            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti, UOP_mem_stf, UOP_mem_sts}) begin
+            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
                 entry.adrReady = 1;
                 entry.adr = p.result;
             end

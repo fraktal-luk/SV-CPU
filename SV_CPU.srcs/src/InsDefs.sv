@@ -432,10 +432,10 @@ package InsDefs;
         "stf_i":      F_floatStore16,
 
             "e_lb":    F_intImm16,
-            "e_sb":    F_intImm16,
+            "e_sb":    F_intStore16,
                        
             "e_ldaq":  F_intImm16,
-            "e_strel": F_intImm16,
+            "e_strel": F_intStore16,
 
         "lds":        F_sysLoad, //-- load sys
         "sts":        F_sysStore, //-- store sys

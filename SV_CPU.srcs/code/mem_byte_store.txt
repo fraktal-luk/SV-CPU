@@ -1,0 +1,15 @@
+
+$start
+	add_i r8, r0, 2048
+	add_i r31, r0, -1
+	e_sb r31, r8, 1
+	sys_sync
+	
+	ldi_i r10, r8, 0 ; should be 0x00ff0000
+	;add_i r11, r10, -255
+	;jnz_i r11, $error
+	
+$check
+	sys_call
+$error
+	sys_error

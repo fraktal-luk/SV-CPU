@@ -190,7 +190,7 @@ module DataL1(
         doWrite(TMP_writeReqs[0]);
     endtask
 
-
+    // TODO: implement writes of size 1
     function automatic void writeToStaticRange(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
 

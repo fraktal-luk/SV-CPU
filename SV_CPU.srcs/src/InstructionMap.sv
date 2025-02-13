@@ -641,7 +641,7 @@ package Insmap;
         if (isControlUop(current.name)) return res; // 0 uops
         
         // Store ops: split into adr and data
-        else if (current.name inside {UOP_mem_sti, UOP_mem_sts}) begin
+        else if (current.name inside {UOP_mem_sti, UOP_mem_sts,   UOP_mem_stib}) begin
             UopInfo sd;
             sd.id = '{current.id.m, 1};
             sd.name = UOP_data_int;
