@@ -12,25 +12,21 @@ package Base;
 
 
     function automatic Word divSignedW(input Word a, input Word b);
-        Word aInt = a;
-        Word bInt = b;
         Word rInt = $signed(a)/$signed(b);
-        Word rem = aInt - rInt * bInt;
+        Word rem = a - rInt * b;
         
-        if ($signed(rem) < 0 && $signed(bInt) > 0) rInt--;
-        if ($signed(rem) > 0 && $signed(bInt) < 0) rInt--;
+        if ($signed(rem) < 0 && $signed(b) > 0) rInt--;
+        if ($signed(rem) > 0 && $signed(b) < 0) rInt--;
         
         return rInt;
     endfunction
     
     function automatic Word remSignedW(input Word a, input Word b);
-        Word aInt = a;
-        Word bInt = b;
         Word rInt = $signed(a)/$signed(b);
-        Word rem = aInt - rInt * bInt;
+        Word rem = a - rInt * b;
         
-        if ($signed(rem) < 0 && $signed(bInt) > 0) rem += bInt;
-        if ($signed(rem) > 0 && $signed(bInt) < 0) rem += bInt;
+        if ($signed(rem) < 0 && $signed(b) > 0) rem += b;
+        if ($signed(rem) > 0 && $signed(b) < 0) rem += b;
         
         return rem;
     endfunction
@@ -63,44 +59,43 @@ package InsDefs;
             and_r,
             or_r,
             xor_r,
-            
+
             add_i,
             add_h,
             add_r,
             sub_r,
-            
+
                 cgt_u, cgt_s,
-                
+
             shl_i, shl_r, //-- direction defined by shift value, not opcode 
             sha_i, sha_r, //--   
             rot_i, rot_r,
-            
+
             mult, 
             mulh_s, mulh_u,
             div_s, div_u,
             rem_s, rem_u,
-            
+
             mov_f,
             or_f, addi_f,  // -- Float operations
-            
+
             ldi_i, ldi_r, //-- int
             sti_i, sti_r,
-                
+
                 e_lb,
                 e_sb,
-            
+
             ldf_i, ldf_r, //-- float
             stf_i, stf_r, 
-            
+
             lds, //-- load sys
-            
+
             sts, //-- store sys
-            
+
             jz_i, jz_r, jnz_i, jnz_r,
             ja, jl, //-- jump always, jump link
-            
-            //sys, //-- system operation
-            
+
+
             sys_rete,
             sys_reti,
             sys_halt,
@@ -109,7 +104,7 @@ package InsDefs;
             sys_error,
             sys_call,
             sys_send,
-            
+
             undef
         } Mnemonic;
     endclass;
@@ -319,6 +314,7 @@ package InsDefs;
 
 
     typedef struct {
+        InstructionFormat f;
         Primary p;
         Secondary s;
         Ternary t;
@@ -327,66 +323,65 @@ package InsDefs;
 
 
     const InstructionDef defMap[string] = '{
-        "undef":      '{P_none, S_none, T_none, O_undef},
+        "undef":      '{F_none,  P_none, S_none, T_none, O_undef},
     
-        "and_r":      '{P_intAlu, S_intLogic, T_intAnd, O_intAnd}, //int2R,
-        "or_r":       '{P_intAlu, S_intLogic, T_intOr, O_intOr}, //int2R,
-        "xor_r":      '{P_intAlu, S_intLogic, T_intXor, O_intXor}, //int2R,
+        "and_r":      '{F_int2R, P_intAlu, S_intLogic, T_intAnd, O_intAnd}, //int2R,
+        "or_r":       '{F_int2R, P_intAlu, S_intLogic, T_intOr, O_intOr}, //int2R,
+        "xor_r":      '{F_int2R, P_intAlu, S_intLogic, T_intXor, O_intXor}, //int2R,
         
-        "add_i":      '{P_addI, S_none, T_none, O_intAdd},//intImm16,
-        "add_h":      '{P_addH, S_none, T_none, O_intAddH},//intImm16,
-        "add_r":      '{P_intAlu, S_intArith, T_intAdd, O_intAdd},//int2R,
-        "sub_r":      '{P_intAlu, S_intArith, T_intSub, O_intSub},//int2R,
-            "cgt_u":      '{P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
-            "cgt_s":      '{P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
+        "add_i":      '{F_intImm16, P_addI, S_none, T_none, O_intAdd},//intImm16,
+        "add_h":      '{F_intImm16, P_addH, S_none, T_none, O_intAddH},//intImm16,
+        "add_r":      '{F_int2R, P_intAlu, S_intArith, T_intAdd, O_intAdd},//int2R,
+        "sub_r":      '{F_int2R, P_intAlu, S_intArith, T_intSub, O_intSub},//int2R,
+            "cgt_u":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
+            "cgt_s":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
                 
-        "shl_i":      '{P_intAluImm, S_intShiftLogical, T_none, O_intShiftLogical},//intImm10, 
-        "sha_i":      '{P_intAluImm, S_intShiftArith, T_none, O_intShiftArith},//intImm10, 
-        "rot_i":      '{P_intAluImm, S_intRotate, T_none, O_intRotate},//intImm10, 
+        "shl_i":      '{F_intImm10, P_intAluImm, S_intShiftLogical, T_none, O_intShiftLogical},//intImm10, 
+        "sha_i":      '{F_intImm10, P_intAluImm, S_intShiftArith, T_none, O_intShiftArith},//intImm10, 
+        "rot_i":      '{F_intImm10, P_intAluImm, S_intRotate, T_none, O_intRotate},//intImm10, 
         
-        "mult":       '{P_intAlu, S_intMul, T_intMul, O_intMul},//int2R, 
-        "mulh_s":     '{P_intAlu, S_intMul, T_intMulHU, O_intMulHS},//int2R, 
-        "mulh_u":     '{P_intAlu, S_intMul, T_intMulHS, O_intMulHU},//int2R, 
-        "div_s":      '{P_intAlu, S_intMul, T_intDivS, O_intDivS},//int2R, 
-        "div_u":      '{P_intAlu, S_intMul, T_intDivU, O_intDivU},//int2R, 
-        "rem_s":      '{P_intAlu, S_intMul, T_intRemS, O_intRemS},//int2R, 
-        "rem_u":      '{P_intAlu, S_intMul, T_intRemU, O_intRemU},//int2R, 
+        "mult":       '{F_int2R, P_intAlu, S_intMul, T_intMul, O_intMul},//int2R, 
+        "mulh_s":     '{F_int2R, P_intAlu, S_intMul, T_intMulHU, O_intMulHS},//int2R, 
+        "mulh_u":     '{F_int2R, P_intAlu, S_intMul, T_intMulHS, O_intMulHU},//int2R, 
+        "div_s":      '{F_int2R, P_intAlu, S_intMul, T_intDivS, O_intDivS},//int2R, 
+        "div_u":      '{F_int2R, P_intAlu, S_intMul, T_intDivU, O_intDivU},//int2R, 
+        "rem_s":      '{F_int2R, P_intAlu, S_intMul, T_intRemS, O_intRemS},//int2R, 
+        "rem_u":      '{F_int2R, P_intAlu, S_intMul, T_intRemU, O_intRemU},//int2R, 
         
-        "mov_f":      '{P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
-        "or_f":       '{P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
-        "addi_f":     '{P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
+        "mov_f":      '{F_float1R, P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
+        "or_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
+        "addi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
         
-        "ldi_i":      '{P_intLoadW16,  S_none, T_none, O_intLoadW},//intImm16,
-        "sti_i":      '{P_intStoreW16, S_none, T_none, O_intStoreW},//intStore16,
+        "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},//intImm16,
+        "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},//intStore16,
         
-        "ldf_i":      '{P_floatLoadW16,  S_none, T_none, O_floatLoadW},//floatLoad16,
-        "stf_i":      '{P_floatStoreW16,  S_none, T_none, O_floatStoreW},//floatStore16,
+        "ldf_i":      '{F_floatLoad16,  P_floatLoadW16,  S_none, T_none, O_floatLoadW},//floatLoad16,
+        "stf_i":      '{F_floatStore16, P_floatStoreW16,  S_none, T_none, O_floatStoreW},//floatStore16,
 
-            "e_lb":     '{P_intLoadB16, S_none, T_none, O_intLoadB},//IntImm16
-            "e_sb":     '{P_intStoreB16, S_none, T_none, O_intStoreB},//IntImm16
+            "e_lb":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},//IntImm16
+            "e_sb":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},//IntImm16
 
-            "e_ldaq":      '{P_intLoadAqW16, S_none, T_none, O_intLoadAqW},//IntImm16
-            "e_strel":     '{P_intStoreRelW16, S_none, T_none, O_intStoreRelW},//IntImm16
-                        
+            "e_ldaq":  '{F_intImm16, P_intLoadAqW16, S_none, T_none, O_intLoadAqW},//IntImm16
+            "e_strel": '{F_intImm16, P_intStoreRelW16, S_none, T_none, O_intStoreRelW},//IntImm16                           
         
-        "lds":        '{P_sysMem,  S_sysLoad, T_none, O_sysLoad},//sysLoad, //-- load sys
-        "sts":        '{P_sysMem,  S_sysStore, T_none, O_sysStore},//sysStore, //-- store sys
+        "lds":        '{F_sysLoad,  P_sysMem,  S_sysLoad, T_none, O_sysLoad},//sysLoad, //-- load sys
+        "sts":        '{F_sysStore, P_sysMem,  S_sysStore, T_none, O_sysStore},//sysStore, //-- store sys
         
-        "jz_i":       '{P_jz, S_none, T_none, O_jump},//jumpCond,
-        "jz_r":       '{P_intAlu, S_jumpReg, T_jumpRegZ, O_jump},//int2R,
-        "jnz_i":      '{P_jnz, S_none, T_none, O_jump},//jumpCond,
-        "jnz_r":      '{P_intAlu, S_jumpReg, T_jumpRegNZ, O_jump},//int2R,
-        "ja":         '{P_ja, S_none, T_none, O_jump},//,//jumpLong,
-        "jl":         '{P_jl, S_none, T_none, O_jump},//jumpLink, //-- jump always, jump link
+        "jz_i":       '{F_jumpCond, P_jz, S_none, T_none, O_jump},//jumpCond,
+        "jz_r":       '{F_int2R, P_intAlu, S_jumpReg, T_jumpRegZ, O_jump},//int2R,
+        "jnz_i":      '{F_jumpCond, P_jnz, S_none, T_none, O_jump},//jumpCond,
+        "jnz_r":      '{F_int2R, P_intAlu, S_jumpReg, T_jumpRegNZ, O_jump},//int2R,
+        "ja":         '{F_jumpLong, P_ja, S_none, T_none, O_jump},//,//jumpLong,
+        "jl":         '{F_jumpLink, P_jl, S_none, T_none, O_jump},//jumpLink, //-- jump always, jump link
         
-        "sys_rete":   '{P_sysControl, S_sysRetE, T_none, O_retE},
-        "sys_reti":   '{P_sysControl, S_sysRetI, T_none, O_retI},
-        "sys_halt":   '{P_sysControl, S_sysHalt, T_none, O_halt},
-        "sys_sync":   '{P_sysControl, S_sysSync, T_none, O_sync},
-        "sys_replay": '{P_sysControl, S_sysReplay, T_none, O_replay},
-        "sys_error":  '{P_sysControl, S_sysError, T_none, O_undef},
-        "sys_call":   '{P_sysControl, S_sysCall, T_none, O_call},
-        "sys_send":   '{P_sysControl, S_sysSend, T_none, O_send}
+        "sys_rete":   '{F_noRegs, P_sysControl, S_sysRetE, T_none, O_retE},
+        "sys_reti":   '{F_noRegs, P_sysControl, S_sysRetI, T_none, O_retI},
+        "sys_halt":   '{F_noRegs, P_sysControl, S_sysHalt, T_none, O_halt},
+        "sys_sync":   '{F_noRegs, P_sysControl, S_sysSync, T_none, O_sync},
+        "sys_replay": '{F_noRegs, P_sysControl, S_sysReplay, T_none, O_replay},
+        "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_undef},
+        "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
+        "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send}
         
     };
 
@@ -503,7 +498,7 @@ package InsDefs;
     };
 
 
-    function automatic matchDefinition(input InstructionDef pattern, candidate);
+    function automatic logic matchDefinition(input InstructionDef pattern, candidate);
         return (candidate.p == pattern.p) && (candidate.s inside {S_none, pattern.s}) && (candidate.t inside {T_none, pattern.t});
     endfunction
 
@@ -511,17 +506,21 @@ package InsDefs;
         Mnemonic m;
         for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
             if (s == mi.name()) return defMap[s];
-            if (mi == mi.last()) return '{P_none, S_none, T_none, O_undef};
+            if (mi == mi.last()) return '{F_none, P_none, S_none, T_none, O_undef};
         end  
     endfunction
 
-    function automatic InstructionFormat getFormat(input string s);
-        Mnemonic m;
-        for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
-            if (s == mi.name()) return formatMap[s];
-            if (mi == mi.last()) return F_none;
-        end  
-    endfunction
+        function automatic InstructionFormat getFormat(input string s);
+            Mnemonic m;
+            for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
+                if (s == mi.name()) begin
+                        assert (defMap[s].f == formatMap[s]) else $error("Wrong format on %p", s);;
+                
+                    return formatMap[s];
+                end
+                if (mi == mi.last()) return F_none;
+            end  
+        endfunction
 
     function automatic string findMnemonic(input InstructionDef def);
         string found[$] = defMap.find_index with (matchDefinition(def, item));

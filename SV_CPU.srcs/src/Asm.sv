@@ -14,8 +14,8 @@ package Asm;
 
 
     function automatic Word getIns(input string parts[]);
-        InstructionFormat fmt = getFormat(parts[0]);
         InstructionDef def = getDef(parts[0]);
+        InstructionFormat fmt = def.f;//getFormat(parts[0]);
         
         string args[] = orderArgs(parts[1:3], parsingMap[fmt]);
         Word4 vals;
@@ -32,8 +32,8 @@ package Asm;
     endfunction;
 
     function automatic CodeRef getCodeRef(input string parts[]);
-        InstructionFormat fmt = getFormat(parts[0]);
         InstructionDef def = getDef(parts[0]);
+        InstructionFormat fmt = def.f;//getFormat(parts[0]);
         
         string args[] = orderArgs(parts[1:3], parsingMap[fmt]);
         CodeRef res;
@@ -191,7 +191,7 @@ package Asm;
         mnemonic: "",
         encoding: 'x,
         fmt: F_none,
-        def: '{P_none, S_none, T_none, O_undef},
+        def: '{F_none, P_none, S_none, T_none, O_undef},
         dest: 0,
         sources: '{default: 0}
     };
@@ -201,7 +201,7 @@ package Asm;
         Primary p = toPrimary(w[31:26]);
         Secondary s = toSecondary(w[15:10], p);
         Ternary t = toTernary(w[4:0], p, s);
-        InstructionDef def = '{p, s, t, O_undef};
+        InstructionDef def = '{F_none, p, s, t, O_undef};
 
         return findMnemonic(def);               
     endfunction
@@ -210,9 +210,9 @@ package Asm;
     function automatic AbstractInstruction decodeAbstract(input Word w);
         string s = decodeMnem(w);
         AbstractInstruction res;
-        InstructionFormat f = getFormat(s);
         InstructionDef d = getDef(s);
-        
+        InstructionFormat f = d.f;//getFormat(s);
+
         FormatSpec fmtSpec = parsingMap[f];
 
         int qa = w[25:21];        
