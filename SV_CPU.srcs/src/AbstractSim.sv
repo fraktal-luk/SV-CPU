@@ -617,7 +617,6 @@ package AbstractSim;
         endfunction
         
         
-        // !!!! unused functions?
             // TODO: handle diffrent sizes
             function automatic Transaction checkTransaction_Overlap(input InsId id);
                 Transaction allStores[$] = {committedStores, stores};
@@ -627,14 +626,16 @@ package AbstractSim;
                 return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
             endfunction
             
-            // TODO: handle different sizes
-            function automatic Transaction checkTransaction_Inside(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
             
-                Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
-                return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
-            endfunction
+//                    // !!!! unused function?
+//            // TODO: handle different sizes
+//            function automatic Transaction checkTransaction_Inside(input InsId id);
+//                Transaction allStores[$] = {committedStores, stores};
+            
+//                Transaction read[$] = transactions.find_first with (item.owner == id); 
+//                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
+//                return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
+//            endfunction
 
 
         function automatic Transaction findStore(input InsId id);

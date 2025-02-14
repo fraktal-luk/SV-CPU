@@ -285,7 +285,7 @@ module StoreQueue
                 // At Commit assure that a store did not get its value from FW other than the latest matching one - if it gets Retire normal, raise an error
                 // Remember that no FW is a valid result if the latest mtching store has left SQ
                 //  >> Mark whether there is a younger matching FW in MemTracker than the one found in SQ
-                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
+                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
@@ -358,14 +358,15 @@ module StoreQueue
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
     endfunction
 
-    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
-        Transaction latestOverlap = memTracker.checkTransaction_Overlap(U2M(sr.TMP_oid));
- 
+    function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
+        Transaction latestOverlap = memTracker.checkTransaction_Overlap(U2M(loadOp.TMP_oid));
+
         // TODO: if sr source is not latestOverlap, denote this fact somewhere.
         // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
-        // If the final value was not from FW, it's OK because latestOvarlap could have retired before the load commits.
-        //    assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr");
-        
+        assert (latestOverlap.owner == U2M(sr.TMP_oid)) else begin
+            $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
+        end
+
         assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
