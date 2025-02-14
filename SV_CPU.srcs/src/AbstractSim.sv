@@ -455,7 +455,7 @@ package AbstractSim;
             WriterId producers[3] = '{WID_NONE, WID_NONE, WID_NONE};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
             
-            string typeSpec = parsingMap[abs.fmt].typeSpec;
+            string typeSpec = parsingMap[abs.def.f].typeSpec;
             
             foreach (sources[i]) begin
                 if (typeSpec[i + 2] == "i") begin

@@ -349,7 +349,7 @@ module AbstractCore
         assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
 
         // For insMap and mem queues
-        argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.fmt].typeSpec);
+        argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();

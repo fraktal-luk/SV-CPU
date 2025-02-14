@@ -385,80 +385,12 @@ package InsDefs;
         
     };
 
-    
-    const InstructionFormat formatMap[string] = '{
-        "undef":      F_none,
-    
-        "and_r":      F_int2R,
-        
-        "or_r":       F_int2R,
-        "xor_r":      F_int2R,
-        
-        "add_i":      F_intImm16,
-        "add_h":      F_intImm16,
-        "add_r":      F_int2R,
-        "sub_r":      F_int2R,
-            "cgt_u":      F_int2R,
-            "cgt_s":      F_int2R,
-            
-        "shl_i":      F_intImm10, 
-        
-        "sha_i":      F_intImm10,
-        
-        "rot_i":      F_intImm10, 
-        "rot_r":      F_int2R,
-        
-        "mult":       F_int2R, 
-        "mulh_s":     F_int2R,
-        "mulh_u":     F_int2R,
-        "div_s":      F_int2R,
-        "div_u":      F_int2R,
-        "rem_s":      F_int2R,
-        "rem_u":      F_int2R,
-        
-        "mov_f":      F_float1R,
-        "or_f":       F_float2R,   // -- Float operations
-        "addi_f":     F_float2R,   // -- Float operations
-        
-        "ldi_i":      F_intImm16,
-        "sti_i":      F_intStore16,
-        
-        "ldf_i":      F_floatLoad16,
-        "stf_i":      F_floatStore16,
-
-            "e_lb":    F_intImm16,
-            "e_sb":    F_intStore16,
-                       
-            "e_ldaq":  F_intImm16,
-            "e_strel": F_intStore16,
-
-        "lds":        F_sysLoad, //-- load sys
-        "sts":        F_sysStore, //-- store sys
-        
-        "jz_i":       F_jumpCond,
-        "jz_r":       F_int2R,
-        "jnz_i":      F_jumpCond,
-        "jnz_r":      F_int2R,
-        "ja":         F_jumpLong,
-        "jl":         F_jumpLink, //-- jump always, jump link        
-        
-        "sys_rete":   F_noRegs,
-        "sys_reti":   F_noRegs,
-        "sys_halt":   F_noRegs,
-        "sys_sync":   F_noRegs,
-        "sys_replay": F_noRegs,
-        "sys_error":  F_noRegs,
-        "sys_call":   F_noRegs,
-        "sys_send":   F_noRegs 
-    };
-
 
     typedef struct {
         string asmForm;
         string decoding;
         string typeSpec;
-    } FormatSpec; 
-
+    } FormatSpec;
 
     const FormatSpec parsingMap[InstructionFormat] = '{
         F_none:          '{"    ", "0,000", "0,000"},
@@ -509,18 +441,6 @@ package InsDefs;
             if (mi == mi.last()) return '{F_none, P_none, S_none, T_none, O_undef};
         end  
     endfunction
-
-        function automatic InstructionFormat getFormat(input string s);
-            Mnemonic m;
-            for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
-                if (s == mi.name()) begin
-                        assert (defMap[s].f == formatMap[s]) else $error("Wrong format on %p", s);;
-                
-                    return formatMap[s];
-                end
-                if (mi == mi.last()) return F_none;
-            end  
-        endfunction
 
     function automatic string findMnemonic(input InstructionDef def);
         string found[$] = defMap.find_index with (matchDefinition(def, item));
