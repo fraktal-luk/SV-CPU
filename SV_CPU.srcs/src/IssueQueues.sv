@@ -404,7 +404,7 @@ module IssueQueueComplex(
                                             issuedSysP);
     
 
-
+                // .active, .mid
     function automatic RoutedUops routeUops(input OpSlotAB gr);
         RoutedUops res = '{
             regular: '{default: TMP_UOP_NONE},

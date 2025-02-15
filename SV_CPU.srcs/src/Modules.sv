@@ -578,8 +578,8 @@ module CoreDB();
     int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
         
         // Remove?
-        OpSlotB lastRenamed = EMPTY_SLOT_B, lastCompleted = EMPTY_SLOT_B, lastRetired = EMPTY_SLOT_B, lastRefetched = EMPTY_SLOT_B;
-    string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
+    //    OpSlotB lastRenamed = EMPTY_SLOT_B, lastCompleted = EMPTY_SLOT_B, lastRetired = EMPTY_SLOT_B, lastRefetched = EMPTY_SLOT_B;
+    //string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
 
         string csqStr, csqIdStr;
 
@@ -593,10 +593,10 @@ module CoreDB();
         $swrite(bqStr, "%p", ids);
     end
 
-        assign lastRenamedStr = disasm(lastRenamed.bits);
-        assign lastCompletedStr = disasm(lastCompleted.bits);
-        assign lastRetiredStr = disasm(lastRetired.bits);
-        assign lastRefetchedStr = disasm(lastRefetched.bits);
+//        assign lastRenamedStr = disasm(lastRenamed.bits);
+//        assign lastCompletedStr = disasm(lastCompleted.bits);
+//        assign lastRetiredStr = disasm(lastRetired.bits);
+//        assign lastRefetchedStr = disasm(lastRefetched.bits);
 
     logic cmp0, cmp1;
     Mword cmpmw0, cmpmw1, cmpmw2, cmpmw3;

@@ -333,7 +333,7 @@ module StoreQueue
         end
     endtask
 
-
+                    // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
         if (!anyActiveB(inGroup)) return;
 
@@ -361,7 +361,7 @@ module StoreQueue
     endfunction
 
     function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
-        Transaction latestOverlap = memTracker.checkTransaction_Overlap(U2M(loadOp.TMP_oid));
+        Transaction latestOverlap = memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
 
         // TODO: if sr source is not latestOverlap, denote this fact somewhere.
         // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.

@@ -257,6 +257,8 @@ module AbstractCore
         OpSlotAF opsF = theFrontend.stageRename0;
         OpSlotAB ops = TMP_front2rename(opsF);
 
+        // ops: .active, .mid, .adr, .bits,
+
         if (anyActiveB(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
@@ -322,8 +324,7 @@ module AbstractCore
 
     task automatic markKilledRenameStage(ref OpSlotAB stage);
         foreach (stage[i]) begin
-            if (!stage[i].active) continue;
-            putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
+            if (stage[i].active) putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
         end
     endtask
 
@@ -397,7 +398,7 @@ module AbstractCore
 
         updateInds(renameInds, id); // Crucial state
 
-            coreDB.lastRenamed = TMP_properOp(id);
+           // coreDB.lastRenamed = TMP_properOp(id);
 
         putMilestoneM(id, InstructionMap::Rename);
     endtask
@@ -465,18 +466,19 @@ module AbstractCore
 
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
-            logic refetch, exception;
+            //logic refetch, exception;
 
             if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
             if (cancelRest) $fatal(2, "Committing after break");
             
-            refetch = insMap.get(theId).refetch;
-            exception = insMap.get(theId).exception;
 
-            commitOp(theId, theRob.retirementGroup[i]);
+
+            commitOp(theRob.retirementGroup[i]);
 
             // RET: generate late event
             if (breaksCommitId(theId)) begin
+                logic refetch = insMap.get(theId).refetch;
+                logic exception = insMap.get(theId).exception;
                 lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
                 cancelRest = 1;
             end
@@ -496,14 +498,16 @@ module AbstractCore
     
             if (uopHasIntDest(uname) || uopHasFloatDest(uname)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                     else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                     //else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                     else $error(" not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
             end
         end
     endfunction
 
 
 
-    task automatic verifyOnCommit(input InsId id, RetirementInfo retInfo);
+    task automatic verifyOnCommit(input RetirementInfo retInfo);
+        InsId id = retInfo.mid;
         InstructionInfo info = insMap.get(id);
 
         Mword trg = retiredEmul.coreState.target; // DB
@@ -534,11 +538,11 @@ module AbstractCore
     endtask
 
 
-    function automatic OpSlotB TMP_properOp(input InsId id);
-        InstructionInfo insInfo = insMap.get(id);
-        OpSlotB op = '{1, insInfo.id, insInfo.basicData.adr, insInfo.basicData.bits};
-        return op;
-    endfunction
+//    function automatic OpSlotB TMP_properOp(input InsId id);
+//        InstructionInfo insInfo = insMap.get(id);
+//        OpSlotB op = '{1, insInfo.id, insInfo.basicData.adr, insInfo.basicData.bits};
+//        return op;
+//    endfunction
 
 
     // Finish types:
@@ -556,25 +560,26 @@ module AbstractCore
     //
     // Store ops: if Exc or Hidden, SQ entry must be marked invalid on commit or not committed (ptr not moved, then flushed by event)
     // 
-    task automatic commitOp(input InsId id, RetirementInfo retInfo);
+    task automatic commitOp(RetirementInfo retInfo);
+        InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
 
         logic refetch = retInfo.refetch;
         logic exception = retInfo.exception;
         InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-            coreDB.lastII = insInfo;
-            if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
+           // coreDB.lastII = insInfo;
+           // if (insInfo.nUops > 0) coreDB.lastUI = insMap.getU('{id, insInfo.nUops-1});
 
-            if (refetch) begin
-                coreDB.lastRefetched = TMP_properOp(id);
-            end
-            else begin
-                coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
-                coreDB.nRetired++;
-            end
+//            if (refetch) begin
+//                coreDB.lastRefetched = TMP_properOp(id);
+//            end
+//            else begin
+//                coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
+//                coreDB.nRetired++;
+//            end
 
-        verifyOnCommit(id, retInfo);
+        verifyOnCommit(retInfo);
 
         // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
@@ -730,5 +735,6 @@ module AbstractCore
 
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
+
 
 endmodule

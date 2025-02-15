@@ -37,45 +37,24 @@ package AbstractSim;
 
 
 
-    // Helpers  TODO: better place for them?
-    function automatic logic wordOverlap(input Mword wa, input Mword wb);
-        Mword aEnd = wa + 4; // Exclusive end
-        Mword bEnd = wb + 4; // Exclusive end
+//    function automatic logic wordOverlap(input Mword wa, input Mword wb);
+//        Mword aEnd = wa + 4; // Exclusive end
+//        Mword bEnd = wb + 4; // Exclusive end
         
-        if ($isunknown(wa) || $isunknown(wb)) return 0;
-        if (wb >= aEnd || wa >= bEnd) return 0;
-        else return 1;
-    endfunction
+//        if ($isunknown(wa) || $isunknown(wb)) return 0;
+//        if (wb >= aEnd || wa >= bEnd) return 0;
+//        else return 1;
+//    endfunction
     
-    // is a inside b
-    function automatic logic wordInside(input Mword wa, input Mword wb);
-        Mword aEnd = wa + 4; // Exclusive end
-        Mword bEnd = wb + 4; // Exclusive end
+//    // is a inside b
+//    function automatic logic wordInside(input Mword wa, input Mword wb);
+//        Mword aEnd = wa + 4; // Exclusive end
+//        Mword bEnd = wb + 4; // Exclusive end
         
-        if ($isunknown(wa) || $isunknown(wb)) return 0;
+//        if ($isunknown(wa) || $isunknown(wb)) return 0;
        
-        return (wa >= wb && aEnd <= bEnd);
-    endfunction
-
-
-        function automatic logic memOverlap(input Mword wa, input int sizeA, input Mword wb, input int sizeB);
-            Mword aEnd = wa + sizeA; // Exclusive end
-            Mword bEnd = wb + sizeB; // Exclusive end
-            
-            if ($isunknown(wa) || $isunknown(wb)) return 0;
-
-            return (wa < bEnd && wb < aEnd);
-        endfunction
-        
-        // is a inside b
-        function automatic logic memInside(input Mword wa, input int sizeA, input Mword wb, input int sizeB);
-            Mword aEnd = wa + sizeA; // Exclusive end
-            Mword bEnd = wb + sizeB; // Exclusive end
-            
-            if ($isunknown(wa) || $isunknown(wb)) return 0;
-           
-            return (wa >= wb && aEnd <= bEnd);
-        endfunction
+//        return (wa >= wb && aEnd <= bEnd);
+//    endfunction
 
 
 
@@ -129,36 +108,36 @@ package AbstractSim;
         else if (isMemUop(uname)) return SIZE_4;
         else return SIZE_NONE;
     endfunction
-    
+
 
     typedef struct {
         logic active;
         InsId id;
-        //    InsId mid;
         Mword adr;
         Word bits;
         
         logic takenBranch;
         Mword predictedTarget;
     } OpSlotF;
-
-    typedef struct {
-        logic active;
-        InsId mid;
-        Mword adr;
-        Word bits;
-    } OpSlotB;
-
-
-    typedef struct {
-        logic active;
-        InsId mid;
-        Mword adr;
         
+        // Maybe redundant (OpSlotF has it all)
+        typedef struct {
+            logic active;
+            InsId mid;
+            Mword adr;  // hardly used
+            Word bits;  // hardly used
+        } OpSlotB;
+
+
+    typedef struct {
+        logic active;
+        InsId mid;
+        Mword adr;
+
         logic takenBranch;
         logic exception;
         logic refetch;
-        
+
         Mword target;
     } RetirementInfo;
 
@@ -170,7 +149,7 @@ package AbstractSim;
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
     typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
-    
+
 
     typedef enum {
         CO_none,
@@ -205,9 +184,9 @@ package AbstractSim;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  /*0, 0,*/ 0, /*0, 0*,*/ 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, /*0, 1,*/ 1, /*0, 0,*/ 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   /*1, 0,*/ 1, /*0, 0,*/ 'x, IP_INT};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  0, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, 1, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   1, 'x, IP_INT};
 
     typedef struct {
         int iqRegular;
@@ -243,7 +222,6 @@ package AbstractSim;
         SourceType types[3];
         WriterId producers[3];
     } InsDependencies;
-
 
 
     class BranchCheckpoint;
@@ -412,11 +390,11 @@ package AbstractSim;
         RegisterDomain#(N_REGS_INT, 1) ints = new();
         RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
 
-          
+
         function automatic int reserve(input UopName name, input int dest, input WriterId id);            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
             if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
-            
+
             return -1;
         endfunction
 
@@ -607,26 +585,14 @@ package AbstractSim;
         endfunction
         
         
-            // TODO: handle diffrent sizes
-            function automatic Transaction checkTransaction_Overlap(input InsId id);
-                Transaction allStores[$] = {committedStores, stores};
+        function automatic Transaction checkTransactionOverlap(input InsId id);
+            Transaction allStores[$] = {committedStores, stores};
+        
+            Transaction read[$] = transactions.find_first with (item.owner == id); 
+            Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.adr, (item.size), read[0].adr, (read[0].size)));
+            return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
+        endfunction
             
-                Transaction read[$] = transactions.find_first with (item.owner == id); 
-                Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.adr, (item.size), read[0].adr, (read[0].size)));
-                return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
-            endfunction
-            
-            
-//                    // !!!! unused function?
-//            // TODO: handle different sizes
-//            function automatic Transaction checkTransaction_Inside(input InsId id);
-//                Transaction allStores[$] = {committedStores, stores};
-            
-//                Transaction read[$] = transactions.find_first with (item.owner == id); 
-//                Transaction writers[$] = allStores.find with (wordInside(read[0].adr, item.adr) && item.owner < id);
-//                return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
-//            endfunction
-
 
         function automatic Transaction findStore(input InsId id);
             Transaction writers[$] = stores.find with (item.owner == id);
@@ -670,15 +636,13 @@ package AbstractSim;
 
     function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
         OpSlotAB res;
-        
-        foreach (ops[i]) begin
-            res[i] = TMP_translateFrontToRename(ops[i]);
-        end
-        
+        foreach (ops[i]) res[i] = TMP_translateFrontToRename(ops[i]);
         return res;
     endfunction;
 
 
+
+// Classification (TODO: move to UopDefs?)
 
     // Not including memory
     function automatic logic isFloatCalcUop(input UopName name);
@@ -709,30 +673,6 @@ package AbstractSim;
         };
     endfunction
 
-
-//        function automatic logic isBranchImmIns(input UopName name);
-//            return name inside {"ja", "jl", "jz_i", "jnz_i"};
-//        endfunction
-
-//        function automatic logic isBranchAlwaysIns(input UopName name);
-//            return name inside {"ja", "jl"};
-//        endfunction
-
-//        function automatic logic isBranchRegIns(input UopName name);
-//            return name inside {"jz_r", "jnz_r"};
-//        endfunction       
-        
-//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-//        return (ins.def.o inside {O_floatLoadW});
-//    endfunction
-
-//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
-//        return ins.def.o inside {O_floatStoreW};
-//    endfunction
-    
-//    function automatic logic isStoreIns(input AbstractInstruction ins);
-//        return isStoreMemIns(ins) || isStoreSysIns(ins);
-//    endfunction
 
     function automatic logic isBranchUop(input UopName name);
         return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
@@ -819,6 +759,29 @@ package AbstractSim;
              UOP_mem_ldf
         };
     endfunction    
+
+
+
+
+    // Mem handling
+
+    function automatic logic memOverlap(input Mword wa, input AccessSize sizeA, input Mword wb, input AccessSize sizeB);
+        Mword aEnd = wa + int'(sizeA); // Exclusive end
+        Mword bEnd = wb + int'(sizeB); // Exclusive end
+        
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+
+        return (wa < bEnd && wb < aEnd);
+    endfunction
     
+    // is a inside b
+    function automatic logic memInside(input Mword wa, input AccessSize sizeA, input Mword wb, input AccessSize sizeB);
+        Mword aEnd = wa + int'(sizeA); // Exclusive end
+        Mword bEnd = wb + int'(sizeB); // Exclusive end
+        
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+       
+        return (wa >= wb && aEnd <= bEnd);
+    endfunction
 
 endpackage
