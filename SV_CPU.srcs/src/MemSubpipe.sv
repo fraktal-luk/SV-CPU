@@ -86,8 +86,8 @@ module MemSubpipe#(
         UopName uname = decUname(stateE0.TMP_oid);
 
         
-            readSize = (uname inside {UOP_mem_ldib, UOP_mem_stib}) ? SIZE_1 : SIZE_4;
-            
+            readSize = //(uname inside {UOP_mem_ldib, UOP_mem_stib}) ? SIZE_1 : SIZE_4;
+                       getTransactionSize(uname);
             if (!stateE0.active) readSize = SIZE_NONE;
             
         readActive <= stateE0.active && isMemUop(uname);

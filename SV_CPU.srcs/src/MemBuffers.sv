@@ -278,8 +278,10 @@ module StoreQueue
 
 
             if (resb.active) begin
-                AccessSize size = (insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-                AccessSize trSize = (insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                AccessSize size = //(insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                                    getTransactionSize(insMap.get(U2M(loadOp.TMP_oid)).mainUop);
+                AccessSize trSize = //(insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                                    getTransactionSize(insMap.get(U2M(resb.TMP_oid)).mainUop);
                 
                 // TODO: if resb is not the last matching store, denote this fact.
                 // At Commit assure that a store did not get its value from FW other than the latest matching one - if it gets Retire normal, raise an error

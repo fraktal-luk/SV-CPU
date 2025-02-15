@@ -130,16 +130,6 @@ package AbstractSim;
         else return SIZE_NONE;
     endfunction
     
-//    function automatic int (input AccessSize asize);
-//            return asize;
-        
-//        case (asize)
-//            SIZE_1: return 1;
-//            SIZE_4: return 4;
-//            default: return -1;
-//        endcase
-//    endfunction
-    
 
     typedef struct {
         logic active;

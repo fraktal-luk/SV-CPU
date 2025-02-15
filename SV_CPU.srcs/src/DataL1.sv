@@ -348,7 +348,7 @@ module DataL1(
         foreach (readReqs[p]) begin
             Mword vadr = readReqs[p].adr;
 
-            if ($isunknown(vadr)) begin
+            if ($isunknown(vadr) || !readReqs[p].active) begin
                 readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
                 accesses[p] <= DEFAULT_ACCESS_INFO;
                 translations[p] <= DEFAULT_TRANSLATION;

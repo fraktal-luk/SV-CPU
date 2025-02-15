@@ -496,7 +496,7 @@ module AbstractCore
     
             if (uopHasIntDest(uname) || uopHasFloatDest(uname)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                    else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                     else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
             end
         end
     endfunction
@@ -571,7 +571,7 @@ module AbstractCore
             end
             else begin
                 coreDB.lastRetired = TMP_properOp(id); // Normal, not Hidden, what about Exc?
-                //coreDB.nRetired++;
+                coreDB.nRetired++;
             end
 
         verifyOnCommit(id, retInfo);
@@ -615,7 +615,8 @@ module AbstractCore
         // Extract 'uncached' info
         int found[$] = theSq.content_N.find_index with (item.mid == id);
         logic uncached = theSq.content_N[found[0]].uncached;
-        AccessSize size = decMainUop(id) == UOP_mem_stib ? SIZE_1 : SIZE_4;
+        AccessSize size = //decMainUop(id) == UOP_mem_stib ? SIZE_1 : SIZE_4;
+                          theSq.content_N[found[0]].size;
         
         StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, size};       
         csq.push_back(sqe); // Normal

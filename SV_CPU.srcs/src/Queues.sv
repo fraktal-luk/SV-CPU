@@ -59,7 +59,8 @@ package Queues;
             res.refetch = 0;
             res.adrReady = 0;
             res.valReady = 0;
-                res.size = (imap.get(id).mainUop == UOP_mem_stib)? SIZE_1 : SIZE_4;
+                res.size = //(imap.get(id).mainUop == UOP_mem_stib)? SIZE_1 : SIZE_4;
+                            getTransactionSize(imap.get(id).mainUop);
             res.uncached = 0;
             res.committed = 0;
             res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
@@ -131,7 +132,9 @@ package Queues;
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
             // TODO: check for overlap based on transaction sizes
             //Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, 4, adr, 4));
-            AccessSize loadSize = (imap.get(id).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+            AccessSize loadSize = //(imap.get(id).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
+                                  getTransactionSize(imap.get(id).mainUop);
+
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, item.size, adr, loadSize));
             Entry fwEntry;
 
@@ -190,7 +193,9 @@ package Queues;
             res.adrReady = 0;
             res.error = 0;
             res.refetch = 0;
-                res.size = (imap.get(id).mainUop == UOP_mem_ldib)? SIZE_1 : SIZE_4;
+                res.size = //(imap.get(id).mainUop == UOP_mem_ldib)? SIZE_1 : SIZE_4;
+                           getTransactionSize(imap.get(id).mainUop);
+
             return res;
         endfunction
         
@@ -233,7 +238,9 @@ package Queues;
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
             UopPacket res = EMPTY_UOP_PACKET;
-            AccessSize trSize = (imap.get(id).mainUop == UOP_mem_stib) ? SIZE_1 : SIZE_4;
+            AccessSize trSize = //(imap.get(id).mainUop == UOP_mem_stib) ? SIZE_1 : SIZE_4;
+                                getTransactionSize(imap.get(id).mainUop);
+
             int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
             
             if (found.size() == 0) return res;

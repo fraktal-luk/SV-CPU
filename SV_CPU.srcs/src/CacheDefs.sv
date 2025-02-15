@@ -202,14 +202,15 @@ package CacheDefs;
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
         
-        int byteSize = -1;
+        int byteSize = //0;
+                       accessSize;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
         
-        case (accessSize)
-            SIZE_1: byteSize = 1;
-            SIZE_4: byteSize = 4;
-        endcase
+//        case (accessSize)
+//            SIZE_1: byteSize = 1;
+//            SIZE_4: byteSize = 4;
+//        endcase
         
         res.adr = adr;
         res.size = accessSize;
