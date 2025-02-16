@@ -240,7 +240,7 @@ module StoreQueue
     
     task automatic updateStoreData();
         if (IS_STORE_QUEUE) begin
-            UopPacket dataUop = theExecBlock.sysE0_E;
+            UopPacket dataUop = theExecBlock.storeDataE0_E;
             if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
                 int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
                 assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");

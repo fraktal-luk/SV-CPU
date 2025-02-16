@@ -148,7 +148,6 @@ package Queues;
                // assert(wordInside(adr, fwEntry.adr) === memInside(adr, loadSize, fwEntry.adr, fwEntry.size)) else $error("not same: (%h, %d), (%h, %d)", adr, loadSize, fwEntry.adr, fwEntry.size);
                // assert (loadSize != SIZE_1) else $error ("load 1 b %h", adr);
             
-            // TODO: take into accout access size
             //if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
             if ((loadSize != fwEntry.size) || !memInside(adr, (loadSize), fwEntry.adr, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};

@@ -82,6 +82,7 @@ package CacheDefs;
 
 
     // Write buffer
+    // TODO: eplace with SQ entry struct?
     typedef struct {
         logic active;
         InsId mid;
@@ -201,22 +202,14 @@ package CacheDefs;
         
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
-        
-        int byteSize = //0;
-                       accessSize;
+        int byteSize = accessSize;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-        
-//        case (accessSize)
-//            SIZE_1: byteSize = 1;
-//            SIZE_4: byteSize = 4;
-//        endcase
-        
+
+        res.aHigh = aHigh;
+        res.aLow = aLow;        
         res.adr = adr;
         res.size = accessSize;
-        
-        res.aHigh = aHigh;
-        res.aLow = aLow;
         
         res.block = block;
         res.blockOffset = blockOffset;
@@ -227,7 +220,6 @@ package CacheDefs;
 
         return res;
     endfunction
-
 
 
 endpackage

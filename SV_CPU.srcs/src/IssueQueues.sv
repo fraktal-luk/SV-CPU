@@ -23,7 +23,7 @@ module IssueQueue
     input logic allow,   
     output UopPacket outPackets[OUT_WIDTH]
 );
-    localparam int IN_SIZE = RENAME_WIDTH;
+    //localparam int IN_SIZE = RENAME_WIDTH;
 
     localparam int HOLD_CYCLES = 3;
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
@@ -371,13 +371,14 @@ module IssueQueueComplex(
                         input EventInfo lateEventInfo,
                         input OpSlotAB inGroup
 );    
-
+    
+    // TODO: move to package?
     typedef struct {
         TMP_Uop regular[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
         TMP_Uop float[RENAME_WIDTH];
         TMP_Uop mem[RENAME_WIDTH];
-        TMP_Uop sys[RENAME_WIDTH];
+        TMP_Uop storeData[RENAME_WIDTH];
     } RoutedUops;
     
     RoutedUops routedUops;
@@ -386,7 +387,7 @@ module IssueQueueComplex(
     UopPacket issuedBranchP[1];
     UopPacket issuedFloatP[2];
     UopPacket issuedMemP[1];
-    UopPacket issuedSysP[1];
+    UopPacket issuedStoreDataP[1];
 
 
     assign routedUops = routeUops(inGroup); 
@@ -400,10 +401,11 @@ module IssueQueueComplex(
                                             issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, routedUops.sys, '1,
-                                            issuedSysP);
+    IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
+                                            issuedStoreDataP);
     
 
+    // TODO: move to package?
                 // .active, .mid
     function automatic RoutedUops routeUops(input OpSlotAB gr);
         RoutedUops res = '{
@@ -411,7 +413,7 @@ module IssueQueueComplex(
             branch: '{default: TMP_UOP_NONE},
             float: '{default: TMP_UOP_NONE},
             mem: '{default: TMP_UOP_NONE},
-            sys: '{default: TMP_UOP_NONE}
+            storeData: '{default: TMP_UOP_NONE}
         };
         
         foreach (gr[i]) begin
@@ -423,7 +425,7 @@ module IssueQueueComplex(
 
                 if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
                 else if (//isControlUop(uname) || 
-                         isStoreDataUop(uname)) res.sys[i] = '{1, uid};
+                         isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
                 else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
                 else res.regular[i] = '{1, uid};

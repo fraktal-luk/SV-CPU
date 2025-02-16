@@ -193,7 +193,7 @@ package AbstractSim;
         int iqFloat;
         int iqBranch;
         int iqMem;
-        int iqSys;
+        int iqStoreData;
     } IqLevels;
 
 
