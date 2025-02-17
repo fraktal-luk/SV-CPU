@@ -71,7 +71,6 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-
         update(); // Before reading and FW checks to eliminate hazards
 
         if (IS_STORE_QUEUE) begin
@@ -183,7 +182,7 @@ module StoreQueue
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
         end
-        else if (IS_STORE_QUEUE)
+        else if (IS_STORE_QUEUE) // TODO: remove redundant branch?
             drainPointer = startPointer;
         else
             drainPointer = startPointer;
@@ -201,13 +200,11 @@ module StoreQueue
 
     task automatic update();
         foreach (wrInputs[p]) begin
-            UopName uname;
+            UopName uname = decUname(wrInputs[p].TMP_oid);
             if (wrInputs[p].active !== 1) continue;
 
-            uname = decUname(wrInputs[p].TMP_oid);            
-            if (!HELPER::appliesU(uname)) continue;
-
-            begin
+            //uname = decUname(wrInputs[p].TMP_oid);
+            if (HELPER::appliesU(uname)) begin
                int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
 
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
@@ -220,13 +217,11 @@ module StoreQueue
 
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
             foreach (wrInputsE2[p]) begin
-                UopName uname;
+                UopName uname = decUname(wrInputsE2[p].TMP_oid);
                 if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
-                uname = decUname(wrInputsE2[p].TMP_oid);            
-                if (!HELPER::appliesU(uname)) continue;
-
-                begin
+                //uname = decUname(wrInputsE2[p].TMP_oid);
+                if (HELPER::appliesU(uname)) begin
                    int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
                    if (wrInputsE2[p].status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
@@ -260,33 +255,19 @@ module StoreQueue
     task automatic handleForwardsS();
         foreach (theExecBlock.toLq[p]) begin
             UopPacket loadOp = theExecBlock.toLq[p];
-
-            logic active = loadOp.active;
             Mword adr = loadOp.result;
-           // AccessSize size = SIZE_NONE;
-           // AccessSize trSize = SIZE_NONE;
-            
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
 
-            if (active !== 1) continue;
-            if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
-
+            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
             resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), adr);
 
-
             if (resb.active) begin
-                AccessSize size = //(insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-                                    getTransactionSize(insMap.get(U2M(loadOp.TMP_oid)).mainUop);
-                AccessSize trSize = //(insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-                                    getTransactionSize(insMap.get(U2M(resb.TMP_oid)).mainUop);
-                
-                // TODO: if resb is not the last matching store, denote this fact.
-                // At Commit assure that a store did not get its value from FW other than the latest matching one - if it gets Retire normal, raise an error
-                // Remember that no FW is a valid result if the latest mtching store has left SQ
-                //  >> Mark whether there is a younger matching FW in MemTracker than the one found in SQ
+                AccessSize size = getTransactionSize(insMap.get(U2M(loadOp.TMP_oid)).mainUop);
+                AccessSize trSize = getTransactionSize(insMap.get(U2M(resb.TMP_oid)).mainUop);
+
                 checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
 
@@ -298,15 +279,12 @@ module StoreQueue
     task automatic handleHazardsL();    
         foreach (theExecBlock.toSq[p]) begin
             UopPacket storeUop = theExecBlock.toSq[p];
-
-            logic active = storeUop.active;
             Mword adr = storeUop.result;
             UopPacket resb;
 
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
 
-            if (active !== 1) continue;
-            if (!isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
             resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      
@@ -320,9 +298,7 @@ module StoreQueue
         lookupTarget <= 'x;
         lookupLink <= 'x;
 
-        if (!p.active) return; 
-
-        begin
+        if (p.active) begin
             int arrayIndex[$] = content_N.find_index with (item.mid == U2M(p.TMP_oid));
 
             Mword trg = HELPER::getAdr(content_N[arrayIndex[0]]);
@@ -363,7 +339,7 @@ module StoreQueue
     function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
         Transaction latestOverlap = memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
 
-        // TODO: if sr source is not latestOverlap, denote this fact somewhere.
+        // If sr source is not latestOverlap, denote this fact somewhere (so far printing an error, hasn't happened yet).
         // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
         assert (latestOverlap.owner == U2M(sr.TMP_oid)) else begin
             $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
