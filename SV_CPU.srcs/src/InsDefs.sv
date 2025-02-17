@@ -443,7 +443,7 @@ package InsDefs;
     endfunction
 
     function automatic string findMnemonic(input InstructionDef def);
-        string found[$] = defMap.find_index with (matchDefinition(def, item));
+        string found[$] = defMap.find_first_index with (matchDefinition(def, item));
         
         if (found.size() == 0) return "undef";        
         assert (found.size() == 1) else $fatal("No single definition for %p, %d", def, found.size());

@@ -13,30 +13,19 @@ package Insmap;
     
     typedef int Unum;
         
-        
-        localparam InsId TRACKED_ID = 5818;
 
+    // 
     typedef struct {
         Mword adr;
         Word bits;
         Mword target;
         AbstractInstruction dec;
     } InsBasicData;
-    
-        
-        // UNUSED
-        typedef struct {
-            UopName name;
-            int sources[3];
-            int dest;
-        } UopDef;    
-    
+
     
     // What should be in base
     typedef struct {
         UopId id;
-        
-        logic status; // FUTURE: enum
         
         UopName name;
         
@@ -63,34 +52,18 @@ package Insmap;
         InsBasicData basicData;
 
         UopName mainUop; // For 1 uop Mops is equal to the uop
-
         Unum firstUop;
         int nUops;
 
         IndexSet inds;
-        int slot; // UNUSED?
 
-            logic frontBranch;
-
-        logic exception;
+        logic frontBranch;
+        logic exception; // TODO: synchronize with exceptions of contained uops?
         logic refetch;
-    } InstructionInfo;
+    } InstructionInfo; // TODO: rename to MopInfo?
 
 
-        typedef struct {
-            InsId mid;
-            InsId fid; // Fetch id - links to adr, bits, etc
-            int nUops;
-            InsId firstUop; // Not needed if using '{m, s} type of index of uops
-        } MopDescriptor;
-
-
-
-    function automatic InstructionInfo initInsInfo( input InsId id,
-                                                    input Mword adr,
-                                                    input Word bits,
-                                                    input AbstractInstruction ins
-                                                    );
+    function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins);
         InstructionInfo res;
         res.id = id;
         
@@ -98,7 +71,7 @@ package Insmap;
         res.basicData.bits = bits;
         res.basicData.dec = ins;
         
-            res.frontBranch = 'x;
+        res.frontBranch = 'x;
         
         res.exception = 0;
         res.refetch = 0;
@@ -134,8 +107,9 @@ package Insmap;
             assert (lastId == lastM) else $fatal(2, "wring idss");
 
             mids.push_back(lastM);
+            
             minfos[id] = argII;    
-                
+
             for (int u = 0; u < minfos[id].nUops; u++) begin                    
                 lastU++;
                 
@@ -148,53 +122,46 @@ package Insmap;
 
         function automatic void retireUpToM(input InsId id);
             retired = id;
-                retiredM = id;
+            retiredM = id;
         endfunction
 
-        
-        function automatic void checkOp(input InsId id);
 
-        endfunction 
-        
-
-        function automatic string TMP_getStr();
-            string res;
-            InsId first = -1;
-            InsId last = -1;
+            function automatic string TMP_getStr();
+                string res;
+                InsId first = -1;
+                InsId last = -1;
+                int size = mids.size();
+                
+                if (mids.size() > 0) begin
+                    first = mids[0];
+                    last = mids[$];
+                end
+                
+                $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
+                
+                return res;
+            endfunction
             
-            int size = mids.size();
-            
-            if (mids.size() > 0) begin
-                first = mids[0];
-                last = mids[$];
-            end
-            
-            $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
-            
-            return res;
-        endfunction
-        
-        function automatic void setDbStr();
-            dbStr = TMP_getStr();
-        endfunction
+            function automatic void setDbStr();
+                dbStr = TMP_getStr();
+            endfunction
 
     endclass
     
 
     class InstructionMap;
-   
+
+        localparam int RECORD_ARRAY_SIZE = 24;
+
         InstructionBase insBase = new();        
         string dbStr;
    
         typedef enum {
             ___,
         
-            
             // Front
                 GenAddress,
                 FlushFront,
-//                PutFQ,
-            
             
             // Mops
             Rename,
@@ -204,7 +171,6 @@ package Insmap;
             LqEnter, LqFlush, LqExit,
 
               ExecRedirect,            
-
 
             FlushOOO,
             
@@ -238,8 +204,6 @@ package Insmap;
             RqEnter, RqFlush, RqIssue, RqExit,
     
               ReadArg, // FUTURE: by source type
-    
-            //
                 
                 // UNUSED
                 ReadMem,
@@ -264,7 +228,7 @@ package Insmap;
         } MilestoneTag;
     
         class MopRecord;
-            MilestoneTag tags[$:24];
+            MilestoneTag tags[$:RECORD_ARRAY_SIZE];
         endclass
 
         typedef MopRecord UopRecord;
@@ -275,11 +239,10 @@ package Insmap;
         InsId lastRetired = -1;
 
         string lastRetiredStr;
-
-        localparam int RECORD_ARRAY_SIZE = 20;
     
             InsId reissuedId = -1;    
-            
+
+
         // ins info
         function automatic InstructionInfo get(input InsId id);
             assert (insBase.minfos.exists(id)) else $fatal(2, "wrong id %d", id);
@@ -307,17 +270,14 @@ package Insmap;
         function automatic int size();
             return insBase.minfos.size();
         endfunction
-        
+ 
 
-
-        function automatic void TMP_func(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
+        // TODO: rename
+        function automatic void allocate(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
             insBase.setRenamedNew(id, argII, argUI);
 
             records[id] = new();
-                
-            for (int u = 0; u < argII.nUops; u++) begin
-                recordsU[argII.firstUop + u] = new();
-            end
+            for (int u = 0; u < argII.nUops; u++) recordsU[argII.firstUop + u] = new();
         endfunction
         
 
@@ -350,7 +310,6 @@ package Insmap;
         ////////////
 
 
-
         // milestones
         
         // DEPREC - may be reused in future
@@ -359,21 +318,12 @@ package Insmap;
         
         // For Mops
         function automatic void putMilestoneM(input InsId id, input Milestone kind, input int cycle);
-            if (id == -1) return;
-            
-              //  if (id == TRACKED_ID) $error("milestoneM: %d, %p", id, kind);
-            
-            records[id].tags.push_back('{kind, cycle});   
+            if (id != -1) records[id].tags.push_back('{kind, cycle});   
         endfunction
         
         // For uops
         function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
-            if (uid == UIDT_NONE) return;
-            
-                          //  if (uid.m == TRACKED_ID) $error("milestone: %d, %p;\n%p", uid.m, kind, getU(uid));
-
-            
-            recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});
+            if (uid != UIDT_NONE) recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});
         endfunction
         
         // For committed
@@ -631,6 +581,7 @@ package Insmap;
 
     typedef UopInfo UopInfoQ[$];
 
+    
     function automatic UopInfoQ splitUop(input UopInfo uinfo);    
         int nDests = 0;
     

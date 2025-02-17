@@ -367,7 +367,6 @@ module AbstractCore
         ii = initInsInfo(id, adr, bits, ins);
         ii.mainUop = uopName;
         ii.inds = renameInds;
-        ii.slot = currentSlot;
         ii.basicData.target = target;
 
         ii.firstUop = insMap.insBase.lastU + 1;
@@ -396,7 +395,7 @@ module AbstractCore
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
         end
 
-        insMap.TMP_func(id, ii, uInfos);  // 
+        insMap.allocate(id, ii, uInfos);  // 
 
         if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, uopName, ins, argVals); // DB
 
