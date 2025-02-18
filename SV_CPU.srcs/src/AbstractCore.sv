@@ -341,30 +341,37 @@ module AbstractCore
     endtask
 
 
+    function automatic UopName decodeUop(input AbstractInstruction ins);
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
+        return OP_DECODING_TABLE[ins.mnemonic];
+    endfunction
+
+
+
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg /*UNUSED so far*/);
         AbstractInstruction ins = decodeAbstract(bits);
-        InstructionInfo ii;
         UopInfo mainUinfo;
         UopInfo uInfos[$];
-        Mword result, target;
-        InsDependencies deps;
-        Mword argVals[3];
-        UopName uopName = OP_DECODING_TABLE[ins.mnemonic];
+        Mword target;
 
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
+        UopName uopName = decodeUop(ins);
 
-        // For insMap and mem queues
-        argVals = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-        result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
-        runInEmulator(renamedEmul, adr, bits);
-        renamedEmul.drain();
-        target = renamedEmul.coreState.target; // For insMap
+        InstructionInfo ii = initInsInfo(id, adr, bits, ins);
 
         // General, per ins
-        deps = registerTracker.getArgDeps(ins); // For insMap
-        
+        InsDependencies deps = registerTracker.getArgDeps(ins); // For insMap
+
+        // For insMap and mem queues
+        Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
+        Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+        runInEmulator(renamedEmul, adr, bits);
+        renamedEmul.drain();
+
+        target = renamedEmul.coreState.target; // For insMap
+
+
         // Main op info
-        ii = initInsInfo(id, adr, bits, ins);
         ii.mainUop = uopName;
         ii.inds = renameInds;
         ii.basicData.target = target;
@@ -391,7 +398,6 @@ module AbstractCore
             UopInfo uInfo = uInfos[u];
             uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
             
-            // 
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
         end
 
@@ -511,7 +517,7 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
-        checkUnimplementedInstruction(decodeId(id)); // All types of commit?
+        checkUnimplementedInstruction(decId(id)); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
@@ -636,10 +642,9 @@ module AbstractCore
     // General
 
     // TODO: review usage of these functions
-    //  decId - 2
-    //  decUname - 16
-    //  decMainUop - 14
-    //  decodeId - 1
+    //  decId - 3
+    //  decUname - 19
+    //  decMainUop - 15
     //  getAdr - 3
 
     function automatic AbstractInstruction decId(input InsId id);
@@ -654,14 +659,11 @@ module AbstractCore
         return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
 
-    // TEMP: to use where it's not just to determine uop name 
-    function automatic AbstractInstruction decodeId(input InsId id);
-        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
-    endfunction
 
     function automatic Mword getAdr(input InsId id);
         return (id == -1) ? 'x : insMap.get(id).basicData.adr;
     endfunction
+
 
 
     function automatic void putMilestoneF(input InsId id, input InstructionMap::Milestone kind);

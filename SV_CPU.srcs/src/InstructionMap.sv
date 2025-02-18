@@ -78,8 +78,8 @@ package Insmap;
 
         return res;
     endfunction
-    
-    
+
+
 
     class InstructionBase;
         InstructionInfo minfos[InsId];
@@ -87,37 +87,31 @@ package Insmap;
         InsId mids[$];
         Unum uids[$];
 
-        InsId lastId = -1;
-            
         InsId lastM = -1;
         Unum lastU = -1;
-                
+
         InsId retired = -1;
         InsId retiredPrev = -1;
 
         InsId retiredM = -1;
         InsId retiredPrevM = -1;
-       
+
         string dbStr;
 
 
         function automatic void setRenamedNew(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
-            lastId = id;
+            assert (lastU + 1 == argII.firstUop) else $error(" uuuuuuuuuuuuuu!!!!! "); 
+
             lastM++;
-            assert (lastId == lastM) else $fatal(2, "wring idss");
-
             mids.push_back(lastM);
-            
-            minfos[id] = argII;    
+            minfos[id] = argII;
 
-            for (int u = 0; u < minfos[id].nUops; u++) begin                    
+            for (int u = 0; u < argII.nUops; u++) begin                    
                 lastU++;
-                
-                assert (lastU == minfos[id].firstUop + u) else $error(" uuuuuuuuuuuuuu ");    
                 uids.push_back(lastU);
-                uinfos[minfos[id].firstUop + u] = argUI.pop_front();
+                uinfos[lastU] = argUI.pop_front();
             end
-                
+
         endfunction
 
         function automatic void retireUpToM(input InsId id);
@@ -131,23 +125,23 @@ package Insmap;
                 InsId first = -1;
                 InsId last = -1;
                 int size = mids.size();
-                
+
                 if (mids.size() > 0) begin
                     first = mids[0];
                     last = mids[$];
                 end
-                
+
                 $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
-                
+
                 return res;
             endfunction
-            
+
             function automatic void setDbStr();
                 dbStr = TMP_getStr();
             endfunction
 
     endclass
-    
+
 
     class InstructionMap;
 
@@ -155,14 +149,14 @@ package Insmap;
 
         InstructionBase insBase = new();        
         string dbStr;
-   
+
         typedef enum {
             ___,
-        
+
             // Front
                 GenAddress,
                 FlushFront,
-            
+ 
             // Mops
             Rename,
             RobEnter, RobComplete, RobFlush, RobExit,
@@ -173,19 +167,19 @@ package Insmap;
               ExecRedirect,            
 
             FlushOOO,
-            
+
             FlushCommit,
-            
+
             Retire,
             RetireException,
             RetireRefetch,
-            
+
             WqEnter, 
-                
+
                 WqExit, // committed write queue
 
                 MemFwProduce,
-                
+
             // Uops
             MemFwConsume, // U
             
@@ -249,28 +243,18 @@ package Insmap;
             return insBase.minfos[id];
         endfunction
 
+
         function automatic UopInfo getU(input UidT uid);
-            Unum uIndex = -1;
-            InstructionInfo ii;
-            
-            assert (insBase.minfos.exists(U2M(uid))) else $fatal(2, "Wrong uid %p, not corresponding to any Mop", uid);
-            
-            ii = insBase.minfos[U2M(uid)];
-            
-            assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
-            
-            uIndex = ii.firstUop + uid.s;
-            assert (uIndex == uid2unum(uid)) else $error("uIndex differes");
+            Unum uIndex = uid2unum(uid);
             assert (insBase.uinfos.exists(uIndex)) else $fatal(2, "wrong id %p", uid);
-            
-            return insBase.uinfos[ uIndex ];
+            return insBase.uinfos[uIndex];
         endfunction
 
         // ins info
         function automatic int size();
             return insBase.minfos.size();
         endfunction
- 
+
 
         // TODO: rename
         function automatic void allocate(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
@@ -279,25 +263,30 @@ package Insmap;
             records[id] = new();
             for (int u = 0; u < argII.nUops; u++) recordsU[argII.firstUop + u] = new();
         endfunction
-        
+
 
         function automatic Unum uid2unum(input UidT uid);
-            Unum base = insBase.minfos[U2M(uid)].firstUop;
+            InstructionInfo ii = insBase.minfos[U2M(uid)];
+            Unum base = ii.firstUop;
+            assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
             return base + uid.s;
         endfunction
-            
+
 
         function automatic void setActualResult(input UidT uid, input Mword res);
             insBase.uinfos[uid2unum(uid)].resultA = res;
         endfunction
 
         function automatic void setActualArgs(input UidT uid, input Mword args[3]);
+            Mword3 argsM = getU(uid).argsE;
             insBase.uinfos[uid2unum(uid)].argsA = args;
+            
+            setArgError(uid, (args !== argsM));
         endfunction
 
-        function automatic void setArgError(input UidT uid, input logic value);
-            insBase.uinfos[uid2unum(uid)].argError = value;
-        endfunction
+            function automatic void setArgError(input UidT uid, input logic value);
+                insBase.uinfos[uid2unum(uid)].argError = value;
+            endfunction
         
         
         function automatic void setException(input InsId id);
@@ -334,19 +323,23 @@ package Insmap;
 
         function automatic void commitCheck();
             while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
+
+                // TODO: remove mids because range [first, last] is enough?
                 InsId removedId = insBase.mids.pop_front();
             
                 Unum firstUop = insBase.minfos[removedId].firstUop;
                 int nU = insBase.minfos[removedId].nUops;
             
                 void'(checkOk(removedId, firstUop, nU));
+                
                 records.delete(removedId);
-
                 insBase.minfos.delete(removedId);
 
                 for (int u = 0; u < nU; u++) begin
                     recordsU.delete(firstUop + u);
                     insBase.uinfos.delete(firstUop + u);
+                    
+                    // TODO: remove uids because range [first, last] is enough?
                     assert (insBase.uids[0] == firstUop + u) else $error("not match");
                     void'(insBase.uids.pop_front());
                 end

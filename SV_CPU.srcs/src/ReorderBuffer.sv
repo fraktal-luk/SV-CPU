@@ -424,21 +424,21 @@ module ReorderBuffer
             res[i].refetch = 0;
             
             // Find corresponding entries of queues
-            if (isStoreUop(insMap.get(mid).mainUop)) begin
+            if (isStoreUop(decMainUop(mid))) begin
                 StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
                 res[i].refetch = entry[0].refetch;
                 res[i].exception = entry[0].error;               
             end
 
-            if (isLoadUop(insMap.get(mid).mainUop)) begin
+            if (isLoadUop(decMainUop(mid))) begin
                  LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
                  res[i].refetch = entry[0].refetch;
                  res[i].exception = entry[0].error;
             end
             
-            if (isBranchUop(insMap.get(mid).mainUop)) begin
-                UopName uname = insMap.getU(FIRST_U(mid)).name;
-
+            if (isBranchUop(decMainUop(mid))) begin
+                UopName uname = //insMap.getU(FIRST_U(mid)).name;
+                                decMainUop(mid);
                 BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
                 res[i].takenBranch = entry[0].taken;
                 

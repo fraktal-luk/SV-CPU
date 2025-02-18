@@ -234,7 +234,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     // TOPLEVEL
     function automatic Mword calcRegularOp(input UidT uid);
-        UopName uname = insMap.getU(uid).name;
+        UopName uname = decUname(uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
         Mword result = calcArith(uname, args, lk);  
@@ -305,7 +305,7 @@ module ExecBlock(ref InstructionMap insMap,
         if (!p.active) return p;
         begin
             UidT uid = p.TMP_oid;
-            UopName uname = insMap.getU(uid).name;
+            UopName uname = decUname(uid);
             Mword3 args = getAndVerifyArgs(uid);
             
             logic dir = resolveBranchDirection(uname, args[0]);// reg
@@ -327,7 +327,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     task automatic setBranchInCore(input UidT uid);
-        UopName uname = insMap.getU(uid).name;
+        UopName uname = decUname(uid);
         Mword3 args = insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
         Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
@@ -399,9 +399,7 @@ module ExecBlock(ref InstructionMap insMap,
     function automatic Mword3 getAndVerifyArgs(input UidT uid);
         InsDependencies deps = insMap.getU(uid).deps;
         Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        Mword3 argsM = insMap.getU(uid).argsE;
         insMap.setActualArgs(uid, argsP);
-        insMap.setArgError(uid, (argsP !== argsM));
         return argsP;
     endfunction;
 

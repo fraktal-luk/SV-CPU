@@ -265,8 +265,8 @@ module StoreQueue
             resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), adr);
 
             if (resb.active) begin
-                AccessSize size = getTransactionSize(insMap.get(U2M(loadOp.TMP_oid)).mainUop);
-                AccessSize trSize = getTransactionSize(insMap.get(U2M(resb.TMP_oid)).mainUop);
+                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
+                AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
 
                 checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
@@ -331,7 +331,7 @@ module StoreQueue
         Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
         if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find with (item.owner == mid); // ... so may be already here
 
-        if (insMap.get(mid).mainUop == UOP_mem_sts) return; // Not checking sys stores
+        if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
 
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
     endfunction
