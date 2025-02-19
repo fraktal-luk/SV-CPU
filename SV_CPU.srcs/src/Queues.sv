@@ -14,8 +14,6 @@ package Queues;
     import UopList::*;
 
 
-        typedef int IntQueue[$];
-
     class QueueHelper;
         typedef struct {
             logic a;
@@ -43,10 +41,6 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE, 'x, 'x, 'x};
     
-        
-//        static function automatic logic applies(input AbstractInstruction ins);
-//            return isStoreIns(ins);
-//        endfunction
 
         static function automatic logic appliesU(input UopName uname);
             return isStoreUop(uname);
@@ -59,8 +53,7 @@ package Queues;
             res.refetch = 0;
             res.adrReady = 0;
             res.valReady = 0;
-                res.size = //(imap.get(id).mainUop == UOP_mem_stib)? SIZE_1 : SIZE_4;
-                            getTransactionSize(imap.get(id).mainUop);
+            res.size = getTransactionSize(imap.get(id).mainUop);
             res.uncached = 0;
             res.committed = 0;
             res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
@@ -80,7 +73,6 @@ package Queues;
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
             if (p.status == ES_UNCACHED_1) begin
                 entry.uncached = 1;
-                //    $error("uncached: %d", U2M(p.TMP_oid));
             end
             else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
                 entry.adrReady = 1;
@@ -130,25 +122,17 @@ package Queues;
 
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
-            // TODO: check for overlap based on transaction sizes
-            //Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, 4, adr, 4));
-            AccessSize loadSize = //(imap.get(id).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-                                  getTransactionSize(imap.get(id).mainUop);
-
+            AccessSize loadSize = getTransactionSize(imap.get(id).mainUop);
             Entry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, item.size, adr, loadSize));
             Entry fwEntry;
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
             else begin // Youngest older overlapping store:
                 Entry sorted[$] = found[0:$];
-                sorted.sort with (item.mid);
+                sorted.sort with (item.mid); // TODO: change to max?
                 fwEntry = sorted[$];
             end
-            
-               // assert(wordInside(adr, fwEntry.adr) === memInside(adr, loadSize, fwEntry.adr, fwEntry.size)) else $error("not same: (%h, %d), (%h, %d)", adr, loadSize, fwEntry.adr, fwEntry.size);
-               // assert (loadSize != SIZE_1) else $error ("load 1 b %h", adr);
-            
-            //if (!wordInside(adr, fwEntry.adr))  // Not includes completely -> incomplete forward, refetch
+
             if ((loadSize != fwEntry.size) || !memInside(adr, (loadSize), fwEntry.adr, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
@@ -178,10 +162,6 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
 
-//        static function automatic logic applies(input AbstractInstruction ins);
-//            return isLoadIns(ins);
-//        endfunction
-
         static function automatic logic appliesU(input UopName uname);
             return isLoadUop(uname);
         endfunction
@@ -192,8 +172,7 @@ package Queues;
             res.adrReady = 0;
             res.error = 0;
             res.refetch = 0;
-                res.size = //(imap.get(id).mainUop == UOP_mem_ldib)? SIZE_1 : SIZE_4;
-                           getTransactionSize(imap.get(id).mainUop);
+            res.size = getTransactionSize(imap.get(id).mainUop);
 
             return res;
         endfunction
@@ -223,11 +202,11 @@ package Queues;
             endfunction
 
             static function Mword getAdr(input Entry entry);
-                return 'x;//entry.adr; 
+                return 'x;
             endfunction
 
             static function Mword getVal(input Entry entry);
-                return 'x;//entry.val;
+                return 'x;
             endfunction
 
             static function Mword getLink(input Entry entry);
@@ -237,17 +216,17 @@ package Queues;
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
             UopPacket res = EMPTY_UOP_PACKET;
-            AccessSize trSize = //(imap.get(id).mainUop == UOP_mem_stib) ? SIZE_1 : SIZE_4;
-                                getTransactionSize(imap.get(id).mainUop);
-
-            int found[$] = entries.find_index with ( item.mid != -1 && item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
+            AccessSize trSize = getTransactionSize(imap.get(id).mainUop);
+            
+            // CAREFUL: we search for all matching entries
+            int found[$] = entries.find_index with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
             
             if (found.size() == 0) return res;
     
             foreach (found[i]) setRefetch(entries[found[i]]); // We have a match so matching loads are incorrect
             
             begin // 'active' indicates that some match has happened without furthr details
-                int oldestFound[$] = found.min with (item);
+                int oldestFound[$] = found.min with (item);  // TODO: error, fix it - here index in queue is compared, while .mid should be
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
                 res.active = 1; 
             end
@@ -276,11 +255,7 @@ endclass
             Mword regTarget;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, /*'x,*/ 'x, 'x};
-
-//        static function automatic logic applies(input AbstractInstruction ins);
-//            return isBranchIns(ins);
-//        endfunction
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
 
         static function automatic logic appliesU(input UopName uname);
             return isBranchUop(uname);
@@ -330,7 +305,6 @@ endclass
             endfunction
 
             static function void setRefetch(ref Entry entry);
-                //entry.error = 1;
             endfunction
           
             
@@ -347,7 +321,7 @@ endclass
             endfunction
 
             static function Mword getVal(input Entry entry);
-                return 'x;//entry.val;
+                return 'x;
             endfunction
 
             static function Mword getLink(input Entry entry);
@@ -355,17 +329,8 @@ endclass
             endfunction
 
 
-        static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[BQ_SIZE], input InsId id, input Mword adr);
-            Entry found[$] = entries.find with ( item.mid != -1 && item.mid == id);
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-
-            begin // 'active' indicates that some match has happened without furthr details
-                UopPacket res = EMPTY_UOP_PACKET;
-                
-                return res;
-            end
-    
+        static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[BQ_SIZE], input InsId id, input Mword adr);        
+            return EMPTY_UOP_PACKET;
         endfunction
 
         static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
