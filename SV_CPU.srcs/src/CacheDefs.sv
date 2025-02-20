@@ -88,10 +88,10 @@ package CacheDefs;
         InsId mid;
         logic cancel;
         logic sys;
-            logic uncached;
+        logic uncached;
         Mword adr;
         Mword val;
-            AccessSize size;
+        AccessSize size;
     } StoreQueueEntry;
 
     localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, SIZE_NONE};
@@ -100,10 +100,11 @@ package CacheDefs;
         logic req;
         Mword adr;
         Mword value;
-            AccessSize size;
+        AccessSize size;
+        logic uncached;
     } MemWriteInfo;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE, 'x};
 
 
    

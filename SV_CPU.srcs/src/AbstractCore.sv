@@ -173,7 +173,7 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size};
+        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
         return res;
     endfunction
 
@@ -315,8 +315,6 @@ module AbstractCore
 
 
     task automatic flushBranchCheckpointQueueAll();
-        //while (branchCheckpointQueue.size() > 0) void'(branchCheckpointQueue.pop_back());
-            // TODO: change to branchCheckpointQueue = '{} ?
         branchCheckpointQueue = '{};
     endtask    
 

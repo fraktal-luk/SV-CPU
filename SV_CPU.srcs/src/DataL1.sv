@@ -45,10 +45,10 @@ module DataL1(
     Mword     readyMappingsToFill[$];
 
         
-        // TODO: include adr
         typedef struct {
             logic ongoing = 0;
             logic ready = 0;
+            Mword adr = 'x;
             Mword data = 'x;
             int counter = -1;
         } UncachedRead;
@@ -139,7 +139,8 @@ module DataL1(
             if (--uncachedReads[0].counter == 0) begin
                 uncachedReads[0].ongoing = 0;
                 uncachedReads[0].ready = 1;
-                uncachedReads[0].data = 0;
+                uncachedReads[0].data = 0; // TODO: read actual data based on .adr
+                //uncachedReads[0].adr = 'x;
             end
         end
     endtask
@@ -190,15 +191,23 @@ module DataL1(
         doWrite(TMP_writeReqs[0]);
     endtask
 
-    // TODO: implement writes of size 1
-    function automatic void writeToStaticRange(input Mword adr, input Mword val);
+
+    function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
         content[adr +: ACCESS_SIZE] = wval;
     endfunction
-    
-    function automatic void writeToDynamicRange(input Mword adr, input Mword val);
+
+    function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
+        localparam int ACCESS_SIZE = 1;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        content[adr +: ACCESS_SIZE] = wval;
+    endfunction
+
+
+    function automatic void writeToDynamicRangeW(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
         
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
@@ -208,22 +217,34 @@ module DataL1(
         filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
     endfunction
 
+    function automatic void writeToDynamicRangeB(input Mword adr, input Mbyte val);
+        localparam int ACCESS_SIZE = 1;
+        
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
 
-    // TODO: handle writing to static, dynamic and uncached, with possible block crosing and region crossing! 
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
+    endfunction
+
+
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
         Mword val = wrInfo.value;
 
         if (!wrInfo.req) return;
 
-        if (isUncachedRange(adr)) begin
-            // TODO: use 'uncached' flag in wrInfo
+        if (wrInfo.uncached) begin
+            // TODO: do the write
+            
         end
         else if (isStaticDataRange(adr)) begin
-            writeToStaticRange(adr, val);
+            if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToStaticRangeW(adr, val);
         end
         else begin 
-            writeToDynamicRange(adr, val);
+            if (wrInfo.size == SIZE_1) writeToDynamicRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToDynamicRangeW(adr, val);
         end
     
     endtask
@@ -369,6 +390,7 @@ module DataL1(
                 if (readReqs[p].active && !readReqs[p].store && readReqs[p].uncachedReq) begin
                     uncachedReads[0].ongoing = 1;
                     uncachedReads[0].counter = 8;
+                    uncachedReads[0].adr = readReqs[p].adr;
                 end
                 
             end
@@ -396,11 +418,11 @@ module DataL1(
         end
         else begin           
             if (isUncachedRange(tr.phys)) begin
-                res.data = 0; // TODO: actual data word
+                res.data = uncachedReads[0].data;
                 // Clear used transfer
                 uncachedReads[0].ready = 0;
                 uncachedReads[0].data = 'x;
-                    
+                uncachedReads[0].adr = 'x;
             end
             else if (tr.phys <= $size(content)) // Read from small array
                 res.data = readFromStaticRange(tr.phys, aInfo.size);
