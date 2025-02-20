@@ -148,18 +148,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign TMP_memAllow = replayQueue.accept;
 
-    // TODO: move to package
-    function automatic UopPacket memToComplete(input UopPacket p);
-        if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
-        else return p;
-    endfunction
-
-    function automatic UopPacket memToReplay(input UopPacket p);
-        if (needsReplay(p.status)) return p;
-        else return EMPTY_UOP_PACKET;
-    endfunction
-
-
 
     assign doneRegular0 = regular0.stage0;
     assign doneRegular1 = regular1.stage0;

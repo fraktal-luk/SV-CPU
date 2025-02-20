@@ -128,9 +128,8 @@ package Queues;
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
             else begin // Youngest older overlapping store:
-                Entry sorted[$] = found[0:$];
-                sorted.sort with (item.mid); // TODO: change to max?
-                fwEntry = sorted[$];
+                Entry vmax[$] = found.max with (item.mid);
+                fwEntry = vmax[0];
             end
 
             if ((loadSize != fwEntry.size) || !memInside(adr, (loadSize), fwEntry.adr, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
@@ -220,15 +219,19 @@ package Queues;
             
             // CAREFUL: we search for all matching entries
             int found[$] = entries.find_index with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
+                Entry found_e[$] = entries.find with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
             
             if (found.size() == 0) return res;
     
             foreach (found[i]) setRefetch(entries[found[i]]); // We have a match so matching loads are incorrect
             
-            begin // 'active' indicates that some match has happened without furthr details
-                int oldestFound[$] = found.min with (item);  // TODO: error, fix it - here index in queue is compared, while .mid should be
+            begin // 'active' indicates that some match has happened without further details
+                int oldestFound[$] = found.min with (entries[item].mid);
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
-                res.active = 1; 
+                res.active = 1;
+                    
+                    // TODO: temporary DB print. Make testcases where it happens
+                    if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
             end
             
             return res;

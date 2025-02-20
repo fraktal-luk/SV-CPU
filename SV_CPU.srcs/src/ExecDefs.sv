@@ -36,6 +36,7 @@ package ExecDefs;
     endfunction
 
 
+
     // Poison
     typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
     localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
@@ -61,6 +62,34 @@ package ExecDefs;
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
 
+
+    function automatic UopPacket memToComplete(input UopPacket p);
+        if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
+        else return p;
+    endfunction
+
+    function automatic UopPacket memToReplay(input UopPacket p);
+        if (needsReplay(p.status)) return p;
+        else return EMPTY_UOP_PACKET;
+    endfunction
+
+
+
+    typedef struct {
+        TMP_Uop regular[RENAME_WIDTH];
+        TMP_Uop branch[RENAME_WIDTH];
+        TMP_Uop float[RENAME_WIDTH];
+        TMP_Uop mem[RENAME_WIDTH];
+        TMP_Uop storeData[RENAME_WIDTH];
+    } RoutedUops;
+
+    localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
+        regular: '{default: TMP_UOP_NONE},
+        branch: '{default: TMP_UOP_NONE},
+        float: '{default: TMP_UOP_NONE},
+        mem: '{default: TMP_UOP_NONE},
+        storeData: '{default: TMP_UOP_NONE}
+    };
 
 
 //    function automatic UopPacket setResult(input UopPacket p, input Mword result);

@@ -517,7 +517,7 @@ package Emulation;
                 O_intLoadW: begin
                     result = dataMem_N.readWord(adr);
                 end
-                O_intLoadB: result = dataMem_N.readByte(adr); // TODO
+                O_intLoadB: result = dataMem_N.readByte(adr);
                 O_intLoadAqW: result = dataMem_N.readWord(adr); // TODO
                 
                 O_intLoadD: ;

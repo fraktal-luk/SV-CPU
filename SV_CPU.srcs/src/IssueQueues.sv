@@ -372,15 +372,30 @@ module IssueQueueComplex(
                         input OpSlotAB inGroup
 );    
     
-    // TODO: move to package?
-    typedef struct {
-        TMP_Uop regular[RENAME_WIDTH];
-        TMP_Uop branch[RENAME_WIDTH];
-        TMP_Uop float[RENAME_WIDTH];
-        TMP_Uop mem[RENAME_WIDTH];
-        TMP_Uop storeData[RENAME_WIDTH];
-    } RoutedUops;
-    
+ 
+                // .active, .mid
+    function automatic RoutedUops routeUops(input OpSlotAB gr);
+        RoutedUops res = DEFAULT_ROUTED_UOPS;
+        
+        foreach (gr[i]) begin
+            if (!gr[i].active) continue;
+            
+            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin // insMap dependece
+                UopId uid = '{gr[i].mid, u};
+                UopName uname = decUname(uid);                          // module dependence
+
+                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+                else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
+                else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
+                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
+                else res.regular[i] = '{1, uid};
+            end
+        end
+        
+        return res;
+    endfunction
+
+
     RoutedUops routedUops;
     
     UopPacket issuedRegularP[2];
@@ -403,37 +418,6 @@ module IssueQueueComplex(
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
                                             issuedStoreDataP);
-    
-
-    // TODO: move to package?
-                // .active, .mid
-    function automatic RoutedUops routeUops(input OpSlotAB gr);
-        RoutedUops res = '{
-            regular: '{default: TMP_UOP_NONE},
-            branch: '{default: TMP_UOP_NONE},
-            float: '{default: TMP_UOP_NONE},
-            mem: '{default: TMP_UOP_NONE},
-            storeData: '{default: TMP_UOP_NONE}
-        };
-        
-        foreach (gr[i]) begin
-            if (!gr[i].active) continue;
-            
-            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin
-                UopId uid = '{gr[i].mid, u};
-                UopName uname = decUname(uid);
-
-                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
-                else if (//isControlUop(uname) || 
-                         isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
-                else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
-                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
-                else res.regular[i] = '{1, uid};
-            end
-        end
-        
-        return res;
-    endfunction
 
 
     function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input UidT ids[$]);

@@ -29,9 +29,10 @@ module ReplayQueue(
         ExecStatus execStatus;
         UidT uid;
         Mword adr;
+            AccessSize size;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE};
 
     int numUsed = 0;
     logic accept;
@@ -67,8 +68,7 @@ module ReplayQueue(
         
         wakeup();
         
-        if (!(lateEventInfo.redirect || branchEventInfo.redirect)) // TODO: chek if condition not needed (flush is before)
-            writeInput();
+        writeInput();
        
         removeIssued();
 
@@ -87,12 +87,14 @@ module ReplayQueue(
         
         foreach (inPackets[i]) begin
             Mword effAdr;
+            AccessSize trSize;
             
             if (!inPackets[i].active) continue;
             
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
+            trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0 /*inPackets[i].active*/, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr};
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
@@ -107,6 +109,7 @@ module ReplayQueue(
             end
         end
     endtask
+
 
 
     task automatic wakeup();
@@ -126,13 +129,15 @@ module ReplayQueue(
         // Entries waiting for SQ data fill
         for (int i = 0; i < 1; i++) begin // Dummy loop to enable continue
             UopName uname;
+            
             if (wrInput.active !== 1) continue;
         
             uname = decUname(wrInput.TMP_oid);            
             if (!(uname inside {UOP_data_int, UOP_data_fp})) continue;
-        
+           
             begin
-               int found[$] = content.find_index with ((item.execStatus == ES_SQ_MISS) && (item.adr === wrInput.result) && (U2M(item.uid) > U2M(wrInput.TMP_oid))); // TODO: overlap
+               // FUTURE: Here we wake on every store data that is older than waiting op. Wait only for the latest store, already identified at FW scan?
+               int found[$] = content.find_index with ((item.execStatus == ES_SQ_MISS) && (U2M(item.uid) > U2M(wrInput.TMP_oid)));
                foreach (found[j]) begin
                    content[found[j]].ready_N = 1;
                end

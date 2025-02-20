@@ -181,8 +181,6 @@ module StoreQueue
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
         end
-        else if (IS_STORE_QUEUE) // TODO: remove redundant branch?
-            drainPointer = startPointer;
         else
             drainPointer = startPointer;
 
@@ -202,7 +200,6 @@ module StoreQueue
             UopName uname = decUname(wrInputs[p].TMP_oid);
             if (wrInputs[p].active !== 1) continue;
 
-            //uname = decUname(wrInputs[p].TMP_oid);
             if (HELPER::appliesU(uname)) begin
                int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputs[p].TMP_oid));
 
@@ -219,7 +216,6 @@ module StoreQueue
                 UopName uname = decUname(wrInputsE2[p].TMP_oid);
                 if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
-                //uname = decUname(wrInputsE2[p].TMP_oid);
                 if (HELPER::appliesU(uname)) begin
                    int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 

@@ -60,7 +60,7 @@ package Insmap;
         logic frontBranch;
         logic exception; // TODO: synchronize with exceptions of contained uops?
         logic refetch;
-    } InstructionInfo; // TODO: rename to MopInfo?
+    } InstructionInfo; // FUTURE: rename to MopInfo?
 
 
     function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins);
@@ -256,7 +256,6 @@ package Insmap;
         endfunction
 
 
-        // TODO: rename
         function automatic void allocate(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
             insBase.setRenamedNew(id, argII, argUI);
 
