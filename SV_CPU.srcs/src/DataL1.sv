@@ -50,6 +50,7 @@ module DataL1(
             logic ready = 0;
             Mword adr = 'x;
             Mword data = 'x;
+            AccessSize size = SIZE_NONE;
             int counter = -1;
         } UncachedRead;
 
@@ -61,6 +62,9 @@ module DataL1(
 
     // Simple array for simple test cases, without blocks, transaltions etc
     Mbyte content[4096]; // So far this corresponds to way 0
+    
+    localparam Mword UNCACHED_BASE = 'h80000000;
+    Mbyte uncachedArea[4096];
 
 
     AccessInfo accesses[N_MEM_PORTS];
@@ -139,8 +143,7 @@ module DataL1(
             if (--uncachedReads[0].counter == 0) begin
                 uncachedReads[0].ongoing = 0;
                 uncachedReads[0].ready = 1;
-                uncachedReads[0].data = 0; // TODO: read actual data based on .adr
-                //uncachedReads[0].adr = 'x;
+                uncachedReads[0].data = readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
             end
         end
     endtask
@@ -175,6 +178,7 @@ module DataL1(
 
     function automatic void reset();
         content = '{default: 0};
+        uncachedArea = '{default: 0};
         tagsForWay = '{default: 0};
         
         filledBlocks.delete();
@@ -228,6 +232,22 @@ module DataL1(
     endfunction
 
 
+    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
+        localparam int ACCESS_SIZE = 4;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
+    endfunction
+
+    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
+        localparam int ACCESS_SIZE = 1;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
+    endfunction
+
+
+
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
         Mword val = wrInfo.value;
@@ -235,8 +255,8 @@ module DataL1(
         if (!wrInfo.req) return;
 
         if (wrInfo.uncached) begin
-            // TODO: do the write
-            
+            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
         end
         else if (isStaticDataRange(adr)) begin
             if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
@@ -298,13 +318,51 @@ module DataL1(
 
         wval = {>>{chosenWord}};
         val = Mword'(wval);
-           // $error("read byte: %h, %h", adr, val);
 
         return val;
     endfunction
 
 
 
+    function automatic Mword readWordUncached(input Mword adr);
+        localparam int ACCESS_SIZE = 4;
+        
+        Mbyte chosenWord[ACCESS_SIZE];
+        Mword wval;
+        Word val;
+
+        chosenWord = uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
+
+        wval = {>>{chosenWord}};
+        val = Mword'(wval);
+
+        return val;
+    endfunction
+
+    function automatic Mword readByteUncached(input Mword adr);
+        localparam int ACCESS_SIZE = 1;
+        
+        Mbyte chosenWord[ACCESS_SIZE];
+        Mbyte wval;
+        Word val;
+
+        chosenWord = content[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
+
+        wval = {>>{chosenWord}};
+        val = Mword'(wval);
+
+        return val;
+    endfunction
+
+
+
+    function automatic Mword readFromUncachedRange(input Mword adr, input AccessSize size);
+        if (size == SIZE_1) return readByteUncached(adr);
+        else if (size == SIZE_4) return readWordUncached(adr);
+        else $error("Wrong access size");
+
+        return 'x;
+    endfunction
 
     function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
         if (size == SIZE_1) return readByteStatic(adr);
@@ -312,7 +370,7 @@ module DataL1(
         else $error("Wrong access size");
 
         return 'x;
-    endfunction 
+    endfunction
 
 
 
@@ -391,6 +449,7 @@ module DataL1(
                     uncachedReads[0].ongoing = 1;
                     uncachedReads[0].counter = 8;
                     uncachedReads[0].adr = readReqs[p].adr;
+                    uncachedReads[0].size = readReqs[p].size;
                 end
                 
             end
