@@ -14,8 +14,8 @@ package Asm;
 
 
     function automatic Word getIns(input string parts[]);
-        InstructionFormat fmt = getFormat(parts[0]);
         InstructionDef def = getDef(parts[0]);
+        InstructionFormat fmt = def.f;
         
         string args[] = orderArgs(parts[1:3], parsingMap[fmt]);
         Word4 vals;
@@ -32,8 +32,8 @@ package Asm;
     endfunction;
 
     function automatic CodeRef getCodeRef(input string parts[]);
-        InstructionFormat fmt = getFormat(parts[0]);
         InstructionDef def = getDef(parts[0]);
+        InstructionFormat fmt = def.f;
         
         string args[] = orderArgs(parts[1:3], parsingMap[fmt]);
         CodeRef res;
@@ -181,7 +181,7 @@ package Asm;
     typedef struct {
         string mnemonic;
         Word encoding;
-        InstructionFormat fmt;
+        //InstructionFormat fmt;
         InstructionDef def;
         int dest;
         int sources[3];
@@ -190,8 +190,8 @@ package Asm;
     localparam AbstractInstruction DEFAULT_ABS_INS = '{
         mnemonic: "",
         encoding: 'x,
-        fmt: F_none,
-        def: '{P_none, S_none, T_none, O_undef},
+        //fmt: F_none,
+        def: '{F_none, P_none, S_none, T_none, O_undef},
         dest: 0,
         sources: '{default: 0}
     };
@@ -201,7 +201,7 @@ package Asm;
         Primary p = toPrimary(w[31:26]);
         Secondary s = toSecondary(w[15:10], p);
         Ternary t = toTernary(w[4:0], p, s);
-        InstructionDef def = '{p, s, t, O_undef};
+        InstructionDef def = '{F_none, p, s, t, O_undef};
 
         return findMnemonic(def);               
     endfunction
@@ -210,9 +210,9 @@ package Asm;
     function automatic AbstractInstruction decodeAbstract(input Word w);
         string s = decodeMnem(w);
         AbstractInstruction res;
-        InstructionFormat f = getFormat(s);
         InstructionDef d = getDef(s);
-        
+        InstructionFormat f = d.f;
+
         FormatSpec fmtSpec = parsingMap[f];
 
         int qa = w[25:21];        
@@ -254,7 +254,7 @@ package Asm;
         
         res.mnemonic = s;
         res.encoding = w;
-        res.fmt = f;
+       // res.fmt = f;
         res.def = d;
         res.dest = dest;
         res.sources = sources;
@@ -270,7 +270,7 @@ package Asm;
         string destStr;
         string sourcesStr[3];
 
-        FormatSpec fmtSpec = parsingMap[ins.fmt];
+        FormatSpec fmtSpec = parsingMap[ins.def.f];
                
         case (fmtSpec.typeSpec[0])
             "i": $swrite(destStr, "r%0d", dest);
@@ -426,7 +426,6 @@ package Asm;
         Section res;
         squeue labels = '{};
         int labelMap[string];
-        ImportRef importMap[string];
         ImportRef imports[$];
         ExportRef exports[$];
         squeue errors = '{};
@@ -506,6 +505,7 @@ package Asm;
         return res;
     endfunction
 
+
     function automatic Section fillImports(input Section section, input int startAdr, input Section lib, input int libAdr);
         Section res = section;
         int adrDiff = libAdr - startAdr;
@@ -537,7 +537,7 @@ package Asm;
             return res;
         end
 
-        foreach(partsExt[i])
+        foreach (partsExt[i])
             if (i < parts.size())
                 partsExt[i] = parts[i];
         
@@ -546,6 +546,7 @@ package Asm;
 
         return res;
     endfunction
+
 
     function automatic DirectiveLine analyzeDirective(input int line, input int codeLine, input squeue parts);
         DirectiveLine res;

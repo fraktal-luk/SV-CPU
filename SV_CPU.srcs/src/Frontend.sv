@@ -48,8 +48,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
         task automatic TMP_cmp();
             foreach (fetchStage0[i]) begin
-            //   assert (fetchStage0_A[i].active === fetchStage0[i].active) else $error("not eqq\n%p\n%p", fetchStage0, fetchStage0_A);
-            //   assert (!fetchStage0_A[i].active || fetchStage0_A[i] === fetchStage0[i]) else $error("not eq\n%p\n%p", fetchStage0_A[i], fetchStage0[i]);
+
             end
         endtask
 
@@ -335,7 +334,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             Word realBits = cacheOut.words[i];
 
             if (res[i].active) begin
-                // TODO: change to fronend emul when created
+                // TODO: change to frontend emul when created
                 Word bits = AbstractCore.renamedEmul.progMem_N.fetch(res[i].adr); // DB
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end

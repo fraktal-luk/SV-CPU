@@ -493,7 +493,7 @@ package Emulation;
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
             Mword res = 'x;
-            FormatSpec fmtSpec = parsingMap[ins.fmt];
+            FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
     
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
@@ -517,7 +517,7 @@ package Emulation;
                 O_intLoadW: begin
                     result = dataMem_N.readWord(adr);
                 end
-                O_intLoadB: result = dataMem_N.readByte(adr); // TODO
+                O_intLoadB: result = dataMem_N.readByte(adr);
                 O_intLoadAqW: result = dataMem_N.readWord(adr); // TODO
                 
                 O_intLoadD: ;
@@ -548,7 +548,7 @@ package Emulation;
 
         function automatic ExecResult processInstruction(input Mword adr, input AbstractInstruction ins);
             ExecResult res = DEFAULT_EXEC_RESULT;
-            FormatSpec fmtSpec = parsingMap[ins.fmt];
+            FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
             this.ip = adr;

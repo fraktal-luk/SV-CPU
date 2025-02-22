@@ -45,11 +45,12 @@ module DataL1(
     Mword     readyMappingsToFill[$];
 
         
-        // TODO: include adr
         typedef struct {
             logic ongoing = 0;
             logic ready = 0;
+            Mword adr = 'x;
             Mword data = 'x;
+            AccessSize size = SIZE_NONE;
             int counter = -1;
         } UncachedRead;
 
@@ -61,6 +62,9 @@ module DataL1(
 
     // Simple array for simple test cases, without blocks, transaltions etc
     Mbyte content[4096]; // So far this corresponds to way 0
+    
+    localparam Mword UNCACHED_BASE = 'h80000000;
+    Mbyte uncachedArea[4096];
 
 
     AccessInfo accesses[N_MEM_PORTS];
@@ -139,7 +143,7 @@ module DataL1(
             if (--uncachedReads[0].counter == 0) begin
                 uncachedReads[0].ongoing = 0;
                 uncachedReads[0].ready = 1;
-                uncachedReads[0].data = 0;
+                uncachedReads[0].data = readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
             end
         end
     endtask
@@ -174,6 +178,7 @@ module DataL1(
 
     function automatic void reset();
         content = '{default: 0};
+        uncachedArea = '{default: 0};
         tagsForWay = '{default: 0};
         
         filledBlocks.delete();
@@ -190,15 +195,23 @@ module DataL1(
         doWrite(TMP_writeReqs[0]);
     endtask
 
-    // TODO: implement writes of size 1
-    function automatic void writeToStaticRange(input Mword adr, input Mword val);
+
+    function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
         content[adr +: ACCESS_SIZE] = wval;
     endfunction
-    
-    function automatic void writeToDynamicRange(input Mword adr, input Mword val);
+
+    function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
+        localparam int ACCESS_SIZE = 1;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        content[adr +: ACCESS_SIZE] = wval;
+    endfunction
+
+
+    function automatic void writeToDynamicRangeW(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
         
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
@@ -208,22 +221,50 @@ module DataL1(
         filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
     endfunction
 
+    function automatic void writeToDynamicRangeB(input Mword adr, input Mbyte val);
+        localparam int ACCESS_SIZE = 1;
+        
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
 
-    // TODO: handle writing to static, dynamic and uncached, with possible block crosing and region crossing! 
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
+    endfunction
+
+
+    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
+        localparam int ACCESS_SIZE = 4;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
+    endfunction
+
+    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
+        localparam int ACCESS_SIZE = 1;
+
+        Mbyte wval[ACCESS_SIZE] = {>>{val}};
+        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
+    endfunction
+
+
+
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
         Mword val = wrInfo.value;
 
         if (!wrInfo.req) return;
 
-        if (isUncachedRange(adr)) begin
-            // TODO: use 'uncached' flag in wrInfo
+        if (wrInfo.uncached) begin
+            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
         end
         else if (isStaticDataRange(adr)) begin
-            writeToStaticRange(adr, val);
+            if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToStaticRangeW(adr, val);
         end
         else begin 
-            writeToDynamicRange(adr, val);
+            if (wrInfo.size == SIZE_1) writeToDynamicRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToDynamicRangeW(adr, val);
         end
     
     endtask
@@ -277,13 +318,51 @@ module DataL1(
 
         wval = {>>{chosenWord}};
         val = Mword'(wval);
-           // $error("read byte: %h, %h", adr, val);
 
         return val;
     endfunction
 
 
 
+    function automatic Mword readWordUncached(input Mword adr);
+        localparam int ACCESS_SIZE = 4;
+        
+        Mbyte chosenWord[ACCESS_SIZE];
+        Mword wval;
+        Word val;
+
+        chosenWord = uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
+
+        wval = {>>{chosenWord}};
+        val = Mword'(wval);
+
+        return val;
+    endfunction
+
+    function automatic Mword readByteUncached(input Mword adr);
+        localparam int ACCESS_SIZE = 1;
+        
+        Mbyte chosenWord[ACCESS_SIZE];
+        Mbyte wval;
+        Word val;
+
+        chosenWord = content[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
+
+        wval = {>>{chosenWord}};
+        val = Mword'(wval);
+
+        return val;
+    endfunction
+
+
+
+    function automatic Mword readFromUncachedRange(input Mword adr, input AccessSize size);
+        if (size == SIZE_1) return readByteUncached(adr);
+        else if (size == SIZE_4) return readWordUncached(adr);
+        else $error("Wrong access size");
+
+        return 'x;
+    endfunction
 
     function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
         if (size == SIZE_1) return readByteStatic(adr);
@@ -291,7 +370,7 @@ module DataL1(
         else $error("Wrong access size");
 
         return 'x;
-    endfunction 
+    endfunction
 
 
 
@@ -348,7 +427,7 @@ module DataL1(
         foreach (readReqs[p]) begin
             Mword vadr = readReqs[p].adr;
 
-            if ($isunknown(vadr)) begin
+            if ($isunknown(vadr) || !readReqs[p].active) begin
                 readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
                 accesses[p] <= DEFAULT_ACCESS_INFO;
                 translations[p] <= DEFAULT_TRANSLATION;
@@ -369,6 +448,8 @@ module DataL1(
                 if (readReqs[p].active && !readReqs[p].store && readReqs[p].uncachedReq) begin
                     uncachedReads[0].ongoing = 1;
                     uncachedReads[0].counter = 8;
+                    uncachedReads[0].adr = readReqs[p].adr;
+                    uncachedReads[0].size = readReqs[p].size;
                 end
                 
             end
@@ -396,11 +477,11 @@ module DataL1(
         end
         else begin           
             if (isUncachedRange(tr.phys)) begin
-                res.data = 0; // TODO: actual data word
+                res.data = uncachedReads[0].data;
                 // Clear used transfer
                 uncachedReads[0].ready = 0;
                 uncachedReads[0].data = 'x;
-                    
+                uncachedReads[0].adr = 'x;
             end
             else if (tr.phys <= $size(content)) // Read from small array
                 res.data = readFromStaticRange(tr.phys, aInfo.size);

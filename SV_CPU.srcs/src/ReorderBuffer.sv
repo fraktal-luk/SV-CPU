@@ -194,7 +194,8 @@ module ReorderBuffer
     task automatic advanceDrain();
         // FUTURE: this condition will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
         while (drainPointer != indCommitted.row) begin
-           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
+           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && //(item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
+                                                                                                 (item.mid >= indCommitted.mid) );
            if (fd.size() != 0) break;
            array_N[drainPointer % DEPTH] = EMPTY_ROW;
            drainPointer = (drainPointer+1) % (2*DEPTH);
@@ -366,7 +367,7 @@ module ReorderBuffer
         return res;
     endfunction
 
-
+                        // .active, .mid
     task automatic add(input OpSlotAB in);
         OpRecordA rec = makeRecord(in);
 
@@ -423,21 +424,21 @@ module ReorderBuffer
             res[i].refetch = 0;
             
             // Find corresponding entries of queues
-            if (isStoreUop(insMap.get(mid).mainUop)) begin
+            if (isStoreUop(decMainUop(mid))) begin
                 StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
                 res[i].refetch = entry[0].refetch;
                 res[i].exception = entry[0].error;               
             end
 
-            if (isLoadUop(insMap.get(mid).mainUop)) begin
+            if (isLoadUop(decMainUop(mid))) begin
                  LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
                  res[i].refetch = entry[0].refetch;
                  res[i].exception = entry[0].error;
             end
             
-            if (isBranchUop(insMap.get(mid).mainUop)) begin
-                UopName uname = insMap.getU(FIRST_U(mid)).name;
-
+            if (isBranchUop(decMainUop(mid))) begin
+                UopName uname = //insMap.getU(FIRST_U(mid)).name;
+                                decMainUop(mid);
                 BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
                 res[i].takenBranch = entry[0].taken;
                 
@@ -462,7 +463,7 @@ module ReorderBuffer
         markPacketCompleted(theExecBlock.doneBranch_E);
         markPacketCompleted(theExecBlock.doneMem0_E);
         markPacketCompleted(theExecBlock.doneMem2_E);
-        markPacketCompleted(theExecBlock.doneSys_E);
+        markPacketCompleted(theExecBlock.doneStoreData_E);
     endtask
 
     task automatic markPacketCompleted(input UopPacket p);         

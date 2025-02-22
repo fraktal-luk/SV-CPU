@@ -25,8 +25,6 @@ module MemSubpipe#(
     input UopPacket lqResp
 );
 
-        localparam logic DISP_UNCACHED = 0;
-
     UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
 
@@ -85,11 +83,9 @@ module MemSubpipe#(
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
 
+        readSize = getTransactionSize(uname);
+        if (!stateE0.active) readSize = SIZE_NONE;
         
-            readSize = (uname inside {UOP_mem_ldib, UOP_mem_stib}) ? SIZE_1 : SIZE_4;
-            
-            if (!stateE0.active) readSize = SIZE_NONE;
-            
         readActive <= stateE0.active && isMemUop(uname);
         storeFlag <= isStoreUop(uname);
         uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
@@ -143,14 +139,13 @@ module MemSubpipe#(
 
         case (p.status)
             ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
-                if (DISP_UNCACHED) $display("..........................E1: uncached another pass, adr: %h", res.result);
                 res.status = ES_UNCACHED_2;
                 return res; // To RQ again
             end
 
             ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                if (DISP_UNCACHED) $display("..........................E1: uncached final pass, adr: %h", res.result);
                 res.status = ES_OK; // Go on to handle mem result
+                // Continue processing
             end 
 
             // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
@@ -165,7 +160,6 @@ module MemSubpipe#(
                 end
 
                 if (!cacheResp.desc.cached) begin
-                    if (DISP_UNCACHED) $error("..........................E1: Uncache adr: %h", res.result);
                     res.status = ES_UNCACHED_1;  
                     return res; // go to RQ
                 end
@@ -173,7 +167,7 @@ module MemSubpipe#(
 
             default: $fatal(2, "Wrong status of memory op");
         endcase
-
+        
         return updateE2_Regular(p, cacheResp, sqResp, lqResp);
     endfunction
 
@@ -184,11 +178,12 @@ module MemSubpipe#(
         UidT uid = p.TMP_oid;
 
         Mword3 args = insMap.getU(uid).argsA;
-
+        
+        // TODO: move checking of sys access to dedicated module
         if (res.result > 31) begin
             insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             res.status = ES_ILLEGAL;
-               // res.result = 'x;  // TODO: In Emulation, if access causes exceptino, set value to 'x, and do it here
+               // res.result = 'x;  // TODO: In Emulation, if access causes exception, set value to 'x, and do it here
         end
         
         if (isLoadSysUop(decUname(uid))) begin

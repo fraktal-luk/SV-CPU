@@ -23,7 +23,7 @@ module IssueQueue
     input logic allow,   
     output UopPacket outPackets[OUT_WIDTH]
 );
-    localparam int IN_SIZE = RENAME_WIDTH;
+    //localparam int IN_SIZE = RENAME_WIDTH;
 
     localparam int HOLD_CYCLES = 3;
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
@@ -371,22 +371,38 @@ module IssueQueueComplex(
                         input EventInfo lateEventInfo,
                         input OpSlotAB inGroup
 );    
-
-    typedef struct {
-        TMP_Uop regular[RENAME_WIDTH];
-        TMP_Uop branch[RENAME_WIDTH];
-        TMP_Uop float[RENAME_WIDTH];
-        TMP_Uop mem[RENAME_WIDTH];
-        TMP_Uop sys[RENAME_WIDTH];
-    } RoutedUops;
     
+ 
+                // .active, .mid
+    function automatic RoutedUops routeUops(input OpSlotAB gr);
+        RoutedUops res = DEFAULT_ROUTED_UOPS;
+        
+        foreach (gr[i]) begin
+            if (!gr[i].active) continue;
+            
+            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin // insMap dependece
+                UopId uid = '{gr[i].mid, u};
+                UopName uname = decUname(uid);                          // module dependence
+
+                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+                else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
+                else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
+                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
+                else res.regular[i] = '{1, uid};
+            end
+        end
+        
+        return res;
+    endfunction
+
+
     RoutedUops routedUops;
     
     UopPacket issuedRegularP[2];
     UopPacket issuedBranchP[1];
     UopPacket issuedFloatP[2];
     UopPacket issuedMemP[1];
-    UopPacket issuedSysP[1];
+    UopPacket issuedStoreDataP[1];
 
 
     assign routedUops = routeUops(inGroup); 
@@ -400,38 +416,8 @@ module IssueQueueComplex(
                                             issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) sysQueue(insMap, branchEventInfo, lateEventInfo, routedUops.sys, '1,
-                                            issuedSysP);
-    
-
-
-    function automatic RoutedUops routeUops(input OpSlotAB gr);
-        RoutedUops res = '{
-            regular: '{default: TMP_UOP_NONE},
-            branch: '{default: TMP_UOP_NONE},
-            float: '{default: TMP_UOP_NONE},
-            mem: '{default: TMP_UOP_NONE},
-            sys: '{default: TMP_UOP_NONE}
-        };
-        
-        foreach (gr[i]) begin
-            if (!gr[i].active) continue;
-            
-            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin
-                UopId uid = '{gr[i].mid, u};
-                UopName uname = decUname(uid);
-
-                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
-                else if (//isControlUop(uname) || 
-                         isStoreDataUop(uname)) res.sys[i] = '{1, uid};
-                else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
-                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
-                else res.regular[i] = '{1, uid};
-            end
-        end
-        
-        return res;
-    endfunction
+    IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
+                                            issuedStoreDataP);
 
 
     function automatic ReadyQueue3 getReadyQueue3(input InstructionMap imap, input UidT ids[$]);

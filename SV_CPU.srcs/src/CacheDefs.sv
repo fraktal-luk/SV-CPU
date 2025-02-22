@@ -82,15 +82,16 @@ package CacheDefs;
 
 
     // Write buffer
+    // TODO: eplace with SQ entry struct?
     typedef struct {
         logic active;
         InsId mid;
         logic cancel;
         logic sys;
-            logic uncached;
+        logic uncached;
         Mword adr;
         Mword val;
-            AccessSize size;
+        AccessSize size;
     } StoreQueueEntry;
 
     localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, SIZE_NONE};
@@ -99,10 +100,11 @@ package CacheDefs;
         logic req;
         Mword adr;
         Mword value;
-            AccessSize size;
+        AccessSize size;
+        logic uncached;
     } MemWriteInfo;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE, 'x};
 
 
    
@@ -201,21 +203,14 @@ package CacheDefs;
         
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
-        
-        int byteSize = -1;
+        int byteSize = accessSize;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-        
-        case (accessSize)
-            SIZE_1: byteSize = 1;
-            SIZE_4: byteSize = 4;
-        endcase
-        
+
+        res.aHigh = aHigh;
+        res.aLow = aLow;        
         res.adr = adr;
         res.size = accessSize;
-        
-        res.aHigh = aHigh;
-        res.aLow = aLow;
         
         res.block = block;
         res.blockOffset = blockOffset;
@@ -226,7 +221,6 @@ package CacheDefs;
 
         return res;
     endfunction
-
 
 
 endpackage

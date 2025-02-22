@@ -71,7 +71,6 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-
         update(); // Before reading and FW checks to eliminate hazards
 
         if (IS_STORE_QUEUE) begin
@@ -162,7 +161,6 @@ module StoreQueue
             if (IS_STORE_QUEUE) begin
                 Mword actualAdr = HELPER::getAdr(content_N[startPointer % SIZE]);
                 Mword actualVal = HELPER::getVal(content_N[startPointer % SIZE]);
-                
                 checkStore(content_N[startPointer % SIZE].mid, actualAdr, actualVal);
             end
 
@@ -183,8 +181,6 @@ module StoreQueue
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
         end
-        else if (IS_STORE_QUEUE)
-            drainPointer = startPointer;
         else
             drainPointer = startPointer;
 
@@ -201,14 +197,11 @@ module StoreQueue
 
     task automatic update();
         foreach (wrInputs[p]) begin
-            UopName uname;
+            UopName uname = decUname(wrInputs[p].TMP_oid);
             if (wrInputs[p].active !== 1) continue;
 
-            uname = decUname(wrInputs[p].TMP_oid);            
-            if (!HELPER::appliesU(uname)) continue;
-
-            begin
-               int found[$] = content_N.find_index with (item.mid == U2M(wrInputs[p].TMP_oid));
+            if (HELPER::appliesU(uname)) begin
+               int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputs[p].TMP_oid));
 
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
                else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
@@ -220,14 +213,11 @@ module StoreQueue
 
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
             foreach (wrInputsE2[p]) begin
-                UopName uname;
+                UopName uname = decUname(wrInputsE2[p].TMP_oid);
                 if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
-                uname = decUname(wrInputsE2[p].TMP_oid);            
-                if (!HELPER::appliesU(uname)) continue;
-
-                begin
-                   int found[$] = content_N.find_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
+                if (HELPER::appliesU(uname)) begin
+                   int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
                    if (wrInputsE2[p].status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
                    else if (wrInputsE2[p].status == ES_ILLEGAL) HELPER::setError(content_N[found[0]]);                   
@@ -240,9 +230,9 @@ module StoreQueue
     
     task automatic updateStoreData();
         if (IS_STORE_QUEUE) begin
-            UopPacket dataUop = theExecBlock.sysE0_E;
+            UopPacket dataUop = theExecBlock.storeDataE0_E;
             if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
-                int dataFound[$] = content_N.find_index with (item.mid == U2M(dataUop.TMP_oid));
+                int dataFound[$] = content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
                 assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
                 
                 HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
@@ -260,32 +250,19 @@ module StoreQueue
     task automatic handleForwardsS();
         foreach (theExecBlock.toLq[p]) begin
             UopPacket loadOp = theExecBlock.toLq[p];
-
-            logic active = loadOp.active;
             Mword adr = loadOp.result;
-           // AccessSize size = SIZE_NONE;
-           // AccessSize trSize = SIZE_NONE;
-            
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
 
-            if (active !== 1) continue;
-            if (!isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
-
+            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
             resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), adr);
 
-
             if (resb.active) begin
-                AccessSize size = (insMap.get(U2M(loadOp.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-                AccessSize trSize = (insMap.get(U2M(resb.TMP_oid)).mainUop == UOP_mem_ldib) ? SIZE_1 : SIZE_4;
-                
-                // TODO: if resb is not the last matching store, denote this fact.
-                // At Commit assure that a store did not get its value from FW other than the latest matching one - if it gets Retire normal, raise an error
-                // Remember that no FW is a valid result if the latest mtching store has left SQ
-                //  >> Mark whether there is a younger matching FW in MemTracker than the one found in SQ
-                checkSqResp(resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
+                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
+                AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
+                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
@@ -296,15 +273,12 @@ module StoreQueue
     task automatic handleHazardsL();    
         foreach (theExecBlock.toSq[p]) begin
             UopPacket storeUop = theExecBlock.toSq[p];
-
-            logic active = storeUop.active;
             Mword adr = storeUop.result;
             UopPacket resb;
 
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
 
-            if (active !== 1) continue;
-            if (!isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
             resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
             theExecBlock.fromLq[p] <= resb;      
@@ -315,23 +289,18 @@ module StoreQueue
     task automatic handleBranch();    
         UopPacket p = theExecBlock.branch0.p0_E;
 
-        lookupTarget <= 'x;
-        lookupLink <= 'x;
-
-        if (!p.active) return; 
-
-        begin
-            int arrayIndex[$] = content_N.find_index with (item.mid == U2M(p.TMP_oid));
-
-            Mword trg = HELPER::getAdr(content_N[arrayIndex[0]]);
-            Mword link = HELPER::getLink(content_N[arrayIndex[0]]);
-
-            lookupTarget <= trg;
-            lookupLink <= link;
+        if (p.active) begin
+            int arrayIndex[$] = content_N.find_first_index with (item.mid == U2M(p.TMP_oid));
+            lookupTarget <= HELPER::getAdr(content_N[arrayIndex[0]]);
+            lookupLink <= HELPER::getLink(content_N[arrayIndex[0]]);
+        end
+        else begin
+            lookupTarget <= 'x;
+            lookupLink <= 'x;
         end
     endtask
 
-
+                    // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
         if (!anyActiveB(inGroup)) return;
 
@@ -350,34 +319,33 @@ module StoreQueue
 
     // Used once by Mem subpipes
     function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
-        Transaction tr[$] = AbstractCore.memTracker.stores.find with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
-        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find with (item.owner == mid); // ... so may be already here
+        Transaction tr[$] = AbstractCore.memTracker.stores.find_first with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
+        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find_first with (item.owner == mid); // ... so may be already here
 
-        if (insMap.get(mid).mainUop == UOP_mem_sts) return; // Not checking sys stores
+        if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
 
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
     endfunction
 
-    function automatic void checkSqResp(input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
-        Transaction latestOverlap = memTracker.checkTransaction_Overlap(U2M(sr.TMP_oid));
- 
-        // TODO: if sr source is not latestOverlap, denote this fact somewhere.
+
+    function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
+        Transaction latestOverlap = memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
+        logic isInside = memInside(eadr, (esize), tr.adr, (trSize));
+
+        // If sr source is not latestOverlap, denote this fact somewhere (so far printing an error, hasn't happened yet).
         // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
-        // If the final value was not from FW, it's OK because latestOvarlap could have retired before the load commits.
-        //    assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr");
-        
+        assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
         assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
-            assert (
-                    ((esize != trSize) || !memInside(eadr, (esize), tr.adr, (trSize)) )
-                      && memOverlap(eadr, (esize), tr.adr, (trSize)) ) else $error("Adr (same size and inside) or not overlapping");
+            logic isOverlapping = memOverlap(eadr, (esize), tr.adr, (trSize));
+            assert (isOverlapping && ((esize != trSize) || !isInside) ) else $error("Adr (same size and inside) or not overlapping");
         end
         else if (sr.status == ES_SQ_MISS) begin
-            assert (memInside(eadr, (esize), tr.adr, (trSize))) else $error("Adr not inside");
+            assert (isInside) else $error("Adr not inside");
         end
         else begin
-            assert (memInside(eadr, (esize), tr.adr, (trSize))) else $error("Adr not inside");
+            assert (isInside) else $error("Adr not inside");
         end
     endfunction
 

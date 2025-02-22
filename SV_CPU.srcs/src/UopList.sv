@@ -145,4 +145,126 @@ package UopList;
     }; 
 
 
+
+
+// Classification
+
+    // Not including memory
+    function automatic logic isFloatCalcUop(input UopName name);
+        return name inside {
+             UOP_fp_move,
+             UOP_fp_or,
+             UOP_fp_addi };
+    endfunction    
+
+    function automatic logic isControlUop(input UopName name);
+        return name inside {
+            UOP_ctrl_undef,
+            UOP_ctrl_rete,
+            UOP_ctrl_reti,
+            UOP_ctrl_halt,
+            UOP_ctrl_sync,
+            UOP_ctrl_refetch,
+            UOP_ctrl_error,
+            UOP_ctrl_call,
+            UOP_ctrl_send
+        };
+    endfunction
+
+    function automatic logic isStoreDataUop(input UopName name);
+        return name inside {
+            UOP_data_int,
+            UOP_data_fp
+        };
+    endfunction
+
+
+    function automatic logic isBranchUop(input UopName name);
+        return name inside {UOP_bc_z, UOP_br_z, UOP_bc_nz, UOP_br_nz, UOP_bc_a, UOP_bc_l};
+    endfunction
+
+    function automatic logic isBranchRegUop(input UopName name);
+        return name inside {UOP_br_z, UOP_br_nz};
+    endfunction
+
+    function automatic logic isMemUop(input UopName name);
+        return isLoadMemUop(name) || isStoreMemUop(name);
+    endfunction
+
+    function automatic logic isStoreUop(input UopName name);
+        return isStoreMemUop(name) || isStoreSysUop(name);
+    endfunction
+
+    function automatic logic isLoadUop(input UopName name);
+        return isLoadMemUop(name) || isLoadSysUop(name);
+    endfunction
+
+    function automatic logic isLoadSysUop(input UopName name);
+        return name inside {UOP_mem_lds};
+    endfunction
+
+    function automatic logic isLoadMemUop(input UopName name);
+        return name inside {UOP_mem_ldi, UOP_mem_ldf,    UOP_mem_ldib};
+    endfunction
+
+    function automatic logic isStoreMemUop(input UopName name);
+        return name inside {UOP_mem_sti, UOP_mem_stf,    UOP_mem_stib};
+    endfunction
+
+    function automatic logic isStoreSysUop(input UopName name);
+        return name inside {UOP_mem_sts};
+    endfunction
+    
+
+
+
+    function automatic logic uopHasIntDest(input UopName name);
+        return name inside {
+         UOP_int_and,
+         UOP_int_or,
+         UOP_int_xor,
+        
+         UOP_int_addc,
+         UOP_int_addh,
+        
+         UOP_int_add,
+         UOP_int_sub,
+        
+            UOP_int_cgtu,
+            UOP_int_cgts,
+        
+         UOP_int_shlc,
+         UOP_int_shac,
+         UOP_int_rotc,
+        
+         UOP_int_mul,
+         UOP_int_mulhs,
+         UOP_int_mulhu,
+         UOP_int_divs, 
+         UOP_int_divu,
+         UOP_int_rems,
+         UOP_int_remu,
+        
+         UOP_mem_ldi,
+            UOP_mem_ldib,
+            
+         UOP_mem_lds,
+        
+        
+         UOP_int_link
+        };
+    endfunction
+
+    function automatic logic uopHasFloatDest(input UopName name);
+        return name inside {
+             UOP_fp_move,
+             UOP_fp_or,
+             UOP_fp_addi,
+            
+             UOP_mem_ldf
+        };
+    endfunction    
+
+
+
 endpackage
