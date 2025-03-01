@@ -155,8 +155,9 @@ module ReplayQueue(
         
         
         // Entry waiting to be nonspeculative
-        begin
-            int found[$] = content.find_index with (!item.ready_N && item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == theRob.indNextToCommit.mid);            
+        // TODO: assure that this wakeup can't happen while preceding uncached store is being committed - hazard between setting wqFree to 0 and setting this Mid to next committed
+        if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
+            int found[$] = content.find_index with (!item.ready_N && item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == theRob.indToCommitSig.mid);            
             assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
             
             if (found.size() != 0) begin

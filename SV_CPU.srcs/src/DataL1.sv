@@ -33,6 +33,9 @@ module DataL1(
     logic notifyTlbFill = 0;
     Mword notifiedTlbAdr = 'x;
 
+    int uncachedCounter = -1;
+    logic uncachedBusy = 0;
+    
 
     // CAREFUL: below only for addresses in the range for data miss tests 
     DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
@@ -188,6 +191,9 @@ module DataL1(
         filledMappings.delete();
         mappingFillCounters.delete();
         readyMappingsToFill.delete();
+        
+            uncachedCounter = -1;
+            uncachedBusy = 0;
     endfunction
 
 
@@ -255,6 +261,8 @@ module DataL1(
         if (!wrInfo.req) return;
 
         if (wrInfo.uncached) begin
+            uncachedCounter = 15;
+            uncachedBusy = 1;
             if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
             if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
         end
@@ -535,6 +543,9 @@ module DataL1(
 
 
     always @(posedge clk) begin
+            if (uncachedCounter == 0) uncachedBusy = 0;
+            if (uncachedCounter >= 0) uncachedCounter--;
+            
         handleFills();
 
         handleReads();

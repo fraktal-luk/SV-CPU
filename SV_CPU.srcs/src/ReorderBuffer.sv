@@ -84,7 +84,7 @@ module ReorderBuffer
     logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
     
     TableIndex indB = '{0, 0, -1}, ind_Start = '{0, 0, -1},
-               indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}; // CAREFUL
+               indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
 
 
     RRQ rrq;
@@ -215,6 +215,7 @@ module ReorderBuffer
             
             // Find next slot to be committed
             indNextToCommit = r.tableIndex;
+            indNextToCommit.mid = entryAt(indNextToCommit).mid;
             while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
                 indNextToCommit = incIndex(indNextToCommit);
                 indNextToCommit.mid = entryAt(indNextToCommit).mid;
@@ -225,6 +226,17 @@ module ReorderBuffer
             
             if (breaksCommitId(thisMid)) break;
         end
+
+        indNextToCommit.mid = entryAt(indNextToCommit).mid;
+        while (indNextToCommit.mid == -1 && indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+            indNextToCommit = incIndex(indNextToCommit);
+            indNextToCommit.mid = entryAt(indNextToCommit).mid;
+            
+            if (entryAt(indNextToCommit).mid != -1) break;
+        end 
+
+        indToCommitSig <= indNextToCommit;
+
     endtask;
 
 
@@ -264,6 +276,7 @@ module ReorderBuffer
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
             indNextToCommit = '{backupPointer, 0, -1};
+            indToCommitSig <= indNextToCommit;
             ind_Start = '{backupPointer, 0, -1};
             indB = '{backupPointer, 0, -1};
             rrq.delete();            

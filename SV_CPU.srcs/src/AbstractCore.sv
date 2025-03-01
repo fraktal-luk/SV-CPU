@@ -51,7 +51,7 @@ module AbstractCore
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
 
     // Overall
-    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
+    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
     IqLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
@@ -107,6 +107,8 @@ module AbstractCore
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     //////////////////////////////////////////
+
+    assign wqFree = csqEmpty && !dataCache.uncachedBusy;
 
     assign TMP_readReqs = theExecBlock.readReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
@@ -464,7 +466,8 @@ module AbstractCore
 
         lateEventInfo <= EMPTY_EVENT_INFO;
     
-        if (csqEmpty) fireLateEvent();
+        //if (csqEmpty) fireLateEvent();
+        if (wqFree) fireLateEvent();
     endtask
 
 

@@ -148,8 +148,7 @@ module MemSubpipe#(
                 // Continue processing
             end 
 
-            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
+            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin
                 if (cacheResp.status == CR_TAG_MISS) begin
                     res.status = ES_DATA_MISS;
                     return res;
@@ -252,7 +251,7 @@ module MemSubpipe#(
                 insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
             
-            res.status = ES_OK; // TODO: don't set to OK if misses etc
+            res.status = ES_OK;
         end
 
         return res;
