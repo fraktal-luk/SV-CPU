@@ -130,6 +130,7 @@ package Emulation;
         function automatic Mbyte readByte(input Mword startAdr);
             Mbyte bytes[1];
             foreach (bytes[i]) bytes[i] = content.exists(startAdr+i) ? content[startAdr+i] : 0;
+             //   $error("emul rb: %h -> %h", startAdr, bytes[0]);
             return {>>{bytes}};
         endfunction
        
@@ -517,7 +518,7 @@ package Emulation;
                 O_intLoadW: begin
                     result = dataMem_N.readWord(adr);
                 end
-                O_intLoadB: result = dataMem_N.readByte(adr);
+                O_intLoadB: result = Mword'(dataMem_N.readByte(adr));
                 O_intLoadAqW: result = dataMem_N.readWord(adr); // TODO
                 
                 O_intLoadD: ;

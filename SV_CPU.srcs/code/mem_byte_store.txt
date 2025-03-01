@@ -5,10 +5,11 @@ $start
 	e_sb r31, r8, 1
 	sys_sync
 	
-	;ldi_i r10, r8, 0 ; should be 0x00ff0000
-	;...
-	;jnz_i r11, $error
-	
+	ldi_i r10, r8, 0 ; should be 0x00ff0000
+	add_h r12, r0, 255
+	sub_r r11, r10, r12
+	jnz_i r11, $error
+
 $check
 	sys_call
 $error

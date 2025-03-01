@@ -14,3 +14,4 @@ sf_deps6
 
 mem_byte
 mem_byte_store
+mem_byte_forward

@@ -198,6 +198,24 @@ module MemSubpipe#(
         return res;
     endfunction
 
+
+    function automatic Mword loadValue(input Mword w, input UopName uop);
+        case (uop)
+             UOP_mem_ldi: return w;
+             UOP_mem_ldib: return Mword'(w[7:0]);
+             UOP_mem_ldf,
+             UOP_mem_lds: return w;
+
+             UOP_mem_sti,
+             UOP_mem_stib,
+             UOP_mem_stf,
+             UOP_mem_sts: return 0;
+            
+            default: $fatal(2, "Wrong op");
+        endcase
+    endfunction
+    
+
     function automatic UopPacket updateE2_Regular(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
@@ -216,13 +234,13 @@ module MemSubpipe#(
                 end
                 else begin
                     res.status = ES_OK;
-                    res.result = sqResp.result;
+                    res.result = loadValue(sqResp.result, decUname(uid));
                     putMilestone(uid, InstructionMap::MemFwConsume);
                 end
             end
             else begin //no forwarding 
                 res.status = ES_OK;
-                res.result = cacheResp.data;
+                res.result = loadValue(cacheResp.data, decUname(uid));
             end
 
             insMap.setActualResult(uid, res.result);

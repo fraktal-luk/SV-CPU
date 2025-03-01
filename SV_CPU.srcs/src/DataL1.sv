@@ -319,6 +319,8 @@ module DataL1(
         wval = {>>{chosenWord}};
         val = Mword'(wval);
 
+         //   $error("reading byte: %p -> %p, %p", adr, wval, val);
+
         return val;
     endfunction
 
