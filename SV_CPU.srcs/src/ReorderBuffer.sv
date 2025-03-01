@@ -213,6 +213,8 @@ module ReorderBuffer
             TMP_setZ(r);
             indCommitted <= r.tableIndex;
             
+                assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
+            
             // Find next slot to be committed
             indNextToCommit = r.tableIndex;
             indNextToCommit.mid = entryAt(indNextToCommit).mid;
