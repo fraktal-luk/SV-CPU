@@ -28,9 +28,7 @@ module AbstractCore
 );
     logic dummy = '1;
 
-    // DB
-    CoreDB coreDB();
-        
+    // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
@@ -166,9 +164,6 @@ module AbstractCore
         intRegsReadyV <= registerTracker.ints.ready;
         floatRegsReadyV <= registerTracker.floats.ready;
 
-        // Overall DB
-            coreDB.insMapSize = insMap.size();
-            coreDB.trSize = memTracker.transactions.size();
     endtask
 
 

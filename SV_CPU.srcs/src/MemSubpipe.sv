@@ -191,9 +191,6 @@ module MemSubpipe#(
             res.result = val;
         end
 
-        if (isStoreSysUop(decUname(uid))) begin
-        end
-
         return res;
     endfunction
 

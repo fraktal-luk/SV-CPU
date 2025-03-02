@@ -5,10 +5,10 @@
 	add_h r8, r0, 32768 ; address range of uncacheable
 	ldi_i r10, r8, 0    ; load from uncached range
 	
-	sti_i r10, r8, 4    ; store to uncached range
+	sti_i r11, r8, 4    ; store to uncached range
 	ldi_i r20, r8, 4
-	;add_i r21, r20, -10  // TODO: uncomment this check
-	;jnz_i r21, $error
+	add_i r21, r20, -20
+	jnz_i r21, $error
 	
 $check
 	sys_call

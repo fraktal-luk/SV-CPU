@@ -1,7 +1,6 @@
 stores0
 loads0
 loads1
-;stores1   ; TODO: remove this file
 stores2  ; rename to sf_2?
 sf_0
 sf_1
