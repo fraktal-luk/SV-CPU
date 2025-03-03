@@ -47,6 +47,7 @@ module AbstractCore
     //Word instructionCacheOut[FETCH_WIDTH];
     InstructionCacheOutput icacheOut;
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
+    DataCacheOutput sysReadOuts[N_MEM_PORTS];
 
     // Overall
     logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
@@ -70,8 +71,9 @@ module AbstractCore
         // Committed
         StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
 
-        StoreQueueEntry storeHead = EMPTY_SQE, drainHead = EMPTY_SQE;
-        MemWriteInfo writeInfo = EMPTY_WRITE_INFO;
+        StoreQueueEntry //storeHead = EMPTY_SQE, 
+                        drainHead = EMPTY_SQE;
+        MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
     
     // Event control
         Mword sysRegs[32];
@@ -79,6 +81,7 @@ module AbstractCore
 
 
     DataReadReq TMP_readReqs[N_MEM_PORTS];
+    DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
@@ -109,6 +112,7 @@ module AbstractCore
     assign wqFree = csqEmpty && !dataCache.uncachedBusy;
 
     assign TMP_readReqs = theExecBlock.readReqs;
+    assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
 
     assign TMP_writeInfos[0] = writeInfo;
@@ -118,13 +122,14 @@ module AbstractCore
     always @(posedge clk) begin
         insMap.endCycle();
 
+            readSysReg();
+
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
-            putWrite(); // csq, csqEmpty, storeHead, drainHead
+            putWrite(); // csq, csqEmpty, drainHead
             
-            // TODO: handle analogously to writeInfo in data cache?
             performSysStore();  // sysRegs
         end
 
@@ -174,13 +179,17 @@ module AbstractCore
         return res;
     endfunction
 
+    function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
+        MemWriteInfo res = '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
+        return res;
+    endfunction
 
     task automatic putWrite();
-        StoreQueueEntry sqe = drainHead;
+        //StoreQueueEntry sqe = drainHead;
         
-        if (sqe.mid != -1) begin
-            memTracker.drain(sqe.mid);
-            putMilestoneC(sqe.mid, InstructionMap::WqExit);
+        if (drainHead.mid != -1) begin
+            memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
         end
         void'(csq.pop_front());
 
@@ -195,15 +204,26 @@ module AbstractCore
         end
         
         drainHead <= csq[0];
-        storeHead <= csq[1];
+        //storeHead <= csq[1];
         writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endtask
 
 
     task automatic performSysStore();
-        if (storeHead.active && storeHead.sys && !storeHead.cancel)
-            setSysReg(storeHead.adr, storeHead.val);
+        if (sysWriteInfo.req) setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
     endtask
+
+    task automatic readSysReg();
+        foreach (sysReadOuts[p]) begin
+            sysReadOuts[p] = getSysReadResponse(TMP_sysReadReqs[p]);
+        end
+    endtask
+
+    // TODO: read sys regs for sys load
+    function automatic DataCacheOutput getSysReadResponse(input DataReadReq readReq);
+        return EMPTY_DATA_CACHE_OUTPUT;
+    endfunction
 
 
     assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
@@ -221,12 +241,13 @@ module AbstractCore
         
         // MOVE?
         function automatic IqLevels getBufferAccepts(input IqLevels levels);
-            IqLevels res;
-            res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqBranch = levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqMem = levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqStoreData = levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+            IqLevels res = '{
+                iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+            };
             return res;
         endfunction
     
@@ -602,8 +623,7 @@ module AbstractCore
         // Extract 'uncached' info
         int found[$] = theSq.content_N.find_index with (item.mid == id);
         logic uncached = theSq.content_N[found[0]].uncached;
-        AccessSize size = //decMainUop(id) == UOP_mem_stib ? SIZE_1 : SIZE_4;
-                          theSq.content_N[found[0]].size;
+        AccessSize size = theSq.content_N[found[0]].size;
         
         StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, size};       
         csq.push_back(sqe); // Normal

@@ -35,6 +35,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     DataReadReq readReqs[N_MEM_PORTS];
+    DataReadReq sysReadReqs[N_MEM_PORTS];
     //DataReadResp readResps[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     
@@ -89,6 +90,7 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
         readReqs[0],
+        sysReadReqs[0],
         dcacheOuts[0],
         fromSq[0],
         fromLq[0]
@@ -102,6 +104,7 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
         readReqs[2],
+        sysReadReqs[2],
         dcacheOuts[2],
         fromSq[2],
         fromLq[2]
@@ -135,6 +138,8 @@ module ExecBlock(ref InstructionMap insMap,
     assign readReqs[1] = EMPTY_READ_REQ;
     assign readReqs[3] = EMPTY_READ_REQ;
 
+    assign sysReadReqs[1] = EMPTY_READ_REQ;
+    assign sysReadReqs[3] = EMPTY_READ_REQ;
 
     ReplayQueue replayQueue(
         insMap,
@@ -295,10 +300,8 @@ module ExecBlock(ref InstructionMap insMap,
             UidT uid = p.TMP_oid;
             UopName uname = decUname(uid);
             Mword3 args = getAndVerifyArgs(uid);
-            
-            logic dir = resolveBranchDirection(uname, args[0]);// reg
-            
-            p.result = dir;
+           
+            p.result = resolveBranchDirection(uname, args[0]);// reg
         end
         return p;
     endfunction
@@ -394,7 +397,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     // Used once
     function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-        ForwardsByStage_0 fws = allByStage;
+        //ForwardsByStage_0 fws = allByStage;
         Mword res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                     
@@ -402,8 +405,8 @@ module ExecBlock(ref InstructionMap insMap,
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], fws, ready[i]);
-                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], fws, ready[i]);
+                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
             endcase
         end
 

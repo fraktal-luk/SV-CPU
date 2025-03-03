@@ -19,6 +19,7 @@ module MemSubpipe#(
     input UopPacket opP,
 
     output DataReadReq readReq,
+    output DataReadReq sysReadReq,
 
     input DataCacheOutput cacheResp,
     input UopPacket sqResp,
@@ -30,7 +31,7 @@ module MemSubpipe#(
 
     UopPacket stage0, stage0_E;
     
-    logic readActive = 0, storeFlag = 0, uncachedFlag = 0;
+    logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
     AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
 
@@ -54,6 +55,9 @@ module MemSubpipe#(
         readActive, storeFlag, uncachedFlag, effAdrE0, readSize
     };
 
+    assign sysReadReq = '{
+        0, 'x, 'x, effAdrE0, readSize
+    };
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
@@ -87,6 +91,7 @@ module MemSubpipe#(
         if (!stateE0.active) readSize = SIZE_NONE;
         
         readActive <= stateE0.active && isMemUop(uname);
+        sysReadActive <= stateE0.active && isLoadSysUop(uname);
         storeFlag <= isStoreUop(uname);
         uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
         effAdrE0 <= adr;
@@ -133,8 +138,7 @@ module MemSubpipe#(
         if (!p.active) return res;
 
         if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-            res = TMP_updateSysTransfer(res);
-            return res;
+            return TMP_updateSysTransfer(res);
         end
 
         case (p.status)
