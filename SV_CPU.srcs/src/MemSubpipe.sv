@@ -22,6 +22,7 @@ module MemSubpipe#(
     output DataReadReq sysReadReq,
 
     input DataCacheOutput cacheResp,
+    input DataCacheOutput sysRegResp,
     input UopPacket sqResp,
     input UopPacket lqResp
 );
@@ -56,7 +57,7 @@ module MemSubpipe#(
     };
 
     assign sysReadReq = '{
-        0, 'x, 'x, effAdrE0, readSize
+        sysReadActive, 'x, 'x, effAdrE0, readSize
     };
 
     assign p0_E = effP(p0);
@@ -91,7 +92,7 @@ module MemSubpipe#(
         if (!stateE0.active) readSize = SIZE_NONE;
         
         readActive <= stateE0.active && isMemUop(uname);
-        sysReadActive <= stateE0.active && isLoadSysUop(uname);
+        sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
         storeFlag <= isStoreUop(uname);
         uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
         effAdrE0 <= adr;
@@ -107,7 +108,7 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, sqResp, lqResp);
+        stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp, lqResp);
         pE2 <= stateE2;
     endtask
 
@@ -131,14 +132,14 @@ module MemSubpipe#(
     endfunction
 
 
-    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (!p.active) return res;
 
         if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-            return TMP_updateSysTransfer(res);
+            return TMP_updateSysTransfer(res, sysResp);
         end
 
         case (p.status)
@@ -176,23 +177,27 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p);
+    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p, input DataCacheOutput sysResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
-
-        Mword3 args = insMap.getU(uid).argsA;
         
         // TODO: move checking of sys access to dedicated module
         if (res.result > 31) begin
             insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             res.status = ES_ILLEGAL;
                // res.result = 'x;  // TODO: In Emulation, if access causes exception, set value to 'x, and do it here
+               
+               assert (sysResp.status == CR_INVALID) else $error("yYYYY");
+        end
+        else begin
+               assert (sysResp.status == CR_HIT) else $error("tttttttttttttttttttttttt\n%p", sysResp);
         end
         
         if (isLoadSysUop(decUname(uid))) begin
-            Mword val = getSysReg(args[1]);
+            Mword val = getSysReg(res.result);
             insMap.setActualResult(uid, val);
             res.result = val;
+            
         end
 
         return res;

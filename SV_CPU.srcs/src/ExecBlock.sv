@@ -38,6 +38,7 @@ module ExecBlock(ref InstructionMap insMap,
     DataReadReq sysReadReqs[N_MEM_PORTS];
     //DataReadResp readResps[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
+    DataCacheOutput sysOuts[N_MEM_PORTS];
     
     logic TMP_memAllow;
     
@@ -92,6 +93,7 @@ module ExecBlock(ref InstructionMap insMap,
         readReqs[0],
         sysReadReqs[0],
         dcacheOuts[0],
+        sysOuts[0],
         fromSq[0],
         fromLq[0]
     );
@@ -106,6 +108,7 @@ module ExecBlock(ref InstructionMap insMap,
         readReqs[2],
         sysReadReqs[2],
         dcacheOuts[2],
+        sysOuts[2],
         fromSq[2],
         fromLq[2]
     );

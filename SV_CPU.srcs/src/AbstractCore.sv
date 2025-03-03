@@ -114,6 +114,7 @@ module AbstractCore
     assign TMP_readReqs = theExecBlock.readReqs;
     assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
+    assign theExecBlock.sysOuts = sysReadOuts;
 
     assign TMP_writeInfos[0] = writeInfo;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
@@ -216,21 +217,43 @@ module AbstractCore
 
     task automatic readSysReg();
         foreach (sysReadOuts[p]) begin
-            sysReadOuts[p] = getSysReadResponse(TMP_sysReadReqs[p]);
+            sysReadOuts[p] <= getSysReadResponse(TMP_sysReadReqs[p]);
         end
     endtask
 
     // TODO: read sys regs for sys load
     function automatic DataCacheOutput getSysReadResponse(input DataReadReq readReq);
-        return EMPTY_DATA_CACHE_OUTPUT;
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
+        
+        if (!readReq.active) return res;
+        
+        res.active = 1;
+        
+        if (readReq.adr > 31) begin
+            res.status = CR_INVALID;
+        end
+        else begin
+            res.status = CR_HIT;
+            res.data = getSysReg(readReq.adr);
+        end
+        
+        return res;
     endfunction
 
 
-    assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
-    assign oooLevels.iqFloat = theIssueQueues.floatQueue.num;
-    assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
-    assign oooLevels.iqMem = theIssueQueues.memQueue.num;
-    assign oooLevels.iqStoreData = theIssueQueues.storeDataQueue.num;
+    assign oooLevels = '{
+        iqRegular:   theIssueQueues.regularQueue.num,
+        iqFloat:     theIssueQueues.floatQueue.num,
+        iqBranch:    theIssueQueues.branchQueue.num,
+        iqMem:       theIssueQueues.memQueue.num,
+        iqStoreData: theIssueQueues.storeDataQueue.num
+    };
+
+//    assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
+//    assign oooLevels.iqFloat = theIssueQueues.floatQueue.num;
+//    assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
+//    assign oooLevels.iqMem = theIssueQueues.memQueue.num;
+//    assign oooLevels.iqStoreData = theIssueQueues.storeDataQueue.num;
 
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
@@ -456,10 +479,10 @@ module AbstractCore
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            Mword waitingAdr = lateEventInfoWaiting.adr;
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, waitingAdr, sr2, sr3);
+            //Mword waitingAdr = lateEventInfoWaiting.adr;
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
 
-            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
+            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
@@ -517,9 +540,9 @@ module AbstractCore
         
         for (int u = 0; u < info.nUops; u++) begin
             UopInfo uinfo = insMap.getU('{id, u});
-            UopName uname = uinfo.name;
+            //UopName uname = uinfo.name;
     
-            if (uopHasIntDest(uname) || uopHasFloatDest(uname)) begin // DB
+            if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
                      //else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
                      else $error(" not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
@@ -535,7 +558,7 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
-        checkUnimplementedInstruction(decId(id)); // All types of commit?
+        checkUnimplementedInstruction(info.basicData.dec /*decId(id)*/); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
@@ -580,9 +603,9 @@ module AbstractCore
         InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
 
-        logic refetch = retInfo.refetch;
-        logic exception = retInfo.exception;
-        InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+        //logic refetch = retInfo.refetch;
+        //logic exception = retInfo.exception;
+        InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
         verifyOnCommit(retInfo);
 
@@ -590,11 +613,11 @@ module AbstractCore
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
             UopInfo uInfo = insMap.getU(uid);
-            registerTracker.commit(decUname(uid), uInfo.vDest, uid, refetch || exception); // Need to modify to handle Exceptional and Hidden
+            registerTracker.commit(decUname(uid), uInfo.vDest, uid, retInfo.refetch || retInfo.exception); // Need to modify to handle Exceptional and Hidden
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
+        if (isStoreUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
 
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
@@ -613,7 +636,7 @@ module AbstractCore
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
         // RET: update target
-        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, refetch, exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, retInfo.refetch, retInfo.exception);
     endtask
 
 

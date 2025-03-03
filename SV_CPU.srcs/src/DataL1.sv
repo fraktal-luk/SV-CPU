@@ -141,6 +141,7 @@ module DataL1(
         notifiedTlbAdr <= adr;           
     endtask 
 
+
     task automatic handleUncachedData();
         if (uncachedReads[0].ongoing) begin
             if (--uncachedReads[0].counter == 0) begin
@@ -151,16 +152,13 @@ module DataL1(
         end
     endtask
 
-  
 
     task automatic handleFills();
         handleBlockFills();
         handleTlbFills();
             
         handleUncachedData();
-
     endtask
-
 
 
 
@@ -202,6 +200,10 @@ module DataL1(
     endtask
 
 
+        function automatic void TMP_writeRef(ref Mbyte bytes[4096], input Mword adr, input Mword val);
+            bytes[adr] = Mbyte'(val);
+        endfunction
+
     function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
 
@@ -213,7 +215,9 @@ module DataL1(
         localparam int ACCESS_SIZE = 1;
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        content[adr +: ACCESS_SIZE] = wval;
+        content[adr +: ACCESS_SIZE] = wval;  
+        
+         //           TMP_writeRef(content, adr, val);
     endfunction
 
 
@@ -236,6 +240,10 @@ module DataL1(
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
         filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
     endfunction
+
+        
+
+        
 
 
     function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
@@ -305,14 +313,11 @@ module DataL1(
         
         Mbyte chosenWord[ACCESS_SIZE];
         Mword wval;
-        Word val;
 
         chosenWord = content[adr +: ACCESS_SIZE];
-
         wval = {>>{chosenWord}};
-        val = Mword'(wval);
 
-        return val;
+        return Mword'(wval);
     endfunction
 
     function automatic Mword readByteStatic(input Mword adr);
@@ -320,18 +325,12 @@ module DataL1(
         
         Mbyte chosenWord[ACCESS_SIZE];
         Mbyte wval;
-        Word val;
 
         chosenWord = content[adr +: ACCESS_SIZE];
-
         wval = {>>{chosenWord}};
-        val = Mword'(wval);
 
-         //   $error("reading byte: %p -> %p, %p", adr, wval, val);
-
-        return val;
+        return Mword'(wval);
     endfunction
-
 
 
     function automatic Mword readWordUncached(input Mword adr);
@@ -339,14 +338,11 @@ module DataL1(
         
         Mbyte chosenWord[ACCESS_SIZE];
         Mword wval;
-        Word val;
 
         chosenWord = uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
-
         wval = {>>{chosenWord}};
-        val = Mword'(wval);
 
-        return val;
+        return Mword'(wval);
     endfunction
 
     function automatic Mword readByteUncached(input Mword adr);
@@ -354,14 +350,11 @@ module DataL1(
         
         Mbyte chosenWord[ACCESS_SIZE];
         Mbyte wval;
-        Word val;
 
         chosenWord = content[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
-
         wval = {>>{chosenWord}};
-        val = Mword'(wval);
 
-        return val;
+        return Mword'(wval);
     endfunction
 
 
@@ -383,7 +376,6 @@ module DataL1(
     endfunction
 
 
-
     function automatic Mword readFromDynamicRange(input Mword adr, input AccessSize size);        
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
         DataBlock block = filledBlocks[physBlockBase];
@@ -402,9 +394,8 @@ module DataL1(
 
         Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
         Mword wval = {>>{chosenWord}};
-        Word val = Mword'(wval);
 
-        return val;
+        return Mword'(wval);
     endfunction
 
     function automatic Mword readByteDynamic(input DataBlock block, input int offset);
@@ -412,9 +403,8 @@ module DataL1(
 
         Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
         Mbyte wval = {>>{chosenWord}};
-        Word val = Mword'(wval);
 
-        return val;
+        return Mword'(wval);
     endfunction
 
 
@@ -453,7 +443,6 @@ module DataL1(
                 accesses[p] <= acc;
                 translations[p] <= tr;
                 
-                
                 // Initiate uncached read
                 if (readReqs[p].active && !readReqs[p].store && readReqs[p].uncachedReq) begin
                     uncachedReads[0].ongoing = 1;
@@ -461,9 +450,7 @@ module DataL1(
                     uncachedReads[0].adr = readReqs[p].adr;
                     uncachedReads[0].size = readReqs[p].size;
                 end
-                
             end
-
         end
     endtask
 
@@ -538,10 +525,6 @@ module DataL1(
     endfunction
 
 
-   //     Mword dummy0, dummy1, dummy2;
-  //      Mbyte kkk[8] = '{0,1,2,3,4,5,6,7};
-
-
     always @(posedge clk) begin
             if (uncachedCounter == 0) uncachedBusy = 0;
             if (uncachedCounter >= 0) uncachedCounter--;
@@ -550,10 +533,6 @@ module DataL1(
 
         handleReads();
         handleWrites();
-        
-//             dummy0 <=   {>>{kkk[4 +: 4]}};
-//             dummy1 <=   {>>{kkk[5 +: 4]}};
-//             dummy2 <=   {>>{kkk[6 +: 4]}};
     end
 
 
