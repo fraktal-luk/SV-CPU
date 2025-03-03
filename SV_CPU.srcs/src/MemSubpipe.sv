@@ -180,30 +180,24 @@ module MemSubpipe#(
     function automatic UopPacket TMP_updateSysTransfer(input UopPacket p, input DataCacheOutput sysResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
-        
-        // TODO: move checking of sys access to dedicated module
-        if (res.result > 31) begin
+
+        if (sysResp.status == CR_INVALID) begin
             insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             res.status = ES_ILLEGAL;
-               // res.result = 'x;  // TODO: In Emulation, if access causes exception, set value to 'x, and do it here
-               
-               assert (sysResp.status == CR_INVALID) else $error("yYYYY");
         end
         else begin
-               assert (sysResp.status == CR_HIT) else $error("tttttttttttttttttttttttt\n%p", sysResp);
+            res.status = ES_OK;
         end
         
         if (isLoadSysUop(decUname(uid))) begin
-            Mword val = getSysReg(res.result);
-            insMap.setActualResult(uid, val);
-            res.result = val;
-            
+            insMap.setActualResult(uid, sysResp.data);
+            res.result = sysResp.data;            
         end
 
         return res;
     endfunction
 
-
+    // TODO: move to packet
     function automatic Mword loadValue(input Mword w, input UopName uop);
         case (uop)
              UOP_mem_ldi: return w;

@@ -44,7 +44,6 @@ module AbstractCore
 
 
     Mword insAdr;
-    //Word instructionCacheOut[FETCH_WIDTH];
     InstructionCacheOutput icacheOut;
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     DataCacheOutput sysReadOuts[N_MEM_PORTS];
@@ -70,9 +69,7 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
-
-        StoreQueueEntry //storeHead = EMPTY_SQE, 
-                        drainHead = EMPTY_SQE;
+        StoreQueueEntry drainHead = EMPTY_SQE;
         MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
     
     // Event control
@@ -86,7 +83,7 @@ module AbstractCore
 
     ///////////////////////////
 
-    InstructionL1 instructionCache(clk, insAdr, /*instructionCacheOut,*/ icacheOut);
+    InstructionL1 instructionCache(clk, insAdr, icacheOut);
     DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
@@ -109,6 +106,8 @@ module AbstractCore
 
     //////////////////////////////////////////
 
+    assign insAdr = theFrontend.ipStage[0].adr;
+
     assign wqFree = csqEmpty && !dataCache.uncachedBusy;
 
     assign TMP_readReqs = theExecBlock.readReqs;
@@ -123,7 +122,7 @@ module AbstractCore
     always @(posedge clk) begin
         insMap.endCycle();
 
-            readSysReg();
+        readSysReg();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
@@ -185,9 +184,7 @@ module AbstractCore
         return res;
     endfunction
 
-    task automatic putWrite();
-        //StoreQueueEntry sqe = drainHead;
-        
+    task automatic putWrite();        
         if (drainHead.mid != -1) begin
             memTracker.drain(drainHead.mid);
             putMilestoneC(drainHead.mid, InstructionMap::WqExit);
@@ -205,7 +202,6 @@ module AbstractCore
         end
         
         drainHead <= csq[0];
-        //storeHead <= csq[1];
         writeInfo <= makeWriteInfo(csq[1]);
         sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endtask
@@ -216,12 +212,10 @@ module AbstractCore
     endtask
 
     task automatic readSysReg();
-        foreach (sysReadOuts[p]) begin
+        foreach (sysReadOuts[p])
             sysReadOuts[p] <= getSysReadResponse(TMP_sysReadReqs[p]);
-        end
     endtask
 
-    // TODO: read sys regs for sys load
     function automatic DataCacheOutput getSysReadResponse(input DataReadReq readReq);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
         
@@ -248,12 +242,6 @@ module AbstractCore
         iqMem:       theIssueQueues.memQueue.num,
         iqStoreData: theIssueQueues.storeDataQueue.num
     };
-
-//    assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
-//    assign oooLevels.iqFloat = theIssueQueues.floatQueue.num;
-//    assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
-//    assign oooLevels.iqMem = theIssueQueues.memQueue.num;
-//    assign oooLevels.iqStoreData = theIssueQueues.storeDataQueue.num;
 
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
@@ -527,10 +515,8 @@ module AbstractCore
                 logic exception = insMap.get(theId).exception;
                 lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
                 cancelRest = 1; // Don't commit anything more if event is being handled
-            end
-            
+            end  
         end
-        
     endtask
 
     
@@ -539,12 +525,9 @@ module AbstractCore
         InstructionInfo info = insMap.get(id);
         
         for (int u = 0; u < info.nUops; u++) begin
-            UopInfo uinfo = insMap.getU('{id, u});
-            //UopName uname = uinfo.name;
-    
+            UopInfo uinfo = insMap.getU('{id, u});    
             if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                     //else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
                      else $error(" not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
             end
         end
@@ -558,7 +541,7 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
-        checkUnimplementedInstruction(info.basicData.dec /*decId(id)*/); // All types of commit?
+        checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
@@ -603,8 +586,6 @@ module AbstractCore
         InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
 
-        //logic refetch = retInfo.refetch;
-        //logic exception = retInfo.exception;
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
         verifyOnCommit(retInfo);
@@ -612,8 +593,7 @@ module AbstractCore
         // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
-            UopInfo uInfo = insMap.getU(uid);
-            registerTracker.commit(decUname(uid), uInfo.vDest, uid, retInfo.refetch || retInfo.exception); // Need to modify to handle Exceptional and Hidden
+            registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, retInfo.refetch || retInfo.exception); // Need to modify to handle Exceptional and Hidden
         end
 
         // RET: update WQ
@@ -667,6 +647,7 @@ module AbstractCore
         return sysRegs[adr];
     endfunction
 
+    // TODO: define ranges so that range checking is described in one place 
     function automatic void setSysReg(input Mword adr, input Mword val);
         assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
         sysRegs[adr] = val;
@@ -682,9 +663,9 @@ module AbstractCore
     // General
 
     // TODO: review usage of these functions
-    //  decId - 3
-    //  decUname - 19
-    //  decMainUop - 15
+    //  decId - 1
+    //  decUname - 21
+    //  decMainUop - 20
     //  getAdr - 3
 
     function automatic AbstractInstruction decId(input InsId id);
@@ -755,10 +736,7 @@ module AbstractCore
     endfunction
 
 
-    assign insAdr = theFrontend.ipStage[0].adr;
-
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
-
 
 endmodule

@@ -204,7 +204,7 @@ module StoreQueue
                int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputs[p].TMP_oid));
 
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
+               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p]);
 
                if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
                    putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
