@@ -153,18 +153,18 @@ module ExecBlock(ref InstructionMap insMap,
         issuedReplayQueue
     );
     
-
+    // TODO: apply for Issue
     assign TMP_memAllow = replayQueue.accept;
 
-
-    assign doneRegular0 = regular0.stage0;
-    assign doneRegular1 = regular1.stage0;
-    assign doneBranch = branch0.stage0;
-    assign doneMem0 = memToComplete(mem0.stage0);
-    assign doneMem2 = memToComplete(mem2.stage0);
-    assign doneFloat0 = float0.stage0;
-    assign doneFloat1 = float1.stage0;
-    assign doneStoreData = storeData0.stage0;
+    // CAREFUL: not used directly, commented because reducing design size
+//    assign doneRegular0 = regular0.stage0;
+//    assign doneRegular1 = regular1.stage0;
+//    assign doneBranch = branch0.stage0;
+//    assign doneMem0 = memToComplete(mem0.stage0);
+//    assign doneMem2 = memToComplete(mem2.stage0);
+//    assign doneFloat0 = float0.stage0;
+//    assign doneFloat1 = float1.stage0;
+//    assign doneStoreData = storeData0.stage0;
 
 
     assign doneRegular0_E = regular0.stage0_E;
@@ -176,7 +176,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat1_E = float1.stage0_E;
     assign doneStoreData_E = storeData0.stage0_E;
 
-    assign storeDataE0 = storeData0.stage0;
+    //assign storeDataE0 = storeData0.stage0;
     assign storeDataE0_E = storeData0.stage0_E;
 
 
@@ -230,10 +230,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     // TOPLEVEL
     function automatic Mword calcRegularOp(input UidT uid);
-        UopName uname = decUname(uid);
+        //UopName uname = decUname(uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
-        Mword result = calcArith(uname, args, lk);  
+        Mword result = calcArith(decUname(uid), args, lk);  
         insMap.setActualResult(uid, result);
         
         return result;
@@ -289,7 +289,7 @@ module ExecBlock(ref InstructionMap insMap,
             default: $fatal(2, "Wrong uop");
         endcase
         
-        // Handing of cases of division by 0  
+        // Handling of cases of division by 0  
         if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
 
         return res;
@@ -301,10 +301,10 @@ module ExecBlock(ref InstructionMap insMap,
         if (!p.active) return p;
         begin
             UidT uid = p.TMP_oid;
-            UopName uname = decUname(uid);
+            //UopName uname = decUname(uid);
             Mword3 args = getAndVerifyArgs(uid);
            
-            p.result = resolveBranchDirection(uname, args[0]);// reg
+            p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
         end
         return p;
     endfunction
@@ -332,10 +332,10 @@ module ExecBlock(ref InstructionMap insMap,
         
         Mword expectedTrg = dir ? takenTrg : adr + 4;
 
-        Mword bqTarget = AbstractCore.theBq.lookupTarget;
-        Mword bqLink = AbstractCore.theBq.lookupLink;
+        //Mword bqTarget = AbstractCore.theBq.lookupTarget;
+        //Mword bqLink = AbstractCore.theBq.lookupLink;
 
-        Mword resolvedTarget = finalTarget(uname, dir, args[1], bqTarget, bqLink);
+        Mword resolvedTarget = finalTarget(uname, dir, args[1], AbstractCore.theBq.lookupTarget, AbstractCore.theBq.lookupLink);
         
         assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
         assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");

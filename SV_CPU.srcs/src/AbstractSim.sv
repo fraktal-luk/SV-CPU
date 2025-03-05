@@ -417,8 +417,8 @@ package AbstractSim;
 
 
         function automatic InsDependencies getArgDeps(input AbstractInstruction abs);
-            int mapInt[32] = ints.MapR;
-            int mapFloat[32] = floats.MapR;
+            //int mapInt[32] = ints.MapR;
+            //int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
             WriterId producers[3] = '{WID_NONE, WID_NONE, WID_NONE};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
@@ -427,12 +427,12 @@ package AbstractSim;
             
             foreach (sources[i]) begin
                 if (typeSpec[i + 2] == "i") begin
-                    sources[i] = mapInt[abs.sources[i]];
+                    sources[i] = ints.MapR[abs.sources[i]];
                     types[i] = sources[i] ? SRC_INT: SRC_ZERO;
                     producers[i] = ints.info[sources[i]].owner;
                 end
                 else if (typeSpec[i + 2] == "f") begin
-                    sources[i] = mapFloat[abs.sources[i]];
+                    sources[i] = floats.MapR[abs.sources[i]];
                     types[i] = SRC_FLOAT;
                     producers[i] = floats.info[sources[i]].owner;
                 end
@@ -480,15 +480,15 @@ package AbstractSim;
 
         function automatic int getNumFreeInt();
             int freeInds[$] = ints.info.find_index with (item.state == FREE);
-            int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = ints.info.find_index with (item.state == STABLE);    
+            //int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
+            //int stabInds[$] = ints.info.find_index with (item.state == STABLE);    
             return freeInds.size();
         endfunction        
         
         function automatic int getNumFreeFloat();
             int freeInds[$] = floats.info.find_index with (item.state == FREE);
-            int specInds[$] = floats.info.find_index with (item.state == SPECULATIVE);
-            int stabInds[$] = floats.info.find_index with (item.state == STABLE);            
+            //int specInds[$] = floats.info.find_index with (item.state == SPECULATIVE);
+            //int stabInds[$] = floats.info.find_index with (item.state == STABLE);            
             return freeInds.size();
         endfunction
 
@@ -624,14 +624,21 @@ package AbstractSim;
     
     
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
-        OpSlotB res;
+//        OpSlotB res;
         
-        res.active = op.active;
-        res.mid = -1;
-        res.adr = op.adr;
-        res.bits = op.bits;
-        
-        return res;
+//        res.active = op.active;
+//        res.mid = -1;
+//        res.adr = op.adr;
+//        res.bits = op.bits;
+
+        return '{
+            active: op.active,
+            mid: -1,
+            adr: op.adr,
+            bits: op.bits
+        };
+
+        //return res;
     endfunction;
 
     function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);

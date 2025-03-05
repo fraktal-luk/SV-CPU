@@ -204,21 +204,47 @@ module DataL1(
             bytes[adr] = Mbyte'(val);
         endfunction
 
+        
+        class content_Writer #(type Elem = Mbyte, int ESIZE = 1);
+            static 
+            function automatic void writeTyped(input Mword adr, input Elem val);
+                Mbyte wval[ESIZE] = {>>{val}};
+                content[adr +: ESIZE] = wval;
+            endfunction
+        endclass
+
+            class unc_Writer #(type Elem = Mbyte, int ESIZE = 1);
+                static 
+                function automatic void writeTyped(input Mword adr, input Elem val);
+                    Mbyte wval[ESIZE] = {>>{val}};
+                    uncachedArea[(adr - UNCACHED_BASE) +: ESIZE] = wval;
+                endfunction
+            endclass
+
     function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
+        content_Writer#(Word, 4)::writeTyped(adr, val);
+    endfunction
+
+
+    function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
+        content_Writer#(Mbyte, 1)::writeTyped(adr, val);
+    endfunction
+
+
+    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
         localparam int ACCESS_SIZE = 4;
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        content[adr +: ACCESS_SIZE] = wval;
+        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
     endfunction
 
-    function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
+    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
         localparam int ACCESS_SIZE = 1;
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        content[adr +: ACCESS_SIZE] = wval;  
-        
-         //           TMP_writeRef(content, adr, val);
+        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
     endfunction
+
 
 
     function automatic void writeToDynamicRangeW(input Mword adr, input Mword val);
@@ -239,25 +265,6 @@ module DataL1(
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
         filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
-    endfunction
-
-        
-
-        
-
-
-    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
-        localparam int ACCESS_SIZE = 4;
-
-        Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
-    endfunction
-
-    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
-        localparam int ACCESS_SIZE = 1;
-
-        Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE] = wval;
     endfunction
 
 

@@ -175,13 +175,13 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
-        return res;
+        //MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
+        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
     endfunction
 
     function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
-        return res;
+        //MemWriteInfo res = '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
+        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
     endfunction
 
     task automatic putWrite();        
@@ -419,6 +419,7 @@ module AbstractCore
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
 
+
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
 
@@ -455,14 +456,14 @@ module AbstractCore
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
             saveStateAsync(sysRegs, retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end  
         else begin
             Mword sr2 = getSysReg(2);
@@ -474,8 +475,10 @@ module AbstractCore
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
+
+        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
     endtask
 
@@ -624,7 +627,7 @@ module AbstractCore
         Transaction tr = memTracker.findStore(id);
         
         // Extract 'uncached' info
-        int found[$] = theSq.content_N.find_index with (item.mid == id);
+        int found[$] = theSq.content_N.find_first_index with (item.mid == id);
         logic uncached = theSq.content_N[found[0]].uncached;
         AccessSize size = theSq.content_N[found[0]].size;
         
