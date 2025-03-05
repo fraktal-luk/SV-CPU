@@ -67,9 +67,11 @@ package Insmap;
         InstructionInfo res;
         res.id = id;
         
-        res.basicData.adr = adr;
-        res.basicData.bits = bits;
-        res.basicData.dec = ins;
+//        res.basicData.adr = adr;
+//        res.basicData.bits = bits;
+//        res.basicData.dec = ins;
+        
+        res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
         
         res.frontBranch = 'x;
         
@@ -137,7 +139,7 @@ package Insmap;
             endfunction
 
             function automatic void setDbStr();
-                dbStr = TMP_getStr();
+                //dbStr = TMP_getStr();
             endfunction
 
     endclass
@@ -266,9 +268,9 @@ package Insmap;
 
         function automatic Unum uid2unum(input UidT uid);
             InstructionInfo ii = insBase.minfos[U2M(uid)];
-            Unum base = ii.firstUop;
+            //Unum base = ii.firstUop;
             assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
-            return base + uid.s;
+            return ii.firstUop + uid.s;
         endfunction
 
 

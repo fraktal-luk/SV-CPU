@@ -20,7 +20,7 @@ module RegularSubpipe(
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
-    assign stage0 = pE0;
+    //assign stage0 = pE0;
     assign stage0_E = pE0_E;
 
     assign p0 = opP;
@@ -61,7 +61,7 @@ module BranchSubpipe(
     UopPacket stage0, stage0_E;
 
 
-    assign stage0 = pE0;
+    //assign stage0 = pE0;
     assign stage0_E = pE0_E;
                       
     assign p0 = opP;
@@ -105,7 +105,7 @@ module StoreDataSubpipe(
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
-    assign stage0 = pE0;
+    //assign stage0 = pE0;
     assign stage0_E = pE0_E;
 
     assign p0 = opP;

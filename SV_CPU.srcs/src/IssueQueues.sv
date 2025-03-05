@@ -283,8 +283,8 @@ module IssueQueue
     
         
     function automatic IdArr q2a(input UidQueueT queue);
-        IdArr res = queue[0:TOTAL_SIZE-1];
-        return res;
+        //IdArr res = queue[0:TOTAL_SIZE-1];
+        return queue[0:TOTAL_SIZE-1];
     endfunction
     
 

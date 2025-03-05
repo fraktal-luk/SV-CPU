@@ -36,7 +36,7 @@ module MemSubpipe#(
     AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
 
-    assign stage0 = pE2;
+    //assign stage0 = pE2;
     assign stage0_E = pE2_E;
     assign p0 = opP;
 

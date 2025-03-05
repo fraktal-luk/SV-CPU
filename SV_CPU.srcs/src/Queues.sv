@@ -33,7 +33,7 @@ package Queues;
             Mword adr;
             logic valReady;
             Mword val;
-                AccessSize size;
+            AccessSize size;
             logic uncached;
             logic committed;
             logic dontForward;
@@ -47,17 +47,21 @@ package Queues;
         endfunction
         
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
-            Entry res = EMPTY_QENTRY;
-            res.mid = id;
-            res.error = 0;
-            res.refetch = 0;
-            res.adrReady = 0;
-            res.valReady = 0;
-            res.size = getTransactionSize(imap.get(id).mainUop);
-            res.uncached = 0;
-            res.committed = 0;
-            res.dontForward = (imap.get(id).mainUop == UOP_mem_sts);
-            return res;
+            //Entry res = //EMPTY_QENTRY;
+            return            '{
+                            mid: id,
+                            error: 0,
+                            refetch: 0,
+                            adrReady: 0,
+                            adr: 'x,
+                            valReady: 0,
+                            val: 'x,
+                            size: getTransactionSize(imap.get(id).mainUop),
+                            uncached: 0,
+                            committed: 0,
+                            dontForward: (imap.get(id).mainUop == UOP_mem_sts)
+                            };
+            //return res;
         endfunction
         
         
@@ -156,7 +160,7 @@ package Queues;
             logic refetch;
             logic adrReady;
             Mword adr;
-                AccessSize size;
+            AccessSize size;
         } Entry;
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
@@ -166,13 +170,15 @@ package Queues;
         endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
-            Entry res = EMPTY_QENTRY;
-            res.mid = id;
-            res.adrReady = 0;
-            res.error = 0;
-            res.refetch = 0;
-            res.size = getTransactionSize(imap.get(id).mainUop);
-
+            Entry res = //EMPTY_QENTRY;
+            '{
+                mid: id,
+                error: 0,
+                refetch: 0,
+                adrReady: 0,
+                adr: 'x,
+                size: getTransactionSize(imap.get(id).mainUop)
+            };
             return res;
         endfunction
         

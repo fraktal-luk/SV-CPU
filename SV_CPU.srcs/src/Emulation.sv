@@ -105,13 +105,18 @@ package Emulation;
     class SparseDataMem;
         
         class RW#(type Elem = Mbyte, int ESIZE = 1);
-            function automatic void write(input Mword startAdr, input Word value);
-            
+            static
+            function automatic void write(input Mword startAdr, input Elem value, ref Mbyte ct[Mword]);
+                Mbyte bytes[ESIZE] = {>>{value}};
+                foreach (bytes[i]) ct[startAdr+i] = bytes[i];
             endfunction
- 
-//            function automatic Mword read(input Mword startAdr);
-//                return 0;
-//            endfunction     
+            
+            static
+            function automatic Elem read(input Mword startAdr, ref Mbyte ct[Mword]);
+                Mbyte bytes[ESIZE];
+                foreach (bytes[i]) bytes[i] = ct.exists(startAdr+i) ? ct[startAdr+i] : 0;
+                return {>>{bytes}};
+            endfunction     
         endclass
         
         
@@ -121,28 +126,22 @@ package Emulation;
             content.delete();
         endfunction
         
+        
         function automatic void writeWord(input Mword startAdr, input Word value);
-            Mbyte bytes[4] = {>>{value}};
-            foreach (bytes[i]) content[startAdr+i] = bytes[i];
+            RW#(Word, 4)::write(startAdr, value, content);
         endfunction
 
         function automatic void writeByte(input Mword startAdr, input Mbyte value);
-            Mbyte bytes[1] = {>>{value}};
-            foreach (bytes[i]) content[startAdr+i] = bytes[i];
+            RW#(Mbyte, 1)::write(startAdr, value, content);
         endfunction
 
  
         function automatic Word readWord(input Mword startAdr);
-            Mbyte bytes[4];
-            foreach (bytes[i]) bytes[i] = content.exists(startAdr+i) ? content[startAdr+i] : 0;
-            return {>>{bytes}};
+            return RW#(Word, 4)::read(startAdr, content);
         endfunction
 
         function automatic Mbyte readByte(input Mword startAdr);
-            Mbyte bytes[1];
-            foreach (bytes[i]) bytes[i] = content.exists(startAdr+i) ? content[startAdr+i] : 0;
-             //   $error("emul rb: %h -> %h", startAdr, bytes[0]);
-            return {>>{bytes}};
+            return RW#(Mbyte, 1)::read(startAdr, content);
         endfunction
        
     endclass
@@ -454,7 +453,7 @@ package Emulation;
 
     class Emulator;
         Mword ip;
-        string str; // Remove?
+        //string str; // Remove?
         CoreStatus status;
         CpuState coreState;
         
@@ -468,7 +467,7 @@ package Emulation;
             Emulator res = new();
             
             res.ip = ip;
-            res.str = str;
+            //res.str = str;
             res.status = status;
             res.coreState = coreState;
             
@@ -482,7 +481,7 @@ package Emulation;
 
         function automatic void setLike(input Emulator other);
             ip = other.ip;
-            str = other.str;
+            //str = other.str;
             status = other.status;
             coreState = other.coreState;
             dataMem_N = new other.dataMem_N;
@@ -492,7 +491,7 @@ package Emulation;
         // CAREFUL: clears data memory, doesn't affect progMem
         function automatic void reset();
             this.ip = 'x;
-            this.str = "";
+            //this.str = "";
 
             this.status = '{default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
@@ -565,7 +564,7 @@ package Emulation;
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
             this.ip = adr;
-            this.str = disasm(ins.encoding);
+            //this.str = disasm(ins.encoding);
 
             this.coreState.target = adr + 4;
             

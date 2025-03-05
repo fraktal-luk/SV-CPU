@@ -144,7 +144,7 @@ module AbstractCore
 
             insMap.commitCheck();
 
-        insMap.insBase.setDbStr();
+        //insMap.insBase.setDbStr();
         insMap.dbStr = insMap.insBase.dbStr;
     end
 
@@ -514,9 +514,10 @@ module AbstractCore
 
             // RET: generate late event
             if (breaksCommitId(theId)) begin
-                logic refetch = insMap.get(theId).refetch;
-                logic exception = insMap.get(theId).exception;
-                lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
+                InstructionInfo ii = insMap.get(theId);
+                //logic refetch = insMap.get(theId).refetch;
+                //logic exception = insMap.get(theId).exception;
+                lateEventInfoWaiting <= eventFromOp(theId, /*decMainUop(theId)*/ii.mainUop, /*getAdr(theId)*/ii.basicData.adr, ii.refetch, ii.exception);
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
@@ -669,7 +670,7 @@ module AbstractCore
     //  decId - 1
     //  decUname - 21
     //  decMainUop - 20
-    //  getAdr - 3
+    //  getAdr - 2
 
     function automatic AbstractInstruction decId(input InsId id);
         return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;

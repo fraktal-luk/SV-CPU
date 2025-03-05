@@ -203,7 +203,7 @@ package CacheDefs;
         
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
-        int byteSize = accessSize;
+        //int byteSize = accessSize;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
 
@@ -215,9 +215,9 @@ package CacheDefs;
         res.block = block;
         res.blockOffset = blockOffset;
         
-        res.unaligned = (aLow % byteSize) > 0;
-        res.blockCross = (blockOffset + byteSize) > BLOCK_SIZE;
-        res.pageCross = (aLow + byteSize) > PAGE_SIZE;
+        res.unaligned = (aLow % accessSize) > 0;
+        res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+        res.pageCross = (aLow + accessSize) > PAGE_SIZE;
 
         return res;
     endfunction
