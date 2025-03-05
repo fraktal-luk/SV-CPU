@@ -89,7 +89,7 @@ module ReorderBuffer
 
     RRQ rrq;
     RobResult rrq_View[40];
-    int rrqSize = -1;
+    //int rrqSize = -1;
 
 
 
@@ -295,7 +295,7 @@ module ReorderBuffer
         end        
 
 
-        rrqSize <= rrq.size();
+        //rrqSize <= rrq.size();
         
         rrq_View = '{default: EMPTY_ROB_RESULT};
         foreach (rrq[i])
@@ -333,18 +333,18 @@ module ReorderBuffer
 
 
     task automatic flushArrayPartial();
-        InsId causingMid = branchEventInfo.eventMid;
+        //InsId causingMid = branchEventInfo.eventMid;
         int p = ind_Start.row; // TODO: change to first not committed entry?
      
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
             logic rowContains = 0;
             for (int c = 0; c < WIDTH; c++) begin
-                if (row[c].mid == causingMid) begin
+                if (row[c].mid == branchEventInfo.eventMid) begin
                     endPointer = (p+1) % (2*DEPTH);
                     rowContains = 1;
                 end
-                if (row[c].mid > causingMid) begin
+                if (row[c].mid > branchEventInfo.eventMid) begin
                     putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
                         array_N[p % DEPTH].records[c] = EMPTY_RECORD;

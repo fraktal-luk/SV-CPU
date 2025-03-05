@@ -28,28 +28,28 @@ package Emulation;
         bit active;
         Mword adr;
         Mword value;
-            int size;
+        int size;
     } MemoryWrite;
 
     const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, value: 'x, size: -1};
 
-    typedef struct {
-        logic wrInt;
-        logic wrFloat;
-        int dest;
-        Mword value;
-    } RegisterWrite;
+//    typedef struct {
+//        logic wrInt;
+//        logic wrFloat;
+//        int dest;
+//        Mword value;
+//    } RegisterWrite;
 
-    const RegisterWrite DEFAULT_REG_WRITE = '{wrInt: 0, wrFloat: 0, dest: -1, value: 'x};
+//    const RegisterWrite DEFAULT_REG_WRITE = '{wrInt: 0, wrFloat: 0, dest: -1, value: 'x};
 
-    typedef struct {
-        int error;
-        RegisterWrite regWrite;          
-        MemoryWrite memWrite;
-        Mword target;
-    } ExecResult;
+//    typedef struct {
+//        int error;
+//        //RegisterWrite regWrite;          
+//        MemoryWrite memWrite;
+//        Mword target;
+//    } ExecResult;
 
-    const ExecResult DEFAULT_EXEC_RESULT = '{error: 0, regWrite: DEFAULT_REG_WRITE, memWrite: DEFAULT_MEM_WRITE, target: 'x};
+//    const ExecResult DEFAULT_EXEC_RESULT = '{error: 0,/* regWrite: DEFAULT_REG_WRITE,*/ memWrite: DEFAULT_MEM_WRITE, target: 'x};
 
 
     // 4kB pages
@@ -103,6 +103,17 @@ package Emulation;
 
 
     class SparseDataMem;
+        
+        class RW#(type Elem = Mbyte, int ESIZE = 1);
+            function automatic void write(input Mword startAdr, input Word value);
+            
+            endfunction
+ 
+//            function automatic Mword read(input Mword startAdr);
+//                return 0;
+//            endfunction     
+        endclass
+        
         
         Mbyte content[Mword];
         
@@ -493,22 +504,22 @@ package Emulation;
 
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
-            Mword res = 'x;
+            //Mword res = 'x;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
     
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
-                res = calculateResult(ins, args, adr);
+                return calculateResult(ins, args, adr);
             
             if (isBranchIns(ins))
-                res = adr + 4;
+                return adr + 4;
             
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword adr = calculateEffectiveAddress(ins, args);
-                res = getLoadValue(ins, adr);
+                return getLoadValue(ins, adr);
             end
             
-            return res;
+            return 'x;
         endfunction
 
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr);
@@ -537,7 +548,8 @@ package Emulation;
             Mword adr = this.coreState.target;
             Word bits = progMem_N.fetch(adr);
             AbstractInstruction absIns = decodeAbstract(bits);
-            ExecResult execRes = processInstruction(adr, absIns);            
+            //ExecResult execRes = 
+            processInstruction(adr, absIns);            
         endfunction 
         
 
@@ -547,8 +559,8 @@ package Emulation;
             this.status.send = 0;
         endfunction
 
-        function automatic ExecResult processInstruction(input Mword adr, input AbstractInstruction ins);
-            ExecResult res = DEFAULT_EXEC_RESULT;
+        function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
+            //ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
@@ -579,7 +591,7 @@ package Emulation;
             if (isSysIns(ins))
                 performSys(adr, ins, args);
 
-            return res;
+            //return res;
         endfunction
 
 
@@ -677,7 +689,8 @@ package Emulation;
 
     function automatic void runInEmulator(ref Emulator emul, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
-        ExecResult res = emul.processInstruction(adr, ins);
+        //ExecResult res = 
+        emul.processInstruction(adr, ins);
     endfunction
 
 endpackage
