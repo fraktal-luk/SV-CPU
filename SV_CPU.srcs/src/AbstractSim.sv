@@ -223,6 +223,8 @@ package AbstractSim;
         WriterId producers[3];
     } InsDependencies;
 
+    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
+
 
     class BranchCheckpoint;
         function new(input InsId id,

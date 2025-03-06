@@ -98,7 +98,7 @@ package Insmap;
         InsId retiredM = -1;
         InsId retiredPrevM = -1;
 
-        string dbStr;
+        //string dbStr;
 
 
         function automatic void setRenamedNew(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
@@ -126,7 +126,7 @@ package Insmap;
                 string res;
                 InsId first = -1;
                 InsId last = -1;
-                int size = mids.size();
+                //int size = mids.size();
 
                 if (mids.size() > 0) begin
                     first = mids[0];
@@ -138,9 +138,9 @@ package Insmap;
                 return res;
             endfunction
 
-            function automatic void setDbStr();
-                //dbStr = TMP_getStr();
-            endfunction
+//            function automatic void setDbStr();
+//                //dbStr = TMP_getStr();
+//            endfunction
 
     endclass
 
@@ -150,7 +150,7 @@ package Insmap;
         localparam int RECORD_ARRAY_SIZE = 24;
 
         InstructionBase insBase = new();        
-        string dbStr;
+        //string dbStr;
 
         typedef enum {
             ___,
@@ -356,7 +356,7 @@ package Insmap;
             assert (id != -1) else $fatal(2, "retired -1");
 
             lastRetired = id;
-            lastRetiredStr = disasm(get(id).basicData.bits);
+            //lastRetiredStr = disasm(get(id).basicData.bits);
             
             insBase.retireUpToM(id);
         endfunction
@@ -592,10 +592,12 @@ package Insmap;
             sd.name = UOP_data_int;
             sd.physDest = -1;
             sd.argsE = '{default: 0};
-            sd.deps.types = '{default: SRC_ZERO};
-            sd.deps.sources = '{default: 0};
-            sd.deps.producers = '{default: UIDT_NONE};
-            sd.argError = 'x;
+//            sd.deps.types = '{default: SRC_ZERO};
+//            sd.deps.sources = '{default: 0};
+//            sd.deps.producers = '{default: UIDT_NONE};
+            sd.deps = DEFAULT_INS_DEPS;
+
+            //sd.argError = 'x;
 
             sd.deps.types[2] = current.deps.types[2];
             sd.deps.sources[2] = current.deps.sources[2];
@@ -616,10 +618,12 @@ package Insmap;
             sd.name = UOP_data_fp;
             sd.physDest = -1;
             sd.argsE = '{default: 0};
-            sd.deps.types = '{default: SRC_ZERO};
-            sd.deps.sources = '{default: 0};
-            sd.deps.producers = '{default: UIDT_NONE};
-            sd.argError = 'x;
+//            sd.deps.types = '{default: SRC_ZERO};
+//            sd.deps.sources = '{default: 0};
+//            sd.deps.producers = '{default: UIDT_NONE};
+            sd.deps = DEFAULT_INS_DEPS;
+
+            //sd.argError = 'x;
 
             sd.deps.types[2] = current.deps.types[2];
             sd.deps.sources[2] = current.deps.sources[2];
@@ -643,10 +647,11 @@ package Insmap;
                 
             lk.physDest = -1;
             lk.argsE = '{default: 0};
-            lk.deps.types = '{default: SRC_ZERO};
-            lk.deps.sources = '{default: 0};
-            lk.deps.producers = '{default: UIDT_NONE};
-            lk.argError = 'x;
+//            lk.deps.types = '{default: SRC_ZERO};
+//            lk.deps.sources = '{default: 0};
+//            lk.deps.producers = '{default: UIDT_NONE};
+            lk.deps = DEFAULT_INS_DEPS;
+            //lk.argError = 'x;
 
             lk.resultE = current.resultE;
                 

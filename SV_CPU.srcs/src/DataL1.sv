@@ -199,45 +199,59 @@ module DataL1(
         doWrite(TMP_writeReqs[0]);
     endtask
 
-
-        function automatic void TMP_writeRef(ref Mbyte bytes[4096], input Mword adr, input Mword val);
-            bytes[adr] = Mbyte'(val);
-        endfunction
-
         
-        class content_Writer #(type Elem = Mbyte, int ESIZE = 1);
-            static 
-            function automatic void writeTyped(input Mword adr, input Elem val);
-                Mbyte wval[ESIZE] = {>>{val}};
-                content[adr +: ESIZE] = wval;
-            endfunction
-        endclass
-
-        class unc_Writer #(type Elem = Mbyte, int ESIZE = 1);
-            static 
-            function automatic void writeTyped(input Mword adr, input Elem val);
-                Mbyte wval[ESIZE] = {>>{val}};
-                uncachedArea[(adr - UNCACHED_BASE) +: ESIZE] = wval;
-            endfunction
-        endclass
+    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
+        static
+        function automatic void writeTyped(ref Mbyte arr[4096], input Mword adr, input Elem val);
+            Mbyte wval[ESIZE] = {>>{val}};
+            arr[(adr - BASE) +: ESIZE] = wval;
+        endfunction
+        
+        static
+        function automatic Elem readTyped(ref Mbyte arr[4096], input Mword adr);                
+            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
+            Elem wval = {>>{chosen}};
+            return wval;
+        endfunction
+    endclass
 
 
     function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
-        content_Writer#(Word, 4)::writeTyped(adr, val);
+        PageWriter#(Word, 4)::writeTyped(content, adr, val);
     endfunction
 
     function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
-        content_Writer#(Mbyte, 1)::writeTyped(adr, val);
+        PageWriter#(Mbyte, 1)::writeTyped(content, adr, val);
     endfunction
 
 
     function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
-        unc_Writer#(Word, 4)::writeTyped(adr, val);
+        PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
     endfunction
 
     function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
-        unc_Writer#(Mbyte, 1)::writeTyped(adr, val);
+        PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
     endfunction
+
+
+    function automatic Mword readWordStatic(input Mword adr);
+        return PageWriter#(Word, 4)::readTyped(content, adr);
+    endfunction
+
+    function automatic Mword readByteStatic(input Mword adr);
+        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(content, adr));
+    endfunction
+
+
+    function automatic Mword readWordUncached(input Mword adr);
+        return PageWriter#(Word, 4)::readTyped(uncachedArea, adr);
+    endfunction
+
+    function automatic Mword readByteUncached(input Mword adr);
+        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
+    endfunction
+
+
 
 
 
@@ -309,56 +323,6 @@ module DataL1(
     endfunction
 
 
-    function automatic Mword readWordStatic(input Mword adr);
-        localparam int ACCESS_SIZE = 4;
-        
-        Mbyte chosenWord[ACCESS_SIZE];
-        Mword wval;
-
-        chosenWord = content[adr +: ACCESS_SIZE];
-        wval = {>>{chosenWord}};
-
-        return Mword'(wval);
-    endfunction
-
-    function automatic Mword readByteStatic(input Mword adr);
-        localparam int ACCESS_SIZE = 1;
-        
-        Mbyte chosenWord[ACCESS_SIZE];
-        Mbyte wval;
-
-        chosenWord = content[adr +: ACCESS_SIZE];
-        wval = {>>{chosenWord}};
-
-        return Mword'(wval);
-    endfunction
-
-
-    function automatic Mword readWordUncached(input Mword adr);
-        localparam int ACCESS_SIZE = 4;
-        
-        Mbyte chosenWord[ACCESS_SIZE];
-        Mword wval;
-
-        chosenWord = uncachedArea[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
-        wval = {>>{chosenWord}};
-
-        return Mword'(wval);
-    endfunction
-
-    function automatic Mword readByteUncached(input Mword adr);
-        localparam int ACCESS_SIZE = 1;
-        
-        Mbyte chosenWord[ACCESS_SIZE];
-        Mbyte wval;
-
-        chosenWord = content[(adr - UNCACHED_BASE) +: ACCESS_SIZE];
-        wval = {>>{chosenWord}};
-
-        return Mword'(wval);
-    endfunction
-
-
 
     function automatic Mword readFromUncachedRange(input Mword adr, input AccessSize size);
         if (size == SIZE_1) return readByteUncached(adr);
@@ -396,7 +360,7 @@ module DataL1(
         Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
         Mword wval = {>>{chosenWord}};
 
-        return Mword'(wval);
+        return (wval);
     endfunction
 
     function automatic Mword readByteDynamic(input DataBlock block, input int offset);
@@ -405,15 +369,15 @@ module DataL1(
         Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
         Mbyte wval = {>>{chosenWord}};
 
-        return Mword'(wval);
+        return (wval);
     endfunction
 
 
     function automatic void allocInDynamicRange(input Mword adr);
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        DataBlock block = '{default: 0};
+        //DataBlock block = '{default: 0};
         
-        filledBlocks[physBlockBase] = block;            
+        filledBlocks[physBlockBase] = '{default: 0};            
     endfunction
 
     function automatic void allocInTlb(input Mword adr);
@@ -436,7 +400,7 @@ module DataL1(
             else begin
                 AccessInfo acc = analyzeAccess(vadr, readReqs[p].size);
                 Translation tr = translateAddress(vadr);
-                PhysicalAddressHigh wayTag = tagsForWay[acc.block];
+                //PhysicalAddressHigh wayTag = tagsForWay[acc.block];
                
                 DataCacheOutput thisResult = doReadAccess(acc, tr);
 

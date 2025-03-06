@@ -145,7 +145,7 @@ module AbstractCore
             insMap.commitCheck();
 
         //insMap.insBase.setDbStr();
-        insMap.dbStr = insMap.insBase.dbStr;
+        //insMap.dbStr = insMap.insBase.dbStr;
     end
 
 
@@ -444,7 +444,7 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isControlUop(decMainUop(id)) || insInfo.refetch || insInfo.exception);
+        return (isControlUop(/*decMainUop(id)*/insInfo.mainUop) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
