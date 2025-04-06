@@ -271,9 +271,9 @@ module ExecBlock(ref InstructionMap insMap,
             UOP_int_mul:   res = args[0] * args[1];
             UOP_int_mulhu: res = (Dword'($unsigned(args[0])) * Dword'($unsigned(args[1]))) >> 32;
             UOP_int_mulhs: res = (Dword'($signed(args[0])) * Dword'($signed(args[1]))) >> 32;
-            UOP_int_divu:  res = $unsigned(args[0]) / $unsigned(args[1]);
+            UOP_int_divu:  res = divUnsignedW(args[0], args[1]);//$unsigned(args[0]) / $unsigned(args[1]);
             UOP_int_divs:  res = divSignedW(args[0], args[1]);
-            UOP_int_remu:  res = $unsigned(args[0]) % $unsigned(args[1]);
+            UOP_int_remu:  res = remUnsignedW(args[0], args[1]);//$unsigned(args[0]) % $unsigned(args[1]);
             UOP_int_rems:  res = remSignedW(args[0], args[1]);
            
             

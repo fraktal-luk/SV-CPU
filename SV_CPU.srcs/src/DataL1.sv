@@ -164,12 +164,12 @@ module DataL1(
     endfunction
 
     function automatic Mword readByteStatic(input Mword adr);
-        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(staticContent, adr));
+        return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
     endfunction
 
 
     function automatic Mword readWordUncached(input Mword adr);
-        return PageWriter#(Word, 4)::readTyped(uncachedArea, adr);
+        return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
     endfunction
 
     function automatic Mword readByteUncached(input Mword adr);

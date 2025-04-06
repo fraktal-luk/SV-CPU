@@ -122,21 +122,21 @@ package Insmap;
         endfunction
 
 
-            function automatic string TMP_getStr();
-                string res;
-                InsId first = -1;
-                InsId last = -1;
-                //int size = mids.size();
+//            function automatic string TMP_getStr();
+//                string res;
+//                InsId first = -1;
+//                InsId last = -1;
+//                //int size = mids.size();
 
-                if (mids.size() > 0) begin
-                    first = mids[0];
-                    last = mids[$];
-                end
+//                if (mids.size() > 0) begin
+//                    first = mids[0];
+//                    last = mids[$];
+//                end
 
-                $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
+//                $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
 
-                return res;
-            endfunction
+//                return res;
+//            endfunction
 
 //            function automatic void setDbStr();
 //                //dbStr = TMP_getStr();

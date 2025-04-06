@@ -12,8 +12,15 @@ package Base;
 
 
     function automatic Word divSignedW(input Word a, input Word b);
-        Word rInt = $signed(a)/$signed(b);
-        Word rem = a - rInt * b;
+        Word rInt;// = (b == 0) ? 'hffffffff : $signed(a)/$signed(b);
+        Word rem;// = a - rInt * b;
+        
+        if (b == 0) rInt = 'x;
+        else rInt = $signed(a)/$signed(b);
+        
+        rem = a - rInt * b;
+        
+          //  $display("   ----   %p / %p -> %p",a ,b, rInt);
         
         if ($signed(rem) < 0 && $signed(b) > 0) rInt--;
         if ($signed(rem) > 0 && $signed(b) < 0) rInt--;
@@ -22,11 +29,50 @@ package Base;
     endfunction
     
     function automatic Word remSignedW(input Word a, input Word b);
-        Word rInt = $signed(a)/$signed(b);
-        Word rem = a - rInt * b;
+        Word rInt; // = b == 0 ? 'hffffffff : $signed(a)/$signed(b);
+        Word rem;// = a - rInt * b;
+        
+        if (b == 0) rInt = 'x;
+        else rInt = $signed(a)/$signed(b);
+        
+        rem = a - rInt * b;
         
         if ($signed(rem) < 0 && $signed(b) > 0) rem += b;
         if ($signed(rem) > 0 && $signed(b) < 0) rem += b;
+        
+        return rem;
+    endfunction
+
+
+
+    function automatic Word divUnsignedW(input Word a, input Word b);
+        Word rInt;// = (b == 0) ? 'hffffffff : $signed(a)/$signed(b);
+        Word rem;// = a - rInt * b;
+        
+        if (b == 0) rInt = 'x;
+        else rInt = $unsigned(a)/$unsigned(b);
+        
+        rem = a - rInt * b;
+        
+          //  $display("   ----   %p / %p -> %p",a ,b, rInt);
+        
+//        if ($unsigned(rem) < 0 && $unsigned(b) > 0) rInt--;
+//        if ($unsigned(rem) > 0 && $unsigned(b) < 0) rInt--;
+        
+        return rInt;
+    endfunction
+    
+    function automatic Word remUnsignedW(input Word a, input Word b);
+        Word rInt; // = b == 0 ? 'hffffffff : $signed(a)/$signed(b);
+        Word rem;// = a - rInt * b;
+        
+        if (b == 0) rInt = 'x;
+        else rInt = $unsigned(a)/$unsigned(b);
+        
+        rem = a - rInt * b;
+        
+//        if ($signed(rem) < 0 && $signed(b) > 0) rem += b;
+//        if ($signed(rem) > 0 && $signed(b) < 0) rem += b;
         
         return rem;
     endfunction

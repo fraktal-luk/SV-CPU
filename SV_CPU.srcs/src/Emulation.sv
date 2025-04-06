@@ -338,9 +338,9 @@ package Emulation;
             O_intMul:   result = vals[0] * vals[1];
             O_intMulHU: result = (Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
             O_intMulHS: result = (Dword'($signed(vals[0])) * Dword'($signed(vals[1]))) >> 32;
-            O_intDivU:  result = $unsigned(vals[0]) / $unsigned(vals[1]);
+            O_intDivU:  result = divUnsignedW(vals[0], vals[1]);//$unsigned(vals[0]) / $unsigned(vals[1]);
             O_intDivS:  result = divSignedW(vals[0], vals[1]);
-            O_intRemU:  result = $unsigned(vals[0]) % $unsigned(vals[1]);
+            O_intRemU:  result = remUnsignedW(vals[0], vals[1]);//$unsigned(vals[0]) % $unsigned(vals[1]);
             O_intRemS:  result = remSignedW(vals[0], vals[1]);
             
             O_intShiftLogical: begin                
