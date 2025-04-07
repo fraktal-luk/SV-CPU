@@ -27,7 +27,8 @@ module StoreQueue
     input OpSlotAB inGroup,
     output OpSlotAB outGroup,
 
-    input UopPacket wrInputs[N_MEM_PORTS],
+    input UopPacket wrInputsE0[N_MEM_PORTS],
+    input UopPacket wrInputsE1[N_MEM_PORTS],
     input UopPacket wrInputsE2[N_MEM_PORTS]
 );
 
@@ -196,18 +197,18 @@ module StoreQueue
 
 
     task automatic update();
-        foreach (wrInputs[p]) begin
-            UopName uname = decUname(wrInputs[p].TMP_oid);
-            if (wrInputs[p].active !== 1) continue;
+        foreach (wrInputsE0[p]) begin
+            UopName uname = decUname(wrInputsE0[p].TMP_oid);
+            if (wrInputsE0[p].active !== 1) continue;
 
             if (HELPER::appliesU(uname)) begin
-               int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputs[p].TMP_oid));
+               int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE0[p].TMP_oid));
 
-               if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p]);
+               if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputsE0[p], branchEventInfo);
+               else $fatal(2, "Sth wrong with Q update [%p], found %p", wrInputsE0[p].TMP_oid, found.size(), wrInputsE0[p]);
 
                if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
-                   putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
+                   putMilestone(wrInputsE0[p].TMP_oid, InstructionMap::WriteMemAddress);
             end
         end
 
@@ -248,8 +249,8 @@ module StoreQueue
 
 
     task automatic handleForwardsS();
-        foreach (theExecBlock.toLq[p]) begin
-            UopPacket loadOp = theExecBlock.toLq[p];
+        foreach (theExecBlock.toLqE0[p]) begin
+            UopPacket loadOp = theExecBlock.toLqE0[p];
             //Mword adr = loadOp.result;
             UopPacket resb;
 
@@ -271,8 +272,8 @@ module StoreQueue
 
 
     task automatic handleHazardsL();    
-        foreach (theExecBlock.toSq[p]) begin
-            UopPacket storeUop = theExecBlock.toSq[p];
+        foreach (theExecBlock.toSqE0[p]) begin
+            UopPacket storeUop = theExecBlock.toSqE0[p];
             //Mword adr = storeUop.result;
             UopPacket resb;
 
@@ -280,7 +281,7 @@ module StoreQueue
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), storeUop.result);
+            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask

@@ -94,11 +94,11 @@ module AbstractCore
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq, theExecBlock.toSqE2);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSqE0, theExecBlock.toSqE1, theExecBlock.toSqE2);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLq, theExecBlock.toLqE2);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLqE0, theExecBlock.toLqE1, theExecBlock.toLqE2);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq, '{default: EMPTY_UOP_PACKET});
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq, '{default: EMPTY_UOP_PACKET}, '{default: EMPTY_UOP_PACKET});
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 

@@ -17,7 +17,6 @@ package ExecDefs;
 
 
 
-
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
@@ -74,7 +73,6 @@ package ExecDefs;
     endfunction
 
 
-
     typedef struct {
         TMP_Uop regular[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
@@ -90,14 +88,6 @@ package ExecDefs;
         mem: '{default: TMP_UOP_NONE},
         storeData: '{default: TMP_UOP_NONE}
     };
-
-
-//    function automatic UopPacket setResult(input UopPacket p, input Mword result);
-//        UopPacket res = p;            
-//        res.result = result;
-        
-//        return res;
-//    endfunction
 
 
     typedef UopPacket ForwardingElement;
@@ -173,11 +163,6 @@ package ExecDefs;
             
             
         function automatic Poison mergePoisons(input Poison ap[3]);
-            // update 3 poisons
-//            Poison u0 = ap[0];
-//            Poison u1 = ap[1];
-//            Poison u2 = ap[2];
-            
             IdMap m0 = poison2map(ap[0]);
             IdMap m1 = poison2map(ap[1]);
             IdMap m2 = poison2map(ap[2]);
