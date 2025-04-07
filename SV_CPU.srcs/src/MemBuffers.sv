@@ -213,6 +213,21 @@ module StoreQueue
         end
 
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
+            foreach (wrInputsE1[p]) begin
+                UopName uname = decUname(wrInputsE1[p].TMP_oid);
+                if (wrInputsE1[p].active !== 1) continue;
+
+                if (HELPER::appliesU(uname)) begin
+                   int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE1[p].TMP_oid));
+        
+                   if (found.size() == 1) HELPER::updateEntryE1(insMap, content_N[found[0]], wrInputsE1[p], branchEventInfo);
+                   else $fatal(2, "Sth wrong with Q update [%p], found %p", wrInputsE1[p].TMP_oid, found.size(), wrInputsE1[p]);
+    
+                   //if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
+                   //    putMilestone(wrInputsE1[p].TMP_oid, InstructionMap::WriteMemAddress);
+                end
+            end
+
             foreach (wrInputsE2[p]) begin
                 UopName uname = decUname(wrInputsE2[p].TMP_oid);
                 if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
@@ -228,7 +243,7 @@ module StoreQueue
 
     endtask
 
-    
+  
     task automatic updateStoreData();
         if (IS_STORE_QUEUE) begin
             UopPacket dataUop = theExecBlock.storeDataE0_E;
@@ -236,7 +251,7 @@ module StoreQueue
                 int dataFound[$] = content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
                 assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
                 
-                HELPER::updateEntry(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
+                HELPER::updateStoreData(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
                 putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
                 dataUop.result = HELPER::getAdr(content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
             end

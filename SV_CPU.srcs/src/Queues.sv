@@ -31,6 +31,8 @@ package Queues;
             logic refetch;
             logic adrReady;
             Mword adr;
+            logic phyAdrReady;
+            Dword phyAdr;
             logic valReady;
             Mword val;
             AccessSize size;
@@ -39,7 +41,7 @@ package Queues;
             logic dontForward;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE, 'x, 'x, 'x};
     
 
         static function automatic logic appliesU(input UopName uname);
@@ -47,21 +49,21 @@ package Queues;
         endfunction
         
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
-            //Entry res = //EMPTY_QENTRY;
-            return            '{
-                            mid: id,
-                            error: 0,
-                            refetch: 0,
-                            adrReady: 0,
-                            adr: 'x,
-                            valReady: 0,
-                            val: 'x,
-                            size: getTransactionSize(imap.get(id).mainUop),
-                            uncached: 0,
-                            committed: 0,
-                            dontForward: (imap.get(id).mainUop == UOP_mem_sts)
-                            };
-            //return res;
+            return  '{
+                mid: id,
+                error: 0,
+                refetch: 0,
+                adrReady: 0,
+                adr: 'x,
+                phyAdrReady: 0,
+                phyAdr: 'x,
+                valReady: 0,
+                val: 'x,
+                size: getTransactionSize(imap.get(id).mainUop),
+                uncached: 0,
+                committed: 0,
+                dontForward: (imap.get(id).mainUop == UOP_mem_sts)
+            };
         endfunction
         
         
@@ -82,6 +84,23 @@ package Queues;
                 entry.adrReady = 1;
                 entry.adr = p.result;
             end
+        endfunction
+
+        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+            if (p.status == ES_UNCACHED_1) begin
+                entry.uncached = 1;
+            end
+            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
+                entry.phyAdrReady = 1; // TODO: not ready if translation failed
+                //entry.adr = p.result;
+            end
+        endfunction
+
+        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);        
+            if (p.status == ES_UNCACHED_1) begin
+            end
+            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
+            end
             else begin
                 assert (imap.getU(p.TMP_oid).name inside {UOP_data_int, UOP_data_fp}) else $fatal(2, "Wrong uop for store data");
             
@@ -89,7 +108,8 @@ package Queues;
                 entry.val = p.result;
             end
         endfunction
-        
+
+
             static function void setCommitted(ref Entry entry);
                 entry.committed = 1;
             endfunction
@@ -160,23 +180,26 @@ package Queues;
             logic refetch;
             logic adrReady;
             Mword adr;
+            logic phyAdrReady;
+            Dword phyAdr;
             AccessSize size;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE};
 
         static function automatic logic appliesU(input UopName uname);
             return isLoadUop(uname);
         endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
-            Entry res = //EMPTY_QENTRY;
-            '{
+            Entry res = '{
                 mid: id,
                 error: 0,
                 refetch: 0,
                 adrReady: 0,
                 adr: 'x,
+                phyAdrReady: 0,
+                phyAdr: 'x,
                 size: getTransactionSize(imap.get(id).mainUop)
             };
             return res;
@@ -186,6 +209,15 @@ package Queues;
             entry.adrReady = 1;
             entry.adr = p.result;
         endfunction
+
+        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+                entry.phyAdrReady = 1; // TODO: not ready if translation failed
+        endfunction
+
+        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+
+        endfunction
+
         
             static function void setCommitted(ref Entry entry);
             endfunction
@@ -305,6 +337,15 @@ endclass
             if (name inside {UOP_br_z, UOP_br_nz})
                 entry.regTarget = trgArg;
      
+        endfunction
+
+        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+
+        endfunction
+
+
+        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);            
+
         endfunction
 
             static function void setCommitted(ref Entry entry);
