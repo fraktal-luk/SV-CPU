@@ -196,12 +196,17 @@ module StoreQueue
     endfunction
 
 
+
+
+
     task automatic update();
         foreach (wrInputsE0[p]) begin
             UopName uname = decUname(wrInputsE0[p].TMP_oid);
-            if (wrInputsE0[p].active !== 1) continue;
+            if (!wrInputsE0[p].active) continue;
+            if (!HELPER::appliesU(uname)) continue;
 
-            if (HELPER::appliesU(uname)) begin
+            //if (HELPER::appliesU(uname)) 
+            begin
                int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE0[p].TMP_oid));
 
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputsE0[p], branchEventInfo);
@@ -215,9 +220,11 @@ module StoreQueue
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
             foreach (wrInputsE1[p]) begin
                 UopName uname = decUname(wrInputsE1[p].TMP_oid);
-                if (wrInputsE1[p].active !== 1) continue;
+                if (!wrInputsE1[p].active) continue;
+                if (!HELPER::appliesU(uname)) continue;
 
-                if (HELPER::appliesU(uname)) begin
+                //if (HELPER::appliesU(uname))
+                begin
                    int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE1[p].TMP_oid));
         
                    if (found.size() == 1) HELPER::updateEntryE1(insMap, content_N[found[0]], wrInputsE1[p], branchEventInfo);
@@ -230,9 +237,14 @@ module StoreQueue
 
             foreach (wrInputsE2[p]) begin
                 UopName uname = decUname(wrInputsE2[p].TMP_oid);
-                if (wrInputsE2[p].active !== 1 || !(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+                if (!wrInputsE2[p].active) continue;
+                if (!HELPER::appliesU(uname)) continue;
 
-                if (HELPER::appliesU(uname)) begin
+                if (!(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+
+
+                //if (HELPER::appliesU(uname))
+                begin
                    int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
                    if (wrInputsE2[p].status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
