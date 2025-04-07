@@ -1,5 +1,6 @@
 
 mem_uncached0
+mem_uncached1
 
 mem_data_miss_0
 mem_data_miss_store

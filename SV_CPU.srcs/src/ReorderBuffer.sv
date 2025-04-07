@@ -84,12 +84,12 @@ module ReorderBuffer
     logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
     
     TableIndex indB = '{0, 0, -1}, ind_Start = '{0, 0, -1},
-               indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}; // CAREFUL
+               indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
 
 
     RRQ rrq;
     RobResult rrq_View[40];
-    int rrqSize = -1;
+    //int rrqSize = -1;
 
 
 
@@ -194,8 +194,7 @@ module ReorderBuffer
     task automatic advanceDrain();
         // FUTURE: this condition will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
         while (drainPointer != indCommitted.row) begin
-           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && //(item.mid >= coreDB.lastRetired.mid && item.mid >= coreDB.lastRefetched.mid) );
-                                                                                                 (item.mid >= indCommitted.mid) );
+           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= indCommitted.mid) );
            if (fd.size() != 0) break;
            array_N[drainPointer % DEPTH] = EMPTY_ROW;
            drainPointer = (drainPointer+1) % (2*DEPTH);
@@ -213,8 +212,11 @@ module ReorderBuffer
             TMP_setZ(r);
             indCommitted <= r.tableIndex;
             
+                assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
+            
             // Find next slot to be committed
             indNextToCommit = r.tableIndex;
+            indNextToCommit.mid = entryAt(indNextToCommit).mid;
             while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
                 indNextToCommit = incIndex(indNextToCommit);
                 indNextToCommit.mid = entryAt(indNextToCommit).mid;
@@ -225,6 +227,17 @@ module ReorderBuffer
             
             if (breaksCommitId(thisMid)) break;
         end
+
+        indNextToCommit.mid = entryAt(indNextToCommit).mid;
+        while (indNextToCommit.mid == -1 && indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+            indNextToCommit = incIndex(indNextToCommit);
+            indNextToCommit.mid = entryAt(indNextToCommit).mid;
+            
+            if (entryAt(indNextToCommit).mid != -1) break;
+        end 
+
+        indToCommitSig <= indNextToCommit;
+
     endtask;
 
 
@@ -264,6 +277,7 @@ module ReorderBuffer
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
             indNextToCommit = '{backupPointer, 0, -1};
+            indToCommitSig <= indNextToCommit;
             ind_Start = '{backupPointer, 0, -1};
             indB = '{backupPointer, 0, -1};
             rrq.delete();            
@@ -281,7 +295,7 @@ module ReorderBuffer
         end        
 
 
-        rrqSize <= rrq.size();
+        //rrqSize <= rrq.size();
         
         rrq_View = '{default: EMPTY_ROB_RESULT};
         foreach (rrq[i])
@@ -319,18 +333,18 @@ module ReorderBuffer
 
 
     task automatic flushArrayPartial();
-        InsId causingMid = branchEventInfo.eventMid;
+        //InsId causingMid = branchEventInfo.eventMid;
         int p = ind_Start.row; // TODO: change to first not committed entry?
      
         for (int i = 0; i < DEPTH; i++) begin
             OpRecord row[WIDTH] = array[p % DEPTH].records;
             logic rowContains = 0;
             for (int c = 0; c < WIDTH; c++) begin
-                if (row[c].mid == causingMid) begin
+                if (row[c].mid == branchEventInfo.eventMid) begin
                     endPointer = (p+1) % (2*DEPTH);
                     rowContains = 1;
                 end
-                if (row[c].mid > causingMid) begin
+                if (row[c].mid > branchEventInfo.eventMid) begin
                     putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
                         array_N[p % DEPTH].records[c] = EMPTY_RECORD;

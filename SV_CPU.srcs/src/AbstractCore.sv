@@ -28,9 +28,7 @@ module AbstractCore
 );
     logic dummy = '1;
 
-    // DB
-    CoreDB coreDB();
-        
+    // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
 
@@ -46,12 +44,12 @@ module AbstractCore
 
 
     Mword insAdr;
-    //Word instructionCacheOut[FETCH_WIDTH];
     InstructionCacheOutput icacheOut;
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
+    DataCacheOutput sysReadOuts[N_MEM_PORTS];
 
     // Overall
-    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0;
+    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
     IqLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
@@ -71,9 +69,8 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
-
-        StoreQueueEntry storeHead = EMPTY_SQE, drainHead = EMPTY_SQE;
-        MemWriteInfo writeInfo = EMPTY_WRITE_INFO;
+        StoreQueueEntry drainHead = EMPTY_SQE;
+        MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
     
     // Event control
         Mword sysRegs[32];
@@ -81,11 +78,12 @@ module AbstractCore
 
 
     DataReadReq TMP_readReqs[N_MEM_PORTS];
+    DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
 
-    InstructionL1 instructionCache(clk, insAdr, /*instructionCacheOut,*/ icacheOut);
+    InstructionL1 instructionCache(clk, insAdr, icacheOut);
     DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
@@ -108,8 +106,14 @@ module AbstractCore
 
     //////////////////////////////////////////
 
+    assign insAdr = theFrontend.ipStage[0].adr;
+
+    assign wqFree = csqEmpty && !dataCache.uncachedBusy;
+
     assign TMP_readReqs = theExecBlock.readReqs;
+    assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
+    assign theExecBlock.sysOuts = sysReadOuts;
 
     assign TMP_writeInfos[0] = writeInfo;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
@@ -118,13 +122,14 @@ module AbstractCore
     always @(posedge clk) begin
         insMap.endCycle();
 
+        readSysReg();
+
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
-            putWrite(); // csq, csqEmpty, storeHead, drainHead
+            putWrite(); // csq, csqEmpty, drainHead
             
-            // TODO: handle analogously to writeInfo in data cache?
             performSysStore();  // sysRegs
         end
 
@@ -139,8 +144,8 @@ module AbstractCore
 
             insMap.commitCheck();
 
-        insMap.insBase.setDbStr();
-        insMap.dbStr = insMap.insBase.dbStr;
+        //insMap.insBase.setDbStr();
+        //insMap.dbStr = insMap.insBase.dbStr;
     end
 
 
@@ -164,26 +169,25 @@ module AbstractCore
         intRegsReadyV <= registerTracker.ints.ready;
         floatRegsReadyV <= registerTracker.floats.ready;
 
-        // Overall DB
-            coreDB.insMapSize = insMap.size();
-            coreDB.trSize = memTracker.transactions.size();
     endtask
 
 
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
-        return res;
+        //MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
+        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
     endfunction
 
+    function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
+        //MemWriteInfo res = '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
+        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
+    endfunction
 
-    task automatic putWrite();
-        StoreQueueEntry sqe = drainHead;
-        
-        if (sqe.mid != -1) begin
-            memTracker.drain(sqe.mid);
-            putMilestoneC(sqe.mid, InstructionMap::WqExit);
+    task automatic putWrite();        
+        if (drainHead.mid != -1) begin
+            memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
         end
         void'(csq.pop_front());
 
@@ -198,22 +202,46 @@ module AbstractCore
         end
         
         drainHead <= csq[0];
-        storeHead <= csq[1];
         writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endtask
 
 
     task automatic performSysStore();
-        if (storeHead.active && storeHead.sys && !storeHead.cancel)
-            setSysReg(storeHead.adr, storeHead.val);
+        if (sysWriteInfo.req) setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
     endtask
 
+    task automatic readSysReg();
+        foreach (sysReadOuts[p])
+            sysReadOuts[p] <= getSysReadResponse(TMP_sysReadReqs[p]);
+    endtask
 
-    assign oooLevels.iqRegular = theIssueQueues.regularQueue.num;
-    assign oooLevels.iqFloat = theIssueQueues.floatQueue.num;
-    assign oooLevels.iqBranch = theIssueQueues.branchQueue.num;
-    assign oooLevels.iqMem = theIssueQueues.memQueue.num;
-    assign oooLevels.iqStoreData = theIssueQueues.storeDataQueue.num;
+    function automatic DataCacheOutput getSysReadResponse(input DataReadReq readReq);
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
+        
+        if (!readReq.active) return res;
+        
+        res.active = 1;
+        
+        if (readReq.adr > 31) begin
+            res.status = CR_INVALID;
+        end
+        else begin
+            res.status = CR_HIT;
+            res.data = getSysReg(readReq.adr);
+        end
+        
+        return res;
+    endfunction
+
+
+    assign oooLevels = '{
+        iqRegular:   theIssueQueues.regularQueue.num,
+        iqFloat:     theIssueQueues.floatQueue.num,
+        iqBranch:    theIssueQueues.branchQueue.num,
+        iqMem:       theIssueQueues.memQueue.num,
+        iqStoreData: theIssueQueues.storeDataQueue.num
+    };
 
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
@@ -224,12 +252,13 @@ module AbstractCore
         
         // MOVE?
         function automatic IqLevels getBufferAccepts(input IqLevels levels);
-            IqLevels res;
-            res.iqRegular = levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqFloat = levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqBranch = levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqMem = levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
-            res.iqStoreData = levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH;
+            IqLevels res = '{
+                iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+                iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+            };
             return res;
         endfunction
     
@@ -390,6 +419,7 @@ module AbstractCore
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
 
+
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
 
@@ -414,7 +444,7 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isControlUop(decMainUop(id)) || insInfo.refetch || insInfo.exception);
+        return (isControlUop(/*decMainUop(id)*/insInfo.mainUop) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
@@ -426,27 +456,29 @@ module AbstractCore
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
             saveStateAsync(sysRegs, retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end  
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            Mword waitingAdr = lateEventInfoWaiting.adr;
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, waitingAdr, sr2, sr3);
+            //Mword waitingAdr = lateEventInfoWaiting.adr;
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
 
-            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, waitingAdr);            
+            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
-            lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
+
+        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
 
     endtask
 
@@ -464,7 +496,8 @@ module AbstractCore
 
         lateEventInfo <= EMPTY_EVENT_INFO;
     
-        if (csqEmpty) fireLateEvent();
+        //if (csqEmpty) fireLateEvent();
+        if (wqFree) fireLateEvent();
     endtask
 
 
@@ -481,14 +514,13 @@ module AbstractCore
 
             // RET: generate late event
             if (breaksCommitId(theId)) begin
-                logic refetch = insMap.get(theId).refetch;
-                logic exception = insMap.get(theId).exception;
-                lateEventInfoWaiting <= eventFromOp(theId, decMainUop(theId), getAdr(theId), refetch, exception);
+                InstructionInfo ii = insMap.get(theId);
+                //logic refetch = insMap.get(theId).refetch;
+                //logic exception = insMap.get(theId).exception;
+                lateEventInfoWaiting <= eventFromOp(theId, /*decMainUop(theId)*/ii.mainUop, /*getAdr(theId)*/ii.basicData.adr, ii.refetch, ii.exception);
                 cancelRest = 1; // Don't commit anything more if event is being handled
-            end
-            
+            end  
         end
-        
     endtask
 
     
@@ -497,12 +529,9 @@ module AbstractCore
         InstructionInfo info = insMap.get(id);
         
         for (int u = 0; u < info.nUops; u++) begin
-            UopInfo uinfo = insMap.getU('{id, u});
-            UopName uname = uinfo.name;
-    
-            if (uopHasIntDest(uname) || uopHasFloatDest(uname)) begin // DB
+            UopInfo uinfo = insMap.getU('{id, u});    
+            if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                     //else $error(" not matching result. %p, %s; %d but should be %d", TMP_properOp(id), disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
                      else $error(" not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
             end
         end
@@ -516,7 +545,7 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
-        checkUnimplementedInstruction(decId(id)); // All types of commit?
+        checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
@@ -561,21 +590,18 @@ module AbstractCore
         InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
 
-        logic refetch = retInfo.refetch;
-        logic exception = retInfo.exception;
-        InstructionMap::Milestone retireType = exception ? InstructionMap::RetireException : (refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+        InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
         verifyOnCommit(retInfo);
 
         // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
-            UopInfo uInfo = insMap.getU(uid);
-            registerTracker.commit(decUname(uid), uInfo.vDest, uid, refetch || exception); // Need to modify to handle Exceptional and Hidden
+            registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, retInfo.refetch || retInfo.exception); // Need to modify to handle Exceptional and Hidden
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id))) putToWq(id, exception, refetch);
+        if (isStoreUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
 
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
@@ -594,7 +620,7 @@ module AbstractCore
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
         // RET: update target
-        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, refetch, exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, retInfo.refetch, retInfo.exception);
     endtask
 
 
@@ -602,10 +628,9 @@ module AbstractCore
         Transaction tr = memTracker.findStore(id);
         
         // Extract 'uncached' info
-        int found[$] = theSq.content_N.find_index with (item.mid == id);
+        int found[$] = theSq.content_N.find_first_index with (item.mid == id);
         logic uncached = theSq.content_N[found[0]].uncached;
-        AccessSize size = //decMainUop(id) == UOP_mem_stib ? SIZE_1 : SIZE_4;
-                          theSq.content_N[found[0]].size;
+        AccessSize size = theSq.content_N[found[0]].size;
         
         StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, size};       
         csq.push_back(sqe); // Normal
@@ -626,6 +651,7 @@ module AbstractCore
         return sysRegs[adr];
     endfunction
 
+    // TODO: define ranges so that range checking is described in one place 
     function automatic void setSysReg(input Mword adr, input Mword val);
         assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
         sysRegs[adr] = val;
@@ -641,10 +667,10 @@ module AbstractCore
     // General
 
     // TODO: review usage of these functions
-    //  decId - 3
-    //  decUname - 19
-    //  decMainUop - 15
-    //  getAdr - 3
+    //  decId - 1
+    //  decUname - 21
+    //  decMainUop - 20
+    //  getAdr - 2
 
     function automatic AbstractInstruction decId(input InsId id);
         return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
@@ -714,10 +740,7 @@ module AbstractCore
     endfunction
 
 
-    assign insAdr = theFrontend.ipStage[0].adr;
-
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
-
 
 endmodule

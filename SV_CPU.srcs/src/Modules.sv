@@ -20,7 +20,7 @@ module RegularSubpipe(
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
-    assign stage0 = pE0;
+    //assign stage0 = pE0;
     assign stage0_E = pE0_E;
 
     assign p0 = opP;
@@ -61,7 +61,7 @@ module BranchSubpipe(
     UopPacket stage0, stage0_E;
 
 
-    assign stage0 = pE0;
+    //assign stage0 = pE0;
     assign stage0_E = pE0_E;
                       
     assign p0 = opP;
@@ -105,7 +105,7 @@ module StoreDataSubpipe(
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
-    assign stage0 = pE0;
+    //assign stage0 = pE0;
     assign stage0_E = pE0_E;
 
     assign p0 = opP;
@@ -132,48 +132,4 @@ module StoreDataSubpipe(
         default: EMPTY_FORWARDING_ELEMENT
     };
 
-endmodule
-
-
-
-
-module CoreDB();
-        // dev, syntax check
-        Mbyte bytes4[4] = '{5, 6, 7, 8};
-        Mbyte bytes8[8] = '{'h6, 'ha, 0, 0, 0, 0, 2, 1};
-        Mbyte bytesTmp[4];
-        Mbyte bytesTmp2[4];
-
-    int insMapSize = 0, trSize = 0, nCompleted = 0, nRetired = 0; // DB
-        
-        // Remove?
-    //    OpSlotB lastRenamed = EMPTY_SLOT_B, lastCompleted = EMPTY_SLOT_B, lastRetired = EMPTY_SLOT_B, lastRefetched = EMPTY_SLOT_B;
-    //string lastRenamedStr, lastCompletedStr, lastRetiredStr, lastRefetchedStr;
-
-        string csqStr, csqIdStr;
-
-        InstructionInfo lastII;
-        UopInfo lastUI;
-
-    string bqStr;
-    always @(posedge AbstractCore.clk) begin
-        automatic int ids[$];
-        foreach (AbstractCore.branchCheckpointQueue[i]) ids.push_back(AbstractCore.branchCheckpointQueue[i].id);
-        $swrite(bqStr, "%p", ids);
-    end
-
-//        assign lastRenamedStr = disasm(lastRenamed.bits);
-//        assign lastCompletedStr = disasm(lastCompleted.bits);
-//        assign lastRetiredStr = disasm(lastRetired.bits);
-//        assign lastRefetchedStr = disasm(lastRefetched.bits);
-
-    logic cmp0, cmp1;
-    Mword cmpmw0, cmpmw1, cmpmw2, cmpmw3;
-   
-   
-        assign cmpmw0 = {>>8{bytes4}};
-        assign cmpmw1 = {<<8{bytes4}};
-        assign bytesTmp = bytes8[1 +: 4];
-        assign bytesTmp2 = {>>{cmpmw0}};
-   
 endmodule

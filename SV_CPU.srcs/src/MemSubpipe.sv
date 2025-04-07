@@ -19,8 +19,10 @@ module MemSubpipe#(
     input UopPacket opP,
 
     output DataReadReq readReq,
+    output DataReadReq sysReadReq,
 
     input DataCacheOutput cacheResp,
+    input DataCacheOutput sysRegResp,
     input UopPacket sqResp,
     input UopPacket lqResp
 );
@@ -30,11 +32,11 @@ module MemSubpipe#(
 
     UopPacket stage0, stage0_E;
     
-    logic readActive = 0, storeFlag = 0, uncachedFlag = 0;
+    logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
     AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
 
-    assign stage0 = pE2;
+    //assign stage0 = pE2;
     assign stage0_E = pE2_E;
     assign p0 = opP;
 
@@ -54,6 +56,9 @@ module MemSubpipe#(
         readActive, storeFlag, uncachedFlag, effAdrE0, readSize
     };
 
+    assign sysReadReq = '{
+        sysReadActive, 'x, 'x, effAdrE0, readSize
+    };
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
@@ -87,6 +92,7 @@ module MemSubpipe#(
         if (!stateE0.active) readSize = SIZE_NONE;
         
         readActive <= stateE0.active && isMemUop(uname);
+        sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
         storeFlag <= isStoreUop(uname);
         uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
         effAdrE0 <= adr;
@@ -102,7 +108,7 @@ module MemSubpipe#(
     
     task automatic performE2();    
         UopPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, sqResp, lqResp);
+        stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp, lqResp);
         pE2 <= stateE2;
     endtask
 
@@ -126,15 +132,14 @@ module MemSubpipe#(
     endfunction
 
 
-    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (!p.active) return res;
 
         if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
-            res = TMP_updateSysTransfer(res);
-            return res;
+            return TMP_updateSysTransfer(res, sysResp);
         end
 
         case (p.status)
@@ -148,8 +153,7 @@ module MemSubpipe#(
                 // Continue processing
             end 
 
-            // ES_TLB_MISS, ES_DATA_MISS: // integrate with SQ_MISS?
-            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin // TODO: untangle ES_SQ_MISS from here? 
+            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin
                 if (cacheResp.status == CR_TAG_MISS) begin
                     res.status = ES_DATA_MISS;
                     return res;
@@ -173,30 +177,43 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p);
+    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p, input DataCacheOutput sysResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
-        Mword3 args = insMap.getU(uid).argsA;
-        
-        // TODO: move checking of sys access to dedicated module
-        if (res.result > 31) begin
+        if (sysResp.status == CR_INVALID) begin
             insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             res.status = ES_ILLEGAL;
-               // res.result = 'x;  // TODO: In Emulation, if access causes exception, set value to 'x, and do it here
+        end
+        else begin
+            res.status = ES_OK;
         end
         
         if (isLoadSysUop(decUname(uid))) begin
-            Mword val = getSysReg(args[1]);
-            insMap.setActualResult(uid, val);
-            res.result = val;
-        end
-
-        if (isStoreSysUop(decUname(uid))) begin
+            insMap.setActualResult(uid, sysResp.data);
+            res.result = sysResp.data;            
         end
 
         return res;
     endfunction
+
+    // TODO: move to packet
+    function automatic Mword loadValue(input Mword w, input UopName uop);
+        case (uop)
+             UOP_mem_ldi: return w;
+             UOP_mem_ldib: return Mword'(w[7:0]);
+             UOP_mem_ldf,
+             UOP_mem_lds: return w;
+
+             UOP_mem_sti,
+             UOP_mem_stib,
+             UOP_mem_stf,
+             UOP_mem_sts: return 0;
+            
+            default: $fatal(2, "Wrong op");
+        endcase
+    endfunction
+    
 
     function automatic UopPacket updateE2_Regular(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
@@ -216,13 +233,13 @@ module MemSubpipe#(
                 end
                 else begin
                     res.status = ES_OK;
-                    res.result = sqResp.result;
+                    res.result = loadValue(sqResp.result, decUname(uid));
                     putMilestone(uid, InstructionMap::MemFwConsume);
                 end
             end
             else begin //no forwarding 
                 res.status = ES_OK;
-                res.result = cacheResp.data;
+                res.result = loadValue(cacheResp.data, decUname(uid));
             end
 
             insMap.setActualResult(uid, res.result);
@@ -234,7 +251,7 @@ module MemSubpipe#(
                 insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
             
-            res.status = ES_OK; // TODO: don't set to OK if misses etc
+            res.status = ES_OK;
         end
 
         return res;

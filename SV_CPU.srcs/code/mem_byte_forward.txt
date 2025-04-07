@@ -1,0 +1,25 @@
+
+$start
+	add_i r8, r0, 2048
+	add_i r31, r0, -1
+	add_i r2, r0, 55
+	e_sb r31, r8, 1
+	
+	e_lb r10, r8, 0
+	e_lb r11, r8, 1  ; match 2049
+	e_lb r12, r8, 2
+	e_sb r2,  r8, 2
+	
+	e_lb r13, r8, 2  ; match 2050
+	add_i r21, r11, -255
+	add_i r23, r13, -55	
+	jnz_i r10, $error
+	
+	jnz_i r21, $error
+	jnz_i r12, $error
+	jnz_i r23, $error
+
+$check
+	sys_call
+$error
+	sys_error

@@ -174,13 +174,13 @@ package ExecDefs;
             
         function automatic Poison mergePoisons(input Poison ap[3]);
             // update 3 poisons
-            Poison u0 = ap[0];
-            Poison u1 = ap[1];
-            Poison u2 = ap[2];
+//            Poison u0 = ap[0];
+//            Poison u1 = ap[1];
+//            Poison u2 = ap[2];
             
-            IdMap m0 = poison2map(u0);
-            IdMap m1 = poison2map(u1);
-            IdMap m2 = poison2map(u2);
+            IdMap m0 = poison2map(ap[0]);
+            IdMap m1 = poison2map(ap[1]);
+            IdMap m2 = poison2map(ap[2]);
             
             foreach (m1[uid]) m0[uid] = 1;
             foreach (m2[uid]) m0[uid] = 1;

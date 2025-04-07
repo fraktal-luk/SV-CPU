@@ -110,13 +110,13 @@ module StoreQueue
 
 
     task automatic flushPartial();
-        InsId causingMid = branchEventInfo.eventMid;
+        //InsId causingMid = branchEventInfo.eventMid;
         int p = startPointer;
 
         endPointer = startPointer;
         for (int i = 0; i < SIZE; i++) begin
             InsId thisId = content_N[p % SIZE].mid;        
-            if (thisId > causingMid) begin
+            if (thisId > branchEventInfo.eventMid) begin
                 putMilestoneM(thisId, QUEUE_FLUSH);
                 content_N[p % SIZE] = EMPTY_QENTRY;
             end
@@ -204,7 +204,7 @@ module StoreQueue
                int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputs[p].TMP_oid));
 
                if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputs[p], branchEventInfo);
-               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p // %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p], decId(U2M(wrInputs[p].TMP_oid)));
+               else $fatal(2, "Sth wrong with Q update [%p], found(%d) %p", wrInputs[p].TMP_oid, found.size(), wrInputs[p], wrInputs[p]);
 
                if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
                    putMilestone(wrInputs[p].TMP_oid, InstructionMap::WriteMemAddress);
@@ -250,19 +250,19 @@ module StoreQueue
     task automatic handleForwardsS();
         foreach (theExecBlock.toLq[p]) begin
             UopPacket loadOp = theExecBlock.toLq[p];
-            Mword adr = loadOp.result;
+            //Mword adr = loadOp.result;
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), adr);
+            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), loadOp.result);
 
             if (resb.active) begin
                 AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
                 AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
-                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, adr, size);
+                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, loadOp.result, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
@@ -273,14 +273,14 @@ module StoreQueue
     task automatic handleHazardsL();    
         foreach (theExecBlock.toSq[p]) begin
             UopPacket storeUop = theExecBlock.toSq[p];
-            Mword adr = storeUop.result;
+            //Mword adr = storeUop.result;
             UopPacket resb;
 
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), adr);
+            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLq[p].TMP_oid), storeUop.result);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask
