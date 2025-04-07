@@ -66,15 +66,8 @@ package Insmap;
     function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins);
         InstructionInfo res;
         res.id = id;
-        
-//        res.basicData.adr = adr;
-//        res.basicData.bits = bits;
-//        res.basicData.dec = ins;
-        
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
-        
         res.frontBranch = 'x;
-        
         res.exception = 0;
         res.refetch = 0;
 
@@ -98,8 +91,6 @@ package Insmap;
         InsId retiredM = -1;
         InsId retiredPrevM = -1;
 
-        //string dbStr;
-
 
         function automatic void setRenamedNew(input InsId id, input InstructionInfo argII, input UopInfo argUI[$]);
             assert (lastU + 1 == argII.firstUop) else $error(" uuuuuuuuuuuuuu!!!!! "); 
@@ -121,27 +112,6 @@ package Insmap;
             retiredM = id;
         endfunction
 
-
-//            function automatic string TMP_getStr();
-//                string res;
-//                InsId first = -1;
-//                InsId last = -1;
-//                //int size = mids.size();
-
-//                if (mids.size() > 0) begin
-//                    first = mids[0];
-//                    last = mids[$];
-//                end
-
-//                $swrite(res, "[%d]: [%d, ... %d]", mids.size(), first, last);
-
-//                return res;
-//            endfunction
-
-//            function automatic void setDbStr();
-//                //dbStr = TMP_getStr();
-//            endfunction
-
     endclass
 
 
@@ -150,7 +120,6 @@ package Insmap;
         localparam int RECORD_ARRAY_SIZE = 24;
 
         InstructionBase insBase = new();        
-        //string dbStr;
 
         typedef enum {
             ___,
@@ -236,7 +205,7 @@ package Insmap;
 
         string lastRetiredStr;
     
-            InsId reissuedId = -1;    
+        InsId reissuedId = -1;    
 
 
         // ins info
@@ -268,7 +237,6 @@ package Insmap;
 
         function automatic Unum uid2unum(input UidT uid);
             InstructionInfo ii = insBase.minfos[U2M(uid)];
-            //Unum base = ii.firstUop;
             assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
             return ii.firstUop + uid.s;
         endfunction
@@ -285,9 +253,9 @@ package Insmap;
             setArgError(uid, (args !== argsM));
         endfunction
 
-            function automatic void setArgError(input UidT uid, input logic value);
-                insBase.uinfos[uid2unum(uid)].argError = value;
-            endfunction
+        function automatic void setArgError(input UidT uid, input logic value);
+            insBase.uinfos[uid2unum(uid)].argError = value;
+        endfunction
         
         
         function automatic void setException(input InsId id);
@@ -356,8 +324,6 @@ package Insmap;
             assert (id != -1) else $fatal(2, "retired -1");
 
             lastRetired = id;
-            //lastRetiredStr = disasm(get(id).basicData.bits);
-            
             insBase.retireUpToM(id);
         endfunction
 
@@ -592,12 +558,7 @@ package Insmap;
             sd.name = UOP_data_int;
             sd.physDest = -1;
             sd.argsE = '{default: 0};
-//            sd.deps.types = '{default: SRC_ZERO};
-//            sd.deps.sources = '{default: 0};
-//            sd.deps.producers = '{default: UIDT_NONE};
             sd.deps = DEFAULT_INS_DEPS;
-
-            //sd.argError = 'x;
 
             sd.deps.types[2] = current.deps.types[2];
             sd.deps.sources[2] = current.deps.sources[2];
@@ -618,12 +579,7 @@ package Insmap;
             sd.name = UOP_data_fp;
             sd.physDest = -1;
             sd.argsE = '{default: 0};
-//            sd.deps.types = '{default: SRC_ZERO};
-//            sd.deps.sources = '{default: 0};
-//            sd.deps.producers = '{default: UIDT_NONE};
             sd.deps = DEFAULT_INS_DEPS;
-
-            //sd.argError = 'x;
 
             sd.deps.types[2] = current.deps.types[2];
             sd.deps.sources[2] = current.deps.sources[2];
@@ -647,11 +603,7 @@ package Insmap;
                 
             lk.physDest = -1;
             lk.argsE = '{default: 0};
-//            lk.deps.types = '{default: SRC_ZERO};
-//            lk.deps.sources = '{default: 0};
-//            lk.deps.producers = '{default: UIDT_NONE};
             lk.deps = DEFAULT_INS_DEPS;
-            //lk.argError = 'x;
 
             lk.resultE = current.resultE;
                 

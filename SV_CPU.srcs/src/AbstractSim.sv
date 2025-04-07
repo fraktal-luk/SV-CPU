@@ -36,28 +36,6 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
-
-//    function automatic logic wordOverlap(input Mword wa, input Mword wb);
-//        Mword aEnd = wa + 4; // Exclusive end
-//        Mword bEnd = wb + 4; // Exclusive end
-        
-//        if ($isunknown(wa) || $isunknown(wb)) return 0;
-//        if (wb >= aEnd || wa >= bEnd) return 0;
-//        else return 1;
-//    endfunction
-    
-//    // is a inside b
-//    function automatic logic wordInside(input Mword wa, input Mword wb);
-//        Mword aEnd = wa + 4; // Exclusive end
-//        Mword bEnd = wb + 4; // Exclusive end
-        
-//        if ($isunknown(wa) || $isunknown(wb)) return 0;
-       
-//        return (wa >= wb && aEnd <= bEnd);
-//    endfunction
-
-
-
 ////////////////////////////
     // Core structures
 
@@ -396,7 +374,6 @@ package AbstractSim;
         function automatic int reserve(input UopName name, input int dest, input WriterId id);            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
             if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
-
             return -1;
         endfunction
 
@@ -419,8 +396,6 @@ package AbstractSim;
 
 
         function automatic InsDependencies getArgDeps(input AbstractInstruction abs);
-            //int mapInt[32] = ints.MapR;
-            //int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
             WriterId producers[3] = '{WID_NONE, WID_NONE, WID_NONE};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
@@ -481,16 +456,12 @@ package AbstractSim;
 
 
         function automatic int getNumFreeInt();
-            int freeInds[$] = ints.info.find_index with (item.state == FREE);
-            //int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
-            //int stabInds[$] = ints.info.find_index with (item.state == STABLE);    
+            int freeInds[$] = ints.info.find_index with (item.state == FREE);   
             return freeInds.size();
         endfunction        
         
         function automatic int getNumFreeFloat();
-            int freeInds[$] = floats.info.find_index with (item.state == FREE);
-            //int specInds[$] = floats.info.find_index with (item.state == SPECULATIVE);
-            //int stabInds[$] = floats.info.find_index with (item.state == STABLE);            
+            int freeInds[$] = floats.info.find_index with (item.state == FREE);           
             return freeInds.size();
         endfunction
 
@@ -503,7 +474,7 @@ package AbstractSim;
         Mword adr;
         Mword val;
         Mword adrAny;
-            AccessSize size;
+        AccessSize size;
     } Transaction;
 
     localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, SIZE_NONE};
@@ -589,7 +560,6 @@ package AbstractSim;
         
         function automatic Transaction checkTransactionOverlap(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
-        
             Transaction read[$] = transactions.find_first with (item.owner == id); 
             Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.adr, (item.size), read[0].adr, (read[0].size)));
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
@@ -626,21 +596,12 @@ package AbstractSim;
     
     
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
-//        OpSlotB res;
-        
-//        res.active = op.active;
-//        res.mid = -1;
-//        res.adr = op.adr;
-//        res.bits = op.bits;
-
         return '{
             active: op.active,
             mid: -1,
             adr: op.adr,
             bits: op.bits
         };
-
-        //return res;
     endfunction;
 
     function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
@@ -648,7 +609,6 @@ package AbstractSim;
         foreach (ops[i]) res[i] = TMP_translateFrontToRename(ops[i]);
         return res;
     endfunction;
-
 
 
     // Mem handling
@@ -670,6 +630,45 @@ package AbstractSim;
         if ($isunknown(wa) || $isunknown(wb)) return 0;
        
         return (wa >= wb && aEnd <= bEnd);
+    endfunction
+
+
+
+
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res = '{
+            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+        };
+        return res;
+    endfunction
+
+    function automatic logic iqsAccept(input IqLevels acc);
+        return 1
+                && acc.iqRegular
+                && acc.iqFloat
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqStoreData;
+    endfunction
+
+    function automatic Mword loadValue(input Mword w, input UopName uop);
+        case (uop)
+             UOP_mem_ldi: return w;
+             UOP_mem_ldib: return Mword'(w[7:0]);
+             UOP_mem_ldf,
+             UOP_mem_lds: return w;
+
+             UOP_mem_sti,
+             UOP_mem_stib,
+             UOP_mem_stf,
+             UOP_mem_sts: return 0;
+            
+            default: $fatal(2, "Wrong op");
+        endcase
     endfunction
 
 endpackage

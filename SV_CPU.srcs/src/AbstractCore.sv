@@ -129,7 +129,6 @@ module AbstractCore
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
-            
             performSysStore();  // sysRegs
         end
 
@@ -142,10 +141,7 @@ module AbstractCore
 
         updateBookkeeping();
 
-            insMap.commitCheck();
-
-        //insMap.insBase.setDbStr();
-        //insMap.dbStr = insMap.insBase.dbStr;
+        insMap.commitCheck();
     end
 
 
@@ -168,19 +164,16 @@ module AbstractCore
         
         intRegsReadyV <= registerTracker.ints.ready;
         floatRegsReadyV <= registerTracker.floats.ready;
-
     endtask
 
 
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        //MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
         return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
     endfunction
 
     function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
-        //MemWriteInfo res = '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
         return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
     endfunction
 
@@ -248,28 +241,7 @@ module AbstractCore
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
-        
-        
-        // MOVE?
-        function automatic IqLevels getBufferAccepts(input IqLevels levels);
-            IqLevels res = '{
-                iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
-            };
-            return res;
-        endfunction
-    
-        function automatic logic iqsAccept(input IqLevels acc);
-            return 1
-                    && acc.iqRegular
-                    && acc.iqFloat
-                    && acc.iqBranch
-                    && acc.iqMem
-                    && acc.iqStoreData;
-        endfunction
+
 
     // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
@@ -310,7 +282,6 @@ module AbstractCore
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT_B};
         markKilledRenameStage(stageRename1);
-
 
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
@@ -375,7 +346,6 @@ module AbstractCore
     endfunction
 
 
-
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg /*UNUSED so far*/);
         AbstractInstruction ins = decodeAbstract(bits);
         UopInfo mainUinfo;
@@ -398,7 +368,6 @@ module AbstractCore
 
         target = renamedEmul.coreState.target; // For insMap
 
-
         // Main op info
         ii.mainUop = uopName;
         ii.inds = renameInds;
@@ -418,7 +387,6 @@ module AbstractCore
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
-
 
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
@@ -456,26 +424,22 @@ module AbstractCore
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
-            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
             saveStateAsync(sysRegs, retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
-            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end  
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            //Mword waitingAdr = lateEventInfoWaiting.adr;
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
 
             modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
-            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
@@ -486,17 +450,16 @@ module AbstractCore
     task automatic activateEvent();
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
-                retiredEmul.reset();
+            retiredEmul.reset();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
-                $display(">> Interrupt !!!");
-                retiredEmul.interrupt();
+            $display(">> Interrupt !!!");
+            retiredEmul.interrupt();
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
-    
-        //if (csqEmpty) fireLateEvent();
+
         if (wqFree) fireLateEvent();
     endtask
 
@@ -515,9 +478,7 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                //logic refetch = insMap.get(theId).refetch;
-                //logic exception = insMap.get(theId).exception;
-                lateEventInfoWaiting <= eventFromOp(theId, /*decMainUop(theId)*/ii.mainUop, /*getAdr(theId)*/ii.basicData.adr, ii.refetch, ii.exception);
+                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception);
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
@@ -666,7 +627,6 @@ module AbstractCore
 
     // General
 
-    // TODO: review usage of these functions
     //  decId - 1
     //  decUname - 21
     //  decMainUop - 20

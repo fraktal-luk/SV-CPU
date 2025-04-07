@@ -21,7 +21,6 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneFloat0,  doneFloat1; 
     
     UopPacket doneStoreData;
-    
 
     UopPacket doneRegular0_E, doneRegular1_E;
     UopPacket doneBranch_E;
@@ -30,13 +29,11 @@ module ExecBlock(ref InstructionMap insMap,
 
     UopPacket doneStoreData_E;
 
-
     UopPacket storeDataE0, storeDataE0_E;
 
 
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadReq sysReadReqs[N_MEM_PORTS];
-    //DataReadResp readResps[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     DataCacheOutput sysOuts[N_MEM_PORTS];
     
@@ -156,17 +153,6 @@ module ExecBlock(ref InstructionMap insMap,
     // TODO: apply for Issue
     assign TMP_memAllow = replayQueue.accept;
 
-    // CAREFUL: not used directly, commented because reducing design size
-//    assign doneRegular0 = regular0.stage0;
-//    assign doneRegular1 = regular1.stage0;
-//    assign doneBranch = branch0.stage0;
-//    assign doneMem0 = memToComplete(mem0.stage0);
-//    assign doneMem2 = memToComplete(mem2.stage0);
-//    assign doneFloat0 = float0.stage0;
-//    assign doneFloat1 = float1.stage0;
-//    assign doneStoreData = storeData0.stage0;
-
-
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
@@ -176,7 +162,6 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneFloat1_E = float1.stage0_E;
     assign doneStoreData_E = storeData0.stage0_E;
 
-    //assign storeDataE0 = storeData0.stage0;
     assign storeDataE0_E = storeData0.stage0_E;
 
 
@@ -217,20 +202,17 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.vecs = floatImagesTr;
 
 
-
     function automatic UopPacket performRegularE0(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
         begin
             UopPacket res = p;
             res.result = calcRegularOp(p.TMP_oid);
-            
             return res;
         end
     endfunction
 
     // TOPLEVEL
     function automatic Mword calcRegularOp(input UidT uid);
-        //UopName uname = decUname(uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
         Mword result = calcArith(decUname(uid), args, lk);  
@@ -271,21 +253,18 @@ module ExecBlock(ref InstructionMap insMap,
             UOP_int_mul:   res = args[0] * args[1];
             UOP_int_mulhu: res = (Dword'($unsigned(args[0])) * Dword'($unsigned(args[1]))) >> 32;
             UOP_int_mulhs: res = (Dword'($signed(args[0])) * Dword'($signed(args[1]))) >> 32;
-            UOP_int_divu:  res = divUnsignedW(args[0], args[1]);//$unsigned(args[0]) / $unsigned(args[1]);
+            UOP_int_divu:  res = divUnsignedW(args[0], args[1]);
             UOP_int_divs:  res = divSignedW(args[0], args[1]);
-            UOP_int_remu:  res = remUnsignedW(args[0], args[1]);//$unsigned(args[0]) % $unsigned(args[1]);
+            UOP_int_remu:  res = remUnsignedW(args[0], args[1]);
             UOP_int_rems:  res = remSignedW(args[0], args[1]);
-           
             
             UOP_int_link: res = linkAdr;
-            
             
             // FP
             UOP_fp_move:   res = args[0];
             UOP_fp_or:     res = args[0] | args[1];
             UOP_fp_addi:   res = args[0] + args[1];
-           
-           
+
             default: $fatal(2, "Wrong uop");
         endcase
         
@@ -301,9 +280,7 @@ module ExecBlock(ref InstructionMap insMap,
         if (!p.active) return p;
         begin
             UidT uid = p.TMP_oid;
-            //UopName uname = decUname(uid);
             Mword3 args = getAndVerifyArgs(uid);
-           
             p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
         end
         return p;
@@ -331,17 +308,12 @@ module ExecBlock(ref InstructionMap insMap,
         logic redirect = predictedDir ^ dir;
         
         Mword expectedTrg = dir ? takenTrg : adr + 4;
-
-        //Mword bqTarget = AbstractCore.theBq.lookupTarget;
-        //Mword bqLink = AbstractCore.theBq.lookupLink;
-
         Mword resolvedTarget = finalTarget(uname, dir, args[1], AbstractCore.theBq.lookupTarget, AbstractCore.theBq.lookupLink);
         
         assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
         assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");
 
-        if (redirect)
-            putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
+        if (redirect) putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
 
         AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, resolvedTarget};
     endtask
@@ -400,7 +372,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     // Used once
     function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-        //ForwardsByStage_0 fws = allByStage;
         Mword res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
                     
