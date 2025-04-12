@@ -54,8 +54,8 @@ module ArchDesc0();
     
     
     squeue allSuites = '{
-       // "Tests_basic.txt",
-       // "Tests_mem_simple.txt",
+        "Tests_basic.txt",
+        "Tests_mem_simple.txt",
         
         "Tests_mem_advanced.txt",
         "Tests_mem_align.txt",
@@ -229,7 +229,7 @@ module ArchDesc0();
 
         task announce(input string name);
             simTestName = name;
-            $display("> RUN: %s (%t)", name, $time());
+            $display("> RUN: %s", name);
             //    $display(">> %t", $time());
         endtask
 

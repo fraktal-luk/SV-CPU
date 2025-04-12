@@ -265,6 +265,8 @@ module DataL1(
     function automatic void scheduleTlbFill(input Mword adr);
         Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
 
+             //   $error("sch TLB fill");
+
         if (!mappingFillCounters.exists(pageBase))
             mappingFillCounters[pageBase] = 12;  
     endfunction
@@ -319,12 +321,16 @@ module DataL1(
         allocInTlb(adr);
         mappingFillCounters.delete(adr);
 
+          //  $error(" TLB filled.");
+
         notifyTlbFill <= 1;
         notifiedTlbAdr <= adr;           
     endtask 
 
 
     task automatic handleUncachedData();
+         //   if (uncachedReads[0].ready) $error("unc ready");
+    
         if (uncachedReads[0].ongoing) begin
             if (--uncachedReads[0].counter == 0) begin
                 uncachedReads[0].ongoing = 0;
@@ -412,7 +418,7 @@ module DataL1(
             foreach (readReqs[p]) begin
                  if (!readReqs[p].active || $isunknown(readReqs[p].adr)) continue;
                  
-                 res[p] = translateAddress(readReqs[p].adr);
+                 res[p] = translateAddress_NoFill(readReqs[p].adr);
             end
             
             return res;
@@ -422,6 +428,8 @@ module DataL1(
 
     task automatic handleReads();
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+
+         //   if (readReqs[0].active) $error(" have req 0!");
 
         foreach (readReqs[p]) begin
             Mword vadr = readReqs[p].adr;
@@ -443,6 +451,7 @@ module DataL1(
         DataCacheOutput res;
         
         if (!tr.present) begin
+             //   $error("TLB miss at");
             res.status = CR_TLB_MISS;
         end
         else if (!isPhysPresent(tr.phys)) begin
@@ -510,8 +519,42 @@ module DataL1(
     endfunction
 
 
+    function automatic Translation translateAddress_NoFill(input EffectiveAddress adr);
+        Translation res;
+
+        if ($isunknown(adr)) return res;
+
+        if (!isTlbPresent(adr)) begin
+            res.present = 0;
+            //if (!isTlbPending(adr)) scheduleTlbFill(adr);
+            return res;
+        end
+
+        // TMP: in "mapping always present" range:
+        res.present = 1; // Obviously
+        //res.pHigh = res.vHigh; // Direct mapping of memory
+        res.desc = '{
+            allowed: 1,
+            canRead: 1,
+            canWrite: 1,
+            canExec: 1,
+            cached: 1
+        };
+
+        res.phys = {adrHigh(adr), adrLow(adr)};
+
+        // TMP: uncached rnge
+        if (isUncachedRange(adr))
+            res.desc.cached = 0;
+
+        return res;
+    endfunction
+
+
+
+
     assign translations = getTranslations();//readReqs);
-    //always_comb translations_T = getTranslations();
+    always_comb translations_T = getTranslations();
 
 
     always @(posedge clk) begin
