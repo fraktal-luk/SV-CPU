@@ -15,6 +15,7 @@ module DataL1(
             input logic clk,
             input DataReadReq readReqs[N_MEM_PORTS],
             input MemWriteInfo TMP_writeReqs[2],
+            output Translation translationsOut[N_MEM_PORTS],
             output DataCacheOutput readOut[N_MEM_PORTS]
 );
 
@@ -25,7 +26,7 @@ module DataL1(
 
         typedef Translation TranslationA[N_MEM_PORTS];
 
-        Translation translations[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
+        //Translation translations[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
         Translation translations_T[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
 
 
@@ -553,8 +554,10 @@ module DataL1(
 
 
 
-    assign translations = getTranslations();//readReqs);
+    //assign translations = getTranslations();//readReqs);
     always_comb translations_T = getTranslations();
+
+    assign translationsOut = translations_T;
 
 
     always @(posedge clk) begin

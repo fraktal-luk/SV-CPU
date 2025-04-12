@@ -20,7 +20,8 @@ module MemSubpipe#(
 
     output DataReadReq readReq,
     output DataReadReq sysReadReq,
-
+    
+    input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
     input DataCacheOutput sysRegResp,
     input UopPacket sqResp,

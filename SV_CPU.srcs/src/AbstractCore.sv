@@ -84,7 +84,7 @@ module AbstractCore
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, icacheOut);
-    DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, dcacheOuts);
+    DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
