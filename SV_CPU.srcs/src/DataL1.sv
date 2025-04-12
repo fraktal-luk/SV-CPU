@@ -23,6 +23,12 @@ module DataL1(
     
         localparam logic DONT_TRANSLATE = 1; // TMP
 
+        typedef Translation TranslationA[N_MEM_PORTS];
+
+        Translation translations[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
+        Translation translations_T[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
+
+
     logic notifyFill = 0;
     Mword notifiedAdr = 'x;
 
@@ -72,17 +78,6 @@ module DataL1(
     endfunction
 
 
-
-    //    typedef struct {
-    //        logic active;
-    //            logic store;            
-    //            logic uncachedReq;
-    //        Mword adr;
-    //        AccessSize size;
-    //    } DataReadReq;
-    
-    //    localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
-   
         typedef struct {
             logic ready = 0;
         
@@ -410,6 +405,21 @@ module DataL1(
         handleUncachedData();
     endtask
 
+
+        function automatic TranslationA getTranslations();//input DataReadReq readReqs[N_MEM_PORTS]);
+            TranslationA res = '{default: DEFAULT_TRANSLATION};
+        
+            foreach (readReqs[p]) begin
+                 if (!readReqs[p].active || $isunknown(readReqs[p].adr)) continue;
+                 
+                 res[p] = translateAddress(readReqs[p].adr);
+            end
+            
+            return res;
+        endfunction
+    
+
+
     task automatic handleReads();
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
@@ -473,8 +483,6 @@ module DataL1(
 
         if ($isunknown(adr)) return res;
 
-        res.vHigh = adrHigh(adr);
-
         if (!isTlbPresent(adr)) begin
             res.present = 0;
             if (!isTlbPending(adr)) scheduleTlbFill(adr);
@@ -483,7 +491,7 @@ module DataL1(
 
         // TMP: in "mapping always present" range:
         res.present = 1; // Obviously
-        res.pHigh = res.vHigh; // Direct mapping of memory
+        //res.pHigh = res.vHigh; // Direct mapping of memory
         res.desc = '{
             allowed: 1,
             canRead: 1,
@@ -492,7 +500,7 @@ module DataL1(
             cached: 1
         };
 
-        res.phys = {res.pHigh, adrLow(adr)};
+        res.phys = {adrHigh(adr), adrLow(adr)};
 
         // TMP: uncached rnge
         if (isUncachedRange(adr))
@@ -500,6 +508,10 @@ module DataL1(
 
         return res;
     endfunction
+
+
+    assign translations = getTranslations();//readReqs);
+    //always_comb translations_T = getTranslations();
 
 
     always @(posedge clk) begin

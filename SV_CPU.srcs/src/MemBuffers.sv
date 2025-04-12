@@ -28,6 +28,7 @@ module StoreQueue
     output OpSlotAB outGroup,
 
     input UopPacket wrInputsE0[N_MEM_PORTS],
+        input UopPacket wrInputsE0_tr[N_MEM_PORTS],
     input UopPacket wrInputsE1[N_MEM_PORTS],
     input UopPacket wrInputsE2[N_MEM_PORTS]
 );
@@ -111,7 +112,6 @@ module StoreQueue
 
 
     task automatic flushPartial();
-        //InsId causingMid = branchEventInfo.eventMid;
         int p = startPointer;
 
         endPointer = startPointer;
@@ -185,7 +185,7 @@ module StoreQueue
         else
             drainPointer = startPointer;
 
-         outputQM = makeQM(outputQ);
+        outputQM = makeQM(outputQ);
     endtask
 
 
@@ -197,6 +197,11 @@ module StoreQueue
 
 
 
+    function automatic int findIndex(input UopId uid);
+        int found[$] = content_N.find_first_index with (item.mid == U2M(uid));
+        assert (found.size() == 1) else $fatal(2, "id %d not found in queue", U2M(uid));
+        return found[0];
+    endfunction
 
 
     task automatic update();
@@ -205,12 +210,10 @@ module StoreQueue
             if (!wrInputsE0[p].active) continue;
             if (!HELPER::appliesU(uname)) continue;
 
-            //if (HELPER::appliesU(uname)) 
             begin
-               int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE0[p].TMP_oid));
+               int index = findIndex(wrInputsE0[p].TMP_oid);
 
-               if (found.size() == 1) HELPER::updateEntry(insMap, content_N[found[0]], wrInputsE0[p], branchEventInfo);
-               else $fatal(2, "Sth wrong with Q update [%p], found %p", wrInputsE0[p].TMP_oid, found.size(), wrInputsE0[p]);
+               HELPER::updateEntry(insMap, content_N[index], wrInputsE0[p], branchEventInfo);
 
                if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
                    putMilestone(wrInputsE0[p].TMP_oid, InstructionMap::WriteMemAddress);
@@ -223,15 +226,12 @@ module StoreQueue
                 if (!wrInputsE1[p].active) continue;
                 if (!HELPER::appliesU(uname)) continue;
 
-                //if (HELPER::appliesU(uname))
                 begin
                    int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE1[p].TMP_oid));
         
                    if (found.size() == 1) HELPER::updateEntryE1(insMap, content_N[found[0]], wrInputsE1[p], branchEventInfo);
                    else $fatal(2, "Sth wrong with Q update [%p], found %p", wrInputsE1[p].TMP_oid, found.size(), wrInputsE1[p]);
-    
-                   //if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
-                   //    putMilestone(wrInputsE1[p].TMP_oid, InstructionMap::WriteMemAddress);
+
                 end
             end
 
@@ -242,8 +242,6 @@ module StoreQueue
 
                 if (!(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
-
-                //if (HELPER::appliesU(uname))
                 begin
                    int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
 
@@ -278,7 +276,6 @@ module StoreQueue
     task automatic handleForwardsS();
         foreach (theExecBlock.toLqE0[p]) begin
             UopPacket loadOp = theExecBlock.toLqE0[p];
-            //Mword adr = loadOp.result;
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
@@ -301,7 +298,6 @@ module StoreQueue
     task automatic handleHazardsL();    
         foreach (theExecBlock.toSqE0[p]) begin
             UopPacket storeUop = theExecBlock.toSqE0[p];
-            //Mword adr = storeUop.result;
             UopPacket resb;
 
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;

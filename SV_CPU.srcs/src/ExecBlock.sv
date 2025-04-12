@@ -45,9 +45,11 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket toReplayQueue[N_MEM_PORTS];
 
     UopPacket toLqE0[N_MEM_PORTS];
+        UopPacket toLqE0_tr[N_MEM_PORTS]; // TMP. transalted
     UopPacket toLqE1[N_MEM_PORTS];
     UopPacket toLqE2[N_MEM_PORTS];
     UopPacket toSqE0[N_MEM_PORTS];
+        UopPacket toSqE0_tr[N_MEM_PORTS]; // TMP. transalted
     UopPacket toSqE1[N_MEM_PORTS];
     UopPacket toSqE2[N_MEM_PORTS];
     UopPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
@@ -172,8 +174,13 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
     
+    
+    
     assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toSqE0 = toLqE0;
+
+        assign toLqE0_tr = toLqE0;
+        assign toSqE0_tr = toSqE0;
 
     assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
     assign toSqE1 = toLqE1;

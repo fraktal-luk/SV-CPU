@@ -9,6 +9,8 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
+    import CacheDefs::*;
+    
 
     // General uarch defs
     localparam int N_INT_PORTS = 4;
@@ -51,6 +53,7 @@ package ExecDefs;
     localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
 
 
+
     typedef struct {
         logic active;
         UidT TMP_oid;
@@ -58,6 +61,11 @@ package ExecDefs;
         Poison poison;
         Mword result;
     } UopPacket;
+
+
+    typedef UopPacket UopMemPacket;
+    
+    
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
 
@@ -485,6 +493,7 @@ package ExecDefs;
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
+
 
 
 endpackage

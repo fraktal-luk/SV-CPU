@@ -32,6 +32,7 @@ module MemSubpipe#(
 
     UopPacket stage0, stage0_E;
     
+    AccessDesc accessDesc = DEFAULT_ACCESS_DESC;
     logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
     AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
@@ -82,21 +83,54 @@ module MemSubpipe#(
 
 
     /////////////////////////////////////////////////////////////////////////////////////
+
+    // 
+    function automatic AccessDesc getAccessDesc(input UopPacket p, input Mword adr);
+        AccessDesc res;
+        UopName uname = decUname(p.TMP_oid);
+
+        AccessInfo aInfo = analyzeAccess(adr, getTransactionSize(uname));
+
+        if (!p.active) return res;
+
+        res.size = getTransactionSize(uname);
+        
+        res.store = isStoreUop(uname);
+        res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);
+        res.uncachedReq = (p.status == ES_UNCACHED_1);
+        res.uncachedCollect = (p.status == ES_UNCACHED_2);
+        
+//            readActive <= stateE0.active && isMemUop(uname);
+//            sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
+//            storeFlag <= ;
+//            uncachedFlag <= ;
+        res.vadr = adr;
+
+        res.unaligned = aInfo.unaligned;
+        res.blockCross = aInfo.blockCross;
+        res.pageCross = aInfo.pageCross;
     
+        return res;
+    endfunction 
+
+
+ 
     task automatic performE0();    
         UopPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
-
-        readSize = getTransactionSize(uname);
-        if (!stateE0.active) readSize = SIZE_NONE;
         
-        readActive <= stateE0.active && isMemUop(uname);
-        sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
-        storeFlag <= isStoreUop(uname);
-        uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
-        effAdrE0 <= adr;
-
+            accessDesc <= getAccessDesc(stateE0, adr);
+        // TODO: structure this as extracting the "basic description" stage of mem uop
+            readSize = getTransactionSize(uname);
+            if (!stateE0.active) readSize = SIZE_NONE;
+            
+            readActive <= stateE0.active && isMemUop(uname);
+            sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
+            storeFlag <= isStoreUop(uname);
+            uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
+            effAdrE0 <= adr;
+    
         pE0 <= updateE0(stateE0, adr);
     endtask
     

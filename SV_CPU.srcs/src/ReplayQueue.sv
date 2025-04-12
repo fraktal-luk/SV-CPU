@@ -21,15 +21,19 @@ module ReplayQueue(
     localparam int SIZE = 16;
 
     typedef struct {
+        // Scheduling state
         logic used;
         logic active;
         logic ready;
-            int readyCnt;
-            logic ready_N;
-        ExecStatus execStatus;
-        UidT uid;
-        Mword adr;
-            AccessSize size;
+          int readyCnt;
+          logic ready_N;
+        
+        // uop status
+        ExecStatus execStatus; 
+        
+        UidT uid;       // constant
+            Mword adr;        // transaction desc
+            AccessSize size;  // t.d.
     } Entry;
 
     localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE};

@@ -25,13 +25,13 @@ package CacheDefs;
     typedef struct {
         logic allowed;
     } InstructionLineDesc;
-    
+
     typedef struct {
         logic allowed;
-            logic canRead;
-            logic canWrite;
-            logic canExec;
-            logic cached;
+        logic canRead;
+        logic canWrite;
+        logic canExec;
+        logic cached;
     } DataLineDesc;
 
     localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
@@ -64,7 +64,6 @@ package CacheDefs;
         DEFAULT_DATA_LINE_DESC,
         'x
     };
-
 
 
 //////////////////
@@ -155,8 +154,6 @@ package CacheDefs;
     typedef struct {
         EffectiveAddress adr;
         AccessSize size;
-        VirtualAddressHigh aHigh;
-        VirtualAddressLow aLow;
         int block;
         int blockOffset;
         logic unaligned;
@@ -167,8 +164,6 @@ package CacheDefs;
     localparam AccessInfo DEFAULT_ACCESS_INFO = '{
         adr: 'x,
         size: SIZE_NONE,
-        aHigh: 'x,
-        aLow: 'x,
         block: -1,
         blockOffset: -1,
         unaligned: 'x,
@@ -177,21 +172,52 @@ package CacheDefs;
     };
 
 
+
+      // Mem uop packet:
+      //  general - id, poison, status?
+      //    transaction description:
+      //      - basic part: static type of transfer (load/store, 'system', aq-rel, nontemporal?), size, vadr 
+      //      - translation (and adr check?): page present, page desc (includes access rights and 'cached'), padr
+      //       - status considerations: unaligned, block cross, page cross, error(kind?)/refetch  -- most can be derived from 'basic part'
+      //      - data: present or not (or multiple hit?), value 
+     
+//     typedef enum {
+//        TT_LOAD, TT_STORE, TT_SYSLOAD, TT_SYSSTORE
+//     } AccessType;
+
+     // basic info
+     typedef struct {
+        //TransactionType ttype;
+        logic active;
+
+        logic sys;
+        logic store;
+        logic uncachedReq;
+        logic uncachedCollect;
+        
+         // FUTURE: access rights of this uop?
+        AccessSize size;
+        Mword vadr;
+        logic unaligned;
+        logic blockCross;
+        logic pageCross;
+     } AccessDesc;
+
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
+
+
     typedef struct {
         logic present; // TLB hit
-        VirtualAddressHigh vHigh;
-        PhysicalAddressHigh pHigh;
-            Mword phys;
         DataLineDesc desc;
+        Dword phys; // TODO: rename to 'padr'
     } Translation;
 
     localparam Translation DEFAULT_TRANSLATION = '{
         present: 0,
-        vHigh: 'x,
-        pHigh: 'x,
-            phys: 'x,
-        desc: DEFAULT_DATA_LINE_DESC
+        desc: DEFAULT_DATA_LINE_DESC,
+        phys: 'x
     };
+
 
 
 
@@ -199,16 +225,11 @@ package CacheDefs;
         AccessInfo res;
         
         VirtualAddressLow aLow = adrLow(adr);
-        VirtualAddressHigh aHigh = adrHigh(adr);
-        
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
-        //int byteSize = accessSize;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-        res.aHigh = aHigh;
-        res.aLow = aLow;        
+      
         res.adr = adr;
         res.size = accessSize;
         

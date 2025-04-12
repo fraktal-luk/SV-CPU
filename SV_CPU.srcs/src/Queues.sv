@@ -27,21 +27,27 @@ package Queues;
     class StoreQueueHelper;
         typedef struct {
             InsId mid;
-            logic error;
-            logic refetch;
+
+            AccessSize size;
+
             logic adrReady;
             Mword adr;
             logic phyAdrReady;
             Dword phyAdr;
+            
             logic valReady;
             Mword val;
-            AccessSize size;
-            logic uncached;
+            
+                logic uncached;  // TODO:  include in page desc
+            
             logic committed;
-            logic dontForward;
+            logic error;
+            logic refetch;
+            
+                logic dontForward; // TODO: replace
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
     
 
         static function automatic logic appliesU(input UopName uname);
@@ -51,8 +57,6 @@ package Queues;
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             return  '{
                 mid: id,
-                error: 0,
-                refetch: 0,
                 adrReady: 0,
                 adr: 'x,
                 phyAdrReady: 0,
@@ -62,6 +66,8 @@ package Queues;
                 size: getTransactionSize(imap.get(id).mainUop),
                 uncached: 0,
                 committed: 0,
+                error: 0,
+                refetch: 0,
                 dontForward: (imap.get(id).mainUop == UOP_mem_sts)
             };
         endfunction
@@ -173,19 +179,23 @@ package Queues;
     endclass
 
 
+
     class LoadQueueHelper;
         typedef struct {
             InsId mid;
-            logic error;
-            logic refetch;
+            
+                AccessSize size;
+
             logic adrReady;
             Mword adr;
             logic phyAdrReady;
             Dword phyAdr;
-            AccessSize size;
+            
+                logic error;
+                logic refetch;
         } Entry;
 
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, SIZE_NONE};
+        localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x};
 
         static function automatic logic appliesU(input UopName uname);
             return isLoadUop(uname);
@@ -194,13 +204,13 @@ package Queues;
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = '{
                 mid: id,
-                error: 0,
-                refetch: 0,
+                size: getTransactionSize(imap.get(id).mainUop),
                 adrReady: 0,
                 adr: 'x,
                 phyAdrReady: 0,
                 phyAdr: 'x,
-                size: getTransactionSize(imap.get(id).mainUop)
+                error: 0,
+                refetch: 0
             };
             return res;
         endfunction
