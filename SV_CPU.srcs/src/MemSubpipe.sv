@@ -28,10 +28,11 @@ module MemSubpipe#(
     input UopPacket lqResp
 );
 
-    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
-    UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+    UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pD0_Emp, pD1_Emp;
 
-    UopPacket stage0, stage0_E;
+    UopMemPacket stage0, stage0_E;
     
     AccessDesc accessDesc = DEFAULT_ACCESS_DESC;
     logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
@@ -40,7 +41,7 @@ module MemSubpipe#(
 
     //assign stage0 = pE2;
     assign stage0_E = pE2_E;
-    assign p0 = opP;
+    assign p0 = TMP_toMemPacket(opP);
 
 
     always @(posedge AbstractCore.clk) begin
@@ -69,15 +70,25 @@ module MemSubpipe#(
     assign pE2_E = effP(pE2);
     assign pD0_E = effP(pD0);
     assign pD1_E = effP(pD1);
-    
+
+
+        assign p0_Emp = TMP_mp(p0_E);
+        assign p1_Emp = TMP_mp(p1_E);
+        assign pE0_Emp = TMP_mp(pE0_E);
+        assign pE1_Emp = TMP_mp(pE1_E);
+        assign pE2_Emp = TMP_mp(pE2_E);
+        assign pD0_Emp = TMP_mp(pD0_E);
+        assign pD1_Emp = TMP_mp(pD1_E);
+
+
     ForwardingElement image_E[-3:1];
     
     assign image_E = '{
-        -3: p1_E,
-        -2: pE0_E,
-        -1: pE1_E,
-        0: pE2_E,
-        1: pD0_E,
+        -3: p1_Emp,
+        -2: pE0_Emp,
+        -1: pE1_Emp,
+        0: pE2_Emp,
+        1: pD0_Emp,
         default: EMPTY_FORWARDING_ELEMENT
     };
     
@@ -86,7 +97,7 @@ module MemSubpipe#(
     /////////////////////////////////////////////////////////////////////////////////////
 
     // 
-    function automatic AccessDesc getAccessDesc(input UopPacket p, input Mword adr);
+    function automatic AccessDesc getAccessDesc(input UopMemPacket p, input Mword adr);
         AccessDesc res;
         UopName uname = decUname(p.TMP_oid);
 
@@ -117,7 +128,7 @@ module MemSubpipe#(
 
  
     task automatic performE0();    
-        UopPacket stateE0 = tickP(p1);
+        UopMemPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
         
@@ -142,15 +153,15 @@ module MemSubpipe#(
     endtask
     
     task automatic performE2();    
-        UopPacket stateE2 = tickP(pE1);
+        UopMemPacket stateE2 = tickP(pE1);
         stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp, lqResp);
         pE2 <= stateE2;
     endtask
 
 
 
-    function automatic UopPacket updateE0(input UopPacket p, input Mword adr);
-        UopPacket res = p;
+    function automatic UopMemPacket updateE0(input UopMemPacket p, input Mword adr);
+        UopMemPacket res = p;
 
         if (!p.active) return res;
       
@@ -161,14 +172,14 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket updateE1(input UopPacket p);
-        UopPacket res = p;
+    function automatic UopMemPacket updateE1(input UopMemPacket p);
+        UopMemPacket res = p;
         return res;
     endfunction
 
 
-    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
-        UopPacket res = p;
+    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
+        UopMemPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (!p.active) return res;
@@ -212,8 +223,8 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p, input DataCacheOutput sysResp);
-        UopPacket res = p;
+    function automatic UopMemPacket TMP_updateSysTransfer(input UopMemPacket p, input DataCacheOutput sysResp);
+        UopMemPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (sysResp.status == CR_INVALID) begin
@@ -233,7 +244,7 @@ module MemSubpipe#(
     endfunction
     
 
-    function automatic UopPacket updateE2_Regular(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 

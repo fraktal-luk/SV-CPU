@@ -27,10 +27,10 @@ module StoreQueue
     input OpSlotAB inGroup,
     output OpSlotAB outGroup,
 
-    input UopPacket wrInputsE0[N_MEM_PORTS],
-        input UopPacket wrInputsE0_tr[N_MEM_PORTS],
-    input UopPacket wrInputsE1[N_MEM_PORTS],
-    input UopPacket wrInputsE2[N_MEM_PORTS]
+    input UopMemPacket wrInputsE0[N_MEM_PORTS],
+        input UopMemPacket wrInputsE0_tr[N_MEM_PORTS],
+    input UopMemPacket wrInputsE1[N_MEM_PORTS],
+    input UopMemPacket wrInputsE2[N_MEM_PORTS]
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -275,7 +275,7 @@ module StoreQueue
 
     task automatic handleForwardsS();
         foreach (theExecBlock.toLqE0[p]) begin
-            UopPacket loadOp = theExecBlock.toLqE0[p];
+            UopMemPacket loadOp = theExecBlock.toLqE0[p];
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
@@ -297,7 +297,7 @@ module StoreQueue
 
     task automatic handleHazardsL();    
         foreach (theExecBlock.toSqE0[p]) begin
-            UopPacket storeUop = theExecBlock.toSqE0[p];
+            UopMemPacket storeUop = theExecBlock.toSqE0[p];
             UopPacket resb;
 
             theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;

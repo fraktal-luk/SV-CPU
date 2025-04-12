@@ -60,14 +60,20 @@ package ExecDefs;
         ExecStatus status;
         Poison poison;
         Mword result;
-    } UopPacket;
-
-
-    typedef UopPacket UopMemPacket;
-    
-    
+    } UopPacket;    
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
+
+
+        typedef UopPacket UopMemPacket;
+    
+        function automatic UopPacket TMP_mp(input UopMemPacket p);
+            return p;
+        endfunction
+
+        function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
+            return p;
+        endfunction
 
 
     function automatic UopPacket memToComplete(input UopPacket p);

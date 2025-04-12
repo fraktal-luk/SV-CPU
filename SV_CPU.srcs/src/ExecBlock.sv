@@ -40,24 +40,24 @@ module ExecBlock(ref InstructionMap insMap,
     
     logic TMP_memAllow;
     
-    UopPacket issuedReplayQueue;
+    UopMemPacket issuedReplayQueue;
     
-    UopPacket toReplayQueue0, toReplayQueue2;
-    UopPacket toReplayQueue[N_MEM_PORTS];
+    UopMemPacket toReplayQueue0, toReplayQueue2;
+    UopMemPacket toReplayQueue[N_MEM_PORTS];
 
-    UopPacket toLqE0[N_MEM_PORTS];
-        UopPacket toLqE0_tr[N_MEM_PORTS]; // TMP. transalted
-    UopPacket toLqE1[N_MEM_PORTS];
-    UopPacket toLqE2[N_MEM_PORTS];
-    UopPacket toSqE0[N_MEM_PORTS];
-        UopPacket toSqE0_tr[N_MEM_PORTS]; // TMP. transalted
-    UopPacket toSqE1[N_MEM_PORTS];
-    UopPacket toSqE2[N_MEM_PORTS];
-    UopPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
+    UopMemPacket toLqE0[N_MEM_PORTS];
+        UopMemPacket toLqE0_tr[N_MEM_PORTS]; // TMP. transalted
+    UopMemPacket toLqE1[N_MEM_PORTS];
+    UopMemPacket toLqE2[N_MEM_PORTS];
+    UopMemPacket toSqE0[N_MEM_PORTS];
+        UopMemPacket toSqE0_tr[N_MEM_PORTS]; // TMP. transalted
+    UopMemPacket toSqE1[N_MEM_PORTS];
+    UopMemPacket toSqE2[N_MEM_PORTS];
+    UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
-    UopPacket fromSq[N_MEM_PORTS];
-    UopPacket fromLq[N_MEM_PORTS];
-    UopPacket fromBq[N_MEM_PORTS];
+    UopMemPacket fromSq[N_MEM_PORTS];
+    UopMemPacket fromLq[N_MEM_PORTS];
+    UopMemPacket fromBq[N_MEM_PORTS];
     
 
     // Int 0
@@ -163,8 +163,8 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
     assign doneBranch_E = branch0.stage0_E;
-    assign doneMem0_E = memToComplete(mem0.stage0_E);
-    assign doneMem2_E = memToComplete(mem2.stage0_E);
+    assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
+    assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
     assign doneStoreData_E = storeData0.stage0_E;
