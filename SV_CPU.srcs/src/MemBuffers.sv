@@ -73,20 +73,13 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin    
         advance();
 
+            
+
         update(); // Before reading and FW checks to eliminate hazards
 
-        if (IS_STORE_QUEUE) begin
-            handleForwardsS();
-            updateStoreData();
-        end
-        
-        if (IS_LOAD_QUEUE) begin
-            handleHazardsL();
-        end
-        
-        if (IS_BRANCH_QUEUE) begin
-            handleBranch();
-        end
+        doReads();
+
+            submod.readImpl();
 
 
         if (lateEventInfo.redirect)
@@ -96,6 +89,23 @@ module StoreQueue
         else
             writeInput(inGroup);
     end
+
+    
+    task automatic doReads();
+        if (IS_STORE_QUEUE) begin
+           // updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
+           // handleForwardsS();
+        end
+        
+        if (IS_LOAD_QUEUE) begin
+           // handleHazardsL();
+        end
+        
+        if (IS_BRANCH_QUEUE) begin
+           // handleBranch();
+        end
+    endtask
+
 
 
     task automatic flushAll();
@@ -373,4 +383,34 @@ module StoreQueue
         end
     endfunction
 
+
+        string TMP_txt; 
+
+endmodule
+
+
+
+module TmpSubSq();
+    task automatic readImpl();
+        StoreQueue.TMP_txt = "st  queue";
+
+            updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
+            handleForwardsS();
+    endtask
+endmodule
+
+module TmpSubLq();
+    task automatic readImpl();
+        StoreQueue.TMP_txt = "ld  queue";
+        
+            handleHazardsL();
+    endtask
+endmodule
+
+module TmpSubBr();
+    task automatic readImpl();
+        StoreQueue.TMP_txt = "br  queue";
+        
+        StoreQueue.handleBranch();
+    endtask
 endmodule

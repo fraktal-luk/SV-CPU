@@ -703,4 +703,9 @@ module AbstractCore
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
 
+        bind StoreQueue: theSq TmpSubSq submod();
+        bind StoreQueue: theLq TmpSubLq submod();
+        bind StoreQueue: theBq TmpSubBr submod();
+
+
 endmodule
