@@ -92,7 +92,7 @@ module StoreQueue
     task automatic flushAll();
         foreach (content_N[i]) begin
             InsId thisId = content_N[i].mid;        
-            if (HELPER::isCommitted(content_N[i])) continue; 
+            if (isCommitted(content_N[i])) continue; 
             if (thisId != -1) putMilestoneM(thisId, QUEUE_FLUSH);            
             content_N[i] = EMPTY_QENTRY;
         end
@@ -127,6 +127,38 @@ module StoreQueue
         return id != -1 && id <= AbstractCore.theRob.lastOut;
     endfunction
 
+    function automatic logic isCommitted(input QEntry entry);
+        return HELPER::isCommitted(entry);
+    endfunction
+
+    function automatic logic appliesU(input UopName uname);
+        return HELPER::appliesU(uname);
+    endfunction
+
+    function automatic void setCommitted(ref QEntry entry);
+        HELPER::setCommitted(entry);
+    endfunction
+
+    function automatic void setEmpty(ref QEntry entry);
+        entry = EMPTY_QENTRY;
+    endfunction
+
+
+    function automatic void commitEntry(ref QEntry entry);
+        if (SQ_RETAIN && IS_STORE_QUEUE) begin
+            setCommitted(entry);
+        end
+        else begin
+            setEmpty(entry);
+        end
+    endfunction
+
+
+    task automatic checkOnCommit();
+        QEntry startEntry = content_N[startPointer % SIZE];
+        submod.verify(startEntry);
+    endtask
+
 
     task automatic advance();
         int nOut = 0;
@@ -147,23 +179,9 @@ module StoreQueue
             outputQ.pop_front();
 
             putMilestoneM(thisId, QUEUE_EXIT);
-
-            HELPER::verifyOnCommit(insMap, content_N[startPointer % SIZE]);
-
-            if (IS_STORE_QUEUE) begin
-                Mword actualAdr = HELPER::getAdr(content_N[startPointer % SIZE]);
-                Mword actualVal = HELPER::getVal(content_N[startPointer % SIZE]);
-                checkStore(content_N[startPointer % SIZE].mid, actualAdr, actualVal);
-            end
-
-            if (SQ_RETAIN && IS_STORE_QUEUE) begin
-                HELPER::setCommitted(content_N[startPointer % SIZE]);
-                startPointer = (startPointer+1) % (2*SIZE);
-            end
-            else begin
-                content_N[startPointer % SIZE] = EMPTY_QENTRY;
-                startPointer = (startPointer+1) % (2*SIZE);
-            end
+            checkOnCommit();
+            commitEntry(content_N[startPointer % SIZE]);
+            startPointer = (startPointer+1) % (2*SIZE);
         end
 
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
@@ -199,7 +217,7 @@ module StoreQueue
         foreach (wrInputsE0[p]) begin
             UopName uname = decUname(wrInputsE0[p].TMP_oid);
             if (!wrInputsE0[p].active) continue;
-            if (!HELPER::appliesU(uname)) continue;
+            if (!appliesU(uname)) continue;
 
             begin
                int index = findIndex(wrInputsE0[p].TMP_oid);
@@ -219,7 +237,7 @@ module StoreQueue
                 UopMemPacket packet = wrInputsE2[p];
                 UopName uname = decUname(packet.TMP_oid);
                 if (!packet.active) continue;
-                if (!HELPER::appliesU(uname)) continue;
+                if (!appliesU(uname)) continue;
 
                 if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
@@ -234,25 +252,6 @@ module StoreQueue
 
     endtask
 
-  
-//    task automatic updateStoreData();
-//        if (IS_STORE_QUEUE) begin
-//            UopPacket dataUop = theExecBlock.storeDataE0_E;
-//            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
-//                int dataFound[$] = content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
-//                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
-                
-//                HELPER::updateStoreData(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
-//                putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-//                dataUop.result = HELPER::getAdr(content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
-//            end
-            
-//            storeDataD0 <= tickP(dataUop);
-//            storeDataD1 <= tickP(storeDataD0);
-//            storeDataD2 <= tickP(storeDataD1);
-//        end
-//    endtask
-
 
                     // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
@@ -261,25 +260,13 @@ module StoreQueue
         foreach (inGroup[i]) begin
             InsId thisMid = inGroup[i].mid;
 
-            if (HELPER::appliesU(decMainUop(thisMid))) begin
+            if (appliesU(decMainUop(thisMid))) begin
                 content_N[endPointer % SIZE] = HELPER::newEntry(insMap, thisMid);                
                 putMilestoneM(thisMid, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
         end
     endtask
-
-
-
-    // Used once by Mem subpipes
-    function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
-        Transaction tr[$] = AbstractCore.memTracker.stores.find_first with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
-        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find_first with (item.owner == mid); // ... so may be already here
-
-        if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
-
-        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
-    endfunction
 
 endmodule
 
@@ -310,23 +297,36 @@ module TmpSubSq();
         end
     endtask
 
+    task automatic verify(input StoreQueueHelper::Entry entry);
+        Mword actualAdr = StoreQueueHelper::getAdr(entry);
+        Mword actualVal = StoreQueueHelper::getVal(entry);
+        checkStore(entry.mid, actualAdr, actualVal);
+    endtask
+
+    function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
+        Transaction tr[$] = AbstractCore.memTracker.stores.find_first with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
+        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find_first with (item.owner == mid); // ... so may be already here
+
+        if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
+
+        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  StoreQueue.insMap.get(mid));
+    endfunction
+
   
     task automatic updateStoreData();
-        //if (IS_STORE_QUEUE) begin
-            UopPacket dataUop = theExecBlock.storeDataE0_E;
-            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
-                int dataFound[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
-                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
-                
-                StoreQueueHelper::updateStoreData(StoreQueue.insMap, StoreQueue.content_N[dataFound[0]], dataUop, StoreQueue.branchEventInfo);
-                putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-                dataUop.result = StoreQueueHelper::getAdr(StoreQueue.content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
-            end
+        UopPacket dataUop = theExecBlock.storeDataE0_E;
+        if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
+            int dataFound[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
+            assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
             
-            StoreQueue.storeDataD0 <= tickP(dataUop);
-            StoreQueue.storeDataD1 <= tickP(StoreQueue.storeDataD0);
-            StoreQueue.storeDataD2 <= tickP(StoreQueue.storeDataD1);
-        //end
+            StoreQueueHelper::updateStoreData(StoreQueue.insMap, StoreQueue.content_N[dataFound[0]], dataUop, StoreQueue.branchEventInfo);
+            putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+            dataUop.result = StoreQueueHelper::getAdr(StoreQueue.content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
+        end
+        
+        StoreQueue.storeDataD0 <= tickP(dataUop);
+        StoreQueue.storeDataD1 <= tickP(StoreQueue.storeDataD0);
+        StoreQueue.storeDataD2 <= tickP(StoreQueue.storeDataD1);
     endtask
 
     function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
@@ -367,6 +367,10 @@ module TmpSubLq();
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask
+    
+    task automatic verify(input LoadQueueHelper::Entry entry);
+
+    endtask
 endmodule
 
 module TmpSubBr();
@@ -382,5 +386,9 @@ module TmpSubBr();
             StoreQueue.lookupTarget <= 'x;
             StoreQueue.lookupLink <= 'x;
         end
+    endtask
+    
+    task automatic verify(input BranchQueueHelper::Entry entry);
+        BranchQueueHelper::verifyOnCommit(StoreQueue.insMap, entry);
     endtask
 endmodule
