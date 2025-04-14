@@ -62,8 +62,8 @@ module StoreQueue
     typedef QEntry QM[3*ROB_WIDTH];
 
     
-    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET;
-    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;
+    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET; // TODO: move to BQ special submodule because not used in LSQ
+    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;// TODO: move to BQ special submodule because not used in LSQ
 
     assign storeDataD0_E = effP(storeDataD0); 
     assign storeDataD1_E = effP(storeDataD1); 
@@ -235,75 +235,24 @@ module StoreQueue
     endtask
 
   
-    task automatic updateStoreData();
-        if (IS_STORE_QUEUE) begin
-            UopPacket dataUop = theExecBlock.storeDataE0_E;
-            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
-                int dataFound[$] = content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
-                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
+//    task automatic updateStoreData();
+//        if (IS_STORE_QUEUE) begin
+//            UopPacket dataUop = theExecBlock.storeDataE0_E;
+//            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
+//                int dataFound[$] = content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
+//                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
                 
-                HELPER::updateStoreData(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
-                putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-                dataUop.result = HELPER::getAdr(content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
-            end
-            
-            storeDataD0 <= tickP(dataUop);
-            storeDataD1 <= tickP(storeDataD0);
-            storeDataD2 <= tickP(storeDataD1);
-        end
-    endtask
-
-
-//    task automatic handleForwardsS();
-//        foreach (theExecBlock.toLqE0[p]) begin
-//            UopMemPacket loadOp = theExecBlock.toLqE0[p];
-//            UopPacket resb;
-
-//            theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
-
-//            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
-
-//            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), loadOp.result);
-
-//            if (resb.active) begin
-//                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
-//                AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
-//                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, loadOp.result, size);
+//                HELPER::updateStoreData(insMap, content_N[dataFound[0]], dataUop, branchEventInfo);
+//                putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+//                dataUop.result = HELPER::getAdr(content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
 //            end
-
-//            theExecBlock.fromSq[p] <= resb;
+            
+//            storeDataD0 <= tickP(dataUop);
+//            storeDataD1 <= tickP(storeDataD0);
+//            storeDataD2 <= tickP(storeDataD1);
 //        end
 //    endtask
 
-
-//    task automatic handleHazardsL();    
-//        foreach (theExecBlock.toSqE0[p]) begin
-//            UopMemPacket storeUop = theExecBlock.toSqE0[p];
-//            UopPacket resb;
-
-//            theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
-
-//            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-
-//            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
-//            theExecBlock.fromLq[p] <= resb;      
-//        end
-//    endtask
-
-
-//    task automatic handleBranch();    
-//        UopPacket p = theExecBlock.branch0.p0_E;
-
-//        if (p.active) begin
-//            int arrayIndex[$] = content_N.find_first_index with (item.mid == U2M(p.TMP_oid));
-//            lookupTarget <= HELPER::getAdr(content_N[arrayIndex[0]]);
-//            lookupLink <= HELPER::getLink(content_N[arrayIndex[0]]);
-//        end
-//        else begin
-//            lookupTarget <= 'x;
-//            lookupLink <= 'x;
-//        end
-//    endtask
 
                     // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
@@ -332,39 +281,14 @@ module StoreQueue
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  insMap.get(mid));
     endfunction
 
-
-    function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
-        Transaction latestOverlap = memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
-        logic isInside = memInside(eadr, (esize), tr.adr, (trSize));
-
-        // If sr source is not latestOverlap, denote this fact somewhere (so far printing an error, hasn't happened yet).
-        // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
-        assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
-        assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
-
-        if (sr.status == ES_CANT_FORWARD) begin //
-            logic isOverlapping = memOverlap(eadr, (esize), tr.adr, (trSize));
-            assert (isOverlapping && ((esize != trSize) || !isInside) ) else $error("Adr (same size and inside) or not overlapping");
-        end
-        else if (sr.status == ES_SQ_MISS) begin
-            assert (isInside) else $error("Adr not inside");
-        end
-        else begin
-            assert (isInside) else $error("Adr not inside");
-        end
-    endfunction
-
-
-        string TMP_txt; 
-
 endmodule
 
 
 
 module TmpSubSq();
     task automatic readImpl();
+        // TODO: move to 'update' section unless it should be after queue scan 
         updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
-        //handleForwardsS();
 
         foreach (theExecBlock.toLqE0[p]) begin
             UopMemPacket loadOp = theExecBlock.toLqE0[p];
@@ -385,11 +309,52 @@ module TmpSubSq();
             theExecBlock.fromSq[p] <= resb;
         end
     endtask
+
+  
+    task automatic updateStoreData();
+        //if (IS_STORE_QUEUE) begin
+            UopPacket dataUop = theExecBlock.storeDataE0_E;
+            if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
+                int dataFound[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
+                assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
+                
+                StoreQueueHelper::updateStoreData(StoreQueue.insMap, StoreQueue.content_N[dataFound[0]], dataUop, StoreQueue.branchEventInfo);
+                putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+                dataUop.result = StoreQueueHelper::getAdr(StoreQueue.content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
+            end
+            
+            StoreQueue.storeDataD0 <= tickP(dataUop);
+            StoreQueue.storeDataD1 <= tickP(StoreQueue.storeDataD0);
+            StoreQueue.storeDataD2 <= tickP(StoreQueue.storeDataD1);
+        //end
+    endtask
+
+    function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
+        Transaction latestOverlap = StoreQueue.memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
+        logic isInside = memInside(eadr, (esize), tr.adr, (trSize));
+
+        // If sr source is not latestOverlap, denote this fact somewhere (so far printing an error, hasn't happened yet).
+        // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
+        assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
+        assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
+
+        if (sr.status == ES_CANT_FORWARD) begin //
+            logic isOverlapping = memOverlap(eadr, (esize), tr.adr, (trSize));
+            assert (isOverlapping && ((esize != trSize) || !isInside) ) else $error("Adr (same size and inside) or not overlapping");
+        end
+        else if (sr.status == ES_SQ_MISS) begin
+            assert (isInside) else $error("Adr not inside");
+        end
+        else begin
+            assert (isInside) else $error("Adr not inside");
+        end
+    endfunction
+
 endmodule
+
 
 module TmpSubLq();
     task automatic readImpl();        
-        //handleHazardsL();
         foreach (theExecBlock.toSqE0[p]) begin
             UopMemPacket storeUop = theExecBlock.toSqE0[p];
             UopPacket resb;
@@ -406,15 +371,10 @@ endmodule
 
 module TmpSubBr();
     task automatic readImpl();        
-        //StoreQueue.handleBranch();
         UopPacket p = theExecBlock.branch0.p0_E;
 
         if (p.active) begin
-            //int arrayIndex[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(p.TMP_oid));
-            int index = findIndex(p.TMP_oid);
-            
-            //assert (index == arrayIndex[0]) else $fatal(2, "hhuyy");
-            
+            int index = findIndex(p.TMP_oid);     
             StoreQueue.lookupTarget <= BranchQueueHelper::getAdr(StoreQueue.content_N[index]);
             StoreQueue.lookupLink <= BranchQueueHelper::getLink(StoreQueue.content_N[index]);
         end
