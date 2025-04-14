@@ -92,15 +92,15 @@ package Queues;
             end
         endfunction
 
-        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            if (p.status == ES_UNCACHED_1) begin
-                entry.uncached = 1;
-            end
-            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
-                entry.phyAdrReady = 1; // TODO: not ready if translation failed
-                //entry.adr = p.result;
-            end
-        endfunction
+//        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+//            if (p.status == ES_UNCACHED_1) begin
+//                entry.uncached = 1;
+//            end
+//            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
+//                entry.phyAdrReady = 1; // TODO: not ready if translation failed
+//                //entry.adr = p.result;
+//            end
+//        endfunction
 
         static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);        
             if (p.status == ES_UNCACHED_1) begin
@@ -220,9 +220,9 @@ package Queues;
             entry.adr = p.result;
         endfunction
 
-        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-                entry.phyAdrReady = 1; // TODO: not ready if translation failed
-        endfunction
+//        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+//                entry.phyAdrReady = 1; // TODO: not ready if translation failed
+//        endfunction
 
         static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
 
@@ -349,9 +349,9 @@ endclass
      
         endfunction
 
-        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+//        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
 
-        endfunction
+//        endfunction
 
 
         static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);            

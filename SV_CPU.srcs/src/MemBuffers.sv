@@ -54,7 +54,7 @@ module StoreQueue
 
     QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
 
-    Mword lookupTarget = 'x, lookupLink = 'x;
+    Mword lookupTarget = 'x, lookupLink = 'x; // TODO: move to BQ special submodule because not used in LSQ
 
     QEntry outputQ[$:3*ROB_WIDTH];
     QEntry outputQM[3*ROB_WIDTH] = '{default: HELPER::EMPTY_QENTRY}; 
@@ -73,13 +73,10 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-            
 
         update(); // Before reading and FW checks to eliminate hazards
 
-        doReads();
-
-            submod.readImpl();
+        submod.readImpl();
 
 
         if (lateEventInfo.redirect)
@@ -89,22 +86,6 @@ module StoreQueue
         else
             writeInput(inGroup);
     end
-
-    
-    task automatic doReads();
-        if (IS_STORE_QUEUE) begin
-           // updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
-           // handleForwardsS();
-        end
-        
-        if (IS_LOAD_QUEUE) begin
-           // handleHazardsL();
-        end
-        
-        if (IS_BRANCH_QUEUE) begin
-           // handleBranch();
-        end
-    endtask
 
 
 
@@ -224,39 +205,29 @@ module StoreQueue
                int index = findIndex(wrInputsE0[p].TMP_oid);
 
                HELPER::updateEntry(insMap, content_N[index], wrInputsE0[p], branchEventInfo);
-
-               if (IS_STORE_QUEUE || IS_LOAD_QUEUE)
+                
+               // TODO: make separate milestones for SQ and LQ
+               if (IS_STORE_QUEUE)
+                   putMilestone(wrInputsE0[p].TMP_oid, InstructionMap::WriteMemAddress);
+               if (IS_LOAD_QUEUE)
                    putMilestone(wrInputsE0[p].TMP_oid, InstructionMap::WriteMemAddress);
             end
         end
 
         if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
-            foreach (wrInputsE1[p]) begin
-                UopName uname = decUname(wrInputsE1[p].TMP_oid);
-                if (!wrInputsE1[p].active) continue;
-                if (!HELPER::appliesU(uname)) continue;
-
-                begin
-                   int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE1[p].TMP_oid));
-        
-                   if (found.size() == 1) HELPER::updateEntryE1(insMap, content_N[found[0]], wrInputsE1[p], branchEventInfo);
-                   else $fatal(2, "Sth wrong with Q update [%p], found %p", wrInputsE1[p].TMP_oid, found.size(), wrInputsE1[p]);
-
-                end
-            end
-
             foreach (wrInputsE2[p]) begin
-                UopName uname = decUname(wrInputsE2[p].TMP_oid);
-                if (!wrInputsE2[p].active) continue;
+                UopMemPacket packet = wrInputsE2[p];
+                UopName uname = decUname(packet.TMP_oid);
+                if (!packet.active) continue;
                 if (!HELPER::appliesU(uname)) continue;
 
-                if (!(wrInputsE2[p].status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+                if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
                 begin
-                   int found[$] = content_N.find_first_index with (item.mid == U2M(wrInputsE2[p].TMP_oid));
+                   int found[$] = content_N.find_first_index with (item.mid == U2M(packet.TMP_oid));
 
-                   if (wrInputsE2[p].status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
-                   else if (wrInputsE2[p].status == ES_ILLEGAL) HELPER::setError(content_N[found[0]]);                   
+                   if (packet.status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
+                   else if (packet.status == ES_ILLEGAL) HELPER::setError(content_N[found[0]]);                   
                 end
             end
         end
@@ -283,56 +254,56 @@ module StoreQueue
     endtask
 
 
-    task automatic handleForwardsS();
-        foreach (theExecBlock.toLqE0[p]) begin
-            UopMemPacket loadOp = theExecBlock.toLqE0[p];
-            UopPacket resb;
+//    task automatic handleForwardsS();
+//        foreach (theExecBlock.toLqE0[p]) begin
+//            UopMemPacket loadOp = theExecBlock.toLqE0[p];
+//            UopPacket resb;
 
-            theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
+//            theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
 
-            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
+//            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), loadOp.result);
+//            resb = HELPER::scanQueue(insMap, content_N, U2M(loadOp.TMP_oid), loadOp.result);
 
-            if (resb.active) begin
-                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
-                AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
-                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, loadOp.result, size);
-            end
+//            if (resb.active) begin
+//                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
+//                AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
+//                checkSqResp(loadOp, resb, memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, loadOp.result, size);
+//            end
 
-            theExecBlock.fromSq[p] <= resb;
-        end
-    endtask
-
-
-    task automatic handleHazardsL();    
-        foreach (theExecBlock.toSqE0[p]) begin
-            UopMemPacket storeUop = theExecBlock.toSqE0[p];
-            UopPacket resb;
-
-            theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
-
-            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-
-            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
-            theExecBlock.fromLq[p] <= resb;      
-        end
-    endtask
+//            theExecBlock.fromSq[p] <= resb;
+//        end
+//    endtask
 
 
-    task automatic handleBranch();    
-        UopPacket p = theExecBlock.branch0.p0_E;
+//    task automatic handleHazardsL();    
+//        foreach (theExecBlock.toSqE0[p]) begin
+//            UopMemPacket storeUop = theExecBlock.toSqE0[p];
+//            UopPacket resb;
 
-        if (p.active) begin
-            int arrayIndex[$] = content_N.find_first_index with (item.mid == U2M(p.TMP_oid));
-            lookupTarget <= HELPER::getAdr(content_N[arrayIndex[0]]);
-            lookupLink <= HELPER::getLink(content_N[arrayIndex[0]]);
-        end
-        else begin
-            lookupTarget <= 'x;
-            lookupLink <= 'x;
-        end
-    endtask
+//            theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
+
+//            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+
+//            resb = HELPER::scanQueue(insMap, content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
+//            theExecBlock.fromLq[p] <= resb;      
+//        end
+//    endtask
+
+
+//    task automatic handleBranch();    
+//        UopPacket p = theExecBlock.branch0.p0_E;
+
+//        if (p.active) begin
+//            int arrayIndex[$] = content_N.find_first_index with (item.mid == U2M(p.TMP_oid));
+//            lookupTarget <= HELPER::getAdr(content_N[arrayIndex[0]]);
+//            lookupLink <= HELPER::getLink(content_N[arrayIndex[0]]);
+//        end
+//        else begin
+//            lookupTarget <= 'x;
+//            lookupLink <= 'x;
+//        end
+//    endtask
 
                     // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
@@ -392,25 +363,64 @@ endmodule
 
 module TmpSubSq();
     task automatic readImpl();
-        StoreQueue.TMP_txt = "st  queue";
+        updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
+        //handleForwardsS();
 
-            updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
-            handleForwardsS();
+        foreach (theExecBlock.toLqE0[p]) begin
+            UopMemPacket loadOp = theExecBlock.toLqE0[p];
+            UopPacket resb;
+
+            theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
+
+            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
+
+            resb = StoreQueueHelper::scanQueue(StoreQueue.insMap, StoreQueue.content_N, U2M(loadOp.TMP_oid), loadOp.result);
+
+            if (resb.active) begin
+                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
+                AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
+                checkSqResp(loadOp, resb, StoreQueue.memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, loadOp.result, size);
+            end
+
+            theExecBlock.fromSq[p] <= resb;
+        end
     endtask
 endmodule
 
 module TmpSubLq();
-    task automatic readImpl();
-        StoreQueue.TMP_txt = "ld  queue";
-        
-            handleHazardsL();
+    task automatic readImpl();        
+        //handleHazardsL();
+        foreach (theExecBlock.toSqE0[p]) begin
+            UopMemPacket storeUop = theExecBlock.toSqE0[p];
+            UopPacket resb;
+
+            theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
+
+            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+
+            resb = LoadQueueHelper::scanQueue(StoreQueue.insMap, StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
+            theExecBlock.fromLq[p] <= resb;      
+        end
     endtask
 endmodule
 
 module TmpSubBr();
-    task automatic readImpl();
-        StoreQueue.TMP_txt = "br  queue";
-        
-        StoreQueue.handleBranch();
+    task automatic readImpl();        
+        //StoreQueue.handleBranch();
+        UopPacket p = theExecBlock.branch0.p0_E;
+
+        if (p.active) begin
+            //int arrayIndex[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(p.TMP_oid));
+            int index = findIndex(p.TMP_oid);
+            
+            //assert (index == arrayIndex[0]) else $fatal(2, "hhuyy");
+            
+            StoreQueue.lookupTarget <= BranchQueueHelper::getAdr(StoreQueue.content_N[index]);
+            StoreQueue.lookupLink <= BranchQueueHelper::getLink(StoreQueue.content_N[index]);
+        end
+        else begin
+            StoreQueue.lookupTarget <= 'x;
+            StoreQueue.lookupLink <= 'x;
+        end
     endtask
 endmodule
