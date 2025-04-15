@@ -48,11 +48,7 @@ package Queues;
         } Entry;
 
         localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
-    
-
-//        static function automatic logic appliesU(input UopName uname);
-//            return isStoreUop(uname);
-//        endfunction
+        
         
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             return  '{
@@ -73,15 +69,6 @@ package Queues;
         endfunction
         
         
-//            static function void updateAddress(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            
-//            endfunction
-            
-//            static function void updateData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            
-//            endfunction            
-            
-        
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
             if (p.status == ES_UNCACHED_1) begin
                 entry.uncached = 1;
@@ -91,16 +78,6 @@ package Queues;
                 entry.adr = p.result;
             end
         endfunction
-
-//        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-//            if (p.status == ES_UNCACHED_1) begin
-//                entry.uncached = 1;
-//            end
-//            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
-//                entry.phyAdrReady = 1; // TODO: not ready if translation failed
-//                //entry.adr = p.result;
-//            end
-//        endfunction
 
         static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);        
             if (p.status == ES_UNCACHED_1) begin
@@ -114,41 +91,6 @@ package Queues;
                 entry.val = p.result;
             end
         endfunction
-
-
-//            static function void setCommitted(ref Entry entry);
-//                entry.committed = 1;
-//            endfunction
-            
-//            static function void setError(ref Entry entry);
-//                entry.error = 1;
-//            endfunction
-
-
-//            static function void setRefetch(ref Entry entry);
-//                entry.refetch = 1;
-//            endfunction
- 
-           
-//            static function logic isCommitted(input Entry entry);
-//                return entry.committed; 
-//            endfunction
-
-//            static function logic isError(input Entry entry);
-//                return entry.error;
-//            endfunction
-
-//            static function Mword getAdr(input Entry entry);
-//                return entry.adr; 
-//            endfunction
-
-//            static function Mword getVal(input Entry entry);
-//                return entry.val;
-//            endfunction
-
-//            static function Mword getLink(input Entry entry);
-//                return 'x;
-//            endfunction
 
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
@@ -191,10 +133,6 @@ package Queues;
         } Entry;
 
         localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x};
-
-//        static function automatic logic appliesU(input UopName uname);
-//            return isLoadUop(uname);
-//        endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = '{
@@ -215,46 +153,6 @@ package Queues;
             entry.adr = p.result;
         endfunction
 
-//        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-//                entry.phyAdrReady = 1; // TODO: not ready if translation failed
-//        endfunction
-
-//        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-
-//        endfunction
-
-        
-//            static function void setCommitted(ref Entry entry);
-//            endfunction
-            
-//            static function void setError(ref Entry entry);
-//                entry.error = 1;
-//            endfunction
- 
-//            static function void setRefetch(ref Entry entry);
-//                entry.refetch = 1;
-//            endfunction           
-            
-//            static function logic isCommitted(input Entry entry);
-//                return 0; 
-//            endfunction
-
-//            static function logic isError(input Entry entry);
-//                return entry.error;
-//            endfunction
-
-//            static function Mword getAdr(input Entry entry);
-//                return 'x;
-//            endfunction
-
-//            static function Mword getVal(input Entry entry);
-//                return 'x;
-//            endfunction
-
-//            static function Mword getLink(input Entry entry);
-//                return 'x;
-//            endfunction
-
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
             UopPacket res = EMPTY_UOP_PACKET;
@@ -266,9 +164,8 @@ package Queues;
             
             if (found.size() == 0) return res;
     
-            foreach (found[i]) //setRefetch(entries[found[i]]); // We have a match so matching loads are incorrect
-                               entries[found[i]].refetch = 1;
-                               
+            foreach (found[i]) entries[found[i]].refetch = 1;
+        
             begin // 'active' indicates that some match has happened without further details
                 int oldestFound[$] = found.min with (entries[item].mid);
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
@@ -300,10 +197,6 @@ endclass
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
 
-//        static function automatic logic appliesU(input UopName uname);
-//            return isBranchUop(uname);
-//        endfunction
-            
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
             InstructionInfo ii = imap.get(id);
@@ -342,24 +235,24 @@ endclass
         endfunction
 
 
-        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
-            UopName uname = imap.getU(FIRST_U(entry.mid)).name;
-            Mword target = imap.get(entry.mid).basicData.target;
-            Mword actualTarget = 'x;
+//        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
+//            UopName uname = imap.getU(FIRST_U(entry.mid)).name;
+//            Mword target = imap.get(entry.mid).basicData.target;
+//            Mword actualTarget = 'x;
                         
-            if (entry.taken) begin
-                if (uname inside {UOP_br_z, UOP_br_nz})
-                    actualTarget = entry.regTarget;
-                else
-                    actualTarget = entry.immTarget;
-            end
-            else begin
-                actualTarget = entry.linkAdr;
-            end
+//            if (entry.taken) begin
+//                if (uname inside {UOP_br_z, UOP_br_nz})
+//                    actualTarget = entry.regTarget;
+//                else
+//                    actualTarget = entry.immTarget;
+//            end
+//            else begin
+//                actualTarget = entry.linkAdr;
+//            end
             
-            assert (actualTarget === target) else $error("Branch %p committed not matching: %d // %d", uname, actualTarget, target);
+//            assert (actualTarget === target) else $error("Branch %p committed not matching: %d // %d", uname, actualTarget, target);
             
-        endfunction
+//        endfunction
              
     endclass
 

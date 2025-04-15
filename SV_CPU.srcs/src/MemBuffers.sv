@@ -73,7 +73,6 @@ module StoreQueue
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-
         update(); // Before reading and FW checks to eliminate hazards
 
         submod.readImpl();
@@ -263,11 +262,7 @@ module TmpSubSq();
     endtask
 
     task automatic verify(input StoreQueueHelper::Entry entry);
-        Mword actualAdr = //StoreQueueHelper::getAdr(entry);
-                            entry.adr;
-        Mword actualVal = //StoreQueueHelper::getVal(entry);
-                            entry.val;
-        checkStore(entry.mid, actualAdr, actualVal);
+        checkStore(entry.mid, entry.adr, entry.val);
     endtask
 
     function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
@@ -288,8 +283,7 @@ module TmpSubSq();
             
             StoreQueueHelper::updateStoreData(StoreQueue.insMap, StoreQueue.content_N[dataFound[0]], dataUop, StoreQueue.branchEventInfo);
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-            dataUop.result = //StoreQueueHelper::getAdr(StoreQueue.content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
-                            StoreQueue.content_N[dataFound[0]].adr;
+            dataUop.result = StoreQueue.content_N[dataFound[0]].adr;
         end
         
         StoreQueue.storeDataD0 <= tickP(dataUop);
@@ -349,10 +343,8 @@ module TmpSubSq();
     endtask
 
     function automatic void updateEntryE2(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
-       if (p.status == ES_REFETCH) //StoreQueueHelper::setRefetch(entry);
-                                        entry.refetch = 1;
-       else if (p.status == ES_ILLEGAL) //StoreQueueHelper::setError(entry); 
-                                        entry.error = 1;
+       if (p.status == ES_REFETCH) entry.refetch = 1;
+       else if (p.status == ES_ILLEGAL) entry.error = 1;
     endfunction
 
     function automatic void updateEntryE0(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
@@ -363,12 +355,10 @@ module TmpSubSq();
     endfunction
 
     function automatic logic isCommitted(input StoreQueueHelper::Entry entry);
-        //return StoreQueueHelper::isCommitted(entry);
         return entry.committed;
     endfunction
     
     function automatic void setCommitted(ref StoreQueueHelper::Entry entry);
-        //StoreQueueHelper::setCommitted(entry);
         entry.committed = 1;
     endfunction
 
@@ -427,10 +417,8 @@ module TmpSubLq();
     endtask
 
     function automatic void updateEntryE2(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
-       if (p.status == ES_REFETCH) //LoadQueueHelper::setRefetch(entry);
-                                   entry.refetch = 1;
-       else if (p.status == ES_ILLEGAL) //LoadQueueHelper::setError(entry); 
-                                        entry.error = 1;
+       if (p.status == ES_REFETCH) entry.refetch = 1;
+       else if (p.status == ES_ILLEGAL) entry.error = 1;
     endfunction
 
     function automatic void updateEntryE0(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
@@ -439,11 +427,10 @@ module TmpSubLq();
     endfunction
 
     function automatic logic isCommitted(input LoadQueueHelper::Entry entry);
-        return 0;// LoadQueueHelper::isCommitted(entry);
+        return 0;
     endfunction
     
     function automatic void setCommitted(ref LoadQueueHelper::Entry entry);
-        //LoadQueueHelper::setCommitted(entry);
     endfunction
 
 endmodule
@@ -457,10 +444,8 @@ module TmpSubBr();
 
         if (p.active) begin
             int index = findIndex(p.TMP_oid);     
-            StoreQueue.lookupTarget <= //BranchQueueHelper::getAdr(StoreQueue.content_N[index]);
-                                        StoreQueue.content_N[index].immTarget;
-            StoreQueue.lookupLink <= //BranchQueueHelper::getLink(StoreQueue.content_N[index]);
-                                        StoreQueue.content_N[index].linkAdr;
+            StoreQueue.lookupTarget <= StoreQueue.content_N[index].immTarget;
+            StoreQueue.lookupLink <= StoreQueue.content_N[index].linkAdr;
         end
         else begin
             StoreQueue.lookupTarget <= 'x;
@@ -469,7 +454,24 @@ module TmpSubBr();
     endtask
     
     task automatic verify(input BranchQueueHelper::Entry entry);
-        BranchQueueHelper::verifyOnCommit(StoreQueue.insMap, entry);
+        InstructionMap imap = StoreQueue.insMap;
+    //    BranchQueueHelper::verifyOnCommit(StoreQueue.insMap, entry);
+        UopName uname = imap.getU(FIRST_U(entry.mid)).name;
+        Mword target = imap.get(entry.mid).basicData.target;
+        Mword actualTarget = 'x;
+                    
+        if (entry.taken) begin
+            if (uname inside {UOP_br_z, UOP_br_nz})
+                actualTarget = entry.regTarget;
+            else
+                actualTarget = entry.immTarget;
+        end
+        else begin
+            actualTarget = entry.linkAdr;
+        end
+        
+        assert (actualTarget === target) else $error("Branch %p committed not matching: %d // %d", uname, actualTarget, target);
+        
     endtask
 
 
@@ -494,11 +496,10 @@ module TmpSubBr();
     endfunction
 
     function automatic logic isCommitted(input BranchQueueHelper::Entry entry);
-        return 0;//BranchQueueHelper::isCommitted(entry);
+        return 0;
     endfunction
     
     function automatic void setCommitted(ref BranchQueueHelper::Entry entry);
-        //BranchQueueHelper::setCommitted(entry);
     endfunction
     
 endmodule
