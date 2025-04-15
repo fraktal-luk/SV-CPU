@@ -57,7 +57,7 @@ module StoreQueue
     Mword lookupTarget = 'x, lookupLink = 'x; // TODO: move to BQ special submodule because not used in LSQ
 
     QEntry outputQ[$:3*ROB_WIDTH];
-    QEntry outputQM[3*ROB_WIDTH] = '{default: HELPER::EMPTY_QENTRY}; 
+    QEntry outputQM[3*ROB_WIDTH] = '{default: EMPTY_QENTRY}; 
 
     typedef QEntry QM[3*ROB_WIDTH];
 
@@ -92,7 +92,7 @@ module StoreQueue
     task automatic flushAll();
         foreach (content_N[i]) begin
             InsId thisId = content_N[i].mid;        
-            if (isCommitted(content_N[i])) continue; 
+            if (submod.isCommitted(content_N[i])) continue; 
             if (thisId != -1) putMilestoneM(thisId, QUEUE_FLUSH);            
             content_N[i] = EMPTY_QENTRY;
         end
@@ -127,17 +127,23 @@ module StoreQueue
         return id != -1 && id <= AbstractCore.theRob.lastOut;
     endfunction
 
-    function automatic logic isCommitted(input QEntry entry);
-        return HELPER::isCommitted(entry);
+//    function automatic logic isCommitted(input QEntry entry);
+//        return HELPER::isCommitted(entry);
+//    endfunction
+    
+//    function automatic void setCommitted(ref QEntry entry);
+//        HELPER::setCommitted(entry);
+//    endfunction
+    
+    function automatic logic appliesU(input UopName uname);        
+        return (
+            (IS_STORE_QUEUE && isStoreUop(uname)) 
+         || (IS_LOAD_QUEUE && isLoadUop(uname)) 
+         || (IS_BRANCH_QUEUE && isBranchUop(uname)) 
+        );
     endfunction
 
-    function automatic logic appliesU(input UopName uname);
-        return HELPER::appliesU(uname);
-    endfunction
 
-    function automatic void setCommitted(ref QEntry entry);
-        HELPER::setCommitted(entry);
-    endfunction
 
     function automatic void setEmpty(ref QEntry entry);
         entry = EMPTY_QENTRY;
@@ -146,7 +152,7 @@ module StoreQueue
 
     function automatic void commitEntry(ref QEntry entry);
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
-            setCommitted(entry);
+            submod.setCommitted(entry);
         end
         else begin
             setEmpty(entry);
@@ -158,6 +164,7 @@ module StoreQueue
         QEntry startEntry = content_N[startPointer % SIZE];
         submod.verify(startEntry);
     endtask
+
 
 
     task automatic advance();
@@ -199,7 +206,7 @@ module StoreQueue
 
 
     function automatic QM makeQM(input QEntry q[$:3*ROB_WIDTH]);
-        QM res = '{default: HELPER::EMPTY_QENTRY};
+        QM res = '{default: EMPTY_QENTRY};
         foreach (q[i]) res[i] = q[i];
         return res;
     endfunction
@@ -214,42 +221,7 @@ module StoreQueue
 
 
     task automatic update();
-        foreach (wrInputsE0[p]) begin
-            UopName uname = decUname(wrInputsE0[p].TMP_oid);
-            if (!wrInputsE0[p].active) continue;
-            if (!appliesU(uname)) continue;
-
-            begin
-               int index = findIndex(wrInputsE0[p].TMP_oid);
-
-               HELPER::updateEntry(insMap, content_N[index], wrInputsE0[p], branchEventInfo);
-                
-               // TODO: make separate milestones for SQ and LQ
-               if (IS_STORE_QUEUE)
-                   putMilestone(wrInputsE0[p].TMP_oid, InstructionMap::WriteMemAddress);
-               if (IS_LOAD_QUEUE)
-                   putMilestone(wrInputsE0[p].TMP_oid, InstructionMap::WriteMemAddress);
-            end
-        end
-
-        if (IS_STORE_QUEUE || IS_LOAD_QUEUE) begin
-            foreach (wrInputsE2[p]) begin
-                UopMemPacket packet = wrInputsE2[p];
-                UopName uname = decUname(packet.TMP_oid);
-                if (!packet.active) continue;
-                if (!appliesU(uname)) continue;
-
-                if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
-
-                begin
-                   int found[$] = content_N.find_first_index with (item.mid == U2M(packet.TMP_oid));
-
-                   if (packet.status == ES_REFETCH) HELPER::setRefetch(content_N[found[0]]);
-                   else if (packet.status == ES_ILLEGAL) HELPER::setError(content_N[found[0]]);                   
-                end
-            end
-        end
-
+        submod.updateMain();
     endtask
 
 
@@ -350,7 +322,59 @@ module TmpSubSq();
         end
     endfunction
 
+
+    task automatic updateMain();
+    
+        foreach (StoreQueue.wrInputsE0[p]) begin
+            UopMemPacket packet = StoreQueue.wrInputsE0[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+               updateEntryE0(StoreQueue.content_N[index], packet);
+            end
+        end
+
+        foreach (StoreQueue.wrInputsE2[p]) begin
+            UopMemPacket packet = StoreQueue.wrInputsE2[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+               updateEntryE2(StoreQueue.content_N[index], packet);                
+            end
+        end
+    endtask
+
+    function automatic void updateEntryE2(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
+       if (p.status == ES_REFETCH) StoreQueueHelper::setRefetch(entry);
+       else if (p.status == ES_ILLEGAL) StoreQueueHelper::setError(entry); 
+    endfunction
+
+    function automatic void updateEntryE0(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
+       StoreQueueHelper::updateEntry(StoreQueue.insMap, entry, p, StoreQueue.branchEventInfo);
+        
+       // TODO: make separate milestones for SQ and LQ
+       putMilestone(p.TMP_oid, InstructionMap::WriteMemAddress);
+    endfunction
+
+    function automatic logic isCommitted(input StoreQueueHelper::Entry entry);
+        return StoreQueueHelper::isCommitted(entry);
+    endfunction
+    
+    function automatic void setCommitted(ref StoreQueueHelper::Entry entry);
+        StoreQueueHelper::setCommitted(entry);
+    endfunction
+
 endmodule
+
+
 
 
 module TmpSubLq();
@@ -371,7 +395,59 @@ module TmpSubLq();
     task automatic verify(input LoadQueueHelper::Entry entry);
 
     endtask
+    
+    
+    task automatic updateMain();
+    
+        foreach (StoreQueue.wrInputsE0[p]) begin
+            UopMemPacket packet = StoreQueue.wrInputsE0[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+               updateEntryE0(StoreQueue.content_N[index], packet);
+            end
+        end
+
+        foreach (StoreQueue.wrInputsE2[p]) begin
+            UopMemPacket packet = StoreQueue.wrInputsE2[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+               updateEntryE2(StoreQueue.content_N[index], packet);                
+            end
+        end
+    endtask
+
+    function automatic void updateEntryE2(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
+       if (p.status == ES_REFETCH) LoadQueueHelper::setRefetch(entry);
+       else if (p.status == ES_ILLEGAL) LoadQueueHelper::setError(entry); 
+    endfunction
+
+    function automatic void updateEntryE0(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
+       LoadQueueHelper::updateEntry(StoreQueue.insMap, entry, p, StoreQueue.branchEventInfo);
+       putMilestone(p.TMP_oid, InstructionMap::WriteMemAddress);
+    endfunction
+
+    function automatic logic isCommitted(input LoadQueueHelper::Entry entry);
+        return LoadQueueHelper::isCommitted(entry);
+    endfunction
+    
+    function automatic void setCommitted(ref LoadQueueHelper::Entry entry);
+        LoadQueueHelper::setCommitted(entry);
+    endfunction
+
 endmodule
+
+
+
 
 module TmpSubBr();
     task automatic readImpl();        
@@ -391,4 +467,34 @@ module TmpSubBr();
     task automatic verify(input BranchQueueHelper::Entry entry);
         BranchQueueHelper::verifyOnCommit(StoreQueue.insMap, entry);
     endtask
+
+
+    task automatic updateMain();
+    
+        foreach (StoreQueue.wrInputsE0[p]) begin
+            UopMemPacket packet = StoreQueue.wrInputsE0[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+               updateEntryE0(StoreQueue.content_N[index], packet);
+            end
+        end
+   
+    endtask
+
+    function automatic void updateEntryE0(ref BranchQueueHelper::Entry entry, input UopMemPacket p);
+       BranchQueueHelper::updateEntry(StoreQueue.insMap, entry, p, StoreQueue.branchEventInfo);
+    endfunction
+
+    function automatic logic isCommitted(input BranchQueueHelper::Entry entry);
+        return BranchQueueHelper::isCommitted(entry);
+    endfunction
+    
+    function automatic void setCommitted(ref BranchQueueHelper::Entry entry);
+        BranchQueueHelper::setCommitted(entry);
+    endfunction
+    
 endmodule
