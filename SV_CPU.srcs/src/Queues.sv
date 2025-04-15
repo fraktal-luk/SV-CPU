@@ -50,9 +50,9 @@ package Queues;
         localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
     
 
-        static function automatic logic appliesU(input UopName uname);
-            return isStoreUop(uname);
-        endfunction
+//        static function automatic logic appliesU(input UopName uname);
+//            return isStoreUop(uname);
+//        endfunction
         
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             return  '{
@@ -73,13 +73,13 @@ package Queues;
         endfunction
         
         
-            static function void updateAddress(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+//            static function void updateAddress(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
             
-            endfunction
+//            endfunction
             
-            static function void updateData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+//            static function void updateData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
             
-            endfunction            
+//            endfunction            
             
         
         static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
@@ -116,39 +116,39 @@ package Queues;
         endfunction
 
 
-            static function void setCommitted(ref Entry entry);
-                entry.committed = 1;
-            endfunction
+//            static function void setCommitted(ref Entry entry);
+//                entry.committed = 1;
+//            endfunction
             
-            static function void setError(ref Entry entry);
-                entry.error = 1;
-            endfunction
+//            static function void setError(ref Entry entry);
+//                entry.error = 1;
+//            endfunction
 
 
-            static function void setRefetch(ref Entry entry);
-                entry.refetch = 1;
-            endfunction
+//            static function void setRefetch(ref Entry entry);
+//                entry.refetch = 1;
+//            endfunction
  
            
-            static function logic isCommitted(input Entry entry);
-                return entry.committed; 
-            endfunction
+//            static function logic isCommitted(input Entry entry);
+//                return entry.committed; 
+//            endfunction
 
-            static function logic isError(input Entry entry);
-                return entry.error;
-            endfunction
+//            static function logic isError(input Entry entry);
+//                return entry.error;
+//            endfunction
 
-            static function Mword getAdr(input Entry entry);
-                return entry.adr; 
-            endfunction
+//            static function Mword getAdr(input Entry entry);
+//                return entry.adr; 
+//            endfunction
 
-            static function Mword getVal(input Entry entry);
-                return entry.val;
-            endfunction
+//            static function Mword getVal(input Entry entry);
+//                return entry.val;
+//            endfunction
 
-            static function Mword getLink(input Entry entry);
-                return 'x;
-            endfunction
+//            static function Mword getLink(input Entry entry);
+//                return 'x;
+//            endfunction
 
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
@@ -169,11 +169,6 @@ package Queues;
             else                                // Covers and has data -> OK
                 return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 
-        endfunction
-
-
-        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
-            
         endfunction
 
     endclass
@@ -197,9 +192,9 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x};
 
-        static function automatic logic appliesU(input UopName uname);
-            return isLoadUop(uname);
-        endfunction
+//        static function automatic logic appliesU(input UopName uname);
+//            return isLoadUop(uname);
+//        endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = '{
@@ -224,41 +219,41 @@ package Queues;
 //                entry.phyAdrReady = 1; // TODO: not ready if translation failed
 //        endfunction
 
-        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
+//        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
 
-        endfunction
+//        endfunction
 
         
-            static function void setCommitted(ref Entry entry);
-            endfunction
+//            static function void setCommitted(ref Entry entry);
+//            endfunction
             
-            static function void setError(ref Entry entry);
-                entry.error = 1;
-            endfunction
+//            static function void setError(ref Entry entry);
+//                entry.error = 1;
+//            endfunction
  
-            static function void setRefetch(ref Entry entry);
-                entry.refetch = 1;
-            endfunction           
+//            static function void setRefetch(ref Entry entry);
+//                entry.refetch = 1;
+//            endfunction           
             
-            static function logic isCommitted(input Entry entry);
-                return 0; 
-            endfunction
+//            static function logic isCommitted(input Entry entry);
+//                return 0; 
+//            endfunction
 
-            static function logic isError(input Entry entry);
-                return entry.error;
-            endfunction
+//            static function logic isError(input Entry entry);
+//                return entry.error;
+//            endfunction
 
-            static function Mword getAdr(input Entry entry);
-                return 'x;
-            endfunction
+//            static function Mword getAdr(input Entry entry);
+//                return 'x;
+//            endfunction
 
-            static function Mword getVal(input Entry entry);
-                return 'x;
-            endfunction
+//            static function Mword getVal(input Entry entry);
+//                return 'x;
+//            endfunction
 
-            static function Mword getLink(input Entry entry);
-                return 'x;
-            endfunction
+//            static function Mword getLink(input Entry entry);
+//                return 'x;
+//            endfunction
 
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[LQ_SIZE], input InsId id, input Mword adr);
@@ -271,8 +266,9 @@ package Queues;
             
             if (found.size() == 0) return res;
     
-            foreach (found[i]) setRefetch(entries[found[i]]); // We have a match so matching loads are incorrect
-            
+            foreach (found[i]) //setRefetch(entries[found[i]]); // We have a match so matching loads are incorrect
+                               entries[found[i]].refetch = 1;
+                               
             begin // 'active' indicates that some match has happened without further details
                 int oldestFound[$] = found.min with (entries[item].mid);
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
@@ -285,10 +281,6 @@ package Queues;
             return res;
         endfunction
 
-
-        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
-            
-        endfunction
 
 endclass
     
@@ -308,9 +300,9 @@ endclass
 
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
 
-        static function automatic logic appliesU(input UopName uname);
-            return isBranchUop(uname);
-        endfunction
+//        static function automatic logic appliesU(input UopName uname);
+//            return isBranchUop(uname);
+//        endfunction
             
         static function automatic Entry newEntry(input InstructionMap imap, input InsId id);
             Entry res = EMPTY_QENTRY;
@@ -349,49 +341,6 @@ endclass
      
         endfunction
 
-//        static function void updateEntryE1(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-
-//        endfunction
-
-
-        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);            
-
-        endfunction
-
-            static function void setCommitted(ref Entry entry);
-            endfunction
-            
-            static function void setError(ref Entry entry);
-            endfunction
-
-            static function void setRefetch(ref Entry entry);
-            endfunction
-          
-            
-            static function logic isCommitted(input Entry entry);
-                return 0; 
-            endfunction
-
-            static function logic isError(input Entry entry);
-                return 0;
-            endfunction
-
-            static function Mword getAdr(input Entry entry);
-                return entry.immTarget; 
-            endfunction
-
-            static function Mword getVal(input Entry entry);
-                return 'x;
-            endfunction
-
-            static function Mword getLink(input Entry entry);
-                return entry.linkAdr;
-            endfunction
-
-
-        static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[BQ_SIZE], input InsId id, input Mword adr);        
-            return EMPTY_UOP_PACKET;
-        endfunction
 
         static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
             UopName uname = imap.getU(FIRST_U(entry.mid)).name;

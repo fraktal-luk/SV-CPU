@@ -127,13 +127,6 @@ module StoreQueue
         return id != -1 && id <= AbstractCore.theRob.lastOut;
     endfunction
 
-//    function automatic logic isCommitted(input QEntry entry);
-//        return HELPER::isCommitted(entry);
-//    endfunction
-    
-//    function automatic void setCommitted(ref QEntry entry);
-//        HELPER::setCommitted(entry);
-//    endfunction
     
     function automatic logic appliesU(input UopName uname);        
         return (
@@ -270,8 +263,10 @@ module TmpSubSq();
     endtask
 
     task automatic verify(input StoreQueueHelper::Entry entry);
-        Mword actualAdr = StoreQueueHelper::getAdr(entry);
-        Mword actualVal = StoreQueueHelper::getVal(entry);
+        Mword actualAdr = //StoreQueueHelper::getAdr(entry);
+                            entry.adr;
+        Mword actualVal = //StoreQueueHelper::getVal(entry);
+                            entry.val;
         checkStore(entry.mid, actualAdr, actualVal);
     endtask
 
@@ -293,7 +288,8 @@ module TmpSubSq();
             
             StoreQueueHelper::updateStoreData(StoreQueue.insMap, StoreQueue.content_N[dataFound[0]], dataUop, StoreQueue.branchEventInfo);
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-            dataUop.result = StoreQueueHelper::getAdr(StoreQueue.content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
+            dataUop.result = //StoreQueueHelper::getAdr(StoreQueue.content_N[dataFound[0]]); // Save store adr to notify RQ that it is being filled 
+                            StoreQueue.content_N[dataFound[0]].adr;
         end
         
         StoreQueue.storeDataD0 <= tickP(dataUop);
@@ -353,8 +349,10 @@ module TmpSubSq();
     endtask
 
     function automatic void updateEntryE2(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
-       if (p.status == ES_REFETCH) StoreQueueHelper::setRefetch(entry);
-       else if (p.status == ES_ILLEGAL) StoreQueueHelper::setError(entry); 
+       if (p.status == ES_REFETCH) //StoreQueueHelper::setRefetch(entry);
+                                        entry.refetch = 1;
+       else if (p.status == ES_ILLEGAL) //StoreQueueHelper::setError(entry); 
+                                        entry.error = 1;
     endfunction
 
     function automatic void updateEntryE0(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
@@ -365,11 +363,13 @@ module TmpSubSq();
     endfunction
 
     function automatic logic isCommitted(input StoreQueueHelper::Entry entry);
-        return StoreQueueHelper::isCommitted(entry);
+        //return StoreQueueHelper::isCommitted(entry);
+        return entry.committed;
     endfunction
     
     function automatic void setCommitted(ref StoreQueueHelper::Entry entry);
-        StoreQueueHelper::setCommitted(entry);
+        //StoreQueueHelper::setCommitted(entry);
+        entry.committed = 1;
     endfunction
 
 endmodule
@@ -427,8 +427,10 @@ module TmpSubLq();
     endtask
 
     function automatic void updateEntryE2(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
-       if (p.status == ES_REFETCH) LoadQueueHelper::setRefetch(entry);
-       else if (p.status == ES_ILLEGAL) LoadQueueHelper::setError(entry); 
+       if (p.status == ES_REFETCH) //LoadQueueHelper::setRefetch(entry);
+                                   entry.refetch = 1;
+       else if (p.status == ES_ILLEGAL) //LoadQueueHelper::setError(entry); 
+                                        entry.error = 1;
     endfunction
 
     function automatic void updateEntryE0(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
@@ -437,11 +439,11 @@ module TmpSubLq();
     endfunction
 
     function automatic logic isCommitted(input LoadQueueHelper::Entry entry);
-        return LoadQueueHelper::isCommitted(entry);
+        return 0;// LoadQueueHelper::isCommitted(entry);
     endfunction
     
     function automatic void setCommitted(ref LoadQueueHelper::Entry entry);
-        LoadQueueHelper::setCommitted(entry);
+        //LoadQueueHelper::setCommitted(entry);
     endfunction
 
 endmodule
@@ -455,8 +457,10 @@ module TmpSubBr();
 
         if (p.active) begin
             int index = findIndex(p.TMP_oid);     
-            StoreQueue.lookupTarget <= BranchQueueHelper::getAdr(StoreQueue.content_N[index]);
-            StoreQueue.lookupLink <= BranchQueueHelper::getLink(StoreQueue.content_N[index]);
+            StoreQueue.lookupTarget <= //BranchQueueHelper::getAdr(StoreQueue.content_N[index]);
+                                        StoreQueue.content_N[index].immTarget;
+            StoreQueue.lookupLink <= //BranchQueueHelper::getLink(StoreQueue.content_N[index]);
+                                        StoreQueue.content_N[index].linkAdr;
         end
         else begin
             StoreQueue.lookupTarget <= 'x;
@@ -490,11 +494,11 @@ module TmpSubBr();
     endfunction
 
     function automatic logic isCommitted(input BranchQueueHelper::Entry entry);
-        return BranchQueueHelper::isCommitted(entry);
+        return 0;//BranchQueueHelper::isCommitted(entry);
     endfunction
     
     function automatic void setCommitted(ref BranchQueueHelper::Entry entry);
-        BranchQueueHelper::setCommitted(entry);
+        //BranchQueueHelper::setCommitted(entry);
     endfunction
     
 endmodule
