@@ -25,12 +25,7 @@ module StoreQueue
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input OpSlotAB inGroup,
-    output OpSlotAB outGroup,
-
-    input UopMemPacket wrInputsE0[N_MEM_PORTS],
-        input UopMemPacket wrInputsE0_tr[N_MEM_PORTS],
-    input UopMemPacket wrInputsE1[N_MEM_PORTS],
-    input UopMemPacket wrInputsE2[N_MEM_PORTS]
+    output OpSlotAB outGroup
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -61,19 +56,12 @@ module StoreQueue
 
     typedef QEntry QM[3*ROB_WIDTH];
 
-    
-    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET; // TODO: move to BQ special submodule because not used in LSQ
-    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;// TODO: move to BQ special submodule because not used in LSQ
-
-    assign storeDataD0_E = effP(storeDataD0); 
-    assign storeDataD1_E = effP(storeDataD1); 
-    assign storeDataD2_E = effP(storeDataD2); 
 
 
     always @(posedge AbstractCore.clk) begin    
         advance();
 
-        update(); // Before reading and FW checks to eliminate hazards
+        submod.updateMain();
 
         submod.readImpl();
 
@@ -142,6 +130,12 @@ module StoreQueue
     endfunction
 
 
+
+    task automatic checkOnCommit();
+        QEntry startEntry = content_N[startPointer % SIZE];
+        submod.verify(startEntry);
+    endtask
+
     function automatic void commitEntry(ref QEntry entry);
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
             submod.setCommitted(entry);
@@ -150,13 +144,6 @@ module StoreQueue
             setEmpty(entry);
         end
     endfunction
-
-
-    task automatic checkOnCommit();
-        QEntry startEntry = content_N[startPointer % SIZE];
-        submod.verify(startEntry);
-    endtask
-
 
 
     task automatic advance();
@@ -212,11 +199,6 @@ module StoreQueue
     endfunction
 
 
-    task automatic update();
-        submod.updateMain();
-    endtask
-
-
                     // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
         if (!anyActiveB(inGroup)) return;
@@ -237,10 +219,11 @@ endmodule
 
 
 module TmpSubSq();
-    task automatic readImpl();
-        // TODO: move to 'update' section unless it should be after queue scan 
-        updateStoreData(); // CAREFUL: should it be before or after handleForwadsS may be uncertain
 
+    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET; // TODO: move to BQ special submodule because not used in LSQ
+    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;// TODO: move to BQ special submodule because not used in LSQ
+
+    task automatic readImpl();
         foreach (theExecBlock.toLqE0[p]) begin
             UopMemPacket loadOp = theExecBlock.toLqE0[p];
             UopPacket resb;
@@ -274,22 +257,6 @@ module TmpSubSq();
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  StoreQueue.insMap.get(mid));
     endfunction
 
-  
-    task automatic updateStoreData();
-        UopPacket dataUop = theExecBlock.storeDataE0_E;
-        if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
-            int dataFound[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
-            assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
-            
-            StoreQueueHelper::updateStoreData(StoreQueue.insMap, StoreQueue.content_N[dataFound[0]], dataUop, StoreQueue.branchEventInfo);
-            putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-            dataUop.result = StoreQueue.content_N[dataFound[0]].adr;
-        end
-        
-        StoreQueue.storeDataD0 <= tickP(dataUop);
-        StoreQueue.storeDataD1 <= tickP(StoreQueue.storeDataD0);
-        StoreQueue.storeDataD2 <= tickP(StoreQueue.storeDataD1);
-    endtask
 
     function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
         Transaction latestOverlap = StoreQueue.memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
@@ -314,21 +281,26 @@ module TmpSubSq();
 
 
     task automatic updateMain();
-    
-        foreach (StoreQueue.wrInputsE0[p]) begin
-            UopMemPacket packet = StoreQueue.wrInputsE0[p];
+        UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toSqE0;
+        UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toSqE2;
+
+        foreach (packetsE0[p]) begin
+            UopMemPacket packet = packetsE0[p];
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntryE0(StoreQueue.content_N[index], packet);
+               updateEntry(StoreQueue.content_N[index], packet);
+                
+               // TODO: make separate milestones for SQ and LQ
+               putMilestone(packet.TMP_oid, InstructionMap::WriteMemAddress);
             end
         end
 
-        foreach (StoreQueue.wrInputsE2[p]) begin
-            UopMemPacket packet = StoreQueue.wrInputsE2[p];
+        foreach (packetsE2[p]) begin
+            UopMemPacket packet = packetsE2[p];
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
@@ -337,22 +309,62 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntryE2(StoreQueue.content_N[index], packet);                
+               if (packet.status == ES_REFETCH) StoreQueue.content_N[index].refetch = 1;
+               else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;            
             end
         end
+        
+        updateStoreData();
+
     endtask
 
-    function automatic void updateEntryE2(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
-       if (p.status == ES_REFETCH) entry.refetch = 1;
-       else if (p.status == ES_ILLEGAL) entry.error = 1;
+
+    function automatic void updateEntry(ref StoreQueueHelper::Entry entry, input UopPacket p);
+        UopName uname = decUname(p.TMP_oid);
+        
+        if (p.status == ES_UNCACHED_1) begin
+            entry.uncached = 1;
+        end
+        else if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
+            entry.adrReady = 1;
+            entry.adr = p.result;
+        end
     endfunction
 
-    function automatic void updateEntryE0(ref StoreQueueHelper::Entry entry, input UopMemPacket p);
-       StoreQueueHelper::updateEntry(StoreQueue.insMap, entry, p, StoreQueue.branchEventInfo);
+
+
+    task automatic updateStoreData();
+        UopPacket dataUop = theExecBlock.storeDataE0_E;
+        if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
+            int dataFound[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
+            assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
+            
+            updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
+            putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+            dataUop.result = StoreQueue.content_N[dataFound[0]].adr;
+        end
+
+        storeDataD0 <= tickP(dataUop);
+        storeDataD1 <= tickP(storeDataD0);
+        storeDataD2 <= tickP(storeDataD1);
+    endtask
+
+
+    function automatic void updateStoreDataImpl(ref StoreQueueHelper::Entry entry, input UopPacket p);
+        UopName uname = decUname(p.TMP_oid);
+       
+        if (p.status == ES_UNCACHED_1) begin
+        end
+        else if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
+        end
+        else begin
+            assert (uname inside {UOP_data_int, UOP_data_fp}) else $fatal(2, "Wrong uop for store data");
         
-       // TODO: make separate milestones for SQ and LQ
-       putMilestone(p.TMP_oid, InstructionMap::WriteMemAddress);
+            entry.valReady = 1;
+            entry.val = p.result;
+        end
     endfunction
+
 
     function automatic logic isCommitted(input StoreQueueHelper::Entry entry);
         return entry.committed;
@@ -361,6 +373,10 @@ module TmpSubSq();
     function automatic void setCommitted(ref StoreQueueHelper::Entry entry);
         entry.committed = 1;
     endfunction
+
+    assign storeDataD0_E = effP(storeDataD0); 
+    assign storeDataD1_E = effP(storeDataD1); 
+    assign storeDataD2_E = effP(storeDataD2); 
 
 endmodule
 
@@ -388,21 +404,24 @@ module TmpSubLq();
     
     
     task automatic updateMain();
-    
-        foreach (StoreQueue.wrInputsE0[p]) begin
-            UopMemPacket packet = StoreQueue.wrInputsE0[p];
+        UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toLqE0;
+        UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toLqE2;
+
+        foreach (packetsE0[p]) begin
+            UopMemPacket packet = packetsE0[p];
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntryE0(StoreQueue.content_N[index], packet);
+               updateEntry(StoreQueue.content_N[index], packet);
+               putMilestone(packet.TMP_oid, InstructionMap::WriteMemAddress);
             end
         end
 
-        foreach (StoreQueue.wrInputsE2[p]) begin
-            UopMemPacket packet = StoreQueue.wrInputsE2[p];
+        foreach (packetsE2[p]) begin
+            UopMemPacket packet = packetsE2[p];
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
@@ -411,20 +430,17 @@ module TmpSubLq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntryE2(StoreQueue.content_N[index], packet);                
+               if (packet.status == ES_REFETCH) StoreQueue.content_N[index].refetch = 1;
+               else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;           
             end
         end
     endtask
 
-    function automatic void updateEntryE2(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
-       if (p.status == ES_REFETCH) entry.refetch = 1;
-       else if (p.status == ES_ILLEGAL) entry.error = 1;
-    endfunction
+        function automatic void updateEntry(ref LoadQueueHelper::Entry entry, input UopPacket p);
+            entry.adrReady = 1;
+            entry.adr = p.result;
+        endfunction
 
-    function automatic void updateEntryE0(ref LoadQueueHelper::Entry entry, input UopMemPacket p);
-       LoadQueueHelper::updateEntry(StoreQueue.insMap, entry, p, StoreQueue.branchEventInfo);
-       putMilestone(p.TMP_oid, InstructionMap::WriteMemAddress);
-    endfunction
 
     function automatic logic isCommitted(input LoadQueueHelper::Entry entry);
         return 0;
@@ -455,8 +471,7 @@ module TmpSubBr();
     
     task automatic verify(input BranchQueueHelper::Entry entry);
         InstructionMap imap = StoreQueue.insMap;
-    //    BranchQueueHelper::verifyOnCommit(StoreQueue.insMap, entry);
-        UopName uname = imap.getU(FIRST_U(entry.mid)).name;
+        UopName uname = decUname(FIRST_U(entry.mid));
         Mword target = imap.get(entry.mid).basicData.target;
         Mword actualTarget = 'x;
                     
@@ -476,24 +491,36 @@ module TmpSubBr();
 
 
     task automatic updateMain();
-    
-        foreach (StoreQueue.wrInputsE0[p]) begin
-            UopMemPacket packet = StoreQueue.wrInputsE0[p];
+        UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toBq;
+        
+        foreach (packetsE0[p]) begin
+            UopMemPacket packet = packetsE0[p];
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntryE0(StoreQueue.content_N[index], packet);
+               updateEntry(StoreQueue.content_N[index], packet);
             end
         end
-   
+
     endtask
 
-    function automatic void updateEntryE0(ref BranchQueueHelper::Entry entry, input UopMemPacket p);
-       BranchQueueHelper::updateEntry(StoreQueue.insMap, entry, p, StoreQueue.branchEventInfo);
+    function automatic void updateEntry(ref BranchQueueHelper::Entry entry, input UopPacket p);            
+        UopInfo uInfo = StoreQueue.insMap.getU(p.TMP_oid);
+        UopName name = uInfo.name;
+        Mword trgArg = uInfo.argsA[1];
+        
+        entry.taken = p.result;
+        entry.condReady = 1;
+        entry.trgReady = 1;
+
+        if (name inside {UOP_br_z, UOP_br_nz})
+            entry.regTarget = trgArg;
+ 
     endfunction
+
 
     function automatic logic isCommitted(input BranchQueueHelper::Entry entry);
         return 0;

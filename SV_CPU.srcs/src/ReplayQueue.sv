@@ -117,7 +117,7 @@ module ReplayQueue(
 
 
     task automatic wakeup();
-        UopPacket wrInput = AbstractCore.theSq.storeDataD2_E;
+        UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
             
             // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin

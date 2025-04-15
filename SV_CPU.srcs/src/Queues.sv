@@ -68,30 +68,6 @@ package Queues;
             };
         endfunction
         
-        
-        static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            if (p.status == ES_UNCACHED_1) begin
-                entry.uncached = 1;
-            end
-            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
-                entry.adrReady = 1;
-                entry.adr = p.result;
-            end
-        endfunction
-
-        static function void updateStoreData(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);        
-            if (p.status == ES_UNCACHED_1) begin
-            end
-            else if (imap.getU(p.TMP_oid).name inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
-            end
-            else begin
-                assert (imap.getU(p.TMP_oid).name inside {UOP_data_int, UOP_data_fp}) else $fatal(2, "Wrong uop for store data");
-            
-                entry.valReady = 1;
-                entry.val = p.result;
-            end
-        endfunction
-
 
         static function automatic UopPacket scanQueue(input InstructionMap imap, ref Entry entries[SQ_SIZE], input InsId id, input Mword adr);
             AccessSize loadSize = getTransactionSize(imap.get(id).mainUop);
@@ -146,11 +122,6 @@ package Queues;
                 refetch: 0
             };
             return res;
-        endfunction
-        
-        static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);
-            entry.adrReady = 1;
-            entry.adr = p.result;
         endfunction
 
 
@@ -218,41 +189,6 @@ endclass
 
             return res;
         endfunction
-        
-        
-        static function void updateEntry(input InstructionMap imap, ref Entry entry, input UopPacket p, input EventInfo brInfo);            
-            UopName name = imap.getU(p.TMP_oid).name;
-            Mword trgArg = imap.getU(p.TMP_oid).argsA[1];
-            
-            entry.taken = p.result;
-            
-            entry.condReady = 1;
-            entry.trgReady = 1;
-            
-            if (name inside {UOP_br_z, UOP_br_nz})
-                entry.regTarget = trgArg;
-     
-        endfunction
-
-
-//        static function automatic void verifyOnCommit(input InstructionMap imap, input Entry entry);
-//            UopName uname = imap.getU(FIRST_U(entry.mid)).name;
-//            Mword target = imap.get(entry.mid).basicData.target;
-//            Mword actualTarget = 'x;
-                        
-//            if (entry.taken) begin
-//                if (uname inside {UOP_br_z, UOP_br_nz})
-//                    actualTarget = entry.regTarget;
-//                else
-//                    actualTarget = entry.immTarget;
-//            end
-//            else begin
-//                actualTarget = entry.linkAdr;
-//            end
-            
-//            assert (actualTarget === target) else $error("Branch %p committed not matching: %d // %d", uname, actualTarget, target);
-            
-//        endfunction
              
     endclass
 
