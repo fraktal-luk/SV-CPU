@@ -16,7 +16,7 @@ module StoreQueue
     parameter logic IS_BRANCH_QUEUE = 0,
 
     parameter int SIZE = 32,
-
+    
     type HELPER = QueueHelper
 )
 (
@@ -199,6 +199,11 @@ module StoreQueue
     endfunction
 
 
+    function automatic QEntry newEntry(input InsId mid);
+        return submod.getNewEntry(mid);
+    endfunction
+
+
                     // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
         if (!anyActiveB(inGroup)) return;
@@ -207,7 +212,7 @@ module StoreQueue
             InsId thisMid = inGroup[i].mid;
 
             if (appliesU(decMainUop(thisMid))) begin
-                content_N[endPointer % SIZE] = HELPER::newEntry(insMap, thisMid);                
+                content_N[endPointer % SIZE] = newEntry(thisMid);
                 putMilestoneM(thisMid, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
@@ -232,7 +237,7 @@ module TmpSubSq();
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = StoreQueueHelper::scanQueue(StoreQueue.insMap, StoreQueue.content_N, U2M(loadOp.TMP_oid), loadOp.result);
+            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), loadOp.result);
 
             if (resb.active) begin
                 AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
@@ -244,7 +249,28 @@ module TmpSubSq();
         end
     endtask
 
-    task automatic verify(input StoreQueueHelper::Entry entry);
+        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Mword adr);
+            AccessSize loadSize = getTransactionSize(StoreQueue.insMap.get(id).mainUop);
+            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, item.size, adr, loadSize));
+            SqEntry fwEntry;
+
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            else begin // Youngest older overlapping store:
+                SqEntry vmax[$] = found.max with (item.mid);
+                fwEntry = vmax[0];
+            end
+
+            if ((loadSize != fwEntry.size) || !memInside(adr, (loadSize), fwEntry.adr, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
+                return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
+            else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
+                return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
+            else                                // Covers and has data -> OK
+                return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+
+        endfunction
+
+
+    task automatic verify(input SqEntry entry);
         checkStore(entry.mid, entry.adr, entry.val);
     endtask
 
@@ -319,7 +345,7 @@ module TmpSubSq();
     endtask
 
 
-    function automatic void updateEntry(ref StoreQueueHelper::Entry entry, input UopPacket p);
+    function automatic void updateEntry(ref SqEntry entry, input UopPacket p);
         UopName uname = decUname(p.TMP_oid);
         
         if (p.status == ES_UNCACHED_1) begin
@@ -350,7 +376,7 @@ module TmpSubSq();
     endtask
 
 
-    function automatic void updateStoreDataImpl(ref StoreQueueHelper::Entry entry, input UopPacket p);
+    function automatic void updateStoreDataImpl(ref SqEntry entry, input UopPacket p);
         UopName uname = decUname(p.TMP_oid);
        
         if (p.status == ES_UNCACHED_1) begin
@@ -366,12 +392,30 @@ module TmpSubSq();
     endfunction
 
 
-    function automatic logic isCommitted(input StoreQueueHelper::Entry entry);
+    function automatic logic isCommitted(input SqEntry entry);
         return entry.committed;
     endfunction
     
-    function automatic void setCommitted(ref StoreQueueHelper::Entry entry);
+    function automatic void setCommitted(ref SqEntry entry);
         entry.committed = 1;
+    endfunction
+
+    function automatic SqEntry getNewEntry(input InsId mid);
+        return  '{
+            mid: mid,
+            adrReady: 0,
+            adr: 'x,
+            phyAdrReady: 0,
+            phyAdr: 'x,
+            valReady: 0,
+            val: 'x,
+            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
+            uncached: 0,
+            committed: 0,
+            error: 0,
+            refetch: 0,
+            dontForward: (StoreQueue.insMap.get(mid).mainUop == UOP_mem_sts)
+        };
     endfunction
 
     assign storeDataD0_E = effP(storeDataD0); 
@@ -393,12 +437,37 @@ module TmpSubLq();
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = LoadQueueHelper::scanQueue(StoreQueue.insMap, StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
+            resb = scanLoadQueue(StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask
+
+
+        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Mword adr);
+            UopPacket res = EMPTY_UOP_PACKET;
+            AccessSize trSize = getTransactionSize(StoreQueue.insMap.get(id).mainUop);
+            
+            // CAREFUL: we search for all matching entries
+            int found[$] = entries.find_index with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
+                LqEntry found_e[$] = entries.find with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
+            
+            if (found.size() == 0) return res;
     
-    task automatic verify(input LoadQueueHelper::Entry entry);
+            foreach (found[i]) entries[found[i]].refetch = 1;
+        
+            begin // 'active' indicates that some match has happened without further details
+                int oldestFound[$] = found.min with (entries[item].mid);
+                res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
+                res.active = 1;
+                    
+                    // TODO: temporary DB print. Make testcases where it happens
+                    if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
+            end
+            
+            return res;
+        endfunction
+ 
+    task automatic verify(input LqEntry entry);
 
     endtask
     
@@ -436,17 +505,30 @@ module TmpSubLq();
         end
     endtask
 
-        function automatic void updateEntry(ref LoadQueueHelper::Entry entry, input UopPacket p);
+        function automatic void updateEntry(ref LqEntry entry, input UopPacket p);
             entry.adrReady = 1;
             entry.adr = p.result;
         endfunction
 
 
-    function automatic logic isCommitted(input LoadQueueHelper::Entry entry);
+    function automatic logic isCommitted(input LqEntry entry);
         return 0;
     endfunction
     
-    function automatic void setCommitted(ref LoadQueueHelper::Entry entry);
+    function automatic void setCommitted(ref LqEntry entry);
+    endfunction
+
+    function automatic LqEntry getNewEntry(input InsId mid);
+        return '{
+            mid: mid,
+            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
+            adrReady: 0,
+            adr: 'x,
+            phyAdrReady: 0,
+            phyAdr: 'x,
+            error: 0,
+            refetch: 0
+        };
     endfunction
 
 endmodule
@@ -469,7 +551,7 @@ module TmpSubBr();
         end
     endtask
     
-    task automatic verify(input BranchQueueHelper::Entry entry);
+    task automatic verify(input BqEntry entry);
         InstructionMap imap = StoreQueue.insMap;
         UopName uname = decUname(FIRST_U(entry.mid));
         Mword target = imap.get(entry.mid).basicData.target;
@@ -507,7 +589,7 @@ module TmpSubBr();
 
     endtask
 
-    function automatic void updateEntry(ref BranchQueueHelper::Entry entry, input UopPacket p);            
+    function automatic void updateEntry(ref BqEntry entry, input UopPacket p);            
         UopInfo uInfo = StoreQueue.insMap.getU(p.TMP_oid);
         UopName name = uInfo.name;
         Mword trgArg = uInfo.argsA[1];
@@ -522,11 +604,33 @@ module TmpSubBr();
     endfunction
 
 
-    function automatic logic isCommitted(input BranchQueueHelper::Entry entry);
+    function automatic logic isCommitted(input BqEntry entry);
         return 0;
     endfunction
     
-    function automatic void setCommitted(ref BranchQueueHelper::Entry entry);
+    function automatic void setCommitted(ref BqEntry entry);
+    endfunction
+    
+    function automatic BqEntry getNewEntry(input InsId mid);
+        BqEntry res = BranchQueueHelper::EMPTY_QENTRY;
+        InstructionInfo ii = StoreQueue.insMap.get(mid);
+        UopInfo ui = StoreQueue.insMap.getU(FIRST_U(mid));
+        AbstractInstruction abs = ii.basicData.dec;
+        
+        res.mid = mid;
+        
+        res.predictedTaken = 0;
+
+        res.condReady = 0;
+        res.trgReady = isBranchImmIns(abs);
+        
+        res.linkAdr = ii.basicData.adr + 4;
+        
+        // If branch immediate, calculate target for taken
+        if (ui.name inside {UOP_bc_a, UOP_bc_l, UOP_bc_z, UOP_bc_nz})
+            res.immTarget = ii.basicData.adr + ui.argsE[1];
+
+        return res;
     endfunction
     
 endmodule
