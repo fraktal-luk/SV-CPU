@@ -44,22 +44,25 @@ package Queues;
         logic error;
         logic refetch;
         
-            logic dontForward; // TODO: replace
+        logic dontForward; // TODO: replace
     } SqEntry;
 
-    typedef struct {
-        InsId mid;
+//    typedef struct {
+//        InsId mid;
         
-            AccessSize size;
+//        AccessSize size;
 
-        logic adrReady;
-        Mword adr;
-        logic phyAdrReady;
-        Dword phyAdr;
+//        logic adrReady;
+//        Mword adr;
+//        logic phyAdrReady;
+//        Dword phyAdr;
         
-            logic error;
-            logic refetch;
-    } LqEntry;
+//        logic error;
+//        logic refetch;
+//    } LqEntry;
+        
+    typedef SqEntry LqEntry;
+
 
     typedef struct {
         InsId mid;
@@ -82,7 +85,8 @@ package Queues;
 
     class LoadQueueHelper;
         typedef LqEntry Entry;
-        localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = //'{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x};
+                        StoreQueueHelper::EMPTY_QENTRY;
     endclass
     
     

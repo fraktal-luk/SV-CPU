@@ -520,14 +520,29 @@ module TmpSubLq();
 
     function automatic LqEntry getNewEntry(input InsId mid);
         return '{
+//            mid: mid,
+//            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
+//            adrReady: 0,
+//            adr: 'x,
+//            phyAdrReady: 0,
+//            phyAdr: 'x,
+//            error: 0,
+//            refetch: 0
+            
+            
             mid: mid,
-            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
             adrReady: 0,
             adr: 'x,
             phyAdrReady: 0,
             phyAdr: 'x,
+            valReady: 'x,
+            val: 'x,
+            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
+            uncached: 0,
+            committed: 0,
             error: 0,
-            refetch: 0
+            refetch: 0,
+            dontForward: 'x
         };
     endfunction
 
