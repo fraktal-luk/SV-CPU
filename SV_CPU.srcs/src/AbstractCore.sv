@@ -174,11 +174,11 @@ module AbstractCore
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
+        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.padr, sqe.val, sqe.size, sqe.uncached};
     endfunction
 
     function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
-        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
+        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, 'x, sqe.val, sqe.size, 'x};
     endfunction
 
     task automatic putWrite();        
@@ -404,7 +404,12 @@ module AbstractCore
 
         insMap.allocate(id, ii, uInfos);  // 
 
-        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, uopName, ins, argVals); // DB
+        if (isStoreIns(ins) || isLoadIns(ins)) begin
+            Mword effAdr = calculateEffectiveAddress(ins, argVals);
+            Dword padr = renamedEmul.translateAddress(effAdr);
+            
+            memTracker.add(id, uopName, ins, argVals, padr); // DB
+        end
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 
@@ -597,7 +602,7 @@ module AbstractCore
         logic uncached = theSq.content_N[found[0]].uncached;
         AccessSize size = theSq.content_N[found[0]].size;
         
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, size};       
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.padr, tr.val, size};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask

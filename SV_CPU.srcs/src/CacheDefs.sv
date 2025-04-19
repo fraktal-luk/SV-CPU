@@ -89,21 +89,23 @@ package CacheDefs;
         logic sys;
         logic uncached;
         Mword adr;
+        Dword padr;
         Mword val;
         AccessSize size;
     } StoreQueueEntry;
 
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, SIZE_NONE};
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, 'x, SIZE_NONE};
 
     typedef struct {
         logic req;
         Mword adr;
+        Dword padr;
         Mword value;
         AccessSize size;
         logic uncached;
     } MemWriteInfo;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE, 'x};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
    

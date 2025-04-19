@@ -474,10 +474,11 @@ package AbstractSim;
         Mword adr;
         Mword val;
         Mword adrAny;
+        Dword padr;
         AccessSize size;
     } Transaction;
 
-    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, SIZE_NONE};
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
 
 
     class MemTracker;
@@ -486,16 +487,16 @@ package AbstractSim;
         Transaction loads[$];
         Transaction committedStores[$]; // Not included in transactions
         
-        function automatic void add(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword argVals[3]);
+        function automatic void add(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword argVals[3],  input Dword padr);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             AccessSize size = getTransactionSize(uname);
-    
+
             if (isStoreMemIns(ins)) begin 
                 Mword value = argVals[2];
-                addStore(id, effAdr, value, size);
+                addStore(id, effAdr, padr, value, size);
             end
             if (isLoadMemIns(ins)) begin
-                addLoad(id, effAdr, 'x, size);
+                addLoad(id, effAdr, padr, 'x, size);
             end
             if (isStoreSysIns(ins)) begin 
                 Mword value = argVals[2];
@@ -506,24 +507,24 @@ package AbstractSim;
             end
         endfunction
 
-        function automatic void addStore(input InsId id, input Mword adr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, size});
-            stores.push_back('{id, adr, val, adr, size});
+        function automatic void addStore(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, padr, size});
+            stores.push_back('{id, adr, val, adr, padr, size});
         endfunction
 
-        function automatic void addLoad(input InsId id, input Mword adr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, size});
-            loads.push_back('{id, adr, val, adr, size});
+        function automatic void addLoad(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, padr, size});
+            loads.push_back('{id, adr, val, adr, padr, size});
         endfunction
 
         function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
-            transactions.push_back('{id, 'x, val, adr, SIZE_NONE});
-            stores.push_back('{id, 'x, val, adr, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            stores.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
         endfunction
 
         function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
-            transactions.push_back('{id, 'x, val, adr, SIZE_NONE});
-            loads.push_back('{id, 'x, val, adr, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            loads.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
         endfunction
 
         function automatic void remove(input InsId id);        
