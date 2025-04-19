@@ -23,7 +23,34 @@ package Queues;
 
     endclass
 
-    
+
+
+        //         typedef struct {
+        //            //TransactionType ttype;
+        //            logic active;
+            
+        //            logic sys;
+        //            logic store;
+        //            logic uncachedReq;
+        //            logic uncachedCollect;
+                    
+        //             // FUTURE: access rights of this uop?
+        //            AccessSize size;
+        //            Mword vadr;
+        //            logic unaligned;
+        //            logic blockCross;
+        //            logic pageCross;
+        //         } AccessDesc;
+            
+        //        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
+            
+            
+        //        typedef struct {
+        //            logic present; // TLB hit
+        //            DataLineDesc desc;
+        //            Dword phys; // TODO: rename to 'padr'
+        //        } Translation;
+        
 
     typedef struct {
         InsId mid;
@@ -39,12 +66,14 @@ package Queues;
         Mword val;
         
             logic uncached;  // TODO:  include in page desc
-        
+            logic dontForward; // TODO: replace
+
+            AccessDesc accessDesc;
+            Translation translation;
+
         logic committed;
         logic error;
         logic refetch;
-        
-        logic dontForward; // TODO: replace
     } SqEntry;
 
 //    typedef struct {
@@ -79,7 +108,7 @@ package Queues;
 
     class StoreQueueHelper;
         typedef SqEntry Entry;
-        localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, SIZE_NONE, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, /**/ DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION, /**/  'x, 'x, 'x};
     endclass
 
 

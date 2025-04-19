@@ -81,7 +81,7 @@ package CacheDefs;
 
 
     // Write buffer
-    // TODO: eplace with SQ entry struct?
+    // TODO: replace with SQ entry struct?
     typedef struct {
         logic active;
         InsId mid;

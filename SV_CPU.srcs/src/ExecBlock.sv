@@ -34,6 +34,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     DataReadReq readReqs[N_MEM_PORTS];
     DataReadReq sysReadReqs[N_MEM_PORTS];
+    AccessDesc accessDescs[N_MEM_PORTS];
     Translation dcacheTranslations[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     DataCacheOutput sysOuts[N_MEM_PORTS];
@@ -94,6 +95,7 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedMemP[0],
         readReqs[0],
         sysReadReqs[0],
+        accessDescs[0],
         dcacheTranslations[0],
         dcacheOuts[0],
         sysOuts[0],
@@ -110,6 +112,7 @@ module ExecBlock(ref InstructionMap insMap,
         issuedReplayQueue,
         readReqs[2],
         sysReadReqs[2],
+        accessDescs[2],
         dcacheTranslations[2],
         dcacheOuts[2],
         sysOuts[2],

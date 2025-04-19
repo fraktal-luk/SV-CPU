@@ -318,7 +318,7 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content_N[index], packet);
+               updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
                 
                // TODO: make separate milestones for SQ and LQ
                putMilestone(packet.TMP_oid, InstructionMap::WriteMemAddress);
@@ -345,7 +345,7 @@ module TmpSubSq();
     endtask
 
 
-    function automatic void updateEntry(ref SqEntry entry, input UopPacket p);
+    function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
         UopName uname = decUname(p.TMP_oid);
         
         if (p.status == ES_UNCACHED_1) begin
@@ -354,6 +354,9 @@ module TmpSubSq();
         else if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
             entry.adrReady = 1;
             entry.adr = p.result;
+            
+            entry.accessDesc = desc;
+            entry.translation = tr;
         end
     endfunction
 
@@ -411,10 +414,12 @@ module TmpSubSq();
             val: 'x,
             size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
             uncached: 0,
+            dontForward: (StoreQueue.insMap.get(mid).mainUop == UOP_mem_sts),
+                 accessDesc: DEFAULT_ACCESS_DESC,
+                 translation: DEFAULT_TRANSLATION,
             committed: 0,
             error: 0,
-            refetch: 0,
-            dontForward: (StoreQueue.insMap.get(mid).mainUop == UOP_mem_sts)
+            refetch: 0
         };
     endfunction
 
@@ -484,7 +489,7 @@ module TmpSubLq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content_N[index], packet);
+               updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteMemAddress);
             end
         end
@@ -505,9 +510,12 @@ module TmpSubLq();
         end
     endtask
 
-        function automatic void updateEntry(ref LqEntry entry, input UopPacket p);
+        function automatic void updateEntry(ref LqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
             entry.adrReady = 1;
             entry.adr = p.result;
+            
+            entry.accessDesc = desc;
+            entry.translation = tr;
         endfunction
 
 
@@ -539,10 +547,12 @@ module TmpSubLq();
             val: 'x,
             size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
             uncached: 0,
+            dontForward: 'x,
+                 accessDesc: DEFAULT_ACCESS_DESC,
+                 translation: DEFAULT_TRANSLATION,
             committed: 0,
             error: 0,
-            refetch: 0,
-            dontForward: 'x
+            refetch: 0
         };
     endfunction
 

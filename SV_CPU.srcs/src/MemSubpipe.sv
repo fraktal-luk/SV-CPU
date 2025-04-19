@@ -20,6 +20,7 @@ module MemSubpipe#(
 
     output DataReadReq readReq,
     output DataReadReq sysReadReq,
+    output AccessDesc accessDescOut,
     
     input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
@@ -38,6 +39,9 @@ module MemSubpipe#(
     logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
     AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
+
+
+    assign accessDescOut = accessDesc;
 
     //assign stage0 = pE2;
     assign stage0_E = pE2_E;
@@ -104,6 +108,8 @@ module MemSubpipe#(
         AccessInfo aInfo = analyzeAccess(adr, getTransactionSize(uname));
 
         if (!p.active) return res;
+
+        res.active = 1;
 
         res.size = getTransactionSize(uname);
         

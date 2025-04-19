@@ -375,6 +375,10 @@ package Emulation;
         return (ins.def.o inside {O_sysLoad, O_sysStore}) ? vals[1] : vals[0] + vals[1];
     endfunction
 
+    // TODO
+    function automatic Dword translateAddress(input Mword vadr);
+        return Dword'(vadr);
+    endfunction
 
     function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Mword adr);
         writeIntReg(state, ins.dest, adr + 4);
@@ -514,8 +518,9 @@ package Emulation;
                 return adr + 4;
             
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
-                Mword adr = calculateEffectiveAddress(ins, args);
-                return getLoadValue(ins, adr);
+                Mword vadr = calculateEffectiveAddress(ins, args);
+                Dword padr = translateAddress(vadr);
+                return getLoadValue(ins, vadr);
             end
             
             return 'x;
@@ -608,15 +613,16 @@ package Emulation;
         endfunction
         
         local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals);
-            Mword adr = calculateEffectiveAddress(ins, vals);
+            Mword vadr = calculateEffectiveAddress(ins, vals);
+            Dword padr = translateAddress(vadr);
             
-            if (exceptionCaused(ins, adr)) begin
+            if (exceptionCaused(ins, vadr)) begin
                 modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end
             
             begin
-                Mword result = getLoadValue(ins, adr);
+                Mword result = getLoadValue(ins, vadr);
                 if (!isLoadIns(ins)) return;
                 if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
                 if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
@@ -663,6 +669,7 @@ package Emulation;
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
+            Dword physAdr = translateAddress(effAdr);            
             logic en = !exceptionCaused(ins, effAdr);
             int size = -1;
             
