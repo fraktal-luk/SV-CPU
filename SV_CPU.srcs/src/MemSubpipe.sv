@@ -115,8 +115,8 @@ module MemSubpipe#(
         
         res.store = isStoreUop(uname);
         res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);
-        res.uncachedReq = (p.status == ES_UNCACHED_1);
-        res.uncachedCollect = (p.status == ES_UNCACHED_2);
+        res.uncachedReq = (p.status == ES_UNCACHED_1) && !res.store;
+        res.uncachedCollect = (p.status == ES_UNCACHED_2) && !res.store;
         
 //            readActive <= stateE0.active && isMemUop(uname);
 //            sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));

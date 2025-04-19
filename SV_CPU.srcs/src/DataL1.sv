@@ -21,27 +21,35 @@ module DataL1(
 
     // TLB
     localparam int DATA_TLB_SIZE = 32;
+    localparam logic DONT_TRANSLATE = 1; // TMP
+
+    typedef Translation TranslationA[N_MEM_PORTS];
+
+    Translation translations_T[N_MEM_PORTS];
+
     
-        localparam logic DONT_TRANSLATE = 1; // TMP
-
-        typedef Translation TranslationA[N_MEM_PORTS];
-
-        //Translation translations[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
-        Translation translations_T[N_MEM_PORTS];// = '{default: DEFAULT_TRANSLATION};
-
-
+    // Fill logic
     logic notifyFill = 0;
     Mword notifiedAdr = 'x;
 
     logic notifyTlbFill = 0;
     Mword notifiedTlbAdr = 'x;
 
+    int       blockFillCounters[Mword];
+    Mword     readyBlocksToFill[$];
+    int       mappingFillCounters[Mword];
+    Mword     readyMappingsToFill[$];
+
+
+
+
     int uncachedCounter = -1;
     logic uncachedBusy = 0;
     Mword uncachedOutput = 'x;
 
-    typedef Mbyte DataBlock[BLOCK_SIZE];
 
+
+    typedef Mbyte DataBlock[BLOCK_SIZE];
 
     // Simple array for simple test cases, without blocks, transaltions etc
     Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
@@ -52,16 +60,25 @@ module DataL1(
     // Data and tag arrays
     PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
 
-
     // CAREFUL: below only for addresses in the range for data miss tests 
     DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
-    int       blockFillCounters[Mword];
-    Mword     readyBlocksToFill[$];
-
     // CAREFUL: below only for addresses in the range for TLB miss tests 
-    Translation   filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
-    int       mappingFillCounters[Mword];
-    Mword     readyMappingsToFill[$];
+    Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+
+
+
+        typedef struct {
+            logic ready = 0;
+        
+            logic ongoing = 0;
+            Mword adr = 'x;
+            AccessSize size = SIZE_NONE;
+
+            int counter = -1;
+        } UncachedRead;
+
+        UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
+
 
 
 
@@ -77,21 +94,6 @@ module DataL1(
         return isUncachedRange(adr) // TEMP: uncached region is mapped by default
                 || adr < 'h80000; // TEMP: Let's give 1M for static mappings
     endfunction
-
-
-        typedef struct {
-            logic ready = 0;
-        
-                logic ongoing = 0;
-                Mword adr = 'x;
-                AccessSize size = SIZE_NONE;
-
-            int counter = -1;
-        } UncachedRead;
-
-        UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
-
-
 
 
     function automatic void reset();
@@ -112,9 +114,7 @@ module DataL1(
     endfunction
 
 
-    task automatic handleWrites();
-        doWrite(TMP_writeReqs[0]);
-    endtask
+
 
         
     class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
@@ -131,7 +131,6 @@ module DataL1(
             return wval;
         endfunction
     endclass
-
 
 
     ////////////////////////////////////
@@ -266,8 +265,6 @@ module DataL1(
     function automatic void scheduleTlbFill(input Mword adr);
         Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
 
-             //   $error("sch TLB fill");
-
         if (!mappingFillCounters.exists(pageBase))
             mappingFillCounters[pageBase] = 12;  
     endfunction
@@ -322,16 +319,12 @@ module DataL1(
         allocInTlb(adr);
         mappingFillCounters.delete(adr);
 
-          //  $error(" TLB filled.");
-
         notifyTlbFill <= 1;
         notifiedTlbAdr <= adr;           
     endtask 
 
 
-    task automatic handleUncachedData();
-         //   if (uncachedReads[0].ready) $error("unc ready");
-    
+    task automatic handleUncachedData();    
         if (uncachedReads[0].ongoing) begin
             if (--uncachedReads[0].counter == 0) begin
                 uncachedReads[0].ongoing = 0;
@@ -376,10 +369,12 @@ module DataL1(
 
         return 'x;
     endfunction
-    
+
+
     
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
+        Dword padr = wrInfo.padr;
         Mword val = wrInfo.value;
 
         if (!wrInfo.req) return;
@@ -405,32 +400,104 @@ module DataL1(
 
 
 
+    function automatic Translation translateAddress(input EffectiveAddress adr);
+        Translation res;
+
+        if ($isunknown(adr)) return res;
+
+        if (!isTlbPresent(adr)) begin
+            res.present = 0;
+            return res;
+        end
+
+        // TMP: in "mapping always present" range:
+        res.present = 1; // Obviously
+        res.desc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
+        res.phys = {adrHigh(adr), adrLow(adr)};
+
+        // TMP: uncached rnge
+        if (isUncachedRange(adr))
+            res.desc.cached = 0;
+
+        return res;
+    endfunction
+
+    function automatic TranslationA getTranslations();
+        TranslationA res = '{default: DEFAULT_TRANSLATION};
+    
+        foreach (readReqs[p]) begin
+             if (!readReqs[p].active || $isunknown(readReqs[p].adr)) continue;
+             
+             res[p] = translateAddress(readReqs[p].adr);
+        end
+        
+        return res;
+    endfunction
+
+
+
+
+    function automatic void scheduleUncachedRead(input AccessInfo aInfo);
+        uncachedReads[0].ongoing = 1;
+        uncachedReads[0].counter = 8;
+        uncachedReads[0].adr = aInfo.adr;
+        uncachedReads[0].size = aInfo.size;
+    endfunction
+    
+
+    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input logic startUncached, input AccessDesc aDesc);
+        DataCacheOutput res;        
+        
+        if (!tr.present) begin // TLB miss
+            res.status = CR_TLB_MISS;
+        end
+        else if (!isPhysPresent(tr.phys)) begin // data miss
+           res = '{1, CR_TAG_MISS, tr.desc, 'x};
+           if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
+        end
+        else if (aDesc.uncachedReq) scheduleUncachedRead(aInfo); // request for uncached read
+        else if (aDesc.uncachedCollect) begin
+            res = '{1, CR_HIT, tr.desc, 'x};
+            res.data = uncachedOutput;
+            // Clear used transfer
+            uncachedReads[0].ready = 0;
+            uncachedReads[0].adr = 'x;
+            uncachedOutput = 'x;
+        end
+        
+        else begin
+            res = '{1, CR_HIT, tr.desc, 'x};
+            
+            if (isUncachedRange(tr.phys)) begin end
+            else if (tr.phys <= $size(staticContent)) // Read from small array
+                res.data = readFromStaticRange(tr.phys, aInfo.size);
+            else
+                res.data = readFromDynamicRange(tr.phys, aInfo.size);
+        end
+        
+        return res;
+    endfunction
+
+
+    always_comb translations_T = getTranslations();
+
+    assign translationsOut = translations_T;
+
+
     task automatic handleFills();
         handleBlockFills();
         handleTlbFills();
             
         handleUncachedData();
     endtask
-
-
-        function automatic TranslationA getTranslations();//input DataReadReq readReqs[N_MEM_PORTS]);
-            TranslationA res = '{default: DEFAULT_TRANSLATION};
-        
-            foreach (readReqs[p]) begin
-                 if (!readReqs[p].active || $isunknown(readReqs[p].adr)) continue;
-                 
-                 res[p] = translateAddress_NoFill(readReqs[p].adr);
-            end
-            
-            return res;
-        endfunction
     
 
+    task automatic handleWrites();
+        doWrite(TMP_writeReqs[0]);
+    endtask
 
     task automatic handleReads();
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
-
-         //   if (readReqs[0].active) $error(" have req 0!");
 
         foreach (readReqs[p]) begin
             Mword vadr = readReqs[p].adr;
@@ -439,126 +506,18 @@ module DataL1(
             else if ($isunknown(vadr)) continue;
             else begin
                 AccessInfo acc = analyzeAccess(vadr, readReqs[p].size);
-                Translation tr = translateAddress(vadr);
+                Translation tr = translations_T[p];
                 PhysicalAddressHigh wayTag = tagsForWay[acc.block];
 
-                readOut[p] <= doReadAccess(acc, tr, !readReqs[p].store && readReqs[p].uncachedReq);
+                // if mapping not found
+                if (!tr.present) begin
+                    if (!isTlbPending(vadr)) scheduleTlbFill(vadr);
+                end
+
+                readOut[p] <= doReadAccess(acc, tr, !readReqs[p].store && readReqs[p].uncachedReq, theExecBlock.accessDescs[p]);
             end
         end
     endtask
-
-
-    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input logic startUncached);
-        DataCacheOutput res;
-        
-        if (!tr.present) begin
-             //   $error("TLB miss at");
-            res.status = CR_TLB_MISS;
-        end
-        else if (!isPhysPresent(tr.phys)) begin
-           res = '{1, CR_TAG_MISS, tr.desc, 'x};
-           if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
-        end
-        else begin
-            res = '{1, CR_HIT, tr.desc, 'x};
-            
-            if (isUncachedRange(tr.phys)) begin
-                res.data = uncachedOutput;
-                // Clear used transfer
-                uncachedReads[0].ready = 0;
-                uncachedReads[0].adr = 'x;
-                    uncachedOutput = 'x;
-            end
-            else if (tr.phys <= $size(staticContent)) // Read from small array
-                res.data = readFromStaticRange(tr.phys, aInfo.size);
-            else
-                res.data = readFromDynamicRange(tr.phys, aInfo.size);
-        end
-        
-        // Initiate uncached read
-        if (startUncached) begin
-            uncachedReads[0].ongoing = 1;
-            uncachedReads[0].counter = 8;
-            uncachedReads[0].adr = aInfo.adr;
-            uncachedReads[0].size = aInfo.size;
-        end
-        
-        return res;
-    endfunction
-
-
-
-    function automatic Translation translateAddress(input EffectiveAddress adr);
-        Translation res;
-
-        if ($isunknown(adr)) return res;
-
-        if (!isTlbPresent(adr)) begin
-            res.present = 0;
-            if (!isTlbPending(adr)) scheduleTlbFill(adr);
-            return res;
-        end
-
-        // TMP: in "mapping always present" range:
-        res.present = 1; // Obviously
-        //res.pHigh = res.vHigh; // Direct mapping of memory
-        res.desc = '{
-            allowed: 1,
-            canRead: 1,
-            canWrite: 1,
-            canExec: 1,
-            cached: 1
-        };
-
-        res.phys = {adrHigh(adr), adrLow(adr)};
-
-        // TMP: uncached rnge
-        if (isUncachedRange(adr))
-            res.desc.cached = 0;
-
-        return res;
-    endfunction
-
-
-    function automatic Translation translateAddress_NoFill(input EffectiveAddress adr);
-        Translation res;
-
-        if ($isunknown(adr)) return res;
-
-        if (!isTlbPresent(adr)) begin
-            res.present = 0;
-            //if (!isTlbPending(adr)) scheduleTlbFill(adr);
-            return res;
-        end
-
-        // TMP: in "mapping always present" range:
-        res.present = 1; // Obviously
-        //res.pHigh = res.vHigh; // Direct mapping of memory
-        res.desc = '{
-            allowed: 1,
-            canRead: 1,
-            canWrite: 1,
-            canExec: 1,
-            cached: 1
-        };
-
-        res.phys = {adrHigh(adr), adrLow(adr)};
-
-        // TMP: uncached rnge
-        if (isUncachedRange(adr))
-            res.desc.cached = 0;
-
-        return res;
-    endfunction
-
-
-
-
-    //assign translations = getTranslations();//readReqs);
-    always_comb translations_T = getTranslations();
-
-    assign translationsOut = translations_T;
-
 
     always @(posedge clk) begin
             if (uncachedCounter == 0) uncachedBusy = 0;
