@@ -32,8 +32,8 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket storeDataE0, storeDataE0_E;
 
 
-    DataReadReq readReqs[N_MEM_PORTS];
-    DataReadReq sysReadReqs[N_MEM_PORTS];
+    //DataReadReq readReqs[N_MEM_PORTS];
+   // DataReadReq sysReadReqs[N_MEM_PORTS];
     AccessDesc accessDescs[N_MEM_PORTS];
     Translation dcacheTranslations[N_MEM_PORTS];
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
@@ -93,8 +93,8 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
-        readReqs[0],
-        sysReadReqs[0],
+       // readReqs[0],
+      //  sysReadReqs[0],
         accessDescs[0],
         dcacheTranslations[0],
         dcacheOuts[0],
@@ -110,8 +110,8 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         issuedReplayQueue,
-        readReqs[2],
-        sysReadReqs[2],
+      //  readReqs[2],
+     //   sysReadReqs[2],
         accessDescs[2],
         dcacheTranslations[2],
         dcacheOuts[2],
@@ -145,11 +145,11 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
 
-    assign readReqs[1] = EMPTY_READ_REQ;
-    assign readReqs[3] = EMPTY_READ_REQ;
+//    assign readReqs[1] = EMPTY_READ_REQ;
+//    assign readReqs[3] = EMPTY_READ_REQ;
 
-    assign sysReadReqs[1] = EMPTY_READ_REQ;
-    assign sysReadReqs[3] = EMPTY_READ_REQ;
+//    assign sysReadReqs[1] = EMPTY_READ_REQ;
+//    assign sysReadReqs[3] = EMPTY_READ_REQ;
 
     ReplayQueue replayQueue(
         insMap,

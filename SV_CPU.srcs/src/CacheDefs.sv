@@ -68,17 +68,17 @@ package CacheDefs;
 
 //////////////////
 
-
-    typedef struct {
-        logic active;
-            logic store;            
-            logic uncachedReq;
-        Mword adr;
-        AccessSize size;
-    } DataReadReq;
-
-    localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
-
+        // UNUSED?
+        typedef struct {
+            logic active;
+                logic store;            
+                logic uncachedReq;
+            Mword adr;
+            AccessSize size;
+        } DataReadReq;
+    
+        localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
+    
 
     // Write buffer
     // TODO: replace with SQ entry struct?

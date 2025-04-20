@@ -13,7 +13,6 @@ import CacheDefs::*;
 
 module DataL1(
             input logic clk,
-            input DataReadReq readReqs[N_MEM_PORTS],
             input MemWriteInfo TMP_writeReqs[2],
             output Translation translationsOut[N_MEM_PORTS],
             output DataCacheOutput readOut[N_MEM_PORTS]
@@ -42,6 +41,17 @@ module DataL1(
 
 
 
+        typedef struct {
+            logic ready = 0;
+        
+            logic ongoing = 0;
+            Mword adr = 'x;
+            AccessSize size = SIZE_NONE;
+
+            int counter = -1;
+        } UncachedRead;
+
+        UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
 
     int uncachedCounter = -1;
     logic uncachedBusy = 0;
@@ -67,21 +77,6 @@ module DataL1(
 
 
 
-        typedef struct {
-            logic ready = 0;
-        
-            logic ongoing = 0;
-            Mword adr = 'x;
-            AccessSize size = SIZE_NONE;
-
-            int counter = -1;
-        } UncachedRead;
-
-        UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
-
-
-
-
     function automatic logic isUncachedRange(input Mword adr);
         return adr >= UNCACHED_BASE && adr < UNCACHED_BASE + $size(uncachedArea);
     endfunction
@@ -93,6 +88,13 @@ module DataL1(
     function automatic logic isStaticTlbRange(input Mword adr);        
         return isUncachedRange(adr) // TEMP: uncached region is mapped by default
                 || adr < 'h80000; // TEMP: Let's give 1M for static mappings
+    endfunction
+
+
+
+    function automatic UNC_reset();
+        uncachedCounter = -1;
+        uncachedBusy = 0;
     endfunction
 
 
@@ -109,11 +111,9 @@ module DataL1(
         mappingFillCounters.delete();
         readyMappingsToFill.delete();
         
-            uncachedCounter = -1;
-            uncachedBusy = 0;
+        UNC_reset();
+
     endfunction
-
-
 
 
         
@@ -271,7 +271,6 @@ module DataL1(
 
 
 
-
     task automatic handleBlockFills();
         Mword adr;
         
@@ -323,9 +322,7 @@ module DataL1(
         notifiedTlbAdr <= adr;           
     endtask 
 
-
     ////////////////////////////////////
-
 
 
 
@@ -361,6 +358,18 @@ module DataL1(
     endfunction
 
 
+
+    task automatic UNC_write(input MemWriteInfo wrInfo);
+        Mword adr = wrInfo.adr;
+        Dword padr = wrInfo.padr;
+        Mword val = wrInfo.value;
+        
+        uncachedCounter = 15;
+        uncachedBusy = 1;
+        if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
+        if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
+    endtask
+
     
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
@@ -370,10 +379,11 @@ module DataL1(
         if (!wrInfo.req) return;
 
         if (wrInfo.uncached) begin
-            uncachedCounter = 15;
-            uncachedBusy = 1;
-            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
-            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
+           // UNC_write(wrInfo);
+//            uncachedCounter = 15;
+//            uncachedBusy = 1;
+//            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
+//            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
         end
         else if (isStaticDataRange(adr)) begin
             if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
@@ -387,7 +397,6 @@ module DataL1(
     endtask
 
     ///////////////////////////////
-
 
 
     function automatic Translation translateAddress(input EffectiveAddress adr);
@@ -414,28 +423,16 @@ module DataL1(
 
     function automatic TranslationA getTranslations();
         TranslationA res = '{default: DEFAULT_TRANSLATION};
-    
-        foreach (readReqs[p]) begin
-             if (!readReqs[p].active || $isunknown(readReqs[p].adr)) continue;
-             
-             res[p] = translateAddress(readReqs[p].adr);
+
+        foreach (theExecBlock.accessDescs[p]) begin
+            AccessDesc aDesc = theExecBlock.accessDescs[p];
+            if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
+            res[p] = translateAddress(aDesc.vadr);
         end
-        
         return res;
     endfunction
 
 
-
-
-    task automatic handleUncachedData();    
-        if (uncachedReads[0].ongoing) begin
-            if (--uncachedReads[0].counter == 0) begin
-                uncachedReads[0].ongoing = 0;
-                uncachedReads[0].ready = 1;
-                uncachedOutput = readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
-            end
-        end
-    endtask
 
     function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
         uncachedReads[0].ongoing = 1;
@@ -447,23 +444,21 @@ module DataL1(
     function automatic void UNC_clearUncachedRead();
         uncachedReads[0].ready = 0;
         uncachedReads[0].adr = 'x;
-        uncachedOutput = 'x;
-    endfunction
-
-    function automatic void UNC_moveUncached();
-        if (uncachedCounter == 0) uncachedBusy = 0;
-        if (uncachedCounter >= 0) uncachedCounter--;
+        uncachedOutput <= 'x;
     endfunction
 
 
-    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, /*input logic startUncached,*/ input AccessDesc aDesc);
+   
+
+    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
         DataCacheOutput res;        
         
-        if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aInfo); // request for uncached read
+        if (aDesc.uncachedReq) begin
+        end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read
             res = '{1, CR_HIT, tr.desc, uncachedOutput};
-            UNC_clearUncachedRead();
         end
+        else if (aDesc.sys) begin end
         else if (!tr.present) begin // TLB miss
             res.status = CR_TLB_MISS;
         end
@@ -492,45 +487,93 @@ module DataL1(
     task automatic handleFills();
         handleBlockFills();
         handleTlbFills();
-            
-        handleUncachedData();
     endtask
     
 
-    task automatic handleWrites();
-        doWrite(TMP_writeReqs[0]);
-    endtask
+//    task automatic handleWrites();
+//        doWrite(TMP_writeReqs[0]);
+//    endtask
+
+
 
     task automatic handleReads();
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
-        foreach (readReqs[p]) begin
-            Mword vadr = readReqs[p].adr;
+        foreach (theExecBlock.accessDescs[p]) begin
+            AccessDesc aDesc = theExecBlock.accessDescs[p];
+            Mword vadr = aDesc.vadr;
 
-            if (!readReqs[p].active) continue;
-            else if ($isunknown(vadr)) continue;
+            if (!aDesc.active || $isunknown(vadr)) continue;
             else begin
-                AccessInfo acc = analyzeAccess(vadr, readReqs[p].size);
+                AccessInfo acc = analyzeAccess(vadr, aDesc.size);
                 Translation tr = translations_T[p];
                 PhysicalAddressHigh wayTag = tagsForWay[acc.block];
 
                 // if mapping not found
-                if (!tr.present) begin
-                    if (!isTlbPending(vadr)) scheduleTlbFill(vadr);
-                end
+                if (!tr.present && !isTlbPending(vadr)) scheduleTlbFill(vadr);
 
-                readOut[p] <= doReadAccess(acc, tr, theExecBlock.accessDescs[p]);
+                readOut[p] <= doReadAccess(acc, tr, aDesc);
             end
         end
     endtask
 
-    always @(posedge clk) begin
-        UNC_moveUncached();
-         
-        handleFills();
 
+
+
+        // uncached read pipe
+        task automatic UNC_handleUncachedData();
+            if (uncachedCounter == 0) uncachedBusy = 0;
+            if (uncachedCounter >= 0) uncachedCounter--;
+            
+            if (uncachedReads[0].ongoing) begin
+                if (--uncachedReads[0].counter == 0) begin
+                    uncachedReads[0].ongoing = 0;
+                    uncachedReads[0].ready = 1;
+                    uncachedOutput <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
+                end
+            end
+//        endtask
+    
+        
+//        // If needed, start reading memory or finzalize read
+//        task automatic UNC_handle();
+            foreach (theExecBlock.accessDescs[p]) begin
+                AccessDesc aDesc = theExecBlock.accessDescs[p];
+                Mword vadr = aDesc.vadr;
+                if (!aDesc.active || $isunknown(vadr)) continue;
+                else begin
+                    AccessInfo acc = analyzeAccess(vadr, aDesc.size);
+                    if (theExecBlock.accessDescs[p].uncachedReq) UNC_scheduleUncachedRead(acc); // request for uncached read
+                    else if (theExecBlock.accessDescs[p].uncachedCollect) UNC_clearUncachedRead();
+                end
+            end
+        endtask
+     
+
+
+    always @(posedge clk) begin         
+        handleFills();
         handleReads();
-        handleWrites();
+        doWrite(TMP_writeReqs[0]);
+
+
+//            UNC_handleUncachedData();        
+//            UNC_handle();
+
+//            if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
+//                UNC_write(TMP_writeReqs[0]);
+//            end
+
+    end
+
+
+    always @(posedge clk) begin
+        UNC_handleUncachedData();        
+        //UNC_handle();
+
+        if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
+            UNC_write(TMP_writeReqs[0]);
+        end
     end
 
 

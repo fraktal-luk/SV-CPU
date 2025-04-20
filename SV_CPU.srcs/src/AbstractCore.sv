@@ -26,7 +26,7 @@ module AbstractCore
     output logic sig,
     output logic wrong
 );
-    logic dummy = '1;
+    logic dummy = 'z;
 
     // DB        
     InstructionMap insMap = new();
@@ -77,14 +77,14 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    DataReadReq TMP_readReqs[N_MEM_PORTS];
-    DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
+    //DataReadReq TMP_readReqs[N_MEM_PORTS];
+    //DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, icacheOut);
-    DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
+    DataL1        dataCache(clk, /*TMP_readReqs,*/ TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -114,8 +114,8 @@ module AbstractCore
 
     assign wqFree = csqEmpty && !dataCache.uncachedBusy;
 
-    assign TMP_readReqs = theExecBlock.readReqs;
-    assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
+    //assign TMP_readReqs = theExecBlock.readReqs;
+    //assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
     assign theExecBlock.sysOuts = sysReadOuts;
 
@@ -210,22 +210,24 @@ module AbstractCore
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= getSysReadResponse(TMP_sysReadReqs[p]);
+            sysReadOuts[p] <= getSysReadResponse(/*TMP_sysReadReqs[p],*/ theExecBlock.accessDescs[p]);
     endtask
 
-    function automatic DataCacheOutput getSysReadResponse(input DataReadReq readReq);
+    function automatic DataCacheOutput getSysReadResponse(/*input DataReadReq readReq,*/ input AccessDesc aDesc);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
+        Mword regAdr = aDesc.vadr;
         
-        if (!readReq.active) return res;
+        //if (!readReq.active) return res;
+        if (!aDesc.active || !aDesc.sys) return res;
         
         res.active = 1;
         
-        if (readReq.adr > 31) begin
+        if (regAdr > 31) begin
             res.status = CR_INVALID;
         end
         else begin
             res.status = CR_HIT;
-            res.data = getSysReg(readReq.adr);
+            res.data = getSysReg(regAdr);
         end
         
         return res;

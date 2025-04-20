@@ -18,8 +18,8 @@ module MemSubpipe#(
     input EventInfo lateEventInfo,
     input UopPacket opP,
 
-    output DataReadReq readReq,
-    output DataReadReq sysReadReq,
+   // output DataReadReq readReq,
+   // output DataReadReq sysReadReq,
     output AccessDesc accessDescOut,
     
     input Translation cacheTranslation,
@@ -59,13 +59,13 @@ module MemSubpipe#(
         pD1 <= tickP(pD0);
     end
 
-    assign readReq = '{
-        readActive, storeFlag, uncachedFlag, effAdrE0, readSize
-    };
+//    assign readReq = '{
+//        readActive, storeFlag, uncachedFlag, effAdrE0, readSize
+//    };
 
-    assign sysReadReq = '{
-        sysReadActive, 'x, 'x, effAdrE0, readSize
-    };
+//    assign sysReadReq = '{
+//        sysReadActive, 'x, 'x, effAdrE0, readSize
+//    };
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
