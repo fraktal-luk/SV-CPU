@@ -324,16 +324,6 @@ module DataL1(
     endtask 
 
 
-    task automatic handleUncachedData();    
-        if (uncachedReads[0].ongoing) begin
-            if (--uncachedReads[0].counter == 0) begin
-                uncachedReads[0].ongoing = 0;
-                uncachedReads[0].ready = 1;
-                uncachedOutput = readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
-            end
-        end
-    endtask
-
     ////////////////////////////////////
 
 
@@ -437,37 +427,52 @@ module DataL1(
 
 
 
-    function automatic void scheduleUncachedRead(input AccessInfo aInfo);
+    task automatic handleUncachedData();    
+        if (uncachedReads[0].ongoing) begin
+            if (--uncachedReads[0].counter == 0) begin
+                uncachedReads[0].ongoing = 0;
+                uncachedReads[0].ready = 1;
+                uncachedOutput = readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
+            end
+        end
+    endtask
+
+    function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
         uncachedReads[0].ongoing = 1;
         uncachedReads[0].counter = 8;
         uncachedReads[0].adr = aInfo.adr;
         uncachedReads[0].size = aInfo.size;
     endfunction
     
+    function automatic void UNC_clearUncachedRead();
+        uncachedReads[0].ready = 0;
+        uncachedReads[0].adr = 'x;
+        uncachedOutput = 'x;
+    endfunction
 
-    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input logic startUncached, input AccessDesc aDesc);
+    function automatic void UNC_moveUncached();
+        if (uncachedCounter == 0) uncachedBusy = 0;
+        if (uncachedCounter >= 0) uncachedCounter--;
+    endfunction
+
+
+    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, /*input logic startUncached,*/ input AccessDesc aDesc);
         DataCacheOutput res;        
         
-        if (!tr.present) begin // TLB miss
+        if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aInfo); // request for uncached read
+        else if (aDesc.uncachedCollect) begin // Completion of uncached read
+            res = '{1, CR_HIT, tr.desc, uncachedOutput};
+            UNC_clearUncachedRead();
+        end
+        else if (!tr.present) begin // TLB miss
             res.status = CR_TLB_MISS;
         end
         else if (!isPhysPresent(tr.phys)) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
            if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
         end
-        else if (aDesc.uncachedReq) scheduleUncachedRead(aInfo); // request for uncached read
-        else if (aDesc.uncachedCollect) begin
-            res = '{1, CR_HIT, tr.desc, 'x};
-            res.data = uncachedOutput;
-            // Clear used transfer
-            uncachedReads[0].ready = 0;
-            uncachedReads[0].adr = 'x;
-            uncachedOutput = 'x;
-        end
-        
         else begin
             res = '{1, CR_HIT, tr.desc, 'x};
-            
             if (isUncachedRange(tr.phys)) begin end
             else if (tr.phys <= $size(staticContent)) // Read from small array
                 res.data = readFromStaticRange(tr.phys, aInfo.size);
@@ -514,15 +519,14 @@ module DataL1(
                     if (!isTlbPending(vadr)) scheduleTlbFill(vadr);
                 end
 
-                readOut[p] <= doReadAccess(acc, tr, !readReqs[p].store && readReqs[p].uncachedReq, theExecBlock.accessDescs[p]);
+                readOut[p] <= doReadAccess(acc, tr, theExecBlock.accessDescs[p]);
             end
         end
     endtask
 
     always @(posedge clk) begin
-            if (uncachedCounter == 0) uncachedBusy = 0;
-            if (uncachedCounter >= 0) uncachedCounter--;
-            
+        UNC_moveUncached();
+         
         handleFills();
 
         handleReads();
