@@ -149,7 +149,7 @@ module ReplayQueue(
         end
         
         // Entry waiting for uncached read data
-        if (AbstractCore.dataCache.uncachedReads[0].ready) begin
+        if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready) begin
             foreach (content[i]) begin
                 if (content[i].execStatus == ES_UNCACHED_2) begin
                     content[i].ready_N = 1;

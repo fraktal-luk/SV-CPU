@@ -68,6 +68,24 @@ package CacheDefs;
 
 //////////////////
 
+    localparam int PAGE_SIZE = 4096;
+
+
+    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
+        static
+        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
+            Mbyte wval[ESIZE] = {>>{val}};
+            arr[(adr - BASE) +: ESIZE] = wval;
+        endfunction
+        
+        static
+        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
+            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
+            Elem wval = {>>{chosen}};
+            return wval;
+        endfunction
+    endclass
+
         // UNUSED?
         typedef struct {
             logic active;
@@ -114,7 +132,6 @@ package CacheDefs;
 
     typedef Dword EffectiveAddress;
 
-    localparam int PAGE_SIZE = 4096;
 
     localparam int V_INDEX_BITS = 12;
     localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;

@@ -112,7 +112,7 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    assign wqFree = csqEmpty && !dataCache.uncachedBusy;
+    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
     //assign TMP_readReqs = theExecBlock.readReqs;
     //assign TMP_sysReadReqs = theExecBlock.sysReadReqs;

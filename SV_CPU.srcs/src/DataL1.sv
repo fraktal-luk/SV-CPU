@@ -40,22 +40,7 @@ module DataL1(
     Mword     readyMappingsToFill[$];
 
 
-
-        typedef struct {
-            logic ready = 0;
-        
-            logic ongoing = 0;
-            Mword adr = 'x;
-            AccessSize size = SIZE_NONE;
-
-            int counter = -1;
-        } UncachedRead;
-
-        UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
-
-    int uncachedCounter = -1;
-    logic uncachedBusy = 0;
-    Mword uncachedOutput = 'x;
+    UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
 
 
 
@@ -64,8 +49,7 @@ module DataL1(
     // Simple array for simple test cases, without blocks, transaltions etc
     Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
     
-    localparam Mword UNCACHED_BASE = 'h80000000;
-    Mbyte uncachedArea[PAGE_SIZE];
+
     
     // Data and tag arrays
     PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
@@ -78,7 +62,7 @@ module DataL1(
 
 
     function automatic logic isUncachedRange(input Mword adr);
-        return adr >= UNCACHED_BASE && adr < UNCACHED_BASE + $size(uncachedArea);
+        return adr >= uncachedSubsystem.UNCACHED_BASE && adr < uncachedSubsystem.UNCACHED_BASE + $size(uncachedSubsystem.uncachedArea);
     endfunction
 
     function automatic logic isStaticDataRange(input Mword adr);
@@ -91,16 +75,8 @@ module DataL1(
     endfunction
 
 
-
-    function automatic UNC_reset();
-        uncachedCounter = -1;
-        uncachedBusy = 0;
-    endfunction
-
-
-    function automatic void reset();
+    task automatic reset();
         staticContent = '{default: 0};
-        uncachedArea = '{default: 0};
         tagsForWay = '{default: 0};
         
         filledBlocks.delete();
@@ -111,28 +87,13 @@ module DataL1(
         mappingFillCounters.delete();
         readyMappingsToFill.delete();
         
-        UNC_reset();
-
-    endfunction
+        uncachedSubsystem.uncachedArea = '{default: 0};
+        uncachedSubsystem.UNC_reset();
+            
+    endtask
 
 
         
-    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
-        static
-        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
-            Mbyte wval[ESIZE] = {>>{val}};
-            arr[(adr - BASE) +: ESIZE] = wval;
-        endfunction
-        
-        static
-        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
-            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
-            Elem wval = {>>{chosen}};
-            return wval;
-        endfunction
-    endclass
-
-
     ////////////////////////////////////
     // Specific write & read functions
 
@@ -144,16 +105,6 @@ module DataL1(
         PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
     endfunction
 
-
-    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
-        PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
-    endfunction
-
-    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
-        PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
-    endfunction
-
-
     function automatic Mword readWordStatic(input Mword adr);
         return PageWriter#(Word, 4)::readTyped(staticContent, adr);
     endfunction
@@ -161,16 +112,6 @@ module DataL1(
     function automatic Mword readByteStatic(input Mword adr);
         return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
     endfunction
-
-
-    function automatic Mword readWordUncached(input Mword adr);
-        return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
-    endfunction
-
-    function automatic Mword readByteUncached(input Mword adr);
-        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
-    endfunction
-
 
 
     function automatic void writeToDynamicRangeW(input Mword adr, input Mword val);
@@ -328,13 +269,6 @@ module DataL1(
 
     /////////////////////////////////////////////////////////////////////////////
     // General read functions
-    function automatic Mword readFromUncachedRange(input Mword adr, input AccessSize size);
-        if (size == SIZE_1) return readByteUncached(adr);
-        else if (size == SIZE_4) return readWordUncached(adr);
-        else $error("Wrong access size");
-
-        return 'x;
-    endfunction
 
     function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
         if (size == SIZE_1) return readByteStatic(adr);
@@ -358,18 +292,6 @@ module DataL1(
     endfunction
 
 
-
-    task automatic UNC_write(input MemWriteInfo wrInfo);
-        Mword adr = wrInfo.adr;
-        Dword padr = wrInfo.padr;
-        Mword val = wrInfo.value;
-        
-        uncachedCounter = 15;
-        uncachedBusy = 1;
-        if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
-        if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
-    endtask
-
     
     task automatic doWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
@@ -377,15 +299,10 @@ module DataL1(
         Mword val = wrInfo.value;
 
         if (!wrInfo.req) return;
+        if (wrInfo.uncached) return;
 
-        if (wrInfo.uncached) begin
-           // UNC_write(wrInfo);
-//            uncachedCounter = 15;
-//            uncachedBusy = 1;
-//            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
-//            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
-        end
-        else if (isStaticDataRange(adr)) begin
+
+        if (isStaticDataRange(adr)) begin
             if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
             if (wrInfo.size == SIZE_4) writeToStaticRangeW(adr, val);
         end
@@ -434,19 +351,6 @@ module DataL1(
 
 
 
-    function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
-        uncachedReads[0].ongoing = 1;
-        uncachedReads[0].counter = 8;
-        uncachedReads[0].adr = aInfo.adr;
-        uncachedReads[0].size = aInfo.size;
-    endfunction
-    
-    function automatic void UNC_clearUncachedRead();
-        uncachedReads[0].ready = 0;
-        uncachedReads[0].adr = 'x;
-        uncachedOutput <= 'x;
-    endfunction
-
 
    
 
@@ -456,7 +360,7 @@ module DataL1(
         if (aDesc.uncachedReq) begin
         end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read
-            res = '{1, CR_HIT, tr.desc, uncachedOutput};
+            res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
         end
         else if (aDesc.sys) begin end
         else if (!tr.present) begin // TLB miss
@@ -490,12 +394,6 @@ module DataL1(
     endtask
     
 
-//    task automatic handleWrites();
-//        doWrite(TMP_writeReqs[0]);
-//    endtask
-
-
-
     task automatic handleReads();
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
@@ -518,7 +416,96 @@ module DataL1(
     endtask
 
 
+    always @(posedge clk) begin         
+        handleFills();
+        handleReads();
+        doWrite(TMP_writeReqs[0]);
+    end
 
+endmodule
+
+
+
+module UncachedSubsystem(
+    input logic clk,
+    input MemWriteInfo TMP_writeReqs[2]
+);
+
+    typedef struct {
+        logic ready = 0;
+    
+        logic ongoing = 0;
+        Mword adr = 'x;
+        AccessSize size = SIZE_NONE;
+
+        int counter = -1;
+    } UncachedRead;
+
+    UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
+
+    int uncachedCounter = -1;
+    logic uncachedBusy = 0;
+    Mword uncachedOutput = 'x;
+
+    localparam Mword UNCACHED_BASE = 'h80000000;
+    Mbyte uncachedArea[PAGE_SIZE];
+
+
+
+    function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
+        uncachedReads[0].ongoing = 1;
+        uncachedReads[0].counter = 8;
+        uncachedReads[0].adr = aInfo.adr;
+        uncachedReads[0].size = aInfo.size;
+    endfunction
+    
+    function automatic void UNC_clearUncachedRead();
+        uncachedReads[0].ready = 0;
+        uncachedReads[0].adr = 'x;
+        uncachedOutput <= 'x;
+    endfunction
+
+
+    function automatic Mword readFromUncachedRange(input Mword adr, input AccessSize size);
+        if (size == SIZE_1) return readByteUncached(adr);
+        else if (size == SIZE_4) return readWordUncached(adr);
+        else $error("Wrong access size");
+
+        return 'x;
+    endfunction
+    
+        function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
+            PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+        endfunction
+    
+        function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
+            PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+        endfunction
+    
+        function automatic Mword readWordUncached(input Mword adr);
+            return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
+        endfunction
+    
+        function automatic Mword readByteUncached(input Mword adr);
+            return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
+        endfunction
+
+        task automatic UNC_reset();
+            uncachedCounter = -1;
+            uncachedBusy = 0;
+        endtask
+    
+        task automatic UNC_write(input MemWriteInfo wrInfo);
+            Mword adr = wrInfo.adr;
+            Dword padr = wrInfo.padr;
+            Mword val = wrInfo.value;
+            
+            uncachedCounter = 15;
+            uncachedBusy = 1;
+            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
+            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
+        endtask
+    
 
         // uncached read pipe
         task automatic UNC_handleUncachedData();
@@ -532,11 +519,7 @@ module DataL1(
                     uncachedOutput <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
                 end
             end
-//        endtask
-    
-        
-//        // If needed, start reading memory or finzalize read
-//        task automatic UNC_handle();
+
             foreach (theExecBlock.accessDescs[p]) begin
                 AccessDesc aDesc = theExecBlock.accessDescs[p];
                 Mword vadr = aDesc.vadr;
@@ -548,23 +531,6 @@ module DataL1(
                 end
             end
         endtask
-     
-
-
-    always @(posedge clk) begin         
-        handleFills();
-        handleReads();
-        doWrite(TMP_writeReqs[0]);
-
-
-//            UNC_handleUncachedData();        
-//            UNC_handle();
-
-//            if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
-//                UNC_write(TMP_writeReqs[0]);
-//            end
-
-    end
 
 
     always @(posedge clk) begin
@@ -578,3 +544,5 @@ module DataL1(
 
 
 endmodule
+
+
