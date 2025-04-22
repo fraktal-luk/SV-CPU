@@ -23,33 +23,6 @@ package Queues;
 
     endclass
 
-
-
-        //         typedef struct {
-        //            //TransactionType ttype;
-        //            logic active;
-            
-        //            logic sys;
-        //            logic store;
-        //            logic uncachedReq;
-        //            logic uncachedCollect;
-                    
-        //             // FUTURE: access rights of this uop?
-        //            AccessSize size;
-        //            Mword vadr;
-        //            logic unaligned;
-        //            logic blockCross;
-        //            logic pageCross;
-        //         } AccessDesc;
-            
-        //        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
-            
-            
-        //        typedef struct {
-        //            logic present; // TLB hit
-        //            DataLineDesc desc;
-        //            Dword phys; // TODO: rename to 'padr'
-        //        } Translation;
         
 
     typedef struct {

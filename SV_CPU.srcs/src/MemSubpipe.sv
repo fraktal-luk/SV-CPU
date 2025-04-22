@@ -32,20 +32,26 @@ module MemSubpipe#(
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
         UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pD0_Emp, pD1_Emp;
+    Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION;
+
+
+
 
     UopMemPacket stage0, stage0_E;
     
-    AccessDesc accessDesc = DEFAULT_ACCESS_DESC;
+    AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
     logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
     AccessSize readSize = SIZE_NONE;
     Mword effAdrE0 = 'x;
 
 
-    assign accessDescOut = accessDesc;
+    assign accessDescOut = accessDescE0;
 
     //assign stage0 = pE2;
     assign stage0_E = pE2_E;
     assign p0 = TMP_toMemPacket(opP);
+
+    assign trE0 = cacheTranslation;
 
 
     always @(posedge AbstractCore.clk) begin
@@ -57,6 +63,12 @@ module MemSubpipe#(
         
         pD0 <= tickP(pE2);
         pD1 <= tickP(pD0);
+        
+            trE1 <= trE0;
+            trE2 <= trE1;
+            
+            accessDescE1 <= accessDescE0;
+            accessDescE2 <= accessDescE1;
     end
 
 //    assign readReq = '{
@@ -134,7 +146,7 @@ module MemSubpipe#(
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
         
-            accessDesc <= getAccessDesc(stateE0, adr);
+            accessDescE0 <= getAccessDesc(stateE0, adr);
         // TODO: structure this as extracting the "basic description" stage of mem uop
             readSize = getTransactionSize(uname);
             if (!stateE0.active) readSize = SIZE_NONE;

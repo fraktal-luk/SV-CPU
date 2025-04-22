@@ -34,9 +34,13 @@ module ReplayQueue(
         UidT uid;       // constant
             Mword adr;        // transaction desc
             AccessSize size;  // t.d.
+            
+            AccessDesc accessDesc;
+            Translation translation;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
+
 
     int numUsed = 0;
     logic accept;
@@ -69,14 +73,10 @@ module ReplayQueue(
         
         
         issue();
-        
         wakeup();
-        
         writeInput();
-       
         removeIssued();
 
-        
           issued0__ <= tickP(inPackets[0]);
           issued0__.status <= ES_OK;
 
@@ -98,7 +98,8 @@ module ReplayQueue(
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize};
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
+                                    theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask

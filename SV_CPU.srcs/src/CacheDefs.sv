@@ -86,16 +86,16 @@ package CacheDefs;
         endfunction
     endclass
 
-        // UNUSED?
-        typedef struct {
-            logic active;
-                logic store;            
-                logic uncachedReq;
-            Mword adr;
-            AccessSize size;
-        } DataReadReq;
+//        // UNUSED?
+//        typedef struct {
+//            logic active;
+//                logic store;            
+//                logic uncachedReq;
+//            Mword adr;
+//            AccessSize size;
+//        } DataReadReq;
     
-        localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
+//        localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
     
 
     // Write buffer
