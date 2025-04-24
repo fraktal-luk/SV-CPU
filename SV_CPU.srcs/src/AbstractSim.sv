@@ -565,7 +565,7 @@ package AbstractSim;
             Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.padr, (item.size), read[0].padr, (read[0].size)));
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
-            
+
 
         function automatic Transaction findStore(input InsId id);
             Transaction writers[$] = stores.find with (item.owner == id);

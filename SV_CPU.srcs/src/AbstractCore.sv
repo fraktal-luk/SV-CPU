@@ -84,7 +84,7 @@ module AbstractCore
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, icacheOut);
-    DataL1        dataCache(clk, /*TMP_readReqs,*/ TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
+    DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -114,8 +114,6 @@ module AbstractCore
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
-    //assign TMP_readReqs = theExecBlock.readReqs;
-    //assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
     assign theExecBlock.sysOuts = sysReadOuts;
 
@@ -601,8 +599,8 @@ module AbstractCore
         
         // Extract 'uncached' info
         int found[$] = theSq.content_N.find_first_index with (item.mid == id);
-        logic uncached = theSq.content_N[found[0]].uncached;
-        AccessSize size = theSq.content_N[found[0]].size;
+        logic uncached = theSq.content_N[found[0]].accessDesc.uncachedStore;
+        AccessSize size = theSq.content_N[found[0]].accessDesc.size;
         
         StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.padr, tr.val, size};       
         csq.push_back(sqe); // Normal

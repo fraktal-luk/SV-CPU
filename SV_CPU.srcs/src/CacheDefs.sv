@@ -86,17 +86,6 @@ package CacheDefs;
         endfunction
     endclass
 
-//        // UNUSED?
-//        typedef struct {
-//            logic active;
-//                logic store;            
-//                logic uncachedReq;
-//            Mword adr;
-//            AccessSize size;
-//        } DataReadReq;
-    
-//        localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
-    
 
     // Write buffer
     // TODO: replace with SQ entry struct?
@@ -200,19 +189,16 @@ package CacheDefs;
       //       - status considerations: unaligned, block cross, page cross, error(kind?)/refetch  -- most can be derived from 'basic part'
       //      - data: present or not (or multiple hit?), value 
      
-//     typedef enum {
-//        TT_LOAD, TT_STORE, TT_SYSLOAD, TT_SYSSTORE
-//     } AccessType;
 
      // basic info
      typedef struct {
-        //TransactionType ttype;
         logic active;
 
         logic sys;
         logic store;
         logic uncachedReq;
         logic uncachedCollect;
+        logic uncachedStore;
         
          // FUTURE: access rights of this uop?
         AccessSize size;
@@ -222,7 +208,7 @@ package CacheDefs;
         logic pageCross;
      } AccessDesc;
 
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
 
 
     typedef struct {

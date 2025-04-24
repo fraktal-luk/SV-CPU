@@ -231,6 +231,7 @@ module TmpSubSq();
     task automatic readImpl();
         foreach (theExecBlock.toLqE0[p]) begin
             UopMemPacket loadOp = theExecBlock.toLqE0[p];
+            AccessDesc ad = theExecBlock.accessDescs[p];
             Translation tr = theExecBlock.dcacheTranslations[p];
             UopPacket resb;
 
@@ -238,10 +239,10 @@ module TmpSubSq();
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), /*loadOp.result*/ tr.phys);
+            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), tr.phys, ad.size);
 
             if (resb.active) begin
-                AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
+                AccessSize size = ad.size;
                 AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
                 checkSqResp(loadOp, resb, StoreQueue.memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, /*loadOp.result*/ tr.phys, size);
             end
@@ -250,9 +251,10 @@ module TmpSubSq();
         end
     endtask
 
-        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr);
-            AccessSize loadSize = getTransactionSize(StoreQueue.insMap.get(id).mainUop);
-            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.translation.phys, item.size, padr, loadSize));
+        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr, input AccessSize loadSize);
+            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
+                                                        && item.translation.present && !item.accessDesc.sys
+                                                        && memOverlap(item.translation.phys, item.accessDesc.size, padr, loadSize));
             SqEntry fwEntry;
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
@@ -261,7 +263,7 @@ module TmpSubSq();
                 fwEntry = vmax[0];
             end
 
-            if ((loadSize != fwEntry.size) || !memInside(padr, (loadSize), fwEntry.translation.phys, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
+            if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.phys, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
@@ -272,7 +274,7 @@ module TmpSubSq();
 
 
     task automatic verify(input SqEntry entry);
-        checkStore(entry.mid, entry.adr, entry.val);
+        checkStore(entry.mid, entry.accessDesc.vadr, entry.val);
     endtask
 
     function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
@@ -350,12 +352,9 @@ module TmpSubSq();
         UopName uname = decUname(p.TMP_oid);
         
         if (p.status == ES_UNCACHED_1) begin
-            entry.uncached = 1;
+            // TODO: no need for special case?
         end
         else if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
-            entry.adrReady = 1;
-            entry.adr = p.result;
-            
             entry.accessDesc = desc;
             entry.translation = tr;
         end
@@ -371,7 +370,7 @@ module TmpSubSq();
             
             updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
-            dataUop.result = StoreQueue.content_N[dataFound[0]].adr;
+            dataUop.result = StoreQueue.content_N[dataFound[0]].accessDesc.vadr; // TODO: verify why this
         end
 
         storeDataD0 <= tickP(dataUop);
@@ -407,17 +406,11 @@ module TmpSubSq();
     function automatic SqEntry getNewEntry(input InsId mid);
         return  '{
             mid: mid,
-            adrReady: 0,
-            adr: 'x,
-            phyAdrReady: 0,
-            phyAdr: 'x,
             valReady: 0,
             val: 'x,
-            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
-            uncached: 0,
-            dontForward: (StoreQueue.insMap.get(mid).mainUop == UOP_mem_sts),
-                 accessDesc: DEFAULT_ACCESS_DESC,
-                 translation: DEFAULT_TRANSLATION,
+            accessDesc: DEFAULT_ACCESS_DESC,
+            translation: DEFAULT_TRANSLATION,
+            
             committed: 0,
             error: 0,
             refetch: 0
@@ -443,19 +436,19 @@ module TmpSubLq();
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = scanLoadQueue(StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result);
+            resb = scanLoadQueue(StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result, theExecBlock.accessDescs[p].size);
             theExecBlock.fromLq[p] <= resb;      
         end
     endtask
 
 
-        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr);
+        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize size);
             UopPacket res = EMPTY_UOP_PACKET;
-            AccessSize trSize = getTransactionSize(StoreQueue.insMap.get(id).mainUop);
+            AccessSize trSize = size;
             
             // CAREFUL: we search for all matching entries
-            int found[$] = entries.find_index with (item.mid > id && item.adrReady && memOverlap(item.translation.phys, (item.size), padr, (trSize)));
-                LqEntry found_e[$] = entries.find with (item.mid > id && item.adrReady && memOverlap(item.translation.phys, (item.size), padr, (trSize)));
+            int found[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.phys, (item.accessDesc.size), padr, (trSize)));
+                LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.phys, (item.accessDesc.size), padr, (trSize)));
             
             if (found.size() == 0) return res;
     
@@ -511,13 +504,10 @@ module TmpSubLq();
         end
     endtask
 
-        function automatic void updateEntry(ref LqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
-            entry.adrReady = 1;
-            entry.adr = p.result;
-            
-            entry.accessDesc = desc;
-            entry.translation = tr;
-        endfunction
+    function automatic void updateEntry(ref LqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
+        entry.accessDesc = desc;
+        entry.translation = tr;
+    endfunction
 
 
     function automatic logic isCommitted(input LqEntry entry);
@@ -529,28 +519,12 @@ module TmpSubLq();
 
     function automatic LqEntry getNewEntry(input InsId mid);
         return '{
-//            mid: mid,
-//            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
-//            adrReady: 0,
-//            adr: 'x,
-//            phyAdrReady: 0,
-//            phyAdr: 'x,
-//            error: 0,
-//            refetch: 0
-            
-            
             mid: mid,
-            adrReady: 0,
-            adr: 'x,
-            phyAdrReady: 0,
-            phyAdr: 'x,
             valReady: 'x,
             val: 'x,
-            size: getTransactionSize(StoreQueue.insMap.get(mid).mainUop),
-            uncached: 0,
-            dontForward: 'x,
-                 accessDesc: DEFAULT_ACCESS_DESC,
-                 translation: DEFAULT_TRANSLATION,
+            accessDesc: DEFAULT_ACCESS_DESC,
+            translation: DEFAULT_TRANSLATION,
+            
             committed: 0,
             error: 0,
             refetch: 0

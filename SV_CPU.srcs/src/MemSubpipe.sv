@@ -18,8 +18,6 @@ module MemSubpipe#(
     input EventInfo lateEventInfo,
     input UopPacket opP,
 
-   // output DataReadReq readReq,
-   // output DataReadReq sysReadReq,
     output AccessDesc accessDescOut,
     
     input Translation cacheTranslation,
@@ -35,19 +33,12 @@ module MemSubpipe#(
     Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION;
 
 
-
-
     UopMemPacket stage0, stage0_E;
     
     AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
-    logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
-    AccessSize readSize = SIZE_NONE;
-    Mword effAdrE0 = 'x;
-
 
     assign accessDescOut = accessDescE0;
 
-    //assign stage0 = pE2;
     assign stage0_E = pE2_E;
     assign p0 = TMP_toMemPacket(opP);
 
@@ -64,20 +55,13 @@ module MemSubpipe#(
         pD0 <= tickP(pE2);
         pD1 <= tickP(pD0);
         
-            trE1 <= trE0;
-            trE2 <= trE1;
-            
-            accessDescE1 <= accessDescE0;
-            accessDescE2 <= accessDescE1;
+        trE1 <= trE0;
+        trE2 <= trE1;
+        
+        accessDescE1 <= accessDescE0;
+        accessDescE2 <= accessDescE1;
     end
 
-//    assign readReq = '{
-//        readActive, storeFlag, uncachedFlag, effAdrE0, readSize
-//    };
-
-//    assign sysReadReq = '{
-//        sysReadActive, 'x, 'x, effAdrE0, readSize
-//    };
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
@@ -129,6 +113,7 @@ module MemSubpipe#(
         res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);
         res.uncachedReq = (p.status == ES_UNCACHED_1) && !res.store;
         res.uncachedCollect = (p.status == ES_UNCACHED_2) && !res.store;
+        res.uncachedStore = (p.status == ES_UNCACHED_2) && res.store;
         
         res.vadr = adr;
 
@@ -146,17 +131,7 @@ module MemSubpipe#(
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
         
-            accessDescE0 <= getAccessDesc(stateE0, adr);
-        // TODO: structure this as extracting the "basic description" stage of mem uop
-            readSize = getTransactionSize(uname);
-            if (!stateE0.active) readSize = SIZE_NONE;
-            
-            readActive <= stateE0.active && isMemUop(uname);
-            sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
-            storeFlag <= isStoreUop(uname);
-            uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
-            effAdrE0 <= adr;
-    
+        accessDescE0 <= getAccessDesc(stateE0, adr);
         pE0 <= updateE0(stateE0, adr);
     endtask
     
