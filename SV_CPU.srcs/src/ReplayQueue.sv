@@ -182,7 +182,7 @@ module ReplayQueue(
         // Wakeup TLB misses
         if (AbstractCore.dataCache.notifyTlbFill) begin
             foreach (content[i]) begin
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedTlbAdr)) begin// TODO: consider that cache fill by physical adr!
+                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedTlbAdr)) begin
                     content[i].ready_N = 1;                    
                 end
             end

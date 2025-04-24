@@ -225,33 +225,34 @@ endmodule
 
 module TmpSubSq();
 
-    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET; // TODO: move to BQ special submodule because not used in LSQ
-    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;// TODO: move to BQ special submodule because not used in LSQ
+    UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET;
+    UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;
 
     task automatic readImpl();
         foreach (theExecBlock.toLqE0[p]) begin
             UopMemPacket loadOp = theExecBlock.toLqE0[p];
+            Translation tr = theExecBlock.dcacheTranslations[p];
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), loadOp.result);
+            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), /*loadOp.result*/ tr.phys);
 
             if (resb.active) begin
                 AccessSize size = getTransactionSize(decMainUop(U2M(loadOp.TMP_oid)));
                 AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
-                checkSqResp(loadOp, resb, StoreQueue.memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, loadOp.result, size);
+                checkSqResp(loadOp, resb, StoreQueue.memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, /*loadOp.result*/ tr.phys, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
         end
     endtask
 
-        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Mword adr);
+        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr);
             AccessSize loadSize = getTransactionSize(StoreQueue.insMap.get(id).mainUop);
-            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.adr, item.size, adr, loadSize));
+            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id && item.adrReady && !item.dontForward && memOverlap(item.translation.phys, item.size, padr, loadSize));
             SqEntry fwEntry;
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
@@ -260,7 +261,7 @@ module TmpSubSq();
                 fwEntry = vmax[0];
             end
 
-            if ((loadSize != fwEntry.size) || !memInside(adr, (loadSize), fwEntry.adr, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
+            if ((loadSize != fwEntry.size) || !memInside(padr, (loadSize), fwEntry.translation.phys, (fwEntry.size)))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
@@ -284,9 +285,9 @@ module TmpSubSq();
     endfunction
 
 
-    function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Mword eadr, input AccessSize esize);
+    function automatic void checkSqResp(input UopPacket loadOp, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Dword padr, input AccessSize esize);
         Transaction latestOverlap = StoreQueue.memTracker.checkTransactionOverlap(U2M(loadOp.TMP_oid));
-        logic isInside = memInside(eadr, (esize), tr.adr, (trSize));
+        logic isInside = memInside(padr, (esize), tr.padr, (trSize));
 
         // If sr source is not latestOverlap, denote this fact somewhere (so far printing an error, hasn't happened yet).
         // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
@@ -294,7 +295,7 @@ module TmpSubSq();
         assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
         if (sr.status == ES_CANT_FORWARD) begin //
-            logic isOverlapping = memOverlap(eadr, (esize), tr.adr, (trSize));
+            logic isOverlapping = memOverlap(padr, (esize), tr.padr, (trSize));
             assert (isOverlapping && ((esize != trSize) || !isInside) ) else $error("Adr (same size and inside) or not overlapping");
         end
         else if (sr.status == ES_SQ_MISS) begin
@@ -448,13 +449,13 @@ module TmpSubLq();
     endtask
 
 
-        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Mword adr);
+        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr);
             UopPacket res = EMPTY_UOP_PACKET;
             AccessSize trSize = getTransactionSize(StoreQueue.insMap.get(id).mainUop);
             
             // CAREFUL: we search for all matching entries
-            int found[$] = entries.find_index with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
-                LqEntry found_e[$] = entries.find with (item.mid > id && item.adrReady && memOverlap(item.adr, (item.size), adr, (trSize)));
+            int found[$] = entries.find_index with (item.mid > id && item.adrReady && memOverlap(item.translation.phys, (item.size), padr, (trSize)));
+                LqEntry found_e[$] = entries.find with (item.mid > id && item.adrReady && memOverlap(item.translation.phys, (item.size), padr, (trSize)));
             
             if (found.size() == 0) return res;
     

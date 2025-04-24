@@ -562,7 +562,7 @@ package AbstractSim;
         function automatic Transaction checkTransactionOverlap(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
             Transaction read[$] = transactions.find_first with (item.owner == id); 
-            Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.adr, (item.size), read[0].adr, (read[0].size)));
+            Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.padr, (item.size), read[0].padr, (read[0].size)));
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
             
@@ -614,9 +614,9 @@ package AbstractSim;
 
     // Mem handling
 
-    function automatic logic memOverlap(input Mword wa, input AccessSize sizeA, input Mword wb, input AccessSize sizeB);
-        Mword aEnd = wa + int'(sizeA); // Exclusive end
-        Mword bEnd = wb + int'(sizeB); // Exclusive end
+    function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+        Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+        Dword bEnd = wb + Dword'(sizeB); // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
 
@@ -624,9 +624,9 @@ package AbstractSim;
     endfunction
     
     // is a inside b
-    function automatic logic memInside(input Mword wa, input AccessSize sizeA, input Mword wb, input AccessSize sizeB);
-        Mword aEnd = wa + int'(sizeA); // Exclusive end
-        Mword bEnd = wb + int'(sizeB); // Exclusive end
+    function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+        Mword aEnd = wa + Dword'(sizeA); // Exclusive end
+        Mword bEnd = wb + Dword'(sizeB); // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
        
