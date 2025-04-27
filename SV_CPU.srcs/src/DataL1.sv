@@ -22,42 +22,51 @@ module DataL1(
     localparam int DATA_TLB_SIZE = 32;
     localparam logic DONT_TRANSLATE = 1; // TMP
 
-    typedef Translation TranslationA[N_MEM_PORTS];
-
-    Translation translations_T[N_MEM_PORTS];
-
-    
-    // Fill logic
-    logic notifyFill = 0;
-    Mword notifiedAdr = 'x;
-
-    logic notifyTlbFill = 0;
-    Mword notifiedTlbAdr = 'x;
-
-    int       blockFillCounters[Mword];
-    Mword     readyBlocksToFill[$];
-    int       mappingFillCounters[Mword];
-    Mword     readyMappingsToFill[$];
-
 
     UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
 
 
 
+    typedef Translation TranslationA[N_MEM_PORTS];
+
+    Translation translations_T[N_MEM_PORTS];
+
+
     typedef Mbyte DataBlock[BLOCK_SIZE];
 
-    // Simple array for simple test cases, without blocks, transaltions etc
-    Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
-    
-
-    
-    // Data and tag arrays
-    PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
 
     // CAREFUL: below only for addresses in the range for data miss tests 
     DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
     // CAREFUL: below only for addresses in the range for TLB miss tests 
     Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+
+
+
+    // Simple array for simple test cases, without blocks, transaltions etc
+    Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
+    // Data and tag arrays
+    PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
+
+
+
+
+
+        // Fill logic
+        logic notifyFill = 0;
+        Mword notifiedAdr = 'x;
+    
+        logic notifyTlbFill = 0;
+        Mword notifiedTlbAdr = 'x;
+    
+        int       blockFillCounters[Mword];
+        Mword     readyBlocksToFill[$];
+        int       mappingFillCounters[Mword];
+        Mword     readyMappingsToFill[$];
+    
+        
+        Mword currentBlockFillAdr = 'x;
+        logic currentBlockFillAdrOk = 0;
+
 
 
 
@@ -80,12 +89,18 @@ module DataL1(
         tagsForWay = '{default: 0};
         
         filledBlocks.delete();
-        blockFillCounters.delete();
-        readyBlocksToFill.delete();
-        
         filledMappings.delete();
-        mappingFillCounters.delete();
-        readyMappingsToFill.delete();
+        
+            blockFillCounters.delete();
+            readyBlocksToFill.delete();
+        
+            mappingFillCounters.delete();
+            readyMappingsToFill.delete();
+
+
+                currentBlockFillAdr <= 'x;
+                currentBlockFillAdrOk <= 0;
+
         
         uncachedSubsystem.uncachedArea = '{default: 0};
         uncachedSubsystem.UNC_reset();
@@ -153,120 +168,6 @@ module DataL1(
         return (wval);
     endfunction
 
-    /////////////////////////////////////
-
-
-
-    ////////////////////////////////////
-    // Presence & allocation function 
-    //
-    function automatic void allocInDynamicRange(input Mword adr);
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
-        filledBlocks[physBlockBase] = '{default: 0};            
-    endfunction
-
-    function automatic void allocInTlb(input Mword adr);
-        Translation DUMMY; 
-        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-        
-        filledMappings[pageBase] = DUMMY;            
-    endfunction
-
-
-    function automatic logic isPhysPresent(input Mword adr);
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        return isUncachedRange(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
-    endfunction
-
-    function automatic logic isPhysPending(input Mword adr);
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        return blockFillCounters.exists(physBlockBase);
-    endfunction
-    
-
-    function automatic logic isTlbPresent(input Mword adr);
-        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
-    endfunction
-
-    function automatic logic isTlbPending(input Mword adr);
-        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-        return mappingFillCounters.exists(pageBase);
-    endfunction
-    
-    
-
-    function automatic void scheduleBlockFill(input Mword adr);
-        Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-
-        if (!blockFillCounters.exists(physBase))
-            blockFillCounters[physBase] = 15;            
-    endfunction
-
-    function automatic void scheduleTlbFill(input Mword adr);
-        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-
-        if (!mappingFillCounters.exists(pageBase))
-            mappingFillCounters[pageBase] = 12;  
-    endfunction
-
-
-
-    task automatic handleBlockFills();
-        Mword adr;
-        
-        notifyFill <= 0;
-        notifiedAdr <= 'x;
-    
-        foreach (blockFillCounters[a]) begin
-            if (blockFillCounters[a] == 0) begin
-                readyBlocksToFill.push_back(a);
-                blockFillCounters[a] = -1;
-            end
-            else
-                blockFillCounters[a]--;
-        end
-        
-        if (readyBlocksToFill.size() == 0) return;
-        
-        adr = readyBlocksToFill.pop_front();
-        allocInDynamicRange(adr);
-        blockFillCounters.delete(adr);
-
-        notifyFill <= 1;
-        notifiedAdr <= adr;           
-    endtask 
-
-
-    task automatic handleTlbFills();
-        Mword adr;
-        
-        notifyTlbFill <= 0;
-        notifiedTlbAdr <= 'x;
-    
-        foreach (mappingFillCounters[a]) begin            
-            if (mappingFillCounters[a] == 0) begin
-                readyMappingsToFill.push_back(a);
-                mappingFillCounters[a] = -1;
-            end
-            else
-                mappingFillCounters[a]--;
-        end
-        
-        if (readyMappingsToFill.size() == 0) return;
-        
-        adr = readyMappingsToFill.pop_front();
-        allocInTlb(adr);
-        mappingFillCounters.delete(adr);
-
-        notifyTlbFill <= 1;
-        notifiedTlbAdr <= adr;           
-    endtask 
-
-    ////////////////////////////////////
-
-
-
     /////////////////////////////////////////////////////////////////////////////
     // General read functions
 
@@ -316,6 +217,126 @@ module DataL1(
     ///////////////////////////////
 
 
+
+    ////////////////////////////////////
+    // Presence & allocation function 
+    //
+
+        function automatic logic isPhysPresent(input Mword adr);
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+            return isUncachedRange(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
+        endfunction
+    
+        function automatic logic isPhysPending(input Mword adr);
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+            return blockFillCounters.exists(physBlockBase);
+        endfunction
+        
+    
+        function automatic logic isTlbPresent(input Mword adr);
+            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+            return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
+        endfunction
+    
+        function automatic logic isTlbPending(input Mword adr);
+            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+            return mappingFillCounters.exists(pageBase);
+        endfunction
+        
+    
+
+        function automatic void scheduleBlockFill(input Mword adr);
+            Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+    
+            if (!blockFillCounters.exists(physBase))
+                blockFillCounters[physBase] = 15;            
+        endfunction
+
+    
+        task automatic handleBlockFills();
+            Mword adr;
+           
+            
+            notifyFill <= 0;
+            notifiedAdr <= 'x;
+            currentBlockFillAdr <= 'x;
+            currentBlockFillAdrOk <= 0;
+        
+            foreach (blockFillCounters[a]) begin
+                if (blockFillCounters[a] == 0) begin
+                    readyBlocksToFill.push_back(a);
+                    blockFillCounters[a] = -1;
+                end
+                else
+                    blockFillCounters[a]--;
+            end
+            
+            if (readyBlocksToFill.size() == 0) return;
+            
+            adr = readyBlocksToFill.pop_front();
+            blockFillCounters.delete(adr);
+            
+                currentBlockFillAdr <= adr;
+                currentBlockFillAdrOk <= 1;
+
+                //allocInDynamicRange(adr);
+
+            notifyFill <= 1;
+            notifiedAdr <= adr;           
+        endtask
+
+
+        function automatic void allocInDynamicRange(input Mword adr);
+            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
+            filledBlocks[physBlockBase] = '{default: 0};            
+        endfunction
+    
+
+
+        function automatic void scheduleTlbFill(input Mword adr);
+            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+    
+            if (!mappingFillCounters.exists(pageBase))
+                mappingFillCounters[pageBase] = 12;  
+        endfunction
+    
+        task automatic handleTlbFills();
+            Mword adr;
+            
+            notifyTlbFill <= 0;
+            notifiedTlbAdr <= 'x;
+        
+            foreach (mappingFillCounters[a]) begin            
+                if (mappingFillCounters[a] == 0) begin
+                    readyMappingsToFill.push_back(a);
+                    mappingFillCounters[a] = -1;
+                end
+                else
+                    mappingFillCounters[a]--;
+            end
+            
+            if (readyMappingsToFill.size() == 0) return;
+            
+            adr = readyMappingsToFill.pop_front();
+            allocInTlb(adr);
+            mappingFillCounters.delete(adr);
+    
+            notifyTlbFill <= 1;
+            notifiedTlbAdr <= adr;           
+        endtask 
+
+        function automatic void allocInTlb(input Mword adr);
+            Translation DUMMY; 
+            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+            
+            filledMappings[pageBase] = DUMMY;            
+        endfunction
+   
+    ////////////////////////////////////
+
+
+
+
     function automatic Translation translateAddress(input EffectiveAddress adr);
         Translation res;
 
@@ -356,9 +377,9 @@ module DataL1(
 
     function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
         DataCacheOutput res;        
+        logic dataMiss = 0;
         
-        if (aDesc.uncachedReq) begin
-        end
+        if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read
             res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
         end
@@ -368,7 +389,8 @@ module DataL1(
         end
         else if (!isPhysPresent(tr.phys)) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
-           if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys);
+           dataMiss = 1;
+           //if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys); // Filling!
         end
         else begin
             res = '{1, CR_HIT, tr.desc, 'x};
@@ -378,6 +400,14 @@ module DataL1(
             else
                 res.data = readFromDynamicRange(tr.phys, aInfo.size);
         end
+        
+        
+        //    assert ((res.status == CR_TAG_MISS) === dataMiss) else $fatal(2, "wrong miss info");
+        
+        if (dataMiss) begin
+         //  if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys); // Filling!
+        end
+        
         
         return res;
     endfunction
@@ -390,6 +420,9 @@ module DataL1(
 
     task automatic handleFills();
         handleBlockFills();
+        
+            if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
+        
         handleTlbFills();
     endtask
     
@@ -406,11 +439,18 @@ module DataL1(
                 AccessInfo acc = analyzeAccess(vadr, aDesc.size);
                 Translation tr = translations_T[p];
                 PhysicalAddressHigh wayTag = tagsForWay[acc.block];
+                DataCacheOutput thisResult;
 
                 // if mapping not found
                 if (!tr.present && !isTlbPending(vadr)) scheduleTlbFill(vadr);
 
-                readOut[p] <= doReadAccess(acc, tr, aDesc);
+                thisResult = doReadAccess(acc, tr, aDesc);
+                
+                if (thisResult.status == CR_TAG_MISS) begin
+                    if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys); // Filling!
+                end
+                
+                readOut[p] <= thisResult;
             end
         end
     endtask
@@ -535,7 +575,6 @@ module UncachedSubsystem(
 
     always @(posedge clk) begin
         UNC_handleUncachedData();        
-        //UNC_handle();
 
         if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
             UNC_write(TMP_writeReqs[0]);
