@@ -24,7 +24,8 @@ module DataL1(
 
 
     UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
-
+    
+    DataFillEngine dataFillEngine(clk);
 
 
     typedef Translation TranslationA[N_MEM_PORTS];
@@ -91,7 +92,7 @@ module DataL1(
             readyMappingsToFill.delete();
 
 
-            resetBlockFills();
+            dataFillEngine.resetBlockFills();
 
         
         uncachedSubsystem.uncachedArea = '{default: 0};
@@ -384,111 +385,224 @@ module DataL1(
 
 
 
-
-
-        // Fill logic
-        logic notifyFill = 0;
-        Mword notifiedAdr = 'x;
+//        ///////////////////////////////////////
     
-        int       blockFillCounters[Mword];
-        Mword     readyBlocksToFill[$];
+//            // Fill logic
+//            logic notifyFill = 0;
+//            Mword notifiedAdr = 'x;
         
-        Mword currentBlockFillAdr = 'x;
-        logic currentBlockFillAdrOk = 0;
-
-
-        task automatic resetBlockFills();
-            blockFillCounters.delete();
-            readyBlocksToFill.delete();
-            currentBlockFillAdr <= 'x;
-            currentBlockFillAdrOk <= 0;
-        endtask
-      
- 
-        function automatic void scheduleBlockFill(input Mword adr);
-            Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+//            int       blockFillCounters[Mword];
+//            Mword     readyBlocksToFill[$];
+            
+//            Mword currentBlockFillAdr = 'x;
+//            logic currentBlockFillAdrOk = 0;
     
-            if (!blockFillCounters.exists(physBase))
-                blockFillCounters[physBase] = 15 - 1;            
-        endfunction
-
     
-        task automatic handleBlockFills();
-            Mword adr;
-           
-            
-            notifyFill <= 0;
-            notifiedAdr <= 'x;
-            currentBlockFillAdr <= 'x;
-            currentBlockFillAdrOk <= 0;
+//            task automatic resetBlockFills();
+//                blockFillCounters.delete();
+//                readyBlocksToFill.delete();
+//                currentBlockFillAdr <= 'x;
+//                currentBlockFillAdrOk <= 0;
+//            endtask
+          
+     
+//            function automatic void scheduleBlockFill(input Mword adr);
+//                Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
         
-            foreach (blockFillCounters[a]) begin
-                if (blockFillCounters[a] == 0) begin
-                    readyBlocksToFill.push_back(a);
-                    blockFillCounters[a] = -1;
-                end
-                else
-                    blockFillCounters[a]--;
-            end
-            
-            if (readyBlocksToFill.size() == 0) return;
-            
-            adr = readyBlocksToFill.pop_front();
-            blockFillCounters.delete(adr);
-            
-                currentBlockFillAdr <= adr;
-                currentBlockFillAdrOk <= 1;
-
-                //allocInDynamicRange(adr);
-
-            notifyFill <= 1;
-            notifiedAdr <= adr;           
-        endtask
-
-
-        function automatic void allocInDynamicRange(input Mword adr);
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
-            filledBlocks[physBlockBase] = '{default: 0};            
-        endfunction
-           
+//                if (!blockFillCounters.exists(physBase))
+//                    blockFillCounters[physBase] = 15 - 1;            
+//            endfunction
+    
         
-        task automatic scheduleBlockFills();
-            foreach (readOut[p]) begin
-                if (readOut[p].status == CR_TAG_MISS) begin
-                    Mword padr = translations_Reg[p].phys;  
-                    if (!isPhysPending(padr)) scheduleBlockFill(padr); // Filling!
-                end
-            end
-        endtask
-
-
-
-        function automatic logic isPhysPending(input Mword adr);
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            return blockFillCounters.exists(physBlockBase);
-        endfunction
+//            task automatic handleBlockFills();
+//                Mword adr;
+               
+                
+//                notifyFill <= 0;
+//                notifiedAdr <= 'x;
+//                currentBlockFillAdr <= 'x;
+//                currentBlockFillAdrOk <= 0;
+            
+//                foreach (blockFillCounters[a]) begin
+//                    if (blockFillCounters[a] == 0) begin
+//                        readyBlocksToFill.push_back(a);
+//                        blockFillCounters[a] = -1;
+//                    end
+//                    else
+//                        blockFillCounters[a]--;
+//                end
+                
+//                if (readyBlocksToFill.size() == 0) return;
+                
+//                adr = readyBlocksToFill.pop_front();
+//                blockFillCounters.delete(adr);
+                
+//                    currentBlockFillAdr <= adr;
+//                    currentBlockFillAdrOk <= 1;
+    
+//                    //allocInDynamicRange(adr);
+    
+//                notifyFill <= 1;
+//                notifiedAdr <= adr;           
+//            endtask
+    
+    
+//            function automatic void allocInDynamicRange(input Mword adr);
+//                Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
+//                filledBlocks[physBlockBase] = '{default: 0};            
+//            endfunction
+               
+            
+//            task automatic scheduleBlockFills();
+//                foreach (translations_Reg[p]) begin
+//                    if (readOut[p].status == CR_TAG_MISS) begin
+//                        Mword padr = translations_Reg[p].phys;  
+//                        if (!isPhysPending(padr)) scheduleBlockFill(padr); // Filling!
+//                    end
+//                end
+//            endtask
+    
+//            function automatic logic isPhysPending(input Mword adr);
+//                Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+//                return blockFillCounters.exists(physBlockBase);
+//            endfunction
        
        
+//        always @(posedge clk) begin
+//            handleBlockFills();
+//            scheduleBlockFills();
+//        end
+//     /////////////////////////////////////////////////////////
+//     ///////////////////////////////////////////////
+
+
+            function automatic void allocInDynamicRange(input Mword adr);
+                Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
+                filledBlocks[physBlockBase] = '{default: 0};            
+            endfunction
+
 
     always @(posedge clk) begin         
 
         handleTlbFills();
             scheduleTlbFills();
 
-        handleBlockFills();
-        scheduleBlockFills();
+        //handleBlockFills();
+        //scheduleBlockFills();
         
            // scheduleTlbFills();
         
         handleReads();
 
-        if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
+        if (dataFillEngine.currentBlockFillAdrOk) allocInDynamicRange(dataFillEngine.currentBlockFillAdr);
 
         
         doWrite(TMP_writeReqs[0]);
     end
 
 endmodule
+
+
+
+
+
+module DataFillEngine(
+    input logic clk
+
+);
+
+
+
+        ///////////////////////////////////////
+    
+            // Fill logic
+            logic notifyFill = 0;
+            Mword notifiedAdr = 'x;
+        
+            int       blockFillCounters[Mword];
+            Mword     readyBlocksToFill[$];
+            
+            Mword currentBlockFillAdr = 'x;
+            logic currentBlockFillAdrOk = 0;
+    
+    
+            task automatic resetBlockFills();
+                blockFillCounters.delete();
+                readyBlocksToFill.delete();
+                currentBlockFillAdr <= 'x;
+                currentBlockFillAdrOk <= 0;
+            endtask
+          
+     
+            function automatic void scheduleBlockFill(input Mword adr);
+                Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        
+                if (!blockFillCounters.exists(physBase))
+                    blockFillCounters[physBase] = 15 - 1;            
+            endfunction
+    
+        
+            task automatic handleBlockFills();
+                Mword adr;
+               
+                
+                notifyFill <= 0;
+                notifiedAdr <= 'x;
+                currentBlockFillAdr <= 'x;
+                currentBlockFillAdrOk <= 0;
+            
+                foreach (blockFillCounters[a]) begin
+                    if (blockFillCounters[a] == 0) begin
+                        readyBlocksToFill.push_back(a);
+                        blockFillCounters[a] = -1;
+                    end
+                    else
+                        blockFillCounters[a]--;
+                end
+                
+                if (readyBlocksToFill.size() == 0) return;
+                
+                adr = readyBlocksToFill.pop_front();
+                blockFillCounters.delete(adr);
+                
+                    currentBlockFillAdr <= adr;
+                    currentBlockFillAdrOk <= 1;
+    
+                    //allocInDynamicRange(adr);
+    
+                notifyFill <= 1;
+                notifiedAdr <= adr;           
+            endtask
+    
+               
+            
+            task automatic scheduleBlockFills();
+                foreach (DataL1.translations_Reg[p]) begin
+                    if (DataL1.readOut[p].status == CR_TAG_MISS) begin
+                        Mword padr = DataL1.translations_Reg[p].phys;  
+                        if (!isPhysPending(padr)) scheduleBlockFill(padr); // Filling!
+                    end
+                end
+            endtask
+    
+            function automatic logic isPhysPending(input Mword adr);
+                Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+                return blockFillCounters.exists(physBlockBase);
+            endfunction
+       
+       
+        always @(posedge clk) begin
+            handleBlockFills();
+            scheduleBlockFills();
+        end
+     /////////////////////////////////////////////////////////
+     ///////////////////////////////////////////////
+
+
+
+endmodule
+
+
 
 
 
