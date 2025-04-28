@@ -465,15 +465,22 @@ module DataL1(
     always @(posedge clk) begin         
         //handleFills();
 
+            handleTlbFills();
+
         handleBlockFills();
         
-        if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
+            //if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
         
-        handleTlbFills();
+          //  handleTlbFills();
 
-        handleReads();
+          //  handleReads();
         
         scheduleFills();
+        
+            handleReads();
+
+            if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
+
         
         doWrite(TMP_writeReqs[0]);
     end
