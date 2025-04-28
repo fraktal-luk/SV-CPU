@@ -32,6 +32,10 @@ module DataL1(
     Translation translations_T[N_MEM_PORTS];
 
 
+        Translation translations_Reg[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION};
+        AccessDesc accessDescs_Reg[N_MEM_PORTS] = '{default: DEFAULT_ACCESS_DESC};
+
+
     typedef Mbyte DataBlock[BLOCK_SIZE];
 
 
@@ -87,6 +91,10 @@ module DataL1(
     task automatic reset();
         staticContent = '{default: 0};
         tagsForWay = '{default: 0};
+        
+        accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
+        translations_Reg <= '{default: DEFAULT_TRANSLATION};
+        readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
         
         filledBlocks.delete();
         filledMappings.delete();
@@ -249,7 +257,7 @@ module DataL1(
             Mword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
     
             if (!blockFillCounters.exists(physBase))
-                blockFillCounters[physBase] = 15;            
+                blockFillCounters[physBase] = 15 - 1;            
         endfunction
 
     
@@ -297,7 +305,7 @@ module DataL1(
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
     
             if (!mappingFillCounters.exists(pageBase))
-                mappingFillCounters[pageBase] = 12;  
+                mappingFillCounters[pageBase] = 12 - 1;  
         endfunction
     
         task automatic handleTlbFills();
@@ -373,11 +381,8 @@ module DataL1(
 
 
 
-   
-
     function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
         DataCacheOutput res;        
-        logic dataMiss = 0;
         
         if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read
@@ -389,8 +394,6 @@ module DataL1(
         end
         else if (!isPhysPresent(tr.phys)) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
-           dataMiss = 1;
-           //if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys); // Filling!
         end
         else begin
             res = '{1, CR_HIT, tr.desc, 'x};
@@ -401,14 +404,7 @@ module DataL1(
                 res.data = readFromDynamicRange(tr.phys, aInfo.size);
         end
         
-        
-        //    assert ((res.status == CR_TAG_MISS) === dataMiss) else $fatal(2, "wrong miss info");
-        
-        if (dataMiss) begin
-         //  if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys); // Filling!
-        end
-        
-        
+
         return res;
     endfunction
 
@@ -418,16 +414,18 @@ module DataL1(
     assign translationsOut = translations_T;
 
 
-    task automatic handleFills();
-        handleBlockFills();
+//    task automatic handleFills();
+//        handleBlockFills();
         
-            if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
+//        if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
         
-        handleTlbFills();
-    endtask
+//        handleTlbFills();
+//    endtask
     
 
     task automatic handleReads();
+        accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
+        translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
         foreach (theExecBlock.accessDescs[p]) begin
@@ -439,33 +437,51 @@ module DataL1(
                 AccessInfo acc = analyzeAccess(vadr, aDesc.size);
                 Translation tr = translations_T[p];
                 PhysicalAddressHigh wayTag = tagsForWay[acc.block];
-                DataCacheOutput thisResult;
-
-                // if mapping not found
-                if (!tr.present && !isTlbPending(vadr)) scheduleTlbFill(vadr);
-
-                thisResult = doReadAccess(acc, tr, aDesc);
+                DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc);
                 
-                if (thisResult.status == CR_TAG_MISS) begin
-                    if (!isPhysPending(tr.phys)) scheduleBlockFill(tr.phys); // Filling!
-                end
-                
+                accessDescs_Reg[p] <= aDesc;
+                translations_Reg[p] <= tr;
                 readOut[p] <= thisResult;
+            end
+        end
+
+    endtask
+
+    task automatic scheduleFills();
+        foreach (readOut[p]) begin
+            if (readOut[p].status == CR_TAG_MISS) begin
+                Mword padr = translations_Reg[p].phys;  
+                if (!isPhysPending(padr)) scheduleBlockFill(padr); // Filling!
+            end
+            
+            if (readOut[p].status == CR_TLB_MISS) begin
+                Mword vadr = accessDescs_Reg[p].vadr;
+                if (!isTlbPending(vadr)) scheduleTlbFill(vadr);
             end
         end
     endtask
 
 
     always @(posedge clk) begin         
-        handleFills();
+        //handleFills();
+
+        handleBlockFills();
+        
+        if (currentBlockFillAdrOk) allocInDynamicRange(currentBlockFillAdr);
+        
+        handleTlbFills();
+
         handleReads();
+        
+        scheduleFills();
+        
         doWrite(TMP_writeReqs[0]);
     end
 
 endmodule
 
 
-
+//**********************************************************************************************************************************//
 module UncachedSubsystem(
     input logic clk,
     input MemWriteInfo TMP_writeReqs[2]
