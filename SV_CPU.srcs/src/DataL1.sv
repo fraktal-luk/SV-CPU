@@ -34,9 +34,20 @@ module DataL1(
     typedef Mbyte DataBlock[BLOCK_SIZE];
 
 
+    typedef logic LogicA[N_MEM_PORTS];
+    typedef Mword MwordA[N_MEM_PORTS];
+    typedef Dword DwordA[N_MEM_PORTS];
+    
+    LogicA dataFillEnA, tlbFillEnA;
+    DwordA dataFillPhysA;
+    MwordA tlbFillVirtA;
+
+
     UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
     
-    DataFillEngine dataFillEngine(clk, translations_Reg);
+    DataFillEngine dataFillEngine(clk, translations_Reg, dataFillEnA, dataFillPhysA);
+    
+    DataFillEngine#(Mword, 11) tlbFillEngine(clk, translations_Reg, tlbFillEnA, tlbFillVirtA);
 
 
 
@@ -94,8 +105,9 @@ module DataL1(
             readyMappingsToFill.delete();
 
             dataFillEngine.resetBlockFills();
+            tlbFillEngine.resetBlockFills();
 
-        
+
         uncachedSubsystem.uncachedArea = '{default: 0};
         uncachedSubsystem.UNC_reset();
             
@@ -230,7 +242,7 @@ module DataL1(
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
     
             if (!mappingFillCounters.exists(pageBase))
-                mappingFillCounters[pageBase] = 12 - 1;  
+                mappingFillCounters[pageBase] = 11;  
         endfunction
     
         task automatic handleTlbFills();
@@ -276,7 +288,7 @@ module DataL1(
         endfunction
 
         function automatic void allocInTlb(input Mword adr);
-            Translation DUMMY; 
+            Translation DUMMY;
             Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
             
             filledMappings[pageBase] = DUMMY;            
@@ -348,6 +360,54 @@ module DataL1(
         return res;
     endfunction
 
+    
+
+
+        
+        function automatic LogicA dataFillEnables();
+            LogicA res = '{default: 0};
+            foreach (readOut[p]) begin
+                if (readOut[p].status == CR_TAG_MISS) begin
+                    res[p] = 1;
+                end
+            end
+            return res;
+        endfunction
+    
+        function automatic DwordA dataFillPhysical();
+            DwordA res = '{default: 'x};
+            foreach (readOut[p]) begin
+                res[p] = translations_Reg[p].phys;
+            end
+            return res;
+        endfunction
+    
+    
+        function automatic LogicA tlbFillEnables();
+            LogicA res = '{default: 0};
+            foreach (readOut[p]) begin
+                if (readOut[p].status == CR_TLB_MISS) begin
+                    res[p] = 1;
+                end
+            end
+            return res;
+        endfunction
+    
+        function automatic MwordA tlbFillVirtual();
+            MwordA res = '{default: 'x};
+            foreach (readOut[p]) begin
+                res[p] = accessDescs_Reg[p].vadr;
+            end
+            return res;
+        endfunction
+
+    
+        always_comb dataFillEnA = dataFillEnables();
+        always_comb dataFillPhysA = dataFillPhysical();
+        always_comb tlbFillEnA = tlbFillEnables();
+        always_comb tlbFillVirtA = tlbFillVirtual();
+
+
 
     always_comb translations_T = getTranslations();
 
@@ -404,18 +464,24 @@ endmodule
 
 
 /*****************************************************************/
-module DataFillEngine(
+module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
+(
     input logic clk,
     
-    input Translation translations[N_MEM_PORTS]
-
+    input Translation translations[N_MEM_PORTS],
+        input logic enable[N_MEM_PORTS],
+        input Key dataIn[N_MEM_PORTS]
 );
+//    localparam int DELAY = 14;
+//    typedef Dword Key;
+
+
     // Fill logic
     logic notifyFill = 0;
     Mword notifiedAdr = 'x; // TODO: change to Dword (with RQ)
 
-    int       blockFillCounters[Dword]; // Container for request in progress
-    Dword     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
+    int     blockFillCounters[Key]; // Container for request in progress
+    Key     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
 
 
     task automatic resetBlockFills();
@@ -427,7 +493,7 @@ module DataFillEngine(
 
 
     task automatic handleBlockFills();
-        Dword adr;
+        Key adr;
 
         notifyFill <= 0;
         notifiedAdr <= 'x;
@@ -451,10 +517,10 @@ module DataFillEngine(
 
 
     task automatic scheduleBlockFills();
-        foreach (translations[p]) begin
-            if (DataL1.readOut[p].status == CR_TAG_MISS) begin
-                Dword padr = translations[p].phys;  
-                scheduleBlockFill(padr); // Filling!
+        foreach (enable[p]) begin
+            if (enable[p]) begin
+                Dword padr = dataIn[p];
+                scheduleBlockFill(padr);
             end
         end
     endtask
@@ -463,7 +529,7 @@ module DataFillEngine(
         Dword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
         if (!blockFillCounters.exists(physBase))
-            blockFillCounters[physBase] = 15 - 1;            
+            blockFillCounters[physBase] = DELAY;            
     endfunction
 
 
