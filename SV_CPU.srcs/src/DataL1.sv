@@ -33,7 +33,6 @@ module DataL1(
 
     typedef Mbyte DataBlock[BLOCK_SIZE];
 
-
     typedef logic LogicA[N_MEM_PORTS];
     typedef Mword MwordA[N_MEM_PORTS];
     typedef Dword DwordA[N_MEM_PORTS];
@@ -42,11 +41,8 @@ module DataL1(
     DwordA dataFillPhysA;
     MwordA tlbFillVirtA;
 
-
     UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
-    
     DataFillEngine dataFillEngine(clk, translations_Reg, dataFillEnA, dataFillPhysA);
-    
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, translations_Reg, tlbFillEnA, tlbFillVirtA);
 
 
@@ -62,13 +58,6 @@ module DataL1(
     Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
     // Data and tag arrays
     PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
-
-
-
-        logic notifyTlbFill = 0;
-        Mword notifiedTlbAdr = 'x;
-        int       mappingFillCounters[Mword];
-        Mword     readyMappingsToFill[$];
 
 
 
@@ -99,18 +88,12 @@ module DataL1(
         
         filledMappings.delete();
         
-
         
-            mappingFillCounters.delete();
-            readyMappingsToFill.delete();
-
-            dataFillEngine.resetBlockFills();
-            tlbFillEngine.resetBlockFills();
-
+        dataFillEngine.resetBlockFills();
+        tlbFillEngine.resetBlockFills();
 
         uncachedSubsystem.uncachedArea = '{default: 0};
         uncachedSubsystem.UNC_reset();
-            
     endtask
 
 
@@ -185,7 +168,6 @@ module DataL1(
         return 'x;
     endfunction
 
-
     function automatic Mword readFromDynamicRange(input Mword adr, input AccessSize size);        
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
         DataBlock block = filledBlocks[physBlockBase];
@@ -197,7 +179,6 @@ module DataL1(
 
         return 'x;
     endfunction
-
 
     
     task automatic doWrite(input MemWriteInfo wrInfo);
@@ -223,76 +204,30 @@ module DataL1(
     ///////////////////////////////
 
 
-
     ////////////////////////////////////
     // Presence & allocation function 
     //
+    function automatic logic isPhysPresent(input Mword adr);
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+        return isUncachedRange(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
+    endfunction    
 
-        function automatic logic isPhysPresent(input Mword adr);
-            Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-            return isUncachedRange(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
-        endfunction    
-    
-        function automatic logic isTlbPending(input Mword adr);
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            return mappingFillCounters.exists(pageBase);
-        endfunction
+    function automatic logic isTlbPresent(input Mword adr);
+        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
+    endfunction
 
-        function automatic void scheduleTlbFill(input Mword adr);
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-    
-            if (!mappingFillCounters.exists(pageBase))
-                mappingFillCounters[pageBase] = 11;  
-        endfunction
-    
-        task automatic handleTlbFills();
-            Mword adr;
-            
-            notifyTlbFill <= 0;
-            notifiedTlbAdr <= 'x;
+    function automatic void allocInDynamicRange(input Mword adr);
+        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
+        filledBlocks[physBlockBase] = '{default: 0};            
+    endfunction
+
+    function automatic void allocInTlb(input Mword adr);
+        Translation DUMMY;
+        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
         
-            foreach (mappingFillCounters[a]) begin            
-                if (mappingFillCounters[a] == 0) begin
-                    readyMappingsToFill.push_back(a);
-                    mappingFillCounters[a] = -1;
-                end
-                else
-                    mappingFillCounters[a]--;
-            end
-            
-            if (readyMappingsToFill.size() == 0) return;
-            
-            adr = readyMappingsToFill.pop_front();
-            allocInTlb(adr);
-            mappingFillCounters.delete(adr);
-    
-            notifyTlbFill <= 1;
-            notifiedTlbAdr <= adr;           
-        endtask 
-
-        task automatic scheduleTlbFills();     
-            foreach (readOut[p]) begin
-                if (readOut[p].status == CR_TLB_MISS) begin
-                    Mword vadr = accessDescs_Reg[p].vadr;
-                    if (!isTlbPending(vadr)) scheduleTlbFill(vadr);
-                end
-            end
-        endtask
-
-   
-    ////////////////////////////////////
-
-        function automatic logic isTlbPresent(input Mword adr);
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
-        endfunction
-
-        function automatic void allocInTlb(input Mword adr);
-            Translation DUMMY;
-            Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-            
-            filledMappings[pageBase] = DUMMY;            
-        endfunction
+        filledMappings[pageBase] = DUMMY;            
+    endfunction
 
 
 
@@ -332,7 +267,6 @@ module DataL1(
 
 
 
-
     function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
         DataCacheOutput res;        
         
@@ -355,7 +289,6 @@ module DataL1(
             else
                 res.data = readFromDynamicRange(tr.phys, aInfo.size);
         end
-        
 
         return res;
     endfunction
@@ -363,49 +296,49 @@ module DataL1(
     
 
 
-        
-        function automatic LogicA dataFillEnables();
-            LogicA res = '{default: 0};
-            foreach (readOut[p]) begin
-                if (readOut[p].status == CR_TAG_MISS) begin
-                    res[p] = 1;
-                end
-            end
-            return res;
-        endfunction
     
-        function automatic DwordA dataFillPhysical();
-            DwordA res = '{default: 'x};
-            foreach (readOut[p]) begin
-                res[p] = translations_Reg[p].phys;
+    function automatic LogicA dataFillEnables();
+        LogicA res = '{default: 0};
+        foreach (readOut[p]) begin
+            if (readOut[p].status == CR_TAG_MISS) begin
+                res[p] = 1;
             end
-            return res;
-        endfunction
-    
-    
-        function automatic LogicA tlbFillEnables();
-            LogicA res = '{default: 0};
-            foreach (readOut[p]) begin
-                if (readOut[p].status == CR_TLB_MISS) begin
-                    res[p] = 1;
-                end
-            end
-            return res;
-        endfunction
-    
-        function automatic MwordA tlbFillVirtual();
-            MwordA res = '{default: 'x};
-            foreach (readOut[p]) begin
-                res[p] = accessDescs_Reg[p].vadr;
-            end
-            return res;
-        endfunction
+        end
+        return res;
+    endfunction
 
-    
-        always_comb dataFillEnA = dataFillEnables();
-        always_comb dataFillPhysA = dataFillPhysical();
-        always_comb tlbFillEnA = tlbFillEnables();
-        always_comb tlbFillVirtA = tlbFillVirtual();
+    function automatic DwordA dataFillPhysical();
+        DwordA res = '{default: 'x};
+        foreach (readOut[p]) begin
+            res[p] = translations_Reg[p].phys;
+        end
+        return res;
+    endfunction
+
+
+    function automatic LogicA tlbFillEnables();
+        LogicA res = '{default: 0};
+        foreach (readOut[p]) begin
+            if (readOut[p].status == CR_TLB_MISS) begin
+                res[p] = 1;
+            end
+        end
+        return res;
+    endfunction
+
+    function automatic MwordA tlbFillVirtual();
+        MwordA res = '{default: 'x};
+        foreach (readOut[p]) begin
+            res[p] = accessDescs_Reg[p].vadr;
+        end
+        return res;
+    endfunction
+
+
+    always_comb dataFillEnA = dataFillEnables();
+    always_comb dataFillPhysA = dataFillPhysical();
+    always_comb tlbFillEnA = tlbFillEnables();
+    always_comb tlbFillVirtA = tlbFillVirtual();
 
 
 
@@ -440,21 +373,11 @@ module DataL1(
     endtask
 
 
-
-    function automatic void allocInDynamicRange(input Mword adr);
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
-        filledBlocks[physBlockBase] = '{default: 0};            
-    endfunction
-
-
-    always @(posedge clk) begin         
-
-            handleTlbFills();
-            scheduleTlbFills();
-
+    always @(posedge clk) begin
         handleReads();
 
         if (dataFillEngine.notifyFill) allocInDynamicRange(dataFillEngine.notifiedAdr);
+        if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
 
         doWrite(TMP_writeReqs[0]);
     end
@@ -472,13 +395,9 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
         input logic enable[N_MEM_PORTS],
         input Key dataIn[N_MEM_PORTS]
 );
-//    localparam int DELAY = 14;
-//    typedef Dword Key;
-
-
     // Fill logic
     logic notifyFill = 0;
-    Mword notifiedAdr = 'x; // TODO: change to Dword (with RQ)
+    Key notifiedAdr = 'x; // TODO: change to Dword (with RQ)
 
     int     blockFillCounters[Key]; // Container for request in progress
     Key     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
@@ -512,21 +431,21 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
         blockFillCounters.delete(adr); // 
 
         notifyFill <= 1;
-        notifiedAdr <= Mword'(adr); // TODO: don't cast to Mword, keep physical adr (when changing to physical in RQ)           
+        notifiedAdr <= adr;
     endtask
 
 
     task automatic scheduleBlockFills();
         foreach (enable[p]) begin
             if (enable[p]) begin
-                Dword padr = dataIn[p];
+                Key padr = dataIn[p];
                 scheduleBlockFill(padr);
             end
         end
     endtask
 
-    function automatic void scheduleBlockFill(input Dword adr);
-        Dword physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+    function automatic void scheduleBlockFill(input Key adr);
+        Key physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
         if (!blockFillCounters.exists(physBase))
             blockFillCounters[physBase] = DELAY;            

@@ -154,8 +154,8 @@ package CacheDefs;
         return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
     endfunction
 
-    function automatic BlockBaseD blockBaseD(input EffectiveAddress adr);
-        return adr[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS];
+    function automatic BlockBaseD blockBaseD(input Dword adr);
+        return adr[$size(Dword)-1:BLOCK_OFFSET_BITS];
     endfunction
 
 

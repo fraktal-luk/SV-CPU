@@ -173,16 +173,16 @@ module ReplayQueue(
         // Wakeup data misses
         if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (blockBaseD(content[i].adr) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
+                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
                     content[i].ready_N = 1;
                 end
             end
         end
         
         // Wakeup TLB misses
-        if (AbstractCore.dataCache.notifyTlbFill) begin
+        if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedTlbAdr)) begin
+                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedAdr)) begin
                     content[i].ready_N = 1;                    
                 end
             end
