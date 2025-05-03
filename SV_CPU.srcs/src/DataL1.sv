@@ -191,6 +191,18 @@ module DataL1(
     /////////////////////////////////////////////////////////////////////////////
     // General read functions
 
+    function automatic Mword readSized(input Mword val, input AccessSize size);
+        if (size == SIZE_1) begin
+            Mbyte byteVal = val;
+            return Mword'(byteVal);
+        end
+        else if (size == SIZE_4) return val;
+        else $error("Wrong access size");
+
+        return 'x;
+    endfunction
+    
+
     function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
         if (size == SIZE_1) return readByteStatic(adr);
         else if (size == SIZE_4) return readWordStatic(adr);
@@ -247,7 +259,8 @@ module DataL1(
         Dword accessPbase = getBlockBaseD(wrInfo.padr);
 
         if (block != null && accessPbase === block.pbase) begin
-            way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
+            if (aInfo.size == SIZE_1) way[aInfo.block].writeByte(aInfo.blockOffset, wrInfo.value);
+            if (aInfo.size == SIZE_4) way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
             return 1;
         end
         return 0;
@@ -394,7 +407,7 @@ module DataL1(
 
 
 
-    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
+    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc, input logic hit0, input logic hit1, input Mword arrayValue);
         DataCacheOutput res;        
         
         if (aDesc.uncachedReq) begin end
@@ -405,16 +418,27 @@ module DataL1(
         else if (!tr.present) begin // TLB miss
             res.status = CR_TLB_MISS;
         end
+        else if (isUncachedRange(tr.phys)) begin // Just detected uncached access, tr.desc indicates uncached
+            // TODO: change above condiiton to desc field check
+            res = '{1, CR_HIT, tr.desc, 'x};
+        end
         else if (!isPhysPresent(tr.phys)) begin // data miss
+                assert (!hit0 && !hit1) else $fatal(2, "Qqqq, should be no hit");
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
         end
         else begin
+            Mword readValue = readSized(arrayValue, aInfo.size);
+                assert (hit0 || hit1) else $fatal(2, "Qqqq, must be some hit");
+
             res = '{1, CR_HIT, tr.desc, 'x};
-            if (isUncachedRange(tr.phys)) begin end
-            else if (tr.phys <= $size(staticContent)) // Read from small array
+            //if (isUncachedRange(tr.phys)) begin $fatal(2, "qqurrrw"); end
+            //else
+            if (tr.phys <= $size(staticContent)) // Read from small array
                 res.data = readFromStaticRange(tr.phys, aInfo.size);
             else
                 res.data = readFromDynamicRange(tr.phys, aInfo.size);
+                
+             assert (readValue === res.data) else $error("not same value at %x: %x, %x", tr.phys, readValue, res.data);
         end
 
         return res;
@@ -437,20 +461,21 @@ module DataL1(
             else begin
                 AccessInfo acc = analyzeAccess(vadr, aDesc.size);
                 Translation tr = translations_T[p];
-                DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc);
-                
+
+                ReadResult result0 = readWay(blocksWay0, acc, tr);
+                ReadResult result1 = readWay(blocksWay1, acc, tr);
+
+                DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc, result0.valid, result1.valid, selectWay(result0, result1));
+
                 accessDescs_Reg[p] <= aDesc;
                 translations_Reg[p] <= tr;
                 readOut[p] <= thisResult;
-                
-                // Cache arr
-                begin
-                    ReadResult result0 = readWay(blocksWay0, acc, tr);
-                    ReadResult result1 = readWay(blocksWay1, acc, tr);
 
+                // Cache arr
+               // begin
                     readResultsWay0[p] <= result0;
                     readResultsWay1[p] <= result1;
-                end
+               // end
 
             end
         end
@@ -461,10 +486,21 @@ module DataL1(
     function automatic ReadResult readWay(input DataWay way, input AccessInfo aInfo, input Translation tr);
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(tr.phys);
-        logic hit0 = (block != null && accessPbase === block.pbase);
-        Mword val0 = block == null ? 'x : block.readWord(aInfo.blockOffset);                    
+        
+        if (block == null) return '{0, 'x};
 
-        return '{hit0, val0};
+        begin
+            // TODO: handle all possible sizes
+            logic hit0 = (accessPbase === block.pbase);
+            Mword val0 = aInfo.size == SIZE_1 ? block.readByte(aInfo.blockOffset) : block.readWord(aInfo.blockOffset);                    
+    
+            return '{hit0, val0};
+        end
+    endfunction
+
+
+    function automatic Mword selectWay(input ReadResult res0, input ReadResult res1);
+        return res0.valid ? res0.value : res1.value;
     endfunction
 
 

@@ -304,9 +304,50 @@ package CacheDefs;
             end
         endfunction
 
+        function automatic Word readByte(input int offset);
+            localparam int ACCESS_SIZE = 1;
+            
+            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
+                Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
+                Mbyte wval;
+
+                // Read byte by byte                
+                foreach (chosenWord[i]) begin
+                    if (offset + i >= BLOCK_SIZE) break;
+                    chosenWord[i] = array[offset + i];
+                end 
+                
+                wval = {>>{chosenWord}};
+                  //  $error("extArray read %x", wval);
+                return (wval);
+            end
+            begin
+                Mbyte chosenWord[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
+                Mbyte wval = {>>{chosenWord}};
+                return (wval);
+            end
+        endfunction
 
         function automatic void writeWord(input int offset, input Word value);
             localparam int ACCESS_SIZE = 4;
+            
+            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
+                // Write byte by byte
+                Mbyte wval[ACCESS_SIZE] = {>>{value}};
+                
+                foreach (wval[i]) begin
+                    if (offset + i >= BLOCK_SIZE) break;
+                    array[offset + i] = wval[i];
+                end
+            end
+            begin
+                Mbyte wval[ACCESS_SIZE] = {>>{value}};
+                array[offset +: ACCESS_SIZE] = wval;
+            end
+        endfunction
+        
+        function automatic void writeByte(input int offset, input Mbyte value);
+            localparam int ACCESS_SIZE = 1;
             
             if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
                 // Write byte by byte
