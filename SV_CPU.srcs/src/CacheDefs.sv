@@ -158,6 +158,31 @@ package CacheDefs;
         return adr[$size(Dword)-1:BLOCK_OFFSET_BITS];
     endfunction
 
+    
+    function automatic Dword getBlockBaseD(input Dword adr);
+        Dword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getBlockBaseM(input Mword adr);
+        Mword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Dword getPageBaseD(input Dword adr);
+        Dword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getPageBaseM(input Mword adr);
+        Mword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
 
     typedef struct {
         EffectiveAddress adr;
@@ -247,6 +272,14 @@ package CacheDefs;
 
         return res;
     endfunction
+
+
+    class DataCacheBlock;
+        logic valid;
+        Mword vbase;
+        Dword pbase;
+        Mbyte array[BLOCK_SIZE];
+    endclass
 
 
 endpackage

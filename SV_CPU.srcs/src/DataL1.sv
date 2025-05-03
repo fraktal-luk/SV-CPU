@@ -22,6 +22,8 @@ module DataL1(
     localparam int DATA_TLB_SIZE = 32;
     localparam logic DONT_TRANSLATE = 1; // TMP
 
+    localparam int WAY_SIZE = 4096;
+    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
 
     typedef Translation TranslationA[N_MEM_PORTS];
 
@@ -46,6 +48,24 @@ module DataL1(
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, translations_Reg, tlbFillEnA, tlbFillVirtA);
 
 
+    DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
+
+    localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
+
+    function automatic void initBlocksWay0();
+        foreach (blocksWay0[i]) begin
+            Mword vadr = i*BLOCK_SIZE;
+            Dword padr = vadr;
+            //blocksWay0[i] = '{valid: 1, vbase: vadr, pbase: padr, array: CLEAN_BLOCK};
+            blocksWay0[i] = new();
+            blocksWay0[i].valid = 1;
+            blocksWay0[i].vbase = vadr;
+            blocksWay0[i].pbase = padr;
+            for (int ptr = 0; ptr < BLOCK_SIZE; ptr++)
+                blocksWay0[i].array[ptr] = 0;
+        end
+    endfunction
+
 
     // CAREFUL: below only for addresses in the range for data miss tests 
     DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
@@ -57,7 +77,7 @@ module DataL1(
     // Simple array for simple test cases, without blocks, transaltions etc
     Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
     // Data and tag arrays
-    PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
+    //PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
 
 
 
@@ -76,8 +96,10 @@ module DataL1(
 
 
     task automatic reset();
+            initBlocksWay0();
+    
         staticContent = '{default: 0};
-        tagsForWay = '{default: 0};
+       // tagsForWay = '{default: 0};
         
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
@@ -180,11 +202,20 @@ module DataL1(
         return 'x;
     endfunction
 
+
+        int writingBlock = -1;
+        int pBlock = -1;
+        Dword bb, ab;
     
-    task automatic doWrite(input MemWriteInfo wrInfo);
+    task automatic doCachedWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
         Dword padr = wrInfo.padr;
         Mword val = wrInfo.value;
+
+            writingBlock <= -1;
+            pBlock <= -1;
+            ab <= 'x;
+            bb <= 'x;
 
         if (!wrInfo.req) return;
         if (wrInfo.uncached) return;
@@ -197,6 +228,20 @@ module DataL1(
         else begin 
             if (wrInfo.size == SIZE_1) writeToDynamicRangeB(adr, val);
             if (wrInfo.size == SIZE_4) writeToDynamicRangeW(adr, val);
+        end
+    
+        // Cache array:
+        begin
+            AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
+            DataCacheBlock block = blocksWay0[aInfo.block];
+            Dword blockPbase = block.pbase;
+            Dword accessPbase = getBlockBaseD(wrInfo.padr);
+            
+              bb  <= blockPbase;
+              ab  <= accessPbase;
+            
+            pBlock <= aInfo.block;
+            if (accessPbase === blockPbase) writingBlock <= aInfo.block;
         end
     
     endtask
@@ -361,7 +406,7 @@ module DataL1(
             else begin
                 AccessInfo acc = analyzeAccess(vadr, aDesc.size);
                 Translation tr = translations_T[p];
-                PhysicalAddressHigh wayTag = tagsForWay[acc.block];
+                //PhysicalAddressHigh wayTag = tagsForWay[acc.block];
                 DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc);
                 
                 accessDescs_Reg[p] <= aDesc;
@@ -379,7 +424,7 @@ module DataL1(
         if (dataFillEngine.notifyFill) allocInDynamicRange(dataFillEngine.notifiedAdr);
         if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
 
-        doWrite(TMP_writeReqs[0]);
+        doCachedWrite(TMP_writeReqs[0]);
     end
 
 endmodule
