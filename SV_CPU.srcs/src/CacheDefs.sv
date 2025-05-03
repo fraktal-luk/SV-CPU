@@ -294,7 +294,7 @@ package CacheDefs;
                 end 
                 
                 wval = {>>{chosenWord}};
-                    $error("extArray read %x", wval);
+                  //  $error("extArray read %x", wval);
                 return (wval);
             end
             begin
