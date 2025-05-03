@@ -1,0 +1,10 @@
+; Unaligned access crossing block boundary
+$start
+	
+	add_i r10, r0, 15
+	ldi_i r11, r0, 127
+
+$check
+	sys_call
+$error
+    sys_error

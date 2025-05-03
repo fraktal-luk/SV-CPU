@@ -32,6 +32,14 @@ module DataL1(
     Translation translations_Reg[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION};
     AccessDesc accessDescs_Reg[N_MEM_PORTS] = '{default: DEFAULT_ACCESS_DESC};
 
+        
+        typedef struct {
+            logic valid;
+            Mword value;
+        } ReadResult;
+
+        ReadResult readResultsWay0[N_MEM_PORTS];
+
 
     typedef Mbyte DataBlock[BLOCK_SIZE];
 
@@ -56,13 +64,14 @@ module DataL1(
         foreach (blocksWay0[i]) begin
             Mword vadr = i*BLOCK_SIZE;
             Dword padr = vadr;
-            //blocksWay0[i] = '{valid: 1, vbase: vadr, pbase: padr, array: CLEAN_BLOCK};
+
             blocksWay0[i] = new();
             blocksWay0[i].valid = 1;
             blocksWay0[i].vbase = vadr;
             blocksWay0[i].pbase = padr;
-            for (int ptr = 0; ptr < BLOCK_SIZE; ptr++)
-                blocksWay0[i].array[ptr] = 0;
+            blocksWay0[i].array = '{default: 0};
+//            for (int ptr = 0; ptr < BLOCK_SIZE; ptr++)
+//                blocksWay0[i].array[ptr] = 0;
         end
     endfunction
 
@@ -148,6 +157,8 @@ module DataL1(
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
         filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
+        
+           // $error("Writing dyn: %d <- %d", adr, val);
     endfunction
 
     function automatic void writeToDynamicRangeB(input Mword adr, input Mbyte val);
@@ -203,8 +214,8 @@ module DataL1(
     endfunction
 
 
-        int writingBlock = -1;
-        int pBlock = -1;
+        int writingBlock = -1, readingBlock = -1;
+        int pBlock = -1, pReadBlock = -1;
         Dword bb, ab;
     
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
@@ -241,7 +252,10 @@ module DataL1(
               ab  <= accessPbase;
             
             pBlock <= aInfo.block;
-            if (accessPbase === blockPbase) writingBlock <= aInfo.block;
+            if (accessPbase === blockPbase) begin
+                writingBlock <= aInfo.block;
+                blocksWay0[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
+            end
         end
     
     endtask
@@ -402,6 +416,8 @@ module DataL1(
             AccessDesc aDesc = theExecBlock.accessDescs[p];
             Mword vadr = aDesc.vadr;
 
+            readResultsWay0[p] <= '{0, 'x};
+
             if (!aDesc.active || $isunknown(vadr)) continue;
             else begin
                 AccessInfo acc = analyzeAccess(vadr, aDesc.size);
@@ -412,6 +428,22 @@ module DataL1(
                 accessDescs_Reg[p] <= aDesc;
                 translations_Reg[p] <= tr;
                 readOut[p] <= thisResult;
+                
+                // Cache arr
+                begin
+                    AccessInfo aInfo = acc;
+                    DataCacheBlock block = blocksWay0[aInfo.block];
+                    Dword blockPbase = block.pbase;
+                    Dword accessPbase = getBlockBaseD(tr.phys);
+                    logic hit0 = (accessPbase === blockPbase);
+                    Mword val0 = block.readWord(aInfo.blockOffset);                    
+                    
+                    pReadBlock <= aInfo.block;
+                    if (accessPbase === blockPbase) readingBlock <= aInfo.block;
+                    
+                        readResultsWay0[p] <= '{hit0, val0};
+                end
+                
             end
         end
 
