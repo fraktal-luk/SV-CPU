@@ -32,7 +32,7 @@ module DataL1(
     Translation translations_Reg[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION};
     AccessDesc accessDescs_Reg[N_MEM_PORTS] = '{default: DEFAULT_ACCESS_DESC};
 
-        
+
         typedef struct {
             logic valid;
             Mword value;
@@ -57,6 +57,7 @@ module DataL1(
 
 
     DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
+    DataCacheBlock blocksWay1[BLOCKS_PER_WAY];
 
     localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
 
@@ -70,9 +71,11 @@ module DataL1(
             blocksWay0[i].vbase = vadr;
             blocksWay0[i].pbase = padr;
             blocksWay0[i].array = '{default: 0};
-//            for (int ptr = 0; ptr < BLOCK_SIZE; ptr++)
-//                blocksWay0[i].array[ptr] = 0;
         end
+    endfunction
+
+    function automatic void initBlocksWay1();
+        blocksWay1 = '{default: null};
     endfunction
 
 
@@ -106,7 +109,8 @@ module DataL1(
 
     task automatic reset();
             initBlocksWay0();
-    
+            initBlocksWay1();
+
         staticContent = '{default: 0};
        // tagsForWay = '{default: 0};
         
@@ -157,8 +161,6 @@ module DataL1(
 
         Mbyte wval[ACCESS_SIZE] = {>>{val}};
         filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
-        
-           // $error("Writing dyn: %d <- %d", adr, val);
     endfunction
 
     function automatic void writeToDynamicRangeB(input Mword adr, input Mbyte val);
@@ -229,7 +231,10 @@ module DataL1(
             bb <= 'x;
 
         if (!wrInfo.req) return;
-        if (wrInfo.uncached) return;
+        if (wrInfo.uncached) begin
+                $error("Uncached store %x", wrInfo.padr);
+            return;
+        end
 
 
         if (isStaticDataRange(adr)) begin
@@ -243,17 +248,18 @@ module DataL1(
     
         // Cache array:
         begin
+            // TODO: check also way1
             AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
             DataCacheBlock block = blocksWay0[aInfo.block];
-            Dword blockPbase = block.pbase;
+            //Dword blockPbase = block.pbase;
             Dword accessPbase = getBlockBaseD(wrInfo.padr);
             
-              bb  <= blockPbase;
-              ab  <= accessPbase;
+//              bb  <= blockPbase;
+//              ab  <= accessPbase;
             
             pBlock <= aInfo.block;
-            if (accessPbase === blockPbase) begin
-                writingBlock <= aInfo.block;
+            if (block != null && accessPbase === block.pbase) begin
+                //writingBlock <= aInfo.block;
                 blocksWay0[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
             end
         end
@@ -278,7 +284,22 @@ module DataL1(
 
     function automatic void allocInDynamicRange(input Mword adr);
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
-        filledBlocks[physBlockBase] = '{default: 0};            
+        filledBlocks[physBlockBase] = '{default: 0};
+        
+                $error(" Flling block: %d(%x)", adr, adr);
+            begin
+                AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
+                DataCacheBlock block = blocksWay1[aInfo.block];
+                Dword fillPbase = getBlockBaseD(adr);
+                
+                if (block != null) $error("Block already filled (way 1) at %x", fillPbase);
+                
+                blocksWay1[aInfo.block] = new();
+                
+                blocksWay1[aInfo.block].valid = 1;
+                blocksWay1[aInfo.block].pbase = fillPbase;
+                blocksWay1[aInfo.block].array = '{default: 0};                
+            end
     endfunction
 
     function automatic void allocInTlb(input Mword adr);
@@ -329,8 +350,9 @@ module DataL1(
     function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
         DataCacheOutput res;        
         
-        if (aDesc.uncachedReq) begin end
+        if (aDesc.uncachedReq) begin  $error("Uncached req %x", tr.phys);   end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read
+                $error("Uncached collect %x", tr.phys);
             res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
         end
         else if (aDesc.sys) begin end
@@ -352,10 +374,8 @@ module DataL1(
         return res;
     endfunction
 
-    
 
 
-    
     function automatic LogicA dataFillEnables();
         LogicA res = '{default: 0};
         foreach (readOut[p]) begin
@@ -416,13 +436,12 @@ module DataL1(
             AccessDesc aDesc = theExecBlock.accessDescs[p];
             Mword vadr = aDesc.vadr;
 
-            readResultsWay0[p] <= '{0, 'x};
+            readResultsWay0[p] <= '{'z, 'x};
 
             if (!aDesc.active || $isunknown(vadr)) continue;
             else begin
                 AccessInfo acc = analyzeAccess(vadr, aDesc.size);
                 Translation tr = translations_T[p];
-                //PhysicalAddressHigh wayTag = tagsForWay[acc.block];
                 DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc);
                 
                 accessDescs_Reg[p] <= aDesc;
@@ -431,17 +450,18 @@ module DataL1(
                 
                 // Cache arr
                 begin
+                    // TODO: check also way1
                     AccessInfo aInfo = acc;
                     DataCacheBlock block = blocksWay0[aInfo.block];
-                    Dword blockPbase = block.pbase;
+                    //Dword blockPbase = block.pbase;
                     Dword accessPbase = getBlockBaseD(tr.phys);
-                    logic hit0 = (accessPbase === blockPbase);
-                    Mword val0 = block.readWord(aInfo.blockOffset);                    
+                    logic hit0 = (block != null && accessPbase === block.pbase);
+                    Mword val0 = block == null ? 'x : block.readWord(aInfo.blockOffset);                    
                     
-                    pReadBlock <= aInfo.block;
-                    if (accessPbase === blockPbase) readingBlock <= aInfo.block;
+                    //pReadBlock <= aInfo.block;
+                    //if (accessPbase === blockPbase) readingBlock <= aInfo.block;
                     
-                        readResultsWay0[p] <= '{hit0, val0};
+                    readResultsWay0[p] <= '{hit0, val0};
                 end
                 
             end
