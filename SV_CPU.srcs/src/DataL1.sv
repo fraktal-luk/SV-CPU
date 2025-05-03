@@ -255,6 +255,8 @@ module DataL1(
 
 
     function automatic logic tryWriteWay(ref DataWay way, input AccessInfo aInfo, input MemWriteInfo wrInfo);
+        // TODO: may cross blocks
+
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(wrInfo.padr);
 
@@ -484,6 +486,8 @@ module DataL1(
 
 
     function automatic ReadResult readWay(input DataWay way, input AccessInfo aInfo, input Translation tr);
+        // TODO: may cross blocks
+        
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(tr.phys);
         
@@ -493,7 +497,11 @@ module DataL1(
             // TODO: handle all possible sizes
             logic hit0 = (accessPbase === block.pbase);
             Mword val0 = aInfo.size == SIZE_1 ? block.readByte(aInfo.blockOffset) : block.readWord(aInfo.blockOffset);                    
-    
+
+                if (aInfo.blockCross) begin
+                    $error("Read crossing block at %x", aInfo.adr);
+                end
+
             return '{hit0, val0};
         end
     endfunction
