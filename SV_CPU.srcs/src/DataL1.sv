@@ -86,12 +86,8 @@ module DataL1(
     Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
 
 
-
     // Simple array for simple test cases, without blocks, transaltions etc
     Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
-    // Data and tag arrays
-    //PhysicalAddressHigh tagsForWay[BLOCKS_PER_WAY] = '{default: 0}; // tags for each block of way 0
-
 
 
     function automatic logic isUncachedRange(input Mword adr);
@@ -113,7 +109,6 @@ module DataL1(
             initBlocksWay1();
 
         staticContent = '{default: 0};
-       // tagsForWay = '{default: 0};
         
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
@@ -133,7 +128,7 @@ module DataL1(
     endtask
 
 
-        
+
     ////////////////////////////////////
     // Specific write & read functions
 
@@ -217,26 +212,16 @@ module DataL1(
     endfunction
 
 
-        int writingBlock = -1, readingBlock = -1;
-        int pBlock = -1, pReadBlock = -1;
-        Dword bb, ab;
     
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
         Dword padr = wrInfo.padr;
         Mword val = wrInfo.value;
 
-            writingBlock <= -1;
-            pBlock <= -1;
-            ab <= 'x;
-            bb <= 'x;
-
         if (!wrInfo.req) return;
         if (wrInfo.uncached) begin
-               // $error("Uncached store %x", wrInfo.padr);
             return;
         end
-
 
         if (isStaticDataRange(adr)) begin
             if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
@@ -246,22 +231,14 @@ module DataL1(
             if (wrInfo.size == SIZE_1) writeToDynamicRangeB(adr, val);
             if (wrInfo.size == SIZE_4) writeToDynamicRangeW(adr, val);
         end
-    
+
         // Cache array:
         begin
-            // TODO: check also way1
             AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
-//            DataCacheBlock block = blocksWay0[aInfo.block];
-//            Dword accessPbase = getBlockBaseD(wrInfo.padr);
-
-//            if (block != null && accessPbase === block.pbase) begin
-//                blocksWay0[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
-//            end
-            
             logic written0 = tryWriteWay(blocksWay0, aInfo, wrInfo);
             logic written1 = tryWriteWay(blocksWay1, aInfo, wrInfo);
         end
-    
+
     endtask
 
 
@@ -297,21 +274,7 @@ module DataL1(
         Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
         filledBlocks[physBlockBase] = '{default: 0};
         
-             //   $error(" Flling block: %d(%x)", adr, adr);
-            begin
-//                AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
-//                DataCacheBlock block = blocksWay1[aInfo.block];
-//                Dword fillPbase = getBlockBaseD(adr);
-                
-//                if (block != null) $error("Block already filled (way 1) at %x", fillPbase);
-                
-//                blocksWay1[aInfo.block] = new();
-//                blocksWay1[aInfo.block].valid = 1;
-//                blocksWay1[aInfo.block].pbase = fillPbase;
-//                blocksWay1[aInfo.block].array = '{default: 0};
-                
-                tryFillWay(blocksWay1, adr);
-            end
+            tryFillWay(blocksWay1, adr);
     endfunction
 
 
@@ -380,35 +343,6 @@ module DataL1(
 
 
 
-    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
-        DataCacheOutput res;        
-        
-        if (aDesc.uncachedReq) begin  /*$error("Uncached req %x", tr.phys);*/   end
-        else if (aDesc.uncachedCollect) begin // Completion of uncached read
-              //  $error("Uncached collect %x", tr.phys);
-            res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
-        end
-        else if (aDesc.sys) begin end
-        else if (!tr.present) begin // TLB miss
-            res.status = CR_TLB_MISS;
-        end
-        else if (!isPhysPresent(tr.phys)) begin // data miss
-           res = '{1, CR_TAG_MISS, tr.desc, 'x};
-        end
-        else begin
-            res = '{1, CR_HIT, tr.desc, 'x};
-            if (isUncachedRange(tr.phys)) begin end
-            else if (tr.phys <= $size(staticContent)) // Read from small array
-                res.data = readFromStaticRange(tr.phys, aInfo.size);
-            else
-                res.data = readFromDynamicRange(tr.phys, aInfo.size);
-        end
-
-        return res;
-    endfunction
-
-
-
     function automatic LogicA dataFillEnables();
         LogicA res = '{default: 0};
         foreach (readOut[p]) begin
@@ -458,7 +392,34 @@ module DataL1(
 
     assign translationsOut = translations_T;
 
-    
+
+
+    function automatic DataCacheOutput doReadAccess(input AccessInfo aInfo, input Translation tr, input AccessDesc aDesc);
+        DataCacheOutput res;        
+        
+        if (aDesc.uncachedReq) begin end
+        else if (aDesc.uncachedCollect) begin // Completion of uncached read
+            res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
+        end
+        else if (aDesc.sys) begin end
+        else if (!tr.present) begin // TLB miss
+            res.status = CR_TLB_MISS;
+        end
+        else if (!isPhysPresent(tr.phys)) begin // data miss
+           res = '{1, CR_TAG_MISS, tr.desc, 'x};
+        end
+        else begin
+            res = '{1, CR_HIT, tr.desc, 'x};
+            if (isUncachedRange(tr.phys)) begin end
+            else if (tr.phys <= $size(staticContent)) // Read from small array
+                res.data = readFromStaticRange(tr.phys, aInfo.size);
+            else
+                res.data = readFromDynamicRange(tr.phys, aInfo.size);
+        end
+
+        return res;
+    endfunction
+
 
     task automatic handleReads();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
@@ -484,23 +445,13 @@ module DataL1(
                 
                 // Cache arr
                 begin
-                    // TODO: check also way1
-                   // AccessInfo aInfo = acc;
-//                    DataCacheBlock block = blocksWay0[aInfo.block];
-//                    Dword accessPbase = getBlockBaseD(tr.phys);
-//                    logic hit0 = (block != null && accessPbase === block.pbase);
-//                    Mword val0 = block == null ? 'x : block.readWord(aInfo.blockOffset);                    
-                    
                     ReadResult result0 = readWay(blocksWay0, acc, tr);
                     ReadResult result1 = readWay(blocksWay1, acc, tr);
 
-                    //    assert (result0.valid === hit0 && result0.value === val0) else $fatal(2, "not queal read!");
-                    //readResultsWay0[p] <= '{hit0, val0};
                     readResultsWay0[p] <= result0;
                     readResultsWay1[p] <= result1;
-                    
                 end
-                
+
             end
         end
 
