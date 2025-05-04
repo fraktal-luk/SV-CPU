@@ -87,7 +87,7 @@ module DataL1(
 
 
     // Simple array for simple test cases, without blocks, transaltions etc
-            Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
+           // Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
 
 
     function automatic logic isUncachedRange(input Mword adr);
@@ -104,7 +104,7 @@ module DataL1(
             initBlocksWay0();
             initBlocksWay1();
 
-        staticContent = '{default: 0};
+        //staticContent = '{default: 0};
         
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
@@ -119,23 +119,6 @@ module DataL1(
         uncachedSubsystem.UNC_reset();
     endtask
 
-
-            
-            function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
-                PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
-            endfunction
-        
-            function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
-                PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
-            endfunction
-        
-            function automatic Mword readWordStatic(input Mword adr);
-                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
-            endfunction
-        
-            function automatic Mword readByteStatic(input Mword adr);
-                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
-            endfunction
 
 
     function automatic Mword readSized(input Mword val, input AccessSize size);
@@ -195,12 +178,12 @@ module DataL1(
         return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
     endfunction
 
-    function automatic void allocInDynamicRange(input Mword adr);
+    function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
 
 
-    function automatic logic tryFillWay(ref DataWay way, input Mword adr);
+    function automatic logic tryFillWay(ref DataWay way, input Dword adr);
         AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
         DataCacheBlock block = way[aInfo.block];
         Dword fillPbase = getBlockBaseD(adr);
@@ -209,12 +192,12 @@ module DataL1(
             $error("Block already filled at %x", fillPbase);
             return 0;
         end
-        
+
         way[aInfo.block] = new();
         way[aInfo.block].valid = 1;
         way[aInfo.block].pbase = fillPbase;
         way[aInfo.block].array = '{default: 0};
-        
+
         return 1;
     endfunction
 
@@ -325,10 +308,11 @@ module DataL1(
         end
         else if (aDesc.sys) begin end
         else if (!tr.present) begin // TLB miss
-            res.status = CR_TLB_MISS;
+            //res.status = CR_TLB_MISS;
+            res = '{1, CR_TLB_MISS, tr.desc, 'x};
         end
-        else if (isUncachedRange(tr.phys)) begin // Just detected uncached access, tr.desc indicates uncached
-            // TODO: change above condiiton to desc field check
+        //else if (isUncachedRange(tr.phys)) begin // Just detected uncached access, tr.desc indicates uncached
+        else if (!tr.desc.cached) begin // Just detected uncached access, tr.desc indicates uncached
             res = '{1, CR_HIT, tr.desc, 'x};
         end
         else if (!hit0 && !hit1) begin // data miss
@@ -357,7 +341,7 @@ module DataL1(
 
             if (!aDesc.active || $isunknown(vadr)) continue;
             else begin
-                AccessInfo acc = analyzeAccess(vadr, aDesc.size);
+                AccessInfo acc = analyzeAccess(Dword'(vadr), aDesc.size);
                 Translation tr = translations_T[p];
 
                 ReadResult result0 = readWay(blocksWay0, acc, tr);
@@ -372,7 +356,6 @@ module DataL1(
                 // Cache arr
                     readResultsWay0[p] <= result0;
                     readResultsWay1[p] <= result1;
-
             end
         end
 
@@ -381,10 +364,10 @@ module DataL1(
 
     function automatic ReadResult readWay(input DataWay way, input AccessInfo aInfo, input Translation tr);
         // TODO: may cross blocks
-        
+
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(tr.phys);
-        
+
         if (block == null) return '{0, 'x};
 
         begin
@@ -392,9 +375,9 @@ module DataL1(
             logic hit0 = (accessPbase === block.pbase);
             Mword val0 = aInfo.size == SIZE_1 ? block.readByte(aInfo.blockOffset) : block.readWord(aInfo.blockOffset);                    
 
-                if (aInfo.blockCross) begin
-                    $error("Read crossing block at %x", aInfo.adr);
-                end
+            if (aInfo.blockCross) begin
+                $error("Read crossing block at %x", aInfo.adr);
+            end
 
             return '{hit0, val0};
         end

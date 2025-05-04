@@ -87,6 +87,7 @@ package CacheDefs;
     endclass
 
 
+
     // Write buffer
     // TODO: replace with SQ entry struct?
     typedef struct {
@@ -185,7 +186,7 @@ package CacheDefs;
 
 
     typedef struct {
-        EffectiveAddress adr;
+        Dword adr;
         AccessSize size;
         int block;
         int blockOffset;
@@ -251,7 +252,7 @@ package CacheDefs;
 
 
 
-    function automatic AccessInfo analyzeAccess(input EffectiveAddress adr, input AccessSize accessSize);
+    function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
         AccessInfo res;
         
         VirtualAddressLow aLow = adrLow(adr);
@@ -364,6 +365,12 @@ package CacheDefs;
             end
         endfunction
     endclass
+
+//                PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
+//                PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
+        
+//                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
+//                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
 
 
 endpackage
