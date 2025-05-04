@@ -81,21 +81,17 @@ module DataL1(
 
 
     // CAREFUL: below only for addresses in the range for data miss tests 
-    DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+    //DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
     // CAREFUL: below only for addresses in the range for TLB miss tests 
     Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
 
 
     // Simple array for simple test cases, without blocks, transaltions etc
-    Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
+            Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
 
 
     function automatic logic isUncachedRange(input Mword adr);
         return adr >= uncachedSubsystem.UNCACHED_BASE && adr < uncachedSubsystem.UNCACHED_BASE + $size(uncachedSubsystem.uncachedArea);
-    endfunction
-
-    function automatic logic isStaticDataRange(input Mword adr);
-        return adr < $size(staticContent);
     endfunction
 
     function automatic logic isStaticTlbRange(input Mword adr);        
@@ -113,13 +109,9 @@ module DataL1(
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
-
-
-        filledBlocks.delete();
         
         filledMappings.delete();
-        
-        
+
         dataFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
 
@@ -128,68 +120,23 @@ module DataL1(
     endtask
 
 
-
-    ////////////////////////////////////
-    // Specific write & read functions
-
-    function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
-        PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
-    endfunction
-
-    function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
-        PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
-    endfunction
-
-    function automatic Mword readWordStatic(input Mword adr);
-        return PageWriter#(Word, 4)::readTyped(staticContent, adr);
-    endfunction
-
-    function automatic Mword readByteStatic(input Mword adr);
-        return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
-    endfunction
-
-
-    function automatic void writeToDynamicRangeW(input Mword adr, input Mword val);
-        localparam int ACCESS_SIZE = 4;
+            
+            function automatic void writeToStaticRangeW(input Mword adr, input Mword val);
+                PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
+            endfunction
         
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
-
-        Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
-    endfunction
-
-    function automatic void writeToDynamicRangeB(input Mword adr, input Mbyte val);
-        localparam int ACCESS_SIZE = 1;
+            function automatic void writeToStaticRangeB(input Mword adr, input Mbyte val);
+                PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
+            endfunction
         
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
+            function automatic Mword readWordStatic(input Mword adr);
+                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
+            endfunction
+        
+            function automatic Mword readByteStatic(input Mword adr);
+                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
+            endfunction
 
-        Mbyte wval[ACCESS_SIZE] = {>>{val}};
-        filledBlocks[physBlockBase][physLow +: ACCESS_SIZE] = wval;
-    endfunction
-
-
-    function automatic Mword readWordDynamic(input DataBlock block, input int offset);
-        localparam int ACCESS_SIZE = 4;
-
-        Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
-        Mword wval = {>>{chosenWord}};
-
-        return (wval);
-    endfunction
-
-    function automatic Mword readByteDynamic(input DataBlock block, input int offset);
-        localparam int ACCESS_SIZE = 1;
-
-        Mbyte chosenWord[ACCESS_SIZE] = block[offset +: ACCESS_SIZE];
-        Mbyte wval = {>>{chosenWord}};
-
-        return (wval);
-    endfunction
-
-    /////////////////////////////////////////////////////////////////////////////
-    // General read functions
 
     function automatic Mword readSized(input Mword val, input AccessSize size);
         if (size == SIZE_1) begin
@@ -201,30 +148,8 @@ module DataL1(
 
         return 'x;
     endfunction
-    
+ 
 
-    function automatic Mword readFromStaticRange(input Mword adr, input AccessSize size);
-        if (size == SIZE_1) return readByteStatic(adr);
-        else if (size == SIZE_4) return readWordStatic(adr);
-        else $error("Wrong access size");
-
-        return 'x;
-    endfunction
-
-    function automatic Mword readFromDynamicRange(input Mword adr, input AccessSize size);        
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        DataBlock block = filledBlocks[physBlockBase];
-        PhysicalAddressLow physLow = adr % BLOCK_SIZE;
-
-        if (size == SIZE_1) return readByteDynamic(block, physLow);
-        else if (size == SIZE_4) return readWordDynamic(block, physLow);
-        else $error("Wrong access size");
-
-        return 'x;
-    endfunction
-
-
-    
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         Mword adr = wrInfo.adr;
         Dword padr = wrInfo.padr;
@@ -233,15 +158,6 @@ module DataL1(
         if (!wrInfo.req) return;
         if (wrInfo.uncached) begin
             return;
-        end
-
-        if (isStaticDataRange(adr)) begin
-            if (wrInfo.size == SIZE_1) writeToStaticRangeB(adr, val);
-            if (wrInfo.size == SIZE_4) writeToStaticRangeW(adr, val);
-        end
-        else begin 
-            if (wrInfo.size == SIZE_1) writeToDynamicRangeB(adr, val);
-            if (wrInfo.size == SIZE_4) writeToDynamicRangeW(adr, val);
         end
 
         // Cache array:
@@ -256,7 +172,6 @@ module DataL1(
 
     function automatic logic tryWriteWay(ref DataWay way, input AccessInfo aInfo, input MemWriteInfo wrInfo);
         // TODO: may cross blocks
-
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(wrInfo.padr);
 
@@ -273,23 +188,15 @@ module DataL1(
 
 
     ////////////////////////////////////
-    // Presence & allocation function 
+    // Presence & allocation functions 
     //
-    function automatic logic isPhysPresent(input Mword adr);
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-        return isUncachedRange(adr) || isStaticDataRange(adr) || filledBlocks.exists(physBlockBase);
-    endfunction    
-
     function automatic logic isTlbPresent(input Mword adr);
         Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
         return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
     endfunction
 
     function automatic void allocInDynamicRange(input Mword adr);
-        Mword physBlockBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;        
-        filledBlocks[physBlockBase] = '{default: 0};
-        
-            tryFillWay(blocksWay1, adr);
+        tryFillWay(blocksWay1, adr);
     endfunction
 
 
@@ -424,23 +331,12 @@ module DataL1(
             // TODO: change above condiiton to desc field check
             res = '{1, CR_HIT, tr.desc, 'x};
         end
-        else if (!isPhysPresent(tr.phys)) begin // data miss
-                assert (!hit0 && !hit1) else $fatal(2, "Qqqq, should be no hit");
+        else if (!hit0 && !hit1) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
         end
         else begin
             Mword readValue = readSized(arrayValue, aInfo.size);
-                assert (hit0 || hit1) else $fatal(2, "Qqqq, must be some hit");
-
-            res = '{1, CR_HIT, tr.desc, 'x};
-            //if (isUncachedRange(tr.phys)) begin $fatal(2, "qqurrrw"); end
-            //else
-            if (tr.phys <= $size(staticContent)) // Read from small array
-                res.data = readFromStaticRange(tr.phys, aInfo.size);
-            else
-                res.data = readFromDynamicRange(tr.phys, aInfo.size);
-                
-             assert (readValue === res.data) else $error("not same value at %x: %x, %x", tr.phys, readValue, res.data);
+            res = '{1, CR_HIT, tr.desc, readValue};
         end
 
         return res;
@@ -456,8 +352,8 @@ module DataL1(
             AccessDesc aDesc = theExecBlock.accessDescs[p];
             Mword vadr = aDesc.vadr;
 
-            readResultsWay0[p] <= '{'z, 'x};
-            readResultsWay1[p] <= '{'z, 'x};
+                readResultsWay0[p] <= '{'z, 'x};
+                readResultsWay1[p] <= '{'z, 'x};
 
             if (!aDesc.active || $isunknown(vadr)) continue;
             else begin
@@ -474,10 +370,8 @@ module DataL1(
                 readOut[p] <= thisResult;
 
                 // Cache arr
-               // begin
                     readResultsWay0[p] <= result0;
                     readResultsWay1[p] <= result1;
-               // end
 
             end
         end
