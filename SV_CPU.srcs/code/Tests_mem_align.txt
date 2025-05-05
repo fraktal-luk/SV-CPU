@@ -2,3 +2,4 @@
 mem_unaligned
 mem_unaligned2
 mem_unaligned3
+mem_unaligned4

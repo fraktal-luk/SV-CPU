@@ -27,11 +27,12 @@ package Emulation;
     typedef struct {
         bit active;
         Mword adr;
+        Dword padr;
         Mword value;
         int size;
     } MemoryWrite;
 
-    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, value: 'x, size: -1};
+    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, padr: 'x, value: 'x, size: -1};
 
 //    typedef struct {
 //        logic wrInt;
@@ -106,13 +107,13 @@ package Emulation;
         
         class RW#(type Elem = Mbyte, int ESIZE = 1);
             static
-            function automatic void write(input Mword startAdr, input Elem value, ref Mbyte ct[Mword]);
+            function automatic void write(input Dword startAdr, input Elem value, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE] = {>>{value}};
                 foreach (bytes[i]) ct[startAdr+i] = bytes[i];
             endfunction
             
             static
-            function automatic Elem read(input Mword startAdr, ref Mbyte ct[Mword]);
+            function automatic Elem read(input Dword startAdr, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE];
                 foreach (bytes[i]) bytes[i] = ct.exists(startAdr+i) ? ct[startAdr+i] : 0;
                 return {>>{bytes}};
@@ -120,27 +121,27 @@ package Emulation;
         endclass
         
         
-        Mbyte content[Mword];
+        Mbyte content[Dword];
         
         function automatic void clear();
             content.delete();
         endfunction
         
         
-        function automatic void writeWord(input Mword startAdr, input Word value);
+        function automatic void writeWord(input Dword startAdr, input Word value);
             RW#(Word, 4)::write(startAdr, value, content);
         endfunction
 
-        function automatic void writeByte(input Mword startAdr, input Mbyte value);
+        function automatic void writeByte(input Dword startAdr, input Mbyte value);
             RW#(Mbyte, 1)::write(startAdr, value, content);
         endfunction
 
- 
-        function automatic Word readWord(input Mword startAdr);
+
+        function automatic Word readWord(input Dword startAdr);
             return RW#(Word, 4)::read(startAdr, content);
         endfunction
 
-        function automatic Mbyte readByte(input Mword startAdr);
+        function automatic Mbyte readByte(input Dword startAdr);
             return RW#(Mbyte, 1)::read(startAdr, content);
         endfunction
        
@@ -501,6 +502,10 @@ package Emulation;
             this.dataMem_N.clear();
         endfunction
 
+        // TODO
+        function automatic Dword translateAddress(input Mword vadr);
+            return Dword'(vadr);
+        endfunction
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
             //Mword res = 'x;
@@ -514,26 +519,27 @@ package Emulation;
                 return adr + 4;
             
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
-                Mword adr = calculateEffectiveAddress(ins, args);
-                return getLoadValue(ins, adr);
+                Mword vadr = calculateEffectiveAddress(ins, args);
+                Dword padr = translateAddress(vadr);
+                return getLoadValue(ins, vadr, padr);
             end
             
             return 'x;
         endfunction
 
-        function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr);
+        function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
     
             case (ins.def.o)
                 O_intLoadW: begin
-                    result = dataMem_N.readWord(adr);
+                    result = dataMem_N.readWord(padr);
                 end
-                O_intLoadB: result = Mword'(dataMem_N.readByte(adr));
-                O_intLoadAqW: result = dataMem_N.readWord(adr); // TODO
+                O_intLoadB: result = Mword'(dataMem_N.readByte(padr));
+                O_intLoadAqW: result = dataMem_N.readWord(padr); // TODO
                 
                 O_intLoadD: ;
                 O_floatLoadW: begin
-                    result = dataMem_N.readWord(adr);
+                    result = dataMem_N.readWord(padr);
                 end
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
@@ -581,8 +587,8 @@ package Emulation;
             
             if (this.writeToDo.active) begin
                 case (writeToDo.size)
-                    1: dataMem_N.writeByte(writeToDo.adr, Mbyte'(writeToDo.value));
-                    4: dataMem_N.writeWord(writeToDo.adr, writeToDo.value);
+                    1: dataMem_N.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
+                    4: dataMem_N.writeWord(writeToDo.padr, writeToDo.value);
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end
@@ -608,15 +614,16 @@ package Emulation;
         endfunction
         
         local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals);
-            Mword adr = calculateEffectiveAddress(ins, vals);
+            Mword vadr = calculateEffectiveAddress(ins, vals);
+            Dword padr = translateAddress(vadr);
             
-            if (exceptionCaused(ins, adr)) begin
+            if (exceptionCaused(ins, vadr)) begin
                 modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end
             
             begin
-                Mword result = getLoadValue(ins, adr);
+                Mword result = getLoadValue(ins, vadr, padr);
                 if (!isLoadIns(ins)) return;
                 if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
                 if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
@@ -663,6 +670,7 @@ package Emulation;
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
+            Dword physAdr = translateAddress(effAdr);            
             logic en = !exceptionCaused(ins, effAdr);
             int size = -1;
             
@@ -675,7 +683,7 @@ package Emulation;
                 default: ;
             endcase
             
-            if (isStoreMemIns(ins)) res = '{en, effAdr, vals[2], size};
+            if (isStoreMemIns(ins)) res = '{en, effAdr, physAdr, vals[2], size};
             return res;
         endfunction
 

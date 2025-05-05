@@ -18,27 +18,31 @@ module MemSubpipe#(
     input EventInfo lateEventInfo,
     input UopPacket opP,
 
-    output DataReadReq readReq,
-    output DataReadReq sysReadReq,
-
+    output AccessDesc accessDescOut,
+    
+    input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
     input DataCacheOutput sysRegResp,
     input UopPacket sqResp,
     input UopPacket lqResp
 );
 
-    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
-    UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+    UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pD0_Emp, pD1_Emp;
+    Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION;
 
-    UopPacket stage0, stage0_E;
+
+    UopMemPacket stage0, stage0_E;
     
-    logic readActive = 0, sysReadActive = 0, storeFlag = 0, uncachedFlag = 0;
-    AccessSize readSize = SIZE_NONE;
-    Mword effAdrE0 = 'x;
+    AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
 
-    //assign stage0 = pE2;
+    assign accessDescOut = accessDescE0;
+
     assign stage0_E = pE2_E;
-    assign p0 = opP;
+    assign p0 = TMP_toMemPacket(opP);
+
+    assign trE0 = cacheTranslation;
 
 
     always @(posedge AbstractCore.clk) begin
@@ -50,15 +54,14 @@ module MemSubpipe#(
         
         pD0 <= tickP(pE2);
         pD1 <= tickP(pD0);
+        
+        trE1 <= trE0;
+        trE2 <= trE1;
+        
+        accessDescE1 <= accessDescE0;
+        accessDescE2 <= accessDescE1;
     end
 
-    assign readReq = '{
-        readActive, storeFlag, uncachedFlag, effAdrE0, readSize
-    };
-
-    assign sysReadReq = '{
-        sysReadActive, 'x, 'x, effAdrE0, readSize
-    };
 
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
@@ -67,36 +70,68 @@ module MemSubpipe#(
     assign pE2_E = effP(pE2);
     assign pD0_E = effP(pD0);
     assign pD1_E = effP(pD1);
-    
+
+
+        assign p0_Emp = TMP_mp(p0_E);
+        assign p1_Emp = TMP_mp(p1_E);
+        assign pE0_Emp = TMP_mp(pE0_E);
+        assign pE1_Emp = TMP_mp(pE1_E);
+        assign pE2_Emp = TMP_mp(pE2_E);
+        assign pD0_Emp = TMP_mp(pD0_E);
+        assign pD1_Emp = TMP_mp(pD1_E);
+
+
     ForwardingElement image_E[-3:1];
     
     assign image_E = '{
-        -3: p1_E,
-        -2: pE0_E,
-        -1: pE1_E,
-        0: pE2_E,
-        1: pD0_E,
+        -3: p1_Emp,
+        -2: pE0_Emp,
+        -1: pE1_Emp,
+        0: pE2_Emp,
+        1: pD0_Emp,
         default: EMPTY_FORWARDING_ELEMENT
     };
     
 
 
     /////////////////////////////////////////////////////////////////////////////////////
+
+    // 
+    function automatic AccessDesc getAccessDesc(input UopMemPacket p, input Mword adr);
+        AccessDesc res;
+        UopName uname = decUname(p.TMP_oid);
+
+        AccessInfo aInfo = analyzeAccess(adr, getTransactionSize(uname));
+
+        if (!p.active) return res;
+
+        res.active = 1;
+
+        res.size = getTransactionSize(uname);
+        
+        res.store = isStoreUop(uname);
+        res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);
+        res.uncachedReq = (p.status == ES_UNCACHED_1) && !res.store;
+        res.uncachedCollect = (p.status == ES_UNCACHED_2) && !res.store;
+        res.uncachedStore = (p.status == ES_UNCACHED_2) && res.store;
+        
+        res.vadr = adr;
+
+        res.unaligned = aInfo.unaligned;
+        res.blockCross = aInfo.blockCross;
+        res.pageCross = aInfo.pageCross;
     
+        return res;
+    endfunction 
+
+
+ 
     task automatic performE0();    
-        UopPacket stateE0 = tickP(p1);
+        UopMemPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
         UopName uname = decUname(stateE0.TMP_oid);
-
-        readSize = getTransactionSize(uname);
-        if (!stateE0.active) readSize = SIZE_NONE;
         
-        readActive <= stateE0.active && isMemUop(uname);
-        sysReadActive <= stateE0.active && (isLoadSysUop(uname) || isStoreSysUop(uname));
-        storeFlag <= isStoreUop(uname);
-        uncachedFlag <= (stateE0.status == ES_UNCACHED_1);
-        effAdrE0 <= adr;
-
+        accessDescE0 <= getAccessDesc(stateE0, adr);
         pE0 <= updateE0(stateE0, adr);
     endtask
     
@@ -107,15 +142,15 @@ module MemSubpipe#(
     endtask
     
     task automatic performE2();    
-        UopPacket stateE2 = tickP(pE1);
+        UopMemPacket stateE2 = tickP(pE1);
         stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp, lqResp);
         pE2 <= stateE2;
     endtask
 
 
 
-    function automatic UopPacket updateE0(input UopPacket p, input Mword adr);
-        UopPacket res = p;
+    function automatic UopMemPacket updateE0(input UopMemPacket p, input Mword adr);
+        UopMemPacket res = p;
 
         if (!p.active) return res;
       
@@ -126,14 +161,14 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket updateE1(input UopPacket p);
-        UopPacket res = p;
+    function automatic UopMemPacket updateE1(input UopMemPacket p);
+        UopMemPacket res = p;
         return res;
     endfunction
 
 
-    function automatic UopPacket updateE2(input UopPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
-        UopPacket res = p;
+    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
+        UopMemPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (!p.active) return res;
@@ -177,8 +212,8 @@ module MemSubpipe#(
 
 
 
-    function automatic UopPacket TMP_updateSysTransfer(input UopPacket p, input DataCacheOutput sysResp);
-        UopPacket res = p;
+    function automatic UopMemPacket TMP_updateSysTransfer(input UopMemPacket p, input DataCacheOutput sysResp);
+        UopMemPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (sysResp.status == CR_INVALID) begin
@@ -196,26 +231,9 @@ module MemSubpipe#(
 
         return res;
     endfunction
-
-    // TODO: move to packet
-    function automatic Mword loadValue(input Mword w, input UopName uop);
-        case (uop)
-             UOP_mem_ldi: return w;
-             UOP_mem_ldib: return Mword'(w[7:0]);
-             UOP_mem_ldf,
-             UOP_mem_lds: return w;
-
-             UOP_mem_sti,
-             UOP_mem_stib,
-             UOP_mem_stf,
-             UOP_mem_sts: return 0;
-            
-            default: $fatal(2, "Wrong op");
-        endcase
-    endfunction
     
 
-    function automatic UopPacket updateE2_Regular(input UopPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 

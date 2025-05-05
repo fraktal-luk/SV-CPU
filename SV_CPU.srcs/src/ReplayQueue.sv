@@ -21,18 +21,26 @@ module ReplayQueue(
     localparam int SIZE = 16;
 
     typedef struct {
+        // Scheduling state
         logic used;
         logic active;
         logic ready;
-            int readyCnt;
-            logic ready_N;
-        ExecStatus execStatus;
-        UidT uid;
-        Mword adr;
-            AccessSize size;
+          int readyCnt;
+          logic ready_N;
+        
+        // uop status
+        ExecStatus execStatus; 
+        
+        UidT uid;       // constant
+            Mword adr;        // transaction desc
+            AccessSize size;  // t.d.
+            
+            AccessDesc accessDesc;
+            Translation translation;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
+
 
     int numUsed = 0;
     logic accept;
@@ -65,14 +73,10 @@ module ReplayQueue(
         
         
         issue();
-        
         wakeup();
-        
         writeInput();
-       
         removeIssued();
 
-        
           issued0__ <= tickP(inPackets[0]);
           issued0__.status <= ES_OK;
 
@@ -94,7 +98,8 @@ module ReplayQueue(
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize};
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
+                                    theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]};
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
@@ -113,7 +118,7 @@ module ReplayQueue(
 
 
     task automatic wakeup();
-        UopPacket wrInput = AbstractCore.theSq.storeDataD2_E;
+        UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
             
             // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin
@@ -145,7 +150,7 @@ module ReplayQueue(
         end
         
         // Entry waiting for uncached read data
-        if (AbstractCore.dataCache.uncachedReads[0].ready) begin
+        if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready) begin
             foreach (content[i]) begin
                 if (content[i].execStatus == ES_UNCACHED_2) begin
                     content[i].ready_N = 1;
@@ -166,18 +171,18 @@ module ReplayQueue(
         end
         
         // Wakeup data misses
-        if (AbstractCore.dataCache.notifyFill) begin
+        if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (blockBaseD(content[i].adr) === blockBaseD(AbstractCore.dataCache.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
+                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
                     content[i].ready_N = 1;
                 end
             end
         end
         
         // Wakeup TLB misses
-        if (AbstractCore.dataCache.notifyTlbFill) begin
+        if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.notifiedTlbAdr)) begin// TODO: consider that cache fill by physical adr!
+                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedAdr)) begin
                     content[i].ready_N = 1;                    
                 end
             end

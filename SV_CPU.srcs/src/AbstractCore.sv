@@ -26,7 +26,7 @@ module AbstractCore
     output logic sig,
     output logic wrong
 );
-    logic dummy = '1;
+    logic dummy = 'z;
 
     // DB        
     InstructionMap insMap = new();
@@ -77,14 +77,14 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    DataReadReq TMP_readReqs[N_MEM_PORTS];
-    DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
+    //DataReadReq TMP_readReqs[N_MEM_PORTS];
+    //DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
 
     InstructionL1 instructionCache(clk, insAdr, icacheOut);
-    DataL1        dataCache(clk, TMP_readReqs, TMP_writeInfos, dcacheOuts);
+    DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
     Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
 
@@ -94,11 +94,15 @@ module AbstractCore
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut, theExecBlock.toSq, theExecBlock.toSqE2);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut, theExecBlock.toLq, theExecBlock.toLqE2);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut, theExecBlock.toBq, '{default: EMPTY_UOP_PACKET});
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut);
+
+    bind StoreQueue: theSq TmpSubSq submod();
+    bind StoreQueue: theLq TmpSubLq submod();
+    bind StoreQueue: theBq TmpSubBr submod();
 
     IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
@@ -108,10 +112,8 @@ module AbstractCore
 
     assign insAdr = theFrontend.ipStage[0].adr;
 
-    assign wqFree = csqEmpty && !dataCache.uncachedBusy;
+    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
-    assign TMP_readReqs = theExecBlock.readReqs;
-    assign TMP_sysReadReqs = theExecBlock.sysReadReqs;
     assign theExecBlock.dcacheOuts = dcacheOuts;
     assign theExecBlock.sysOuts = sysReadOuts;
 
@@ -129,7 +131,6 @@ module AbstractCore
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
-            
             performSysStore();  // sysRegs
         end
 
@@ -142,10 +143,7 @@ module AbstractCore
 
         updateBookkeeping();
 
-            insMap.commitCheck();
-
-        //insMap.insBase.setDbStr();
-        //insMap.dbStr = insMap.insBase.dbStr;
+        insMap.commitCheck();
     end
 
 
@@ -168,20 +166,17 @@ module AbstractCore
         
         intRegsReadyV <= registerTracker.ints.ready;
         floatRegsReadyV <= registerTracker.floats.ready;
-
     endtask
 
 
     ////////////////
 
     function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        //MemWriteInfo res = '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
-        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, sqe.uncached};
+        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.padr, sqe.val, sqe.size, sqe.uncached};
     endfunction
 
     function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
-        //MemWriteInfo res = '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
-        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, sqe.val, sqe.size, 'x};
+        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, 'x, sqe.val, sqe.size, 'x};
     endfunction
 
     task automatic putWrite();        
@@ -213,22 +208,24 @@ module AbstractCore
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= getSysReadResponse(TMP_sysReadReqs[p]);
+            sysReadOuts[p] <= getSysReadResponse(/*TMP_sysReadReqs[p],*/ theExecBlock.accessDescs[p]);
     endtask
 
-    function automatic DataCacheOutput getSysReadResponse(input DataReadReq readReq);
+    function automatic DataCacheOutput getSysReadResponse(/*input DataReadReq readReq,*/ input AccessDesc aDesc);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
+        Mword regAdr = aDesc.vadr;
         
-        if (!readReq.active) return res;
+        //if (!readReq.active) return res;
+        if (!aDesc.active || !aDesc.sys) return res;
         
         res.active = 1;
         
-        if (readReq.adr > 31) begin
+        if (regAdr > 31) begin
             res.status = CR_INVALID;
         end
         else begin
             res.status = CR_HIT;
-            res.data = getSysReg(readReq.adr);
+            res.data = getSysReg(regAdr);
         end
         
         return res;
@@ -248,28 +245,7 @@ module AbstractCore
 
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
     assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
-        
-        
-        // MOVE?
-        function automatic IqLevels getBufferAccepts(input IqLevels levels);
-            IqLevels res = '{
-                iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
-            };
-            return res;
-        endfunction
-    
-        function automatic logic iqsAccept(input IqLevels acc);
-            return 1
-                    && acc.iqRegular
-                    && acc.iqFloat
-                    && acc.iqBranch
-                    && acc.iqMem
-                    && acc.iqStoreData;
-        endfunction
+
 
     // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
@@ -310,7 +286,6 @@ module AbstractCore
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT_B};
         markKilledRenameStage(stageRename1);
-
 
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
@@ -375,7 +350,6 @@ module AbstractCore
     endfunction
 
 
-
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg /*UNUSED so far*/);
         AbstractInstruction ins = decodeAbstract(bits);
         UopInfo mainUinfo;
@@ -398,7 +372,6 @@ module AbstractCore
 
         target = renamedEmul.coreState.target; // For insMap
 
-
         // Main op info
         ii.mainUop = uopName;
         ii.inds = renameInds;
@@ -419,7 +392,6 @@ module AbstractCore
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
 
-
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
 
@@ -432,7 +404,12 @@ module AbstractCore
 
         insMap.allocate(id, ii, uInfos);  // 
 
-        if (isStoreIns(ins) || isLoadIns(ins)) memTracker.add(id, uopName, ins, argVals); // DB
+        if (isStoreIns(ins) || isLoadIns(ins)) begin
+            Mword effAdr = calculateEffectiveAddress(ins, argVals);
+            Dword padr = renamedEmul.translateAddress(effAdr);
+            
+            memTracker.add(id, uopName, ins, argVals, padr); // DB
+        end
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 
@@ -456,26 +433,22 @@ module AbstractCore
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
-            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
             saveStateAsync(sysRegs, retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
-            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end  
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            //Mword waitingAdr = lateEventInfoWaiting.adr;
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
 
             modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
-            //lateEventInfoWaiting <= EMPTY_EVENT_INFO;
         end
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
@@ -486,17 +459,16 @@ module AbstractCore
     task automatic activateEvent();
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
-                retiredEmul.reset();
+            retiredEmul.reset();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
-                $display(">> Interrupt !!!");
-                retiredEmul.interrupt();
+            $display(">> Interrupt !!!");
+            retiredEmul.interrupt();
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
-    
-        //if (csqEmpty) fireLateEvent();
+
         if (wqFree) fireLateEvent();
     endtask
 
@@ -515,9 +487,7 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                //logic refetch = insMap.get(theId).refetch;
-                //logic exception = insMap.get(theId).exception;
-                lateEventInfoWaiting <= eventFromOp(theId, /*decMainUop(theId)*/ii.mainUop, /*getAdr(theId)*/ii.basicData.adr, ii.refetch, ii.exception);
+                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception);
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
@@ -629,10 +599,10 @@ module AbstractCore
         
         // Extract 'uncached' info
         int found[$] = theSq.content_N.find_first_index with (item.mid == id);
-        logic uncached = theSq.content_N[found[0]].uncached;
-        AccessSize size = theSq.content_N[found[0]].size;
+        logic uncached = theSq.content_N[found[0]].accessDesc.uncachedStore;
+        AccessSize size = theSq.content_N[found[0]].accessDesc.size;
         
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.val, size};       
+        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.padr, tr.val, size};       
         csq.push_back(sqe); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
@@ -666,7 +636,6 @@ module AbstractCore
 
     // General
 
-    // TODO: review usage of these functions
     //  decId - 1
     //  decUname - 21
     //  decMainUop - 20

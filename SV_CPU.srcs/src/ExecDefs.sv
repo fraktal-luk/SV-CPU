@@ -9,12 +9,13 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
+    import CacheDefs::*;
+    
 
     // General uarch defs
     localparam int N_INT_PORTS = 4;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
-
 
 
 
@@ -52,15 +53,27 @@ package ExecDefs;
     localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
 
 
+
     typedef struct {
         logic active;
         UidT TMP_oid;
         ExecStatus status;
         Poison poison;
         Mword result;
-    } UopPacket;
+    } UopPacket;    
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
+
+
+        typedef UopPacket UopMemPacket;
+    
+        function automatic UopPacket TMP_mp(input UopMemPacket p);
+            return p;
+        endfunction
+
+        function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
+            return p;
+        endfunction
 
 
     function automatic UopPacket memToComplete(input UopPacket p);
@@ -72,7 +85,6 @@ package ExecDefs;
         if (needsReplay(p.status)) return p;
         else return EMPTY_UOP_PACKET;
     endfunction
-
 
 
     typedef struct {
@@ -90,14 +102,6 @@ package ExecDefs;
         mem: '{default: TMP_UOP_NONE},
         storeData: '{default: TMP_UOP_NONE}
     };
-
-
-//    function automatic UopPacket setResult(input UopPacket p, input Mword result);
-//        UopPacket res = p;            
-//        res.result = result;
-        
-//        return res;
-//    endfunction
 
 
     typedef UopPacket ForwardingElement;
@@ -173,11 +177,6 @@ package ExecDefs;
             
             
         function automatic Poison mergePoisons(input Poison ap[3]);
-            // update 3 poisons
-//            Poison u0 = ap[0];
-//            Poison u1 = ap[1];
-//            Poison u2 = ap[2];
-            
             IdMap m0 = poison2map(ap[0]);
             IdMap m1 = poison2map(ap[1]);
             IdMap m2 = poison2map(ap[2]);
@@ -500,6 +499,7 @@ package ExecDefs;
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
+
 
 
 endpackage

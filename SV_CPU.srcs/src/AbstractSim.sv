@@ -36,28 +36,6 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
-
-//    function automatic logic wordOverlap(input Mword wa, input Mword wb);
-//        Mword aEnd = wa + 4; // Exclusive end
-//        Mword bEnd = wb + 4; // Exclusive end
-        
-//        if ($isunknown(wa) || $isunknown(wb)) return 0;
-//        if (wb >= aEnd || wa >= bEnd) return 0;
-//        else return 1;
-//    endfunction
-    
-//    // is a inside b
-//    function automatic logic wordInside(input Mword wa, input Mword wb);
-//        Mword aEnd = wa + 4; // Exclusive end
-//        Mword bEnd = wb + 4; // Exclusive end
-        
-//        if ($isunknown(wa) || $isunknown(wb)) return 0;
-       
-//        return (wa >= wb && aEnd <= bEnd);
-//    endfunction
-
-
-
 ////////////////////////////
     // Core structures
 
@@ -396,7 +374,6 @@ package AbstractSim;
         function automatic int reserve(input UopName name, input int dest, input WriterId id);            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
             if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
-
             return -1;
         endfunction
 
@@ -419,8 +396,6 @@ package AbstractSim;
 
 
         function automatic InsDependencies getArgDeps(input AbstractInstruction abs);
-            //int mapInt[32] = ints.MapR;
-            //int mapFloat[32] = floats.MapR;
             int sources[3] = '{-1, -1, -1};
             WriterId producers[3] = '{WID_NONE, WID_NONE, WID_NONE};
             SourceType types[3] = '{SRC_CONST, SRC_CONST, SRC_CONST}; 
@@ -481,16 +456,12 @@ package AbstractSim;
 
 
         function automatic int getNumFreeInt();
-            int freeInds[$] = ints.info.find_index with (item.state == FREE);
-            //int specInds[$] = ints.info.find_index with (item.state == SPECULATIVE);
-            //int stabInds[$] = ints.info.find_index with (item.state == STABLE);    
+            int freeInds[$] = ints.info.find_index with (item.state == FREE);   
             return freeInds.size();
         endfunction        
         
         function automatic int getNumFreeFloat();
-            int freeInds[$] = floats.info.find_index with (item.state == FREE);
-            //int specInds[$] = floats.info.find_index with (item.state == SPECULATIVE);
-            //int stabInds[$] = floats.info.find_index with (item.state == STABLE);            
+            int freeInds[$] = floats.info.find_index with (item.state == FREE);           
             return freeInds.size();
         endfunction
 
@@ -503,10 +474,11 @@ package AbstractSim;
         Mword adr;
         Mword val;
         Mword adrAny;
-            AccessSize size;
+        Dword padr;
+        AccessSize size;
     } Transaction;
 
-    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, SIZE_NONE};
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
 
 
     class MemTracker;
@@ -515,16 +487,16 @@ package AbstractSim;
         Transaction loads[$];
         Transaction committedStores[$]; // Not included in transactions
         
-        function automatic void add(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword argVals[3]);
+        function automatic void add(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword argVals[3],  input Dword padr);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             AccessSize size = getTransactionSize(uname);
-    
+
             if (isStoreMemIns(ins)) begin 
                 Mword value = argVals[2];
-                addStore(id, effAdr, value, size);
+                addStore(id, effAdr, padr, value, size);
             end
             if (isLoadMemIns(ins)) begin
-                addLoad(id, effAdr, 'x, size);
+                addLoad(id, effAdr, padr, 'x, size);
             end
             if (isStoreSysIns(ins)) begin 
                 Mword value = argVals[2];
@@ -535,24 +507,24 @@ package AbstractSim;
             end
         endfunction
 
-        function automatic void addStore(input InsId id, input Mword adr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, size});
-            stores.push_back('{id, adr, val, adr, size});
+        function automatic void addStore(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, padr, size});
+            stores.push_back('{id, adr, val, adr, padr, size});
         endfunction
 
-        function automatic void addLoad(input InsId id, input Mword adr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, size});
-            loads.push_back('{id, adr, val, adr, size});
+        function automatic void addLoad(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, padr, size});
+            loads.push_back('{id, adr, val, adr, padr, size});
         endfunction
 
         function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
-            transactions.push_back('{id, 'x, val, adr, SIZE_NONE});
-            stores.push_back('{id, 'x, val, adr, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            stores.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
         endfunction
 
         function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
-            transactions.push_back('{id, 'x, val, adr, SIZE_NONE});
-            loads.push_back('{id, 'x, val, adr, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            loads.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
         endfunction
 
         function automatic void remove(input InsId id);        
@@ -589,12 +561,11 @@ package AbstractSim;
         
         function automatic Transaction checkTransactionOverlap(input InsId id);
             Transaction allStores[$] = {committedStores, stores};
-        
             Transaction read[$] = transactions.find_first with (item.owner == id); 
-            Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.adr, (item.size), read[0].adr, (read[0].size)));
+            Transaction writers[$] = allStores.find_last with (item.owner < id && memOverlap(item.padr, (item.size), read[0].padr, (read[0].size)));
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[$];
         endfunction
-            
+
 
         function automatic Transaction findStore(input InsId id);
             Transaction writers[$] = stores.find with (item.owner == id);
@@ -626,21 +597,12 @@ package AbstractSim;
     
     
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
-//        OpSlotB res;
-        
-//        res.active = op.active;
-//        res.mid = -1;
-//        res.adr = op.adr;
-//        res.bits = op.bits;
-
         return '{
             active: op.active,
             mid: -1,
             adr: op.adr,
             bits: op.bits
         };
-
-        //return res;
     endfunction;
 
     function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
@@ -650,12 +612,11 @@ package AbstractSim;
     endfunction;
 
 
-
     // Mem handling
 
-    function automatic logic memOverlap(input Mword wa, input AccessSize sizeA, input Mword wb, input AccessSize sizeB);
-        Mword aEnd = wa + int'(sizeA); // Exclusive end
-        Mword bEnd = wb + int'(sizeB); // Exclusive end
+    function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+        Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+        Dword bEnd = wb + Dword'(sizeB); // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
 
@@ -663,13 +624,52 @@ package AbstractSim;
     endfunction
     
     // is a inside b
-    function automatic logic memInside(input Mword wa, input AccessSize sizeA, input Mword wb, input AccessSize sizeB);
-        Mword aEnd = wa + int'(sizeA); // Exclusive end
-        Mword bEnd = wb + int'(sizeB); // Exclusive end
+    function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+        Mword aEnd = wa + Dword'(sizeA); // Exclusive end
+        Mword bEnd = wb + Dword'(sizeB); // Exclusive end
         
         if ($isunknown(wa) || $isunknown(wb)) return 0;
        
         return (wa >= wb && aEnd <= bEnd);
+    endfunction
+
+
+
+
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res = '{
+            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+        };
+        return res;
+    endfunction
+
+    function automatic logic iqsAccept(input IqLevels acc);
+        return 1
+                && acc.iqRegular
+                && acc.iqFloat
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqStoreData;
+    endfunction
+
+    function automatic Mword loadValue(input Mword w, input UopName uop);
+        case (uop)
+             UOP_mem_ldi: return w;
+             UOP_mem_ldib: return Mword'(w[7:0]);
+             UOP_mem_ldf,
+             UOP_mem_lds: return w;
+
+             UOP_mem_sti,
+             UOP_mem_stib,
+             UOP_mem_stf,
+             UOP_mem_sts: return 0;
+            
+            default: $fatal(2, "Wrong op");
+        endcase
     endfunction
 
 endpackage

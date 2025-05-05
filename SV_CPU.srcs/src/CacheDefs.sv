@@ -25,13 +25,13 @@ package CacheDefs;
     typedef struct {
         logic allowed;
     } InstructionLineDesc;
-    
+
     typedef struct {
         logic allowed;
-            logic canRead;
-            logic canWrite;
-            logic canExec;
-            logic cached;
+        logic canRead;
+        logic canWrite;
+        logic canExec;
+        logic cached;
     } DataLineDesc;
 
     localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
@@ -66,23 +66,30 @@ package CacheDefs;
     };
 
 
-
 //////////////////
 
+    localparam int PAGE_SIZE = 4096;
 
-    typedef struct {
-        logic active;
-            logic store;            
-            logic uncachedReq;
-        Mword adr;
-        AccessSize size;
-    } DataReadReq;
 
-    localparam DataReadReq EMPTY_READ_REQ = '{0, 0, 0, 'x, SIZE_NONE};
+    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
+        static
+        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
+            Mbyte wval[ESIZE] = {>>{val}};
+            arr[(adr - BASE) +: ESIZE] = wval;
+        endfunction
+        
+        static
+        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
+            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
+            Elem wval = {>>{chosen}};
+            return wval;
+        endfunction
+    endclass
+
 
 
     // Write buffer
-    // TODO: eplace with SQ entry struct?
+    // TODO: replace with SQ entry struct?
     typedef struct {
         logic active;
         InsId mid;
@@ -90,21 +97,23 @@ package CacheDefs;
         logic sys;
         logic uncached;
         Mword adr;
+        Dword padr;
         Mword val;
         AccessSize size;
     } StoreQueueEntry;
 
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, SIZE_NONE};
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, 'x, SIZE_NONE};
 
     typedef struct {
         logic req;
         Mword adr;
+        Dword padr;
         Mword value;
         AccessSize size;
         logic uncached;
     } MemWriteInfo;
     
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, SIZE_NONE, 'x};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
    
@@ -113,7 +122,6 @@ package CacheDefs;
 
     typedef Dword EffectiveAddress;
 
-    localparam int PAGE_SIZE = 4096;
 
     localparam int V_INDEX_BITS = 12;
     localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
@@ -147,16 +155,39 @@ package CacheDefs;
         return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
     endfunction
 
-    function automatic BlockBaseD blockBaseD(input EffectiveAddress adr);
-        return adr[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS];
+    function automatic BlockBaseD blockBaseD(input Dword adr);
+        return adr[$size(Dword)-1:BLOCK_OFFSET_BITS];
+    endfunction
+
+    
+    function automatic Dword getBlockBaseD(input Dword adr);
+        Dword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getBlockBaseM(input Mword adr);
+        Mword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Dword getPageBaseD(input Dword adr);
+        Dword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getPageBaseM(input Mword adr);
+        Mword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
     endfunction
 
 
     typedef struct {
-        EffectiveAddress adr;
+        Dword adr;
         AccessSize size;
-        VirtualAddressHigh aHigh;
-        VirtualAddressLow aLow;
         int block;
         int blockOffset;
         logic unaligned;
@@ -167,8 +198,6 @@ package CacheDefs;
     localparam AccessInfo DEFAULT_ACCESS_INFO = '{
         adr: 'x,
         size: SIZE_NONE,
-        aHigh: 'x,
-        aLow: 'x,
         block: -1,
         blockOffset: -1,
         unaligned: 'x,
@@ -177,38 +206,61 @@ package CacheDefs;
     };
 
 
+
+      // Mem uop packet:
+      //  general - id, poison, status?
+      //    transaction description:
+      //      - basic part: static type of transfer (load/store, 'system', aq-rel, nontemporal?), size, vadr 
+      //      - translation (and adr check?): page present, page desc (includes access rights and 'cached'), padr
+      //       - status considerations: unaligned, block cross, page cross, error(kind?)/refetch  -- most can be derived from 'basic part'
+      //      - data: present or not (or multiple hit?), value 
+     
+
+     // basic info
+     typedef struct {
+        logic active;
+
+        logic sys;
+        logic store;
+        logic uncachedReq;
+        logic uncachedCollect;
+        logic uncachedStore;
+        
+         // FUTURE: access rights of this uop?
+        AccessSize size;
+        Mword vadr;
+        logic unaligned;
+        logic blockCross;
+        logic pageCross;
+     } AccessDesc;
+
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
+
+
     typedef struct {
         logic present; // TLB hit
-        VirtualAddressHigh vHigh;
-        PhysicalAddressHigh pHigh;
-            Mword phys;
         DataLineDesc desc;
+        Dword phys; // TODO: rename to 'padr'
     } Translation;
 
     localparam Translation DEFAULT_TRANSLATION = '{
         present: 0,
-        vHigh: 'x,
-        pHigh: 'x,
-            phys: 'x,
-        desc: DEFAULT_DATA_LINE_DESC
+        desc: DEFAULT_DATA_LINE_DESC,
+        phys: 'x
     };
 
 
 
-    function automatic AccessInfo analyzeAccess(input EffectiveAddress adr, input AccessSize accessSize);
+
+    function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
         AccessInfo res;
         
         VirtualAddressLow aLow = adrLow(adr);
-        VirtualAddressHigh aHigh = adrHigh(adr);
-        
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
-        //int byteSize = accessSize;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-        res.aHigh = aHigh;
-        res.aLow = aLow;        
+      
         res.adr = adr;
         res.size = accessSize;
         
@@ -221,6 +273,104 @@ package CacheDefs;
 
         return res;
     endfunction
+
+
+    class DataCacheBlock;
+        logic valid;
+        Mword vbase;
+        Dword pbase;
+        Mbyte array[BLOCK_SIZE];
+        
+        function automatic Word readWord(input int offset);
+            localparam int ACCESS_SIZE = 4;
+            
+            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
+                Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
+                Word wval;
+
+                // Read byte by byte                
+                foreach (chosenWord[i]) begin
+                    if (offset + i >= BLOCK_SIZE) break;
+                    chosenWord[i] = array[offset + i];
+                end 
+                
+                wval = {>>{chosenWord}};
+                  //  $error("extArray read %x", wval);
+                return (wval);
+            end
+            begin
+                Mbyte chosenWord[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
+                Word wval = {>>{chosenWord}};
+                return (wval);
+            end
+        endfunction
+
+        function automatic Word readByte(input int offset);
+            localparam int ACCESS_SIZE = 1;
+            
+            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
+                Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
+                Mbyte wval;
+
+                // Read byte by byte                
+                foreach (chosenWord[i]) begin
+                    if (offset + i >= BLOCK_SIZE) break;
+                    chosenWord[i] = array[offset + i];
+                end 
+                
+                wval = {>>{chosenWord}};
+                  //  $error("extArray read %x", wval);
+                return (wval);
+            end
+            begin
+                Mbyte chosenWord[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
+                Mbyte wval = {>>{chosenWord}};
+                return (wval);
+            end
+        endfunction
+
+        function automatic void writeWord(input int offset, input Word value);
+            localparam int ACCESS_SIZE = 4;
+            
+            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
+                // Write byte by byte
+                Mbyte wval[ACCESS_SIZE] = {>>{value}};
+                
+                foreach (wval[i]) begin
+                    if (offset + i >= BLOCK_SIZE) break;
+                    array[offset + i] = wval[i];
+                end
+            end
+            begin
+                Mbyte wval[ACCESS_SIZE] = {>>{value}};
+                array[offset +: ACCESS_SIZE] = wval;
+            end
+        endfunction
+        
+        function automatic void writeByte(input int offset, input Mbyte value);
+            localparam int ACCESS_SIZE = 1;
+            
+            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
+                // Write byte by byte
+                Mbyte wval[ACCESS_SIZE] = {>>{value}};
+                
+                foreach (wval[i]) begin
+                    if (offset + i >= BLOCK_SIZE) break;
+                    array[offset + i] = wval[i];
+                end
+            end
+            begin
+                Mbyte wval[ACCESS_SIZE] = {>>{value}};
+                array[offset +: ACCESS_SIZE] = wval;
+            end
+        endfunction
+    endclass
+
+//                PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
+//                PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
+        
+//                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
+//                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
 
 
 endpackage

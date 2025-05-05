@@ -1,7 +1,7 @@
 ; check store forwarding with multiple stores to the same address
 $start	
 	add_i r1, r0, 1
-	add_i r2, r0, 2
+	add_i r2, r0, -2
 	add_i r3, r0, 3
 	sti_i r0, r0, 16
 	
@@ -10,10 +10,10 @@ $start
 	ldi_i r21, r0, 16   ; should be 1
 	sti_i r2,  r0, 16
 	
-	ldi_i r22, r0, 16   ; should be 2
+	ldi_i r22, r0, 16   ; should be -2
 	add_i r10, r20, 0
 	add_i r11, r21, -1
-	add_i r12, r22, -2 
+	add_i r12, r22, 2
 	
 	jnz_i r10, $error
 	jnz_i r11, $error
