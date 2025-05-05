@@ -82,7 +82,7 @@ module DataL1(
     // CAREFUL: below only for addresses in the range for data miss tests 
     //DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
     // CAREFUL: below only for addresses in the range for TLB miss tests 
-    Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
+   // Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
 
         //Translation TMP_tlb[DATA_TLB_SIZE] = '{default: DEFAULT_TRANSLATION};
         Translation TMP_tlb[Mword];
@@ -102,14 +102,15 @@ module DataL1(
         endfunction
 
 
-    function automatic logic isUncachedRange(input Mword adr);
-        return adr >= uncachedSubsystem.UNCACHED_BASE && adr < uncachedSubsystem.UNCACHED_BASE + $size(uncachedSubsystem.uncachedArea);
-    endfunction
+        // UNUSED?
+        function automatic logic isUncachedRange(input Mword adr);
+            return adr >= uncachedSubsystem.UNCACHED_BASE && adr < uncachedSubsystem.UNCACHED_BASE + $size(uncachedSubsystem.uncachedArea);
+        endfunction
 
-    function automatic logic isStaticTlbRange(input Mword adr);        
-        return isUncachedRange(adr) // TEMP: uncached region is mapped by default
-                || adr < 'h80000; // TEMP: Let's give 1M for static mappings
-    endfunction
+//    function automatic logic isStaticTlbRange(input Mword adr);        
+//        return isUncachedRange(adr) // TEMP: uncached region is mapped by default
+//                || adr < 'h80000; // TEMP: Let's give 1M for static mappings
+//    endfunction
 
 
     task automatic reset();
@@ -117,11 +118,6 @@ module DataL1(
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
     
-//    typedef struct {
-//        logic present; // TLB hit
-//        DataLineDesc desc;
-//        Dword phys; // TODO: rename to 'padr'
-//    } Translation;
         Translation physPage0 = '{present: 1, desc: cachedDesc, phys: 0};
         Translation physPage1 = '{present: 1, desc: cachedDesc, phys: 4096};
         Translation physPage2000 = '{present: 1, desc: cachedDesc, phys: 'h2000};
@@ -142,7 +138,7 @@ module DataL1(
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
         
-        filledMappings.delete();
+      //  filledMappings.delete();
 
         dataFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
@@ -205,10 +201,10 @@ module DataL1(
     ////////////////////////////////////
     // Presence & allocation functions 
     //
-    function automatic logic isTlbPresent(input Mword adr);
-        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
-    endfunction
+//    function automatic logic isTlbPresent(input Mword adr);
+//        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+//        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
+//    endfunction
 
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
@@ -237,9 +233,9 @@ module DataL1(
 
     function automatic void allocInTlb(input Mword adr);
         Translation DUMMY;
-        Mword pageBase = adr;//(adr/PAGE_SIZE)*PAGE_SIZE;
+        Mword pageBase = adr;
         
-        filledMappings[pageBase] = DUMMY;
+      //  filledMappings[pageBase] = DUMMY;
             
             assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
             
@@ -251,37 +247,18 @@ module DataL1(
 
 
     function automatic Translation translateAddress(input EffectiveAddress adr);
-        Translation res, res_N;
+        Translation res = DEFAULT_TRANSLATION;
         Mword vbase = getPageBaseM(adr);
-        
-        logic entryPresent_N = TMP_tlb.exists(vbase);
-        logic entryPresent_O = isTlbPresent(adr);
 
         if ($isunknown(adr)) return res;
 
-            assert (entryPresent_N === entryPresent_O) else $error("dont areeeee");
-
-        //if (!isTlbPresent(adr)) begin
-        if (!entryPresent_N) begin
+        if (!TMP_tlb.exists(vbase)) begin
             res.present = 0;
             return res;
         end
 
-        res_N = TMP_tlb[vbase];
-
-        // TMP: in "mapping always present" range:
-        res.present = 1; // Obviously
-        res.desc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-        res.phys = {adrHigh(adr), adrLow(adr)};
-
-        // TMP: uncached rnge
-        if (isUncachedRange(adr))
-            res.desc.cached = 0;
-
-        
-        res_N.phys = {adrHigh(res.phys), adrLow(adr)};
-
-        assert (res === res_N) else $error("o ci htt\n%p\n%p", res, res_N);
+        res = TMP_tlb[vbase];
+        res.phys = {adrHigh(res.phys), adrLow(adr)};
 
         return res;
     endfunction
@@ -360,10 +337,8 @@ module DataL1(
         end
         else if (aDesc.sys) begin end
         else if (!tr.present) begin // TLB miss
-            //res.status = CR_TLB_MISS;
             res = '{1, CR_TLB_MISS, tr.desc, 'x};
         end
-        //else if (isUncachedRange(tr.phys)) begin // Just detected uncached access, tr.desc indicates uncached
         else if (!tr.desc.cached) begin // Just detected uncached access, tr.desc indicates uncached
             res = '{1, CR_HIT, tr.desc, 'x};
         end
@@ -400,15 +375,6 @@ module DataL1(
                 ReadResult result1 = readWay(blocksWay1, acc, tr);
 
                 DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc, result0.valid, result1.valid, selectWay(result0, result1));
-
-                    if (tr.present) begin
-                        Mword pageBase = getPageBaseM(vadr);
-                        if (!TMP_tlb.exists(pageBase)) $error("adr present but not in table %x", vadr);
-                    end
-                    else begin
-                        Mword pageBase = getPageBaseM(vadr);
-                        if (TMP_tlb.exists(pageBase)) $error("adr absent but is in table %x", vadr);
-                    end
 
                 accessDescs_Reg[p] <= aDesc;
                 translations_Reg[p] <= tr;
