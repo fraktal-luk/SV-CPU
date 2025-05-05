@@ -72,10 +72,10 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
     endtask
 
     function automatic void scheduleBlockFill(input Key adr);
-        Key physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
+       // Key physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
 
-        if (!blockFillCounters.exists(physBase))
-            blockFillCounters[physBase] = DELAY;            
+        if (!blockFillCounters.exists(adr))
+            blockFillCounters[adr] = DELAY;            
     endfunction
 
 

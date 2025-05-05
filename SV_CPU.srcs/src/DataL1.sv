@@ -20,7 +20,6 @@ module DataL1(
 
     // TLB
     localparam int DATA_TLB_SIZE = 32;
-    localparam logic DONT_TRANSLATE = 1; // TMP
 
     localparam int WAY_SIZE = 4096;
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
@@ -85,9 +84,22 @@ module DataL1(
     // CAREFUL: below only for addresses in the range for TLB miss tests 
     Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
 
+        //Translation TMP_tlb[DATA_TLB_SIZE] = '{default: DEFAULT_TRANSLATION};
+        Translation TMP_tlb[Mword];
+        Translation TMP_tlbL2[Mword];
 
-    // Simple array for simple test cases, without blocks, transaltions etc
-           // Mbyte staticContent[PAGE_SIZE]; // So far this corresponds to way 0
+        Mword translationVadrsL1[DATA_TLB_SIZE];
+        Translation translationTableL1[DATA_TLB_SIZE];
+
+        
+        function automatic void DB_fillTranslations();
+            int i = 0;
+            foreach (TMP_tlb[a]) begin
+                translationVadrsL1[i] = a;
+                translationTableL1[i] = TMP_tlb[a];
+                i++;
+            end
+        endfunction
 
 
     function automatic logic isUncachedRange(input Mword adr);
@@ -101,10 +113,30 @@ module DataL1(
 
 
     task automatic reset();
-            initBlocksWay0();
-            initBlocksWay1();
+        
+        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+    
+//    typedef struct {
+//        logic present; // TLB hit
+//        DataLineDesc desc;
+//        Dword phys; // TODO: rename to 'padr'
+//    } Translation;
+        Translation physPage0 = '{present: 1, desc: cachedDesc, phys: 0};
+        Translation physPage1 = '{present: 1, desc: cachedDesc, phys: 4096};
+        Translation physPage2000 = '{present: 1, desc: cachedDesc, phys: 'h2000};
+        Translation physPage20000000 = '{present: 1, desc: cachedDesc, phys: 'h20000000};
+        Translation physPageUnc = '{present: 1, desc: uncachedDesc, phys: 'h80000000};
 
-        //staticContent = '{default: 0};
+            TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
+            TMP_tlbL2 = '{'h20000000: physPage20000000};
+
+            translationVadrsL1 = '{default: 'z};
+            translationTableL1 = '{default: DEFAULT_TRANSLATION};
+            DB_fillTranslations();
+
+            initBlocksWay0();
+            initBlocksWay1();     
         
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
@@ -205,31 +237,51 @@ module DataL1(
 
     function automatic void allocInTlb(input Mword adr);
         Translation DUMMY;
-        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
+        Mword pageBase = adr;//(adr/PAGE_SIZE)*PAGE_SIZE;
         
-        filledMappings[pageBase] = DUMMY;            
+        filledMappings[pageBase] = DUMMY;
+            
+            assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
+            
+            translationVadrsL1[TMP_tlb.size()] = pageBase;
+            translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
+            TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
     endfunction
 
 
 
     function automatic Translation translateAddress(input EffectiveAddress adr);
-        Translation res;
+        Translation res, res_N;
+        Mword vbase = getPageBaseM(adr);
+        
+        logic entryPresent_N = TMP_tlb.exists(vbase);
+        logic entryPresent_O = isTlbPresent(adr);
 
         if ($isunknown(adr)) return res;
 
-        if (!isTlbPresent(adr)) begin
+            assert (entryPresent_N === entryPresent_O) else $error("dont areeeee");
+
+        //if (!isTlbPresent(adr)) begin
+        if (!entryPresent_N) begin
             res.present = 0;
             return res;
         end
 
+        res_N = TMP_tlb[vbase];
+
         // TMP: in "mapping always present" range:
         res.present = 1; // Obviously
-        res.desc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
+        res.desc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         res.phys = {adrHigh(adr), adrLow(adr)};
 
         // TMP: uncached rnge
         if (isUncachedRange(adr))
             res.desc.cached = 0;
+
+        
+        res_N.phys = {adrHigh(res.phys), adrLow(adr)};
+
+        assert (res === res_N) else $error("o ci htt\n%p\n%p", res, res_N);
 
         return res;
     endfunction
@@ -261,7 +313,7 @@ module DataL1(
     function automatic DwordA dataFillPhysical();
         DwordA res = '{default: 'x};
         foreach (readOut[p]) begin
-            res[p] = translations_Reg[p].phys;
+            res[p] = getBlockBaseD(translations_Reg[p].phys);
         end
         return res;
     endfunction
@@ -280,7 +332,7 @@ module DataL1(
     function automatic MwordA tlbFillVirtual();
         MwordA res = '{default: 'x};
         foreach (readOut[p]) begin
-            res[p] = accessDescs_Reg[p].vadr;
+            res[p] = getPageBaseM(accessDescs_Reg[p].vadr);
         end
         return res;
     endfunction
@@ -348,6 +400,15 @@ module DataL1(
                 ReadResult result1 = readWay(blocksWay1, acc, tr);
 
                 DataCacheOutput thisResult = doReadAccess(acc, tr, aDesc, result0.valid, result1.valid, selectWay(result0, result1));
+
+                    if (tr.present) begin
+                        Mword pageBase = getPageBaseM(vadr);
+                        if (!TMP_tlb.exists(pageBase)) $error("adr present but not in table %x", vadr);
+                    end
+                    else begin
+                        Mword pageBase = getPageBaseM(vadr);
+                        if (TMP_tlb.exists(pageBase)) $error("adr absent but is in table %x", vadr);
+                    end
 
                 accessDescs_Reg[p] <= aDesc;
                 translations_Reg[p] <= tr;
