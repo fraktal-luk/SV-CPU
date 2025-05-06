@@ -201,6 +201,9 @@ module ArchDesc0();
 
             #CYCLE announce(name);
             prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
+            
+                core.resetTotal();
+            
                 core.renamedEmul.progMem_N.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem_N.assignPage(4096, common.words);
             
@@ -213,6 +216,9 @@ module ArchDesc0();
 
             #CYCLE announce("int");
             prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
+ 
+                core.resetTotal();
+
                 core.renamedEmul.progMem_N.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem_N.assignPage(4096, common.words);
 

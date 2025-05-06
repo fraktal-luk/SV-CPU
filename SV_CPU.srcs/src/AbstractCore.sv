@@ -712,4 +712,17 @@ module AbstractCore
     assign sig = lateEventInfo.cOp == CO_send;
     assign wrong = lateEventInfo.cOp == CO_undef;
 
+
+
+    task automatic resetTotal();
+        registerTracker = new();
+        memTracker = new();
+        
+        renamedEmul = new();
+        retiredEmul = new();
+        
+        dataCache.reset();
+    endtask
+
+
 endmodule
