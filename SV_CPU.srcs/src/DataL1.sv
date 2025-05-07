@@ -118,11 +118,11 @@ module DataL1(
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
     
-        Translation physPage0 = '{present: 1, desc: cachedDesc, phys: 0};
-        Translation physPage1 = '{present: 1, desc: cachedDesc, phys: 4096};
-        Translation physPage2000 = '{present: 1, desc: cachedDesc, phys: 'h2000};
-        Translation physPage20000000 = '{present: 1, desc: cachedDesc, phys: 'h20000000};
-        Translation physPageUnc = '{present: 1, desc: uncachedDesc, phys: 'h80000000};
+        Translation physPage0 = '{present: 1, desc: cachedDesc, padr: 0};
+        Translation physPage1 = '{present: 1, desc: cachedDesc, padr: 4096};
+        Translation physPage2000 = '{present: 1, desc: cachedDesc, padr: 'h2000};
+        Translation physPage20000000 = '{present: 1, desc: cachedDesc, padr: 'h20000000};
+        Translation physPageUnc = '{present: 1, desc: uncachedDesc, padr: 'h80000000};
 
             TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
             TMP_tlbL2 = '{'h20000000: physPage20000000};
@@ -182,7 +182,6 @@ module DataL1(
 
 
     function automatic logic tryWriteWay(ref DataWay way, input AccessInfo aInfo, input MemWriteInfo wrInfo);
-        // TODO: may cross blocks
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(wrInfo.padr);
 
@@ -258,7 +257,7 @@ module DataL1(
         end
 
         res = TMP_tlb[vbase];
-        res.phys = {adrHigh(res.phys), adrLow(adr)};
+        res.padr = {adrHigh(res.padr), adrLow(adr)};
 
         return res;
     endfunction
@@ -290,7 +289,7 @@ module DataL1(
     function automatic DwordA dataFillPhysical();
         DwordA res = '{default: 'x};
         foreach (readOut[p]) begin
-            res[p] = getBlockBaseD(translations_Reg[p].phys);
+            res[p] = getBlockBaseD(translations_Reg[p].padr);
         end
         return res;
     endfunction
@@ -353,7 +352,8 @@ module DataL1(
         return res;
     endfunction
 
-
+    
+    // TODO: support for block crossing and page crossing accesses
     task automatic handleReads();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
@@ -390,15 +390,12 @@ module DataL1(
 
 
     function automatic ReadResult readWay(input DataWay way, input AccessInfo aInfo, input Translation tr);
-        // TODO: may cross blocks
-
         DataCacheBlock block = way[aInfo.block];
-        Dword accessPbase = getBlockBaseD(tr.phys);
+        Dword accessPbase = getBlockBaseD(tr.padr);
 
         if (block == null) return '{0, 'x};
 
         begin
-            // TODO: handle all possible sizes
             logic hit0 = (accessPbase === block.pbase);
             Mword val0 = aInfo.size == SIZE_1 ? block.readByte(aInfo.blockOffset) : block.readWord(aInfo.blockOffset);                    
 

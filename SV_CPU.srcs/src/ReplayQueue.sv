@@ -173,7 +173,7 @@ module ReplayQueue(
         // Wakeup data misses
         if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedAdr)) begin// TODO: consider that cache fill by physical adr!
+                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedAdr)) begin
                     content[i].ready_N = 1;
                 end
             end

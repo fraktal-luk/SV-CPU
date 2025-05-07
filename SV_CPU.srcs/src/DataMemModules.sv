@@ -24,7 +24,7 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
 );
     // Fill logic
     logic notifyFill = 0;
-    Key notifiedAdr = 'x; // TODO: change to Dword (with RQ)
+    Key notifiedAdr = 'x;
 
     int     blockFillCounters[Key]; // Container for request in progress
     Key     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
@@ -72,8 +72,6 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
     endtask
 
     function automatic void scheduleBlockFill(input Key adr);
-       // Key physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-
         if (!blockFillCounters.exists(adr))
             blockFillCounters[adr] = DELAY;            
     endfunction

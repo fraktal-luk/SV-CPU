@@ -141,7 +141,7 @@ package CacheDefs;
     
     typedef logic[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS] BlockBaseD;
     
-    localparam int WAY_SIZE = 4096; // TODO: specific for each cache?
+    localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
     
     
     
@@ -240,15 +240,14 @@ package CacheDefs;
     typedef struct {
         logic present; // TLB hit
         DataLineDesc desc;
-        Dword phys; // TODO: rename to 'padr'
+        Dword padr;
     } Translation;
 
     localparam Translation DEFAULT_TRANSLATION = '{
         present: 0,
         desc: DEFAULT_DATA_LINE_DESC,
-        phys: 'x
+        padr: 'x
     };
-
 
 
 

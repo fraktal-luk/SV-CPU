@@ -321,7 +321,7 @@ module ExecBlock(ref InstructionMap insMap,
         logic redirect = predictedDir ^ dir;
         
         Mword expectedTrg = dir ? takenTrg : adr + 4;
-        Mword resolvedTarget = finalTarget(uname, dir, args[1], AbstractCore.theBq.lookupTarget, AbstractCore.theBq.lookupLink);
+        Mword resolvedTarget = finalTarget(uname, dir, args[1], AbstractCore.theBq.submod.lookupTarget, AbstractCore.theBq.submod.lookupLink);
         
         assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
         assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");

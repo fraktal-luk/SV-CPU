@@ -62,8 +62,6 @@ package Emulation;
         Page pages[int];
 
       
-        // TODO: removePage()
-      
         function automatic void resetPage(input Mword startAdr);
             int index = startAdr/PAGE_BYTES;
             pages[index] = '{default: 'x};
@@ -535,7 +533,7 @@ package Emulation;
                     result = dataMem_N.readWord(padr);
                 end
                 O_intLoadB: result = Mword'(dataMem_N.readByte(padr));
-                O_intLoadAqW: result = dataMem_N.readWord(padr); // TODO
+                O_intLoadAqW: result = dataMem_N.readWord(padr); // FUTURE
                 
                 O_intLoadD: ;
                 O_floatLoadW: begin

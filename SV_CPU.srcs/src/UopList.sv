@@ -265,6 +265,7 @@ package UopList;
         };
     endfunction    
 
+    localparam int N_UOP_MAX = 2; // Biggest number for uops for any instruction
 
 
 endpackage

@@ -44,7 +44,6 @@ package ExecDefs;
 
 
     // For routing to IQs
-    // TODO: remove?
     typedef struct {
         logic active;
         UopId uid;

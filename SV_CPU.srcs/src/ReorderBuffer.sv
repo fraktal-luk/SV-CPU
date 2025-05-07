@@ -20,8 +20,6 @@ module ReorderBuffer
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
-    localparam int N_UOP_MAX = 2; // TODO: Number of uops a Mop can be split into
-
     typedef logic CompletedVec[N_UOP_MAX];
 
     typedef struct {

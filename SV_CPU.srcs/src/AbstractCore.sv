@@ -292,8 +292,9 @@ module AbstractCore
             
             flushBranchCheckpointQueueAll();
             
-            if (lateEventInfo.cOp == CO_reset) registerTracker.restoreReset();
-            else                               registerTracker.restoreStable();
+//            if (lateEventInfo.cOp == CO_reset) registerTracker.restoreReset();
+//            else                               
+                registerTracker.restoreStable();
 
             registerTracker.flushAll();
             memTracker.flushAll();
@@ -713,15 +714,32 @@ module AbstractCore
     assign wrong = lateEventInfo.cOp == CO_undef;
 
 
+    // Puts architectural state in a conevient starting point
+    // - sys registers and other control info: initialize
+    // - regular registers: zero
+    // - data cache: initial state for tests
+    // - trackers: reinitialized
+    task automatic resetForTest();
+        // No need to clear insMap
 
-    task automatic resetTotal();
         registerTracker = new();
         memTracker = new();
-        
+
         renamedEmul = new();
         retiredEmul = new();
         
         dataCache.reset();
+        // TODO: reset frontend including instruction cache
+        
+        branchCheckpointQueue.delete();
+        
+        
+        sysRegs = SYS_REGS_INITIAL;       
+        retiredTarget <= IP_RESET;
+        lateEventInfo <= RESET_EVENT;
+            
+        csq = '{EMPTY_SQE, EMPTY_SQE};
+        
     endtask
 
 
