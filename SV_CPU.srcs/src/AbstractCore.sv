@@ -63,7 +63,6 @@ module AbstractCore
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
-    //    Events evts;
 
 
     // Store interface
@@ -77,8 +76,6 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    //DataReadReq TMP_readReqs[N_MEM_PORTS];
-    //DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
@@ -208,14 +205,13 @@ module AbstractCore
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= getSysReadResponse(/*TMP_sysReadReqs[p],*/ theExecBlock.accessDescs[p]);
+            sysReadOuts[p] <= getSysReadResponse(theExecBlock.accessDescs[p]);
     endtask
 
-    function automatic DataCacheOutput getSysReadResponse(/*input DataReadReq readReq,*/ input AccessDesc aDesc);
+    function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
         Mword regAdr = aDesc.vadr;
         
-        //if (!readReq.active) return res;
         if (!aDesc.active || !aDesc.sys) return res;
         
         res.active = 1;
@@ -291,11 +287,8 @@ module AbstractCore
             renamedEmul.setLike(retiredEmul);
             
             flushBranchCheckpointQueueAll();
-            
-//            if (lateEventInfo.cOp == CO_reset) registerTracker.restoreReset();
-//            else                               
-                registerTracker.restoreStable();
-
+                          
+            registerTracker.restoreStable();
             registerTracker.flushAll();
             memTracker.flushAll();
             

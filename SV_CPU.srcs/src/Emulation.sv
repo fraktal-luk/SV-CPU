@@ -10,10 +10,7 @@ package Emulation;
         Mword target;
     } CpuState;
 
-    const Mword SYS_REGS_INITIAL[32] = '{
-        0: -1,
-        default: 0
-    };
+    const Mword SYS_REGS_INITIAL[32] = '{0: -1, default: 0};
 
     function automatic CpuState initialState(input Mword trg);
         return '{intRegs: '{default: 0}, floatRegs: '{default: 0}, sysRegs: SYS_REGS_INITIAL, target: trg};
@@ -26,22 +23,14 @@ package Emulation;
 
     typedef struct {
         bit active;
-        Mword adr;
+        Mword vadr;
         Dword padr;
         Mword value;
-        int size;
+        int size; // in bytes
     } MemoryWrite;
 
-    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, padr: 'x, value: 'x, size: -1};
+    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
 
-//    typedef struct {
-//        logic wrInt;
-//        logic wrFloat;
-//        int dest;
-//        Mword value;
-//    } RegisterWrite;
-
-//    const RegisterWrite DEFAULT_REG_WRITE = '{wrInt: 0, wrFloat: 0, dest: -1, value: 'x};
 
 //    typedef struct {
 //        int error;
@@ -320,9 +309,7 @@ package Emulation;
 
    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
         Mword result;
-        case (ins.def.o)
-            //O_jump: result = ip + 4; // link adr
-            
+        case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
             O_intOr:   result = vals[0] | vals[1];
             O_intXor:  result = vals[0] ^ vals[1];
@@ -452,7 +439,6 @@ package Emulation;
 
     class Emulator;
         Mword ip;
-        //string str; // Remove?
         CoreStatus status;
         CpuState coreState;
         
@@ -466,7 +452,6 @@ package Emulation;
             Emulator res = new();
             
             res.ip = ip;
-            //res.str = str;
             res.status = status;
             res.coreState = coreState;
             
@@ -480,7 +465,6 @@ package Emulation;
 
         function automatic void setLike(input Emulator other);
             ip = other.ip;
-            //str = other.str;
             status = other.status;
             coreState = other.coreState;
             dataMem_N = new other.dataMem_N;
@@ -490,7 +474,6 @@ package Emulation;
         // CAREFUL: clears data memory, doesn't affect progMem
         function automatic void reset();
             this.ip = 'x;
-            //this.str = "";
 
             this.status = '{default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
@@ -506,7 +489,6 @@ package Emulation;
         endfunction
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
-            //Mword res = 'x;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
     
@@ -534,7 +516,7 @@ package Emulation;
                 end
                 O_intLoadB: result = Mword'(dataMem_N.readByte(padr));
                 O_intLoadAqW: result = dataMem_N.readWord(padr); // FUTURE
-                
+
                 O_intLoadD: ;
                 O_floatLoadW: begin
                     result = dataMem_N.readWord(padr);
@@ -551,7 +533,6 @@ package Emulation;
             Mword adr = this.coreState.target;
             Word bits = progMem_N.fetch(adr);
             AbstractInstruction absIns = decodeAbstract(bits);
-            //ExecResult execRes = 
             processInstruction(adr, absIns);            
         endfunction 
         
@@ -563,12 +544,10 @@ package Emulation;
         endfunction
 
         function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
-            //ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
             this.ip = adr;
-            //this.str = disasm(ins.encoding);
 
             this.coreState.target = adr + 4;
             
@@ -593,8 +572,6 @@ package Emulation;
 
             if (isSysIns(ins))
                 performSys(adr, ins, args);
-
-            //return res;
         endfunction
 
 
@@ -694,7 +671,6 @@ package Emulation;
 
     function automatic void runInEmulator(ref Emulator emul, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
-        //ExecResult res = 
         emul.processInstruction(adr, ins);
     endfunction
 
