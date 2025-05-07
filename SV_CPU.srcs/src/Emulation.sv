@@ -43,14 +43,14 @@ package Emulation;
 
 
     // 4kB pages
-    class PageBasedProgramMem;
-        localparam PAGE_BYTES = 4096;
+    class PageBasedProgramMemory;
+        localparam PAGE_BYTES = PAGE_SIZE;
         localparam PAGE_WORDS = PAGE_BYTES/4;
         typedef Word Page[];
-        
+
         Page pages[int];
 
-      
+
         function automatic void resetPage(input Mword startAdr);
             int index = startAdr/PAGE_BYTES;
             pages[index] = '{default: 'x};
@@ -90,7 +90,7 @@ package Emulation;
 
 
 
-    class SparseDataMem;
+    class SparseDataMemory;
         
         class RW#(type Elem = Mbyte, int ESIZE = 1);
             static
@@ -442,8 +442,8 @@ package Emulation;
         CoreStatus status;
         CpuState coreState;
         
-        PageBasedProgramMem progMem_N = new();
-        SparseDataMem dataMem_N = new();
+        PageBasedProgramMemory progMem = new();
+        SparseDataMemory dataMem = new();
         
         MemoryWrite writeToDo;
 
@@ -455,8 +455,8 @@ package Emulation;
             res.status = status;
             res.coreState = coreState;
             
-            res.progMem_N = new progMem_N;
-            res.dataMem_N = new dataMem_N;
+            res.progMem = new progMem;
+            res.dataMem = new dataMem;
             
             res.writeToDo = writeToDo;
             
@@ -467,7 +467,7 @@ package Emulation;
             ip = other.ip;
             status = other.status;
             coreState = other.coreState;
-            dataMem_N = new other.dataMem_N;
+            dataMem = new other.dataMem;
             writeToDo = other.writeToDo;
         endfunction
 
@@ -480,7 +480,7 @@ package Emulation;
 
             this.coreState = initialState(IP_RESET);
 
-            this.dataMem_N.clear();
+            this.dataMem.clear();
         endfunction
 
         // TODO
@@ -512,14 +512,14 @@ package Emulation;
     
             case (ins.def.o)
                 O_intLoadW: begin
-                    result = dataMem_N.readWord(padr);
+                    result = dataMem.readWord(padr);
                 end
-                O_intLoadB: result = Mword'(dataMem_N.readByte(padr));
-                O_intLoadAqW: result = dataMem_N.readWord(padr); // FUTURE
+                O_intLoadB: result = Mword'(dataMem.readByte(padr));
+                O_intLoadAqW: result = dataMem.readWord(padr); // FUTURE
 
                 O_intLoadD: ;
                 O_floatLoadW: begin
-                    result = dataMem_N.readWord(padr);
+                    result = dataMem.readWord(padr);
                 end
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
@@ -531,7 +531,7 @@ package Emulation;
 
         function automatic void executeStep();
             Mword adr = this.coreState.target;
-            Word bits = progMem_N.fetch(adr);
+            Word bits = progMem.fetch(adr);
             AbstractInstruction absIns = decodeAbstract(bits);
             processInstruction(adr, absIns);            
         endfunction 
@@ -564,8 +564,8 @@ package Emulation;
             
             if (this.writeToDo.active) begin
                 case (writeToDo.size)
-                    1: dataMem_N.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
-                    4: dataMem_N.writeWord(writeToDo.padr, writeToDo.value);
+                    1: dataMem.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
+                    4: dataMem.writeWord(writeToDo.padr, writeToDo.value);
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end

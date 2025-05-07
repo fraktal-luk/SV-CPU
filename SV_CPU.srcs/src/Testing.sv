@@ -17,21 +17,27 @@ package Testing;
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 
-    task automatic setPrograms(ref Word mem[],
+    function automatic void setPrograms(ref Word mem[],
                               input Section testSec,
-                              input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec, input Section commonSec, input Mword commonAdr);
+                              input Section resetSec,
+                              input Section errorSec,
+                              input Section callSec,
+                              input Section intSec,
+                              input Section excSec,
+                              input Section commonSec,
+                              input Mword commonAdr);
         mem = '{default: 'x};
-                 
+
         writeProgram(mem, 0, testSec.words);
-        
+
         writeProgram(mem, IP_RESET, resetSec.words);
         writeProgram(mem, IP_ERROR, errorSec.words);
         writeProgram(mem, IP_CALL, callSec.words);
         writeProgram(mem, IP_INT, intSec.words);
         writeProgram(mem, IP_EXC, excSec.words);
-        
+
         writeProgram(mem, commonAdr, commonSec.words);
-    endtask
+    endfunction
 
 
     function automatic logic isValidTestName(input squeue line);

@@ -78,11 +78,11 @@ module ArchDesc0();
 
 
 
-    task automatic prepareTest(ref Word mem[],
+    function automatic void prepareTest(ref Word mem[],
                                input string name, input Section callSec, input Section intSec, input Section excSec, input Mword commonAdr);
         Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
         setPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec, common, commonAdr);
-    endtask
+    endfunction
 
 
     // Emul-only run
@@ -92,8 +92,8 @@ module ArchDesc0();
         emulTestName = name;
         prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
             
-            emul.progMem_N.assignPage(0, emul_progMem);
-            emul.progMem_N.assignPage(4096, common.words);
+            emul.progMem.assignPage(0, emul_progMem);
+            emul.progMem.assignPage(PAGE_SIZE, common.words);
         
             saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
@@ -108,7 +108,7 @@ module ArchDesc0();
 
         emulTestName = "err signal";
         writeProgram(emul_progMem, 0, FAILING_SECTION.words);
-                    emul.progMem_N.assignPage(0, emul_progMem);
+                    emul.progMem.assignPage(0, emul_progMem);
 
         resetAll(emul);
 
@@ -127,7 +127,7 @@ module ArchDesc0();
 
         emulTestName = "int";
         prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, COMMON_ADR);
-            emul.progMem_N.assignPage(0, emul_progMem);
+            emul.progMem.assignPage(0, emul_progMem);
 
         resetAll(emul);
 
@@ -204,8 +204,8 @@ module ArchDesc0();
             
                 core.resetForTest();
             
-                core.renamedEmul.progMem_N.assignPage(0, emul_progMem);
-                core.renamedEmul.progMem_N.assignPage(4096, common.words);
+                core.renamedEmul.progMem.assignPage(0, emul_progMem);
+                core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
             
             startSim();
             awaitResult();
@@ -219,8 +219,8 @@ module ArchDesc0();
  
                 core.resetForTest();
 
-                core.renamedEmul.progMem_N.assignPage(0, emul_progMem);
-                core.renamedEmul.progMem_N.assignPage(4096, common.words);
+                core.renamedEmul.progMem.assignPage(0, emul_progMem);
+                core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
 
             startSim();
 
@@ -240,7 +240,7 @@ module ArchDesc0();
         endtask
 
         task automatic startSim();
-            core.instructionCache.setProgram(core.renamedEmul.progMem_N.getPage(0));
+            core.instructionCache.setProgram(core.renamedEmul.progMem.getPage(0));
             core.dataCache.reset();
             
             #CYCLE reset <= 1;

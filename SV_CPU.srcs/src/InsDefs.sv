@@ -95,6 +95,9 @@ package InsDefs;
     localparam Mword IP_RESET = 'h00000200;
     localparam Mword IP_INT = 'h00000280;
     localparam Mword IP_EXC = 'h00000300;
+    
+    localparam int PAGE_SIZE = 4096;
+    
 
 
     class MnemonicClass;

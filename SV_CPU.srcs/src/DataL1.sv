@@ -21,7 +21,6 @@ module DataL1(
     // TLB
     localparam int DATA_TLB_SIZE = 32;
 
-    localparam int WAY_SIZE = 4096;
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
 
     typedef Translation TranslationA[N_MEM_PORTS];

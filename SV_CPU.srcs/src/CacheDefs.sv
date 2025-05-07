@@ -68,9 +68,6 @@ package CacheDefs;
 
 //////////////////
 
-    localparam int PAGE_SIZE = 4096;
-
-
     class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
         static
         function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
