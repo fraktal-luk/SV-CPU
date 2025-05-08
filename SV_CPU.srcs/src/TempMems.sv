@@ -5,14 +5,14 @@ package TempMems;
     import InsDefs::*;
     import Asm::*;
 
-   
+
     class ProgramMemory #(parameter WIDTH = 4);
         typedef Word Line[WIDTH];
         
         Word content[4096];
         
         function void clear();
-            this.content = '{default: 'x};
+            content = '{default: 'x};
         endfunction
         
         function Line read(input Mword adr);

@@ -4,6 +4,7 @@ package Insmap;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import EmulationDefs::*;
     import Emulation::*;
     
     import UopList::*;

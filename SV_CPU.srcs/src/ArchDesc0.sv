@@ -3,6 +3,7 @@
 import Base::*;
 import InsDefs::*;
 import Asm::*;
+import EmulationDefs::*;
 import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
@@ -40,6 +41,14 @@ module ArchDesc0();
 
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
+
+    const MemoryMapping DEFAULT_MEMORY_MAPPINGS[$] = '{
+        '{0, 0, 1, 1, 1, 1},
+        '{PAGE_SIZE, PAGE_SIZE, 1, 1, 1, 1},
+        '{'h2000, 'h2000, 1, 1, 1, 1},
+        '{'h20000000, 'h200000000, 1, 1, 1, 1},
+        '{'h80000000, 'h800000000, 1, 1, 1, 0}
+    };
 
 
     localparam CYCLE = 10;
