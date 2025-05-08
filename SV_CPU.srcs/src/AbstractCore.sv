@@ -31,6 +31,8 @@ module AbstractCore
     // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
+    PageBasedProgramMemory programMem;// = null;
+
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
@@ -715,15 +717,20 @@ module AbstractCore
     task automatic resetForTest();
         // No need to clear insMap
 
+        renamedEmul = new();
+        retiredEmul = new();
+
         registerTracker = new();
         memTracker = new();
 
-        renamedEmul = new();
-        retiredEmul = new();
+        programMem = null;
+        
         
         dataCache.reset();
         // TODO: reset frontend including instruction cache
-        
+        instructionCache.reset();
+
+
         branchCheckpointQueue.delete();
         
         

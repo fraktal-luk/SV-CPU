@@ -17,15 +17,14 @@ package Testing;
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 
-    function automatic void setPrograms(ref Word mem[],
+    function automatic void setBasicPrograms(
+                              ref Word mem[],
                               input Section testSec,
                               input Section resetSec,
                               input Section errorSec,
                               input Section callSec,
                               input Section intSec,
-                              input Section excSec,
-                              input Section commonSec,
-                              input Mword commonAdr);
+                              input Section excSec);
         mem = '{default: 'x};
 
         writeProgram(mem, 0, testSec.words);
@@ -35,8 +34,6 @@ package Testing;
         writeProgram(mem, IP_CALL, callSec.words);
         writeProgram(mem, IP_INT, intSec.words);
         writeProgram(mem, IP_EXC, excSec.words);
-
-        writeProgram(mem, commonAdr, commonSec.words);
     endfunction
 
 
