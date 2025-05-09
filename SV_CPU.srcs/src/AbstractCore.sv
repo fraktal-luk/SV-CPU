@@ -726,7 +726,7 @@ module AbstractCore
         programMem = null;
         
         
-        dataCache.reset();
+        dataCache.resetForTest();
         // TODO: reset frontend including instruction cache
         instructionCache.reset();
 

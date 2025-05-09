@@ -46,16 +46,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
 
 
-        task automatic TMP_cmp();
-            foreach (fetchStage0[i]) begin
-
-            end
-        endtask
-
 
     always @(posedge AbstractCore.clk) begin
-                TMP_cmp();
-
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectFront();
         else
@@ -249,11 +241,6 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
                 branchSlot = i;
                 break;
             end
-        end
-        
-        
-        if ($time() <= 300) begin
-           // $display("adr %d: tr = %p, a = %p, br = %p // %d, [%d] --> %d", res[0].adr, takenTargets, active, constantBranches, -1, lastSlot, nextAdr);
         end
  
         return branchSlot;

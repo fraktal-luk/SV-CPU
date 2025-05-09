@@ -21,19 +21,16 @@ module InstructionL1(
     Word content[4096];
         Word way0[PAGE_SIZE/4] = '{default: 'x};
         Word way1[PAGE_SIZE/4] = '{default: 'x};
+        Word way2[PAGE_SIZE/4] = '{default: 'x};
 
 
     
     function automatic void reset();
         way0 = '{default: 'x};
         way1 = '{default: 'x};
+        way2 = '{default: 'x};
     endfunction
-    
 
-//    function automatic void setProgram(input Word p[4096]);
-//        //content[0+:1024] = p[0+:1024];
-//        //content[1024+:1024] = p[1024+:1024];
-//    endfunction
 
     always @(posedge clk) begin
         automatic Mword truncatedAdr = readAddress & ~(4*FETCH_WIDTH-1);
@@ -53,9 +50,12 @@ module InstructionL1(
         way0 = page[0+:PAGE_SIZE/4];
         page = AbstractCore.programMem.getPage(PAGE_SIZE);
         way1 = page[0+:PAGE_SIZE/4];
+        page = AbstractCore.programMem.getPage(2*PAGE_SIZE);
+        way2 = page[0+:PAGE_SIZE/4];
         
-            content[0+:1024] = way0;//p[0+:1024];
-            content[1024+:1024] = way1;//p[1024+:1024];
+            content[0+:1024] = way0;
+            content[1024+:1024] = way1;
+            content[2048+:1024] = way2;
     endfunction
 
 

@@ -112,6 +112,14 @@ module UncachedSubsystem(
     Mbyte uncachedArea[PAGE_SIZE];
 
 
+    task automatic UNC_reset();
+        uncachedCounter = -1;
+        uncachedBusy = 0;
+        uncachedOutput = 'x;
+        
+        uncachedArea = '{default: 0};
+    endtask
+
 
     function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
         uncachedReads[0].ongoing = 1;
@@ -150,11 +158,6 @@ module UncachedSubsystem(
         function automatic Mword readByteUncached(input Mword adr);
             return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
         endfunction
-
-        task automatic UNC_reset();
-            uncachedCounter = -1;
-            uncachedBusy = 0;
-        endtask
     
         task automatic UNC_write(input MemWriteInfo wrInfo);
             Mword adr = wrInfo.adr;

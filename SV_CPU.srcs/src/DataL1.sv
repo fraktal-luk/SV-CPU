@@ -78,12 +78,7 @@ module DataL1(
     endfunction
 
 
-    // CAREFUL: below only for addresses in the range for data miss tests 
-    //DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
-    // CAREFUL: below only for addresses in the range for TLB miss tests 
-   // Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
 
-        //Translation TMP_tlb[DATA_TLB_SIZE] = '{default: DEFAULT_TRANSLATION};
         Translation TMP_tlb[Mword];
         Translation TMP_tlbL2[Mword];
 
@@ -101,19 +96,19 @@ module DataL1(
         endfunction
 
 
-        // UNUSED?
-        function automatic logic isUncachedRange(input Mword adr);
-            return adr >= uncachedSubsystem.UNCACHED_BASE && adr < uncachedSubsystem.UNCACHED_BASE + $size(uncachedSubsystem.uncachedArea);
-        endfunction
-
-//    function automatic logic isStaticTlbRange(input Mword adr);        
-//        return isUncachedRange(adr) // TEMP: uncached region is mapped by default
-//                || adr < 'h80000; // TEMP: Let's give 1M for static mappings
-//    endfunction
-
-
     task automatic reset();
-        
+        accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
+        translations_Reg <= '{default: DEFAULT_TRANSLATION};
+        readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
+
+        dataFillEngine.resetBlockFills();
+        tlbFillEngine.resetBlockFills();
+
+        uncachedSubsystem.UNC_reset();        
+    endtask
+
+
+    task automatic resetForTest();
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
     
@@ -123,28 +118,19 @@ module DataL1(
         Translation physPage20000000 = '{present: 1, desc: cachedDesc, padr: 'h20000000};
         Translation physPageUnc = '{present: 1, desc: uncachedDesc, padr: 'h80000000};
 
-            TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
-            TMP_tlbL2 = '{'h20000000: physPage20000000};
+        reset();
 
-            translationVadrsL1 = '{default: 'z};
-            translationTableL1 = '{default: DEFAULT_TRANSLATION};
+
+        TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
+        TMP_tlbL2 = '{'h20000000: physPage20000000};
+
+        translationVadrsL1 = '{default: 'z};
+        translationTableL1 = '{default: DEFAULT_TRANSLATION};
             DB_fillTranslations();
 
-            initBlocksWay0();
-            initBlocksWay1();     
-        
-        accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
-        translations_Reg <= '{default: DEFAULT_TRANSLATION};
-        readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
-        
-      //  filledMappings.delete();
-
-        dataFillEngine.resetBlockFills();
-        tlbFillEngine.resetBlockFills();
-
-        uncachedSubsystem.uncachedArea = '{default: 0};
-        uncachedSubsystem.UNC_reset();
-    endtask
+        initBlocksWay0();
+        initBlocksWay1(); 
+    endtask 
 
 
 
@@ -193,17 +179,9 @@ module DataL1(
     endfunction
 
 
-    ///////////////////////////////
-
-
     ////////////////////////////////////
     // Presence & allocation functions 
     //
-//    function automatic logic isTlbPresent(input Mword adr);
-//        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-//        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
-//    endfunction
-
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
@@ -232,14 +210,12 @@ module DataL1(
     function automatic void allocInTlb(input Mword adr);
         Translation DUMMY;
         Mword pageBase = adr;
+            
+        assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
         
-      //  filledMappings[pageBase] = DUMMY;
-            
-            assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
-            
-            translationVadrsL1[TMP_tlb.size()] = pageBase;
-            translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
-            TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
+        translationVadrsL1[TMP_tlb.size()] = pageBase;
+        translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
+        TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
     endfunction
 
 

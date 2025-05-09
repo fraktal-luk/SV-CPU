@@ -93,17 +93,23 @@ module ArchDesc0();
         setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endfunction
 
-
+        function automatic void prepareHandlers(ref Word mem[],
+                                   input Section callSec, input Section intSec, input Section excSec);
+            Section testProg;// = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
+            setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
+        endfunction
+    
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
             Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = name;
         prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
-            
-            emul.progMem.assignPage(0, emul_progMem);
-            emul.progMem.assignPage(PAGE_SIZE, common.words);
         
+        emul.progMem.assignPage(0, emul_progMem);
+        emul.progMem.assignPage(PAGE_SIZE, common.words);
+        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+    
             saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
         resetAll(emul);
@@ -117,7 +123,11 @@ module ArchDesc0();
 
         emulTestName = "err signal";
         writeProgram(emul_progMem, 0, FAILING_SECTION.words);
-                    emul.progMem.assignPage(0, emul_progMem);
+        
+        emul.progMem.assignPage(0, emul_progMem);
+        emul.progMem.assignPage(PAGE_SIZE, common.words);
+        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+
 
         resetAll(emul);
 
@@ -137,7 +147,9 @@ module ArchDesc0();
         emulTestName = "int";
         prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
             emul.progMem.assignPage(0, emul_progMem);
-
+            emul.progMem.assignPage(PAGE_SIZE, common.words);
+            emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+            
         resetAll(emul);
 
         for (int iter = 0; 1; iter++) begin
@@ -207,15 +219,18 @@ module ArchDesc0();
 
         task automatic runTestSim(input string name, input Section callSec);
                 Word emul_progMem[] = new[4096 / 4];
+                Word emul_progMem2[] = new[4096 / 4];
 
             #CYCLE announce(name);
             prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
                 core.resetForTest();
             
                 core.renamedEmul.progMem.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
-            
+                core.renamedEmul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+                    
             startSim();
             awaitResult();
         endtask
@@ -230,6 +245,7 @@ module ArchDesc0();
 
                 core.renamedEmul.progMem.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
+                core.renamedEmul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
 
             startSim();
 
@@ -242,16 +258,9 @@ module ArchDesc0();
         endtask
 
 
-        task announce(input string name);
-            simTestName = name;
-            $display("> RUN: %s", name);
-        endtask
-
         task automatic startSim();
-               // core.instructionCache.setProgram(core.renamedEmul.progMem.getPage(0));
             core.programMem = core.renamedEmul.progMem;
             core.instructionCache.prefetchForTest();
-            core.dataCache.reset();
             
             #CYCLE reset <= 1;
             #CYCLE reset <= 0;
@@ -262,6 +271,11 @@ module ArchDesc0();
             wait (done | wrong);
             if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
             #CYCLE;
+        endtask
+
+        task announce(input string name);
+            simTestName = name;
+            $display("> RUN: %s", name);
         endtask
 
         task pulseInt0();
