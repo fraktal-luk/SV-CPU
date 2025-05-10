@@ -321,8 +321,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             Word realBits = cacheOut.words[i];
 
             if (res[i].active) begin
-                // TODO: change to frontend emul when created
-                Word bits = AbstractCore.renamedEmul.progMem.fetch(res[i].adr); // DB
+                Word bits = AbstractCore.//renamedEmul.progMem.fetch(res[i].adr); // DB
+                                         programMem.fetch(res[i].adr);
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             

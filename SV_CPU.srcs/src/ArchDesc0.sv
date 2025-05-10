@@ -223,6 +223,7 @@ module ArchDesc0();
         endclass
 
         logic reset = 0, int0 = 0, done, wrong;
+        PageBasedProgramMemory theProgMem = new();
         Mword fetchAdr;       
 
 
@@ -235,10 +236,12 @@ module ArchDesc0();
             prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
                 core.resetForTest();
-            
-                core.renamedEmul.progMem.assignPage(0, emul_progMem);
-                core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
-                core.renamedEmul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+
+                    theProgMem.assignPage(0, emul_progMem);
+                  //  theProgMem.assignPage(PAGE_SIZE, common.words);
+                  //  theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+                    
+               core.renamedEmul.progMem = theProgMem;
                     
             startSim();
             awaitResult();
@@ -254,9 +257,11 @@ module ArchDesc0();
  
                 core.resetForTest();
 
-                core.renamedEmul.progMem.assignPage(0, emul_progMem);
-                core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
-                core.renamedEmul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+                    theProgMem.assignPage(0, emul_progMem);
+                    theProgMem.assignPage(PAGE_SIZE, common.words);
+                    theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+    
+                core.renamedEmul.progMem = theProgMem;
 
             startSim();
 
@@ -309,6 +314,12 @@ module ArchDesc0();
 
         task automatic runSim();
             SimRunner runner = new();
+              Word emul_progMem2[] = new[4096 / 4];
+                prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+                
+                theProgMem.assignPage(PAGE_SIZE, common.words);
+                theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+
 
             #CYCLE runner.runSuites(allSuites);  
             
@@ -316,6 +327,9 @@ module ArchDesc0();
                 core.insMap.assertReissue();
             
             $display("Event tests");
+            
+                prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+                theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
             
             runTestSim("events", TESTED_CALL_SECTION);
             runIntTestSim();
