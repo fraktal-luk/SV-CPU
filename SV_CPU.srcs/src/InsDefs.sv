@@ -89,14 +89,15 @@ package InsDefs;
     typedef Mword Mword3[3];
     typedef Mword Mword4[4];
 
-    // Handler addresses
-    localparam Mword IP_ERROR = 'h000100;
-    localparam Mword IP_CALL = 'h00000180;
-    localparam Mword IP_RESET = 'h00000200;
-    localparam Mword IP_INT = 'h00000280;
-    localparam Mword IP_EXC = 'h00000300;
-    
     localparam int PAGE_SIZE = 4096;
+
+    // Handler addresses
+    localparam Mword IP_ERROR = 'h000100 + 2*PAGE_SIZE;
+    localparam Mword IP_CALL = 'h00000180 + 2*PAGE_SIZE;
+    localparam Mword IP_RESET = 'h00000200 + 2*PAGE_SIZE;
+    localparam Mword IP_INT = 'h00000280 + 2*PAGE_SIZE;
+    localparam Mword IP_EXC = 'h00000300 + 2*PAGE_SIZE;
+    
     
 
 

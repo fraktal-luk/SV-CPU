@@ -29,11 +29,11 @@ package Testing;
 
         writeProgram(mem, 0, testSec.words);
 
-        writeProgram(mem, IP_RESET, resetSec.words);
-        writeProgram(mem, IP_ERROR, errorSec.words);
-        writeProgram(mem, IP_CALL, callSec.words);
-        writeProgram(mem, IP_INT, intSec.words);
-        writeProgram(mem, IP_EXC, excSec.words);
+        writeProgram(mem, IP_RESET % PAGE_SIZE, resetSec.words);
+        writeProgram(mem, IP_ERROR % PAGE_SIZE, errorSec.words);
+        writeProgram(mem, IP_CALL % PAGE_SIZE, callSec.words);
+        writeProgram(mem, IP_INT % PAGE_SIZE, intSec.words);
+        writeProgram(mem, IP_EXC % PAGE_SIZE, excSec.words);
     endfunction
 
 

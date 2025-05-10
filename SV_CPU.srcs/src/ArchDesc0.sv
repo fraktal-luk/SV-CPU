@@ -16,7 +16,7 @@ module ArchDesc0();
     localparam int ITERATION_LIMIT = 2000;
     localparam Mword COMMON_ADR = 4 * 1024;
 
-    const string DEFAULT_RESET_HANDLER[$] = {"ja -512",   "ja 0", "undef"};
+    const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "undef"};
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "undef"};
 
     const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "undef"};
@@ -102,13 +102,15 @@ module ArchDesc0();
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
             Word emul_progMem[] = new[4096 / 4];
+            Word emul_progMem2[] = new[4096 / 4];
 
         emulTestName = name;
         prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+        prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
         emul.progMem.assignPage(0, emul_progMem);
         emul.progMem.assignPage(PAGE_SIZE, common.words);
-        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
     
             saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
@@ -120,13 +122,15 @@ module ArchDesc0();
     task automatic runErrorTestEmul(ref Emulator emul);
         time DELAY = 1;
             Word emul_progMem[] = new[4096 / 4];
+            Word emul_progMem2[] = new[4096 / 4];
 
         emulTestName = "err signal";
         writeProgram(emul_progMem, 0, FAILING_SECTION.words);
+        prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
         emul.progMem.assignPage(0, emul_progMem);
         emul.progMem.assignPage(PAGE_SIZE, common.words);
-        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
 
 
         resetAll(emul);
@@ -143,12 +147,15 @@ module ArchDesc0();
     task automatic runIntTestEmul(ref Emulator emul);
         time DELAY = 1;
             Word emul_progMem[] = new[4096 / 4];
+            Word emul_progMem2[] = new[4096 / 4];
 
         emulTestName = "int";
         prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+        prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+
             emul.progMem.assignPage(0, emul_progMem);
             emul.progMem.assignPage(PAGE_SIZE, common.words);
-            emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+            emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
             
         resetAll(emul);
 
@@ -237,15 +244,17 @@ module ArchDesc0();
 
         task automatic runIntTestSim();
                 Word emul_progMem[] = new[4096 / 4];
+                Word emul_progMem2[] = new[4096 / 4];
 
             #CYCLE announce("int");
             prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
  
                 core.resetForTest();
 
                 core.renamedEmul.progMem.assignPage(0, emul_progMem);
                 core.renamedEmul.progMem.assignPage(PAGE_SIZE, common.words);
-                core.renamedEmul.progMem.assignPage(2*PAGE_SIZE, emul_progMem);
+                core.renamedEmul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
 
             startSim();
 

@@ -322,7 +322,7 @@ package Emulation;
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
                 O_sysStore: ;
-                O_undef: this.status.error = 1;
+                O_undef: begin this.status.error = 1; end
                 O_call: ;
                 O_sync: ;
                 O_retE: ;
@@ -342,6 +342,9 @@ package Emulation;
             end
             else begin
                 modifyStatus(ins);
+                
+                // if (status.error) $error("Error encountered at %d: %p", adr, ins);
+                
                 modifySysRegs(this.coreState, adr, ins);
             end
         endfunction
