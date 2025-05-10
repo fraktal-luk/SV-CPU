@@ -87,34 +87,26 @@ module ArchDesc0();
 
 
 
-    function automatic void prepareTest(ref Word mem[], input string name //,
-                               //input Section callSec, input Section intSec, input Section excSec
-                               );
+    function automatic void prepareTest(ref Word mem[], input string name);
         Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
-        //setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
+        mem = '{default: 'x};        
         writeProgram(mem, 0, testProg.words);
     endfunction
 
-        function automatic void prepareHandlers(ref Word mem[],
-                                   input Section callSec, input Section intSec, input Section excSec);
-            Section testProg;// = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
-            setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
-        endfunction
+    function automatic void prepareHandlers(ref Word mem[], input Section callSec, input Section intSec, input Section excSec);
+        Section testProg;
+        setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
+    endfunction
     
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
-            Word emul_progMem[] = new[4096 / 4];
-            Word emul_progMem2[] = new[4096 / 4];
+        Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = name;
-        prepareTest(emul_progMem, name);//, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
-        prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
-        
+        prepareTest(emul_progMem, name);
         emul.progMem.assignPage(0, emul_progMem);
-        emul.progMem.assignPage(PAGE_SIZE, common.words);
-        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
     
-            saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
+        saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
         resetAll(emul);
         performEmul(emul);
@@ -123,17 +115,11 @@ module ArchDesc0();
 
     task automatic runErrorTestEmul(ref Emulator emul);
         time DELAY = 1;
-            Word emul_progMem[] = new[4096 / 4];
-            Word emul_progMem2[] = new[4096 / 4];
+        Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = "err signal";
-        writeProgram(emul_progMem, 0, FAILING_SECTION.words);
-        prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-        
+        writeProgram(emul_progMem, 0, FAILING_SECTION.words);        
         emul.progMem.assignPage(0, emul_progMem);
-        emul.progMem.assignPage(PAGE_SIZE, common.words);
-        emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-
 
         resetAll(emul);
 
@@ -148,17 +134,13 @@ module ArchDesc0();
 
     task automatic runIntTestEmul(ref Emulator emul);
         time DELAY = 1;
-            Word emul_progMem[] = new[4096 / 4];
-            Word emul_progMem2[] = new[4096 / 4];
+        Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = "int";
-        prepareTest(emul_progMem, "events2");//, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
-        prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul_progMem, "events2");
 
-            emul.progMem.assignPage(0, emul_progMem);
-            emul.progMem.assignPage(PAGE_SIZE, common.words);
-            emul.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-            
+        emul.progMem.assignPage(0, emul_progMem);
+
         resetAll(emul);
 
         for (int iter = 0; 1; iter++) begin
@@ -199,10 +181,28 @@ module ArchDesc0();
 
     task automatic runEmul();
         Runner1 runner1 = new();
+        
+            Word emul_progMem2[] = new[4096 / 4];        
+
+            prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            emul_N.progMem.assignPage(PAGE_SIZE, common.words);
+            emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
         runner1.announceSuites = 0;
         #1 runner1.runSuites(allSuites);
+        
+            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            //emul_N.progMem.assignPage(PAGE_SIZE, common.words);
+            emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);       
         #1 runErrorTestEmul(emul_N);
+        
+            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            //emul_N.progMem.assignPage(PAGE_SIZE, common.words);
+            emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
         #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
+        
+            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            //emul_N.progMem.assignPage(PAGE_SIZE, common.words);
+            emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
         #1 runIntTestEmul(emul_N);
         #1;      
     endtask
@@ -229,40 +229,27 @@ module ArchDesc0();
 
         task automatic runTestSim(input string name, input Section callSec);
                 Word emul_progMem[] = new[4096 / 4];
-                Word emul_progMem2[] = new[4096 / 4];
 
             #CYCLE announce(name);
-            prepareTest(emul_progMem, name);//, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
-            prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
-            
-                core.resetForTest();
+            prepareTest(emul_progMem, name);
+            theProgMem.assignPage(0, emul_progMem);
 
-                    theProgMem.assignPage(0, emul_progMem);
-                  //  theProgMem.assignPage(PAGE_SIZE, common.words);
-                  //  theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-                    
-               core.renamedEmul.progMem = theProgMem;
-                    
+            core.resetForTest();
+            core.programMem = theProgMem;
+               
             startSim();
             awaitResult();
         endtask
 
         task automatic runIntTestSim();
                 Word emul_progMem[] = new[4096 / 4];
-                Word emul_progMem2[] = new[4096 / 4];
 
             #CYCLE announce("int");
-            prepareTest(emul_progMem, "events2");//, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
-            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(emul_progMem, "events2");
+            theProgMem.assignPage(0, emul_progMem);
  
-                core.resetForTest();
-
-                    theProgMem.assignPage(0, emul_progMem);
-                    theProgMem.assignPage(PAGE_SIZE, common.words);
-                    theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-    
-                core.renamedEmul.progMem = theProgMem;
-
+            core.resetForTest();
+            core.programMem = theProgMem;
             startSim();
 
             // The part that differs from regular sim test
@@ -275,8 +262,8 @@ module ArchDesc0();
 
 
         task automatic startSim();
-            core.programMem = core.renamedEmul.progMem;
             core.instructionCache.prefetchForTest();
+            core.dataCache.resetForTest();
             
             #CYCLE reset <= 1;
             #CYCLE reset <= 0;
@@ -315,12 +302,10 @@ module ArchDesc0();
         task automatic runSim();
             SimRunner runner = new();
               Word emul_progMem2[] = new[4096 / 4];
-                prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-                
+              
                 theProgMem.assignPage(PAGE_SIZE, common.words);
+                prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-
-
             #CYCLE runner.runSuites(allSuites);  
             
                 // Now assure that a pullback and reissue has happened because of mem replay
@@ -330,8 +315,10 @@ module ArchDesc0();
             
                 prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-            
             runTestSim("events", TESTED_CALL_SECTION);
+            
+                prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+                theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
             runIntTestSim();
             
             $display("All tests done;");
