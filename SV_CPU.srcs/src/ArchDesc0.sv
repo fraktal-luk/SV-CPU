@@ -87,10 +87,12 @@ module ArchDesc0();
 
 
 
-    function automatic void prepareTest(ref Word mem[],
-                               input string name, input Section callSec, input Section intSec, input Section excSec);
+    function automatic void prepareTest(ref Word mem[], input string name //,
+                               //input Section callSec, input Section intSec, input Section excSec
+                               );
         Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
-        setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
+        //setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
+        writeProgram(mem, 0, testProg.words);
     endfunction
 
         function automatic void prepareHandlers(ref Word mem[],
@@ -105,7 +107,7 @@ module ArchDesc0();
             Word emul_progMem2[] = new[4096 / 4];
 
         emulTestName = name;
-        prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul_progMem, name);//, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
         
         emul.progMem.assignPage(0, emul_progMem);
@@ -150,7 +152,7 @@ module ArchDesc0();
             Word emul_progMem2[] = new[4096 / 4];
 
         emulTestName = "int";
-        prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+        prepareTest(emul_progMem, "events2");//, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
         prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
 
             emul.progMem.assignPage(0, emul_progMem);
@@ -229,7 +231,7 @@ module ArchDesc0();
                 Word emul_progMem2[] = new[4096 / 4];
 
             #CYCLE announce(name);
-            prepareTest(emul_progMem, name, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(emul_progMem, name);//, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             prepareHandlers(emul_progMem2, callSec, FAILING_SECTION, DEFAULT_EXC_SECTION);
             
                 core.resetForTest();
@@ -247,7 +249,7 @@ module ArchDesc0();
                 Word emul_progMem2[] = new[4096 / 4];
 
             #CYCLE announce("int");
-            prepareTest(emul_progMem, "events2", TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+            prepareTest(emul_progMem, "events2");//, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
  
                 core.resetForTest();
