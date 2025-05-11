@@ -277,6 +277,9 @@ package Emulation;
                 this.writeToDo = getMemWrite(ins, args);
             end
             
+            if (isSysIns(ins))
+                performSys(adr, ins, args);
+            
             if (this.writeToDo.active) begin
                 case (writeToDo.size)
                     1: dataMem.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
@@ -285,8 +288,8 @@ package Emulation;
                 endcase
             end
 
-            if (isSysIns(ins))
-                performSys(adr, ins, args);
+           // if (isSysIns(ins))
+           //     performSys(adr, ins, args);
         endfunction
 
 
