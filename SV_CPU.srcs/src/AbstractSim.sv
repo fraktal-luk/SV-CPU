@@ -216,7 +216,8 @@ package AbstractSim;
             this.intMapR = intMapR;
             this.floatMapR = floatMapR;
             this.inds = indexSet;
-            this.emul = em.copy();
+            this.emul = em.copyCore();
+            this.emul.dataMem = new em.dataMem;
         endfunction
 
         InsId id;

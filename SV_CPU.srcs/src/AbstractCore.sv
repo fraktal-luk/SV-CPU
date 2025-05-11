@@ -31,7 +31,7 @@ module AbstractCore
     // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
-    PageBasedProgramMemory programMem;// = null;
+    PageBasedProgramMemory programMem;
 
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
@@ -300,6 +300,7 @@ module AbstractCore
             BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
+              //  $error("n bytes in checkoubt: %d", causingCP.emul.dataMem.content.size());
             renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
@@ -402,7 +403,7 @@ module AbstractCore
 
         if (isStoreIns(ins) || isLoadIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Dword padr = renamedEmul.translateAddress(effAdr);
+            Dword padr = renamedEmul.translateAddressData(effAdr);
             
             memTracker.add(id, uopName, ins, argVals, padr); // DB
         end
@@ -455,7 +456,7 @@ module AbstractCore
     task automatic activateEvent();
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
-            retiredEmul.reset();
+            retiredEmul.resetWithDataMem();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;

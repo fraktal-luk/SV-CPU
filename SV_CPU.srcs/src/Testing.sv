@@ -14,6 +14,7 @@ package Testing;
 
     function automatic void writeProgram(ref Word mem[], input Mword adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
+        //mem = '{default: 'x};
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 

@@ -36,6 +36,20 @@ package CacheDefs;
 
     localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
 
+
+    typedef struct {
+        logic present; // TLB hit
+        DataLineDesc desc;
+        Dword padr;
+    } Translation;
+
+    localparam Translation DEFAULT_TRANSLATION = '{
+        present: 0,
+        desc: DEFAULT_DATA_LINE_DESC,
+        padr: 'x
+    };
+
+
     typedef struct {
         logic active;
         CacheReadStatus status;
@@ -233,18 +247,6 @@ package CacheDefs;
 
     localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
 
-
-    typedef struct {
-        logic present; // TLB hit
-        DataLineDesc desc;
-        Dword padr;
-    } Translation;
-
-    localparam Translation DEFAULT_TRANSLATION = '{
-        present: 0,
-        desc: DEFAULT_DATA_LINE_DESC,
-        padr: 'x
-    };
 
 
 

@@ -42,7 +42,7 @@ module ArchDesc0();
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
 
-    const MemoryMapping DEFAULT_MEMORY_MAPPINGS[$] = '{
+    const MemoryMapping DEFAULT_DATA_MAPPINGS[$] = '{
         '{0, 0, 1, 1, 1, 1},
         '{PAGE_SIZE, PAGE_SIZE, 1, 1, 1, 1},
         '{'h2000, 'h2000, 1, 1, 1, 1},
@@ -89,7 +89,7 @@ module ArchDesc0();
 
     function automatic void prepareTest(ref Word mem[], input string name);
         Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
-        mem = '{default: 'x};        
+            mem = '{default: 'x};
         writeProgram(mem, 0, testProg.words);
     endfunction
 
@@ -104,6 +104,7 @@ module ArchDesc0();
 
         emulTestName = name;
         prepareTest(emul_progMem, name);
+           // $error("beginnignof program: %x, %x  ...  %x, %x", emul_progMem[0], emul_progMem[1],  emul_progMem[1024-2], emul_progMem[1-24-1]);
         emul.progMem.assignPage(0, emul_progMem);
     
         saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
@@ -174,34 +175,31 @@ module ArchDesc0();
 
     task automatic resetAll(ref Emulator emul);
         time DELAY = 1;
-        emul.reset();
+        emul.resetWithDataMem();
+        
         #DELAY;
     endtask
 
 
     task automatic runEmul();
         Runner1 runner1 = new();
-        
-            Word emul_progMem2[] = new[4096 / 4];        
-
-            prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+            Word emul_progMem2[] = new[4096 / 4];
+            
             emul_N.progMem.assignPage(PAGE_SIZE, common.words);
+            prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
         runner1.announceSuites = 0;
         #1 runner1.runSuites(allSuites);
         
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-            //emul_N.progMem.assignPage(PAGE_SIZE, common.words);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);       
         #1 runErrorTestEmul(emul_N);
         
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-            //emul_N.progMem.assignPage(PAGE_SIZE, common.words);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
         #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
         
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
-            //emul_N.progMem.assignPage(PAGE_SIZE, common.words);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
         #1 runIntTestEmul(emul_N);
         #1;      
@@ -228,7 +226,7 @@ module ArchDesc0();
 
 
         task automatic runTestSim(input string name, input Section callSec);
-                Word emul_progMem[] = new[4096 / 4];
+                Word emul_progMem[] = new[4096 / 4]; // TODO: refactor to set page 0 with test program in 1 line, without additional vars
 
             #CYCLE announce(name);
             prepareTest(emul_progMem, name);
@@ -236,8 +234,11 @@ module ArchDesc0();
 
             core.resetForTest();
             core.programMem = theProgMem;
-               
+
+            core.instructionCache.prefetchForTest();
+            core.dataCache.prefetchForTest();
             startSim();
+            
             awaitResult();
         endtask
 
@@ -250,6 +251,9 @@ module ArchDesc0();
  
             core.resetForTest();
             core.programMem = theProgMem;
+            
+            core.instructionCache.prefetchForTest();
+            core.dataCache.prefetchForTest();
             startSim();
 
             // The part that differs from regular sim test
@@ -262,9 +266,6 @@ module ArchDesc0();
 
 
         task automatic startSim();
-            core.instructionCache.prefetchForTest();
-            core.dataCache.resetForTest();
-            
             #CYCLE reset <= 1;
             #CYCLE reset <= 0;
             #CYCLE;

@@ -8,29 +8,29 @@ package EmulationDefs;
 
     // 4kB pages
     class PageBasedProgramMemory;
-        localparam PAGE_BYTES = PAGE_SIZE;
-        localparam PAGE_WORDS = PAGE_BYTES/4;
+        localparam int PAGE_BYTES = PAGE_SIZE;
+        localparam int PAGE_WORDS = PAGE_BYTES/4;
         typedef Word Page[];
 
         Page pages[int];
 
 
-        function automatic void resetPage(input Mword startAdr);
+        function automatic void resetPage(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             pages[index] = '{default: 'x};
         endfunction
 
-        function automatic void createPage(input Mword startAdr);
+        function automatic void createPage(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             pages[index] = new[PAGE_WORDS]('{default: 'x});
         endfunction
 
-        function automatic void assignPage(input Mword startAdr, input Word arr[]);
+        function automatic void assignPage(input Dword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
             pages[index] = arr;
         endfunction
 
-        function automatic void writePage(input Mword startAdr, input Word arr[]);
+        function automatic void writePage(input Dword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
             int size = arr.size() < PAGE_WORDS ? arr.size() : PAGE_WORDS;
             int offset = 0;
@@ -38,7 +38,7 @@ package EmulationDefs;
             while (offset < PAGE_WORDS) pages[index][offset++] = 'x;
         endfunction
         
-        function automatic Word fetch(input Mword startAdr);
+        function automatic Word fetch(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             int offset = (startAdr%PAGE_BYTES)/4;
             

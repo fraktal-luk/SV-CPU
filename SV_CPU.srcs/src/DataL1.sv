@@ -108,7 +108,31 @@ module DataL1(
     endtask
 
 
-    task automatic resetForTest();
+//    task automatic resetForTest();
+//        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+//        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+    
+//        Translation physPage0 = '{present: 1, desc: cachedDesc, padr: 0};
+//        Translation physPage1 = '{present: 1, desc: cachedDesc, padr: 4096};
+//        Translation physPage2000 = '{present: 1, desc: cachedDesc, padr: 'h2000};
+//        Translation physPage20000000 = '{present: 1, desc: cachedDesc, padr: 'h20000000};
+//        Translation physPageUnc = '{present: 1, desc: uncachedDesc, padr: 'h80000000};
+
+//        reset();
+
+
+//        TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
+//        TMP_tlbL2 = '{'h20000000: physPage20000000};
+
+//        translationVadrsL1 = '{default: 'z};
+//        translationTableL1 = '{default: DEFAULT_TRANSLATION};
+//            DB_fillTranslations();
+
+//        initBlocksWay0();
+//        initBlocksWay1(); 
+//    endtask 
+
+    task automatic prefetchForTest();
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
     
@@ -117,9 +141,6 @@ module DataL1(
         Translation physPage2000 = '{present: 1, desc: cachedDesc, padr: 'h2000};
         Translation physPage20000000 = '{present: 1, desc: cachedDesc, padr: 'h20000000};
         Translation physPageUnc = '{present: 1, desc: uncachedDesc, padr: 'h80000000};
-
-        reset();
-
 
         TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
         TMP_tlbL2 = '{'h20000000: physPage20000000};
@@ -131,7 +152,6 @@ module DataL1(
         initBlocksWay0();
         initBlocksWay1(); 
     endtask 
-
 
 
     function automatic Mword readSized(input Mword val, input AccessSize size);

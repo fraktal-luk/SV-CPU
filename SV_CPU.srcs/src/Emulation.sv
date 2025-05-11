@@ -152,15 +152,15 @@ package Emulation;
         MemoryWrite writeToDo;
 
 
-        function automatic Emulator copy();
+        function automatic Emulator copyCore();
             Emulator res = new();
             
             res.ip = ip;
             res.status = status;
             res.coreState = coreState;
             
-            res.progMem = new progMem;
-            res.dataMem = new dataMem;
+            res.progMem = new ();//progMem;
+            res.dataMem = new ();//dataMem;
             
             res.writeToDo = writeToDo;
             
@@ -172,23 +172,30 @@ package Emulation;
             status = other.status;
             coreState = other.coreState;
             dataMem = new other.dataMem;
+            // Not setting progMem
             writeToDo = other.writeToDo;
         endfunction
 
-        // CAREFUL: clears data memory, doesn't affect progMem
-        function automatic void reset();
+        function automatic void resetCore();
             this.ip = 'x;
 
             this.status = '{default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
 
             this.coreState = initialState(IP_RESET);
+        endfunction
 
-            this.dataMem.clear();
+        function automatic void resetWithDataMem();
+            resetCore();
+            dataMem.clear();
         endfunction
 
         // TODO
-        function automatic Dword translateAddress(input Mword vadr);
+        function automatic Dword translateAddressProgram(input Mword vadr);
+            return Dword'(vadr);
+        endfunction
+
+        function automatic Dword translateAddressData(input Mword vadr);
             return Dword'(vadr);
         endfunction
 
@@ -202,15 +209,17 @@ package Emulation;
             if (isBranchIns(ins))
                 return adr + 4;
             
+            // TODO: set exception is any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
-                Dword padr = translateAddress(vadr);
+                Dword padr = translateAddressData(vadr);
                 return getLoadValue(ins, vadr, padr);
             end
             
             return 'x;
         endfunction
-
+        
+        // TODO: introduce mem exceptions etc
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
     
@@ -235,8 +244,10 @@ package Emulation;
 
         function automatic void executeStep();
             Mword adr = this.coreState.target;
-            Word bits = progMem.fetch(adr);
+                Dword padr = translateAddressProgram(adr);
+            Word bits = progMem.fetch(padr);
             AbstractInstruction absIns = decodeAbstract(bits);
+               // $error("Step. %x: %x, %p", padr, bits, absIns);
             processInstruction(adr, absIns);            
         endfunction 
         
@@ -285,18 +296,35 @@ package Emulation;
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
 
-        local function automatic logic exceptionCaused(input AbstractInstruction ins, input Mword adr);
-            if (ins.def.o == O_sysLoad && adr > 31) return 1;
-            if (ins.def.o == O_sysStore && adr > 31) return 1;
+        local function automatic void performBranch(input AbstractInstruction ins, input Mword ip, input Mword3 vals);
+            ExecEvent evt = resolveBranch(ins, ip, vals);
+            Mword trg = evt.redirect ? evt.target : ip + 4;
             
-            return 0;
+            if (!isBranchIns(ins)) return;
+
+            performLink(this.coreState, ins, ip);
+            this.coreState.target = trg;
+        endfunction 
+
+        local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
+            if (isStoreSysIns(ins)) begin
+                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);                
+                if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
+                else modifySysRegs(this.coreState, adr, ins);
+            end
+            else begin
+                modifyStatus(ins);
+                // if (status.error) $error("Error encountered at %d: %p", adr, ins);
+                modifySysRegs(this.coreState, adr, ins);
+            end
         endfunction
         
+
         local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals);
             Mword vadr = calculateEffectiveAddress(ins, vals);
-            Dword padr = translateAddress(vadr);
+            Dword padr = translateAddressData(vadr);
             
-            if (exceptionCaused(ins, vadr)) begin
+            if (causesSysAccessException(ins, vadr)) begin
                 modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end
@@ -309,15 +337,26 @@ package Emulation;
             end
         endfunction
 
-        local function automatic void performBranch(input AbstractInstruction ins, input Mword ip, input Mword3 vals);
-            ExecEvent evt = resolveBranch(ins, ip, vals);
-            Mword trg = evt.redirect ? evt.target : ip + 4;
+        
+        local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
+            MemoryWrite res = DEFAULT_MEM_WRITE;
+            Mword effAdr = calculateEffectiveAddress(ins, vals);            
+            Dword physAdr = translateAddressData(effAdr);            
+            logic en = !causesSysAccessException(ins, effAdr);
+            int size = -1;
             
-            if (!isBranchIns(ins)) return;
-
-            performLink(this.coreState, ins, ip);
-            this.coreState.target = trg;
-        endfunction 
+            case (ins.def.o)
+                //O_intStoreD: size = 8;
+                O_intStoreW: size = 4;
+                O_intStoreRelW: size = 4;
+                O_intStoreB: size = 1;
+                O_floatStoreW: size = 4;
+                default: ;
+            endcase
+            
+            if (isStoreMemIns(ins)) res = '{en, effAdr, physAdr, vals[2], size};
+            return res;
+        endfunction
 
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
@@ -334,40 +373,13 @@ package Emulation;
             endcase
         endfunction
 
-        local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
-            if (isStoreSysIns(ins)) begin
-                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);                
-                if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
-                else modifySysRegs(this.coreState, adr, ins);
-            end
-            else begin
-                modifyStatus(ins);
-                
-                // if (status.error) $error("Error encountered at %d: %p", adr, ins);
-                
-                modifySysRegs(this.coreState, adr, ins);
-            end
+        local function automatic logic causesSysAccessException(input AbstractInstruction ins, input Mword adr);
+            if (ins.def.o == O_sysLoad && adr > 31) return 1;
+            if (ins.def.o == O_sysStore && adr > 31) return 1;
+            
+            return 0;
         endfunction
         
-        local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
-            MemoryWrite res = DEFAULT_MEM_WRITE;
-            Mword effAdr = calculateEffectiveAddress(ins, vals);            
-            Dword physAdr = translateAddress(effAdr);            
-            logic en = !exceptionCaused(ins, effAdr);
-            int size = -1;
-            
-            case (ins.def.o)
-                //O_intStoreD: size = 8;
-                O_intStoreW: size = 4;
-                O_intStoreRelW: size = 4;
-                O_intStoreB: size = 1;
-                O_floatStoreW: size = 4;
-                default: ;
-            endcase
-            
-            if (isStoreMemIns(ins)) res = '{en, effAdr, physAdr, vals[2], size};
-            return res;
-        endfunction
 
         function automatic void interrupt();
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
