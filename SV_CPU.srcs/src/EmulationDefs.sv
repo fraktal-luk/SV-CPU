@@ -34,8 +34,21 @@ package EmulationDefs;
             int index = startAdr/PAGE_BYTES;
             int size = arr.size() < PAGE_WORDS ? arr.size() : PAGE_WORDS;
             int offset = 0;
-            while (offset < size) pages[index][offset] = arr[offset++];
-            while (offset < PAGE_WORDS) pages[index][offset++] = 'x;
+            
+                           // $error(" >> %d, %x", arr.size(), arr[0]);
+
+            
+            while (offset < size) begin
+                pages[index][offset] = arr[offset];
+                offset++;
+            end
+                           //     $error("[[%x, %x...]]", pages[index][0], pages[index][1]);
+
+            
+            while (offset < PAGE_WORDS) begin
+                pages[index][offset++] = 'x;
+            end
+                  //  $error("[[%x, %x...]]", pages[index][0], pages[index][1]);
         endfunction
         
         function automatic Word fetch(input Dword startAdr);
