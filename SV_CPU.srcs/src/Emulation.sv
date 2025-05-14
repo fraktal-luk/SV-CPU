@@ -74,6 +74,8 @@ package Emulation;
         bit halted;
         bit error;
         bit send;
+            Mword eventType;
+            
     } CoreStatus;
 
     function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
@@ -144,8 +146,14 @@ package Emulation;
     class Emulator;
         Mword ip;
         CoreStatus status;
+            
         CpuState coreState;
         
+            // For now there are separate maps for program and data
+            MemoryMapping programMappings[$];
+            MemoryMapping dataMappings[$];
+        
+
         PageBasedProgramMemory progMem = new();
         SparseDataMemory dataMem = new();
         
@@ -183,6 +191,9 @@ package Emulation;
             this.writeToDo = DEFAULT_MEM_WRITE;
 
             this.coreState = initialState(IP_RESET);
+            
+                this.programMappings.delete();
+                this.dataMappings.delete();
         endfunction
 
         function automatic void resetWithDataMem();
@@ -243,12 +254,61 @@ package Emulation;
 
 
         function automatic void executeStep();
-            Mword adr = this.coreState.target;
-                Dword padr = translateAddressProgram(adr);
-            Word bits = progMem.fetch(padr);
-            AbstractInstruction absIns = decodeAbstract(bits);
-               // $error("Step. %x: %x, %p", padr, bits, absIns);
-            processInstruction(adr, absIns);            
+            Mword vadr = this.coreState.target;
+            
+            if (!virtualAddressValid(vadr)) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_INVALID_ADDRESS;
+                coreState.target = IP_FETCH_EXC;
+                return;
+            end
+            else if (vadr % 4 !== 0) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_UNALIGNED_ADDRESS;
+                coreState.target = IP_FETCH_EXC;
+                return;
+            end
+            else begin
+                // TODO: if not in memory map
+                MemoryMapping found[$] = programMappings.find_first with (item.vadr === getPageBaseM(vadr));             
+                
+                if (found.size() == 0) begin
+                    status.error = 1;
+                    status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
+                    coreState.target = IP_FETCH_EXC;
+                    return;
+                end
+                else if (!found[0].exec) begin
+                    status.error = 1;
+                    status.eventType = PE_FETCH_DISALLOWED_ACCESS;
+                    coreState.target = IP_FETCH_EXC;
+                    return;
+                end
+                else if (!physicalAddressValid(found[0].padr)) begin // TODO
+                    status.error = 1;
+                    status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
+                    coreState.target = IP_FETCH_EXC;
+                    return;
+                end
+                else begin
+                    AbstractInstruction absIns;
+                    Dword padr = translateAddressProgram(vadr);
+    
+                    //Word bits = progMem.fetch(padr);
+                    TMP_FetchResult fres = progMem.fetch_N(padr);
+                    
+                    if (!fres.ok) begin
+                        status.error = 1;
+                        status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
+                        coreState.target = IP_FETCH_EXC;
+                        return;
+                    end 
+                    
+                    absIns = decodeAbstract(fres.w);
+                       // $error("Step. %x: %x, %p", padr, bits, absIns);
+                    processInstruction(vadr, absIns);
+                end
+            end            
         endfunction 
         
 

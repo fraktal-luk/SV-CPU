@@ -6,6 +6,7 @@ package CacheDefs;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
+    import EmulationDefs::*;
     
     import AbstractSim::*;
     import Insmap::*;
@@ -134,7 +135,6 @@ package CacheDefs;
     typedef Dword EffectiveAddress;
 
 
-    localparam int V_INDEX_BITS = 12;
     localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
     
     typedef logic[V_INDEX_BITS-1:0] VirtualAddressLow;
@@ -183,17 +183,6 @@ package CacheDefs;
         return res;
     endfunction
 
-    function automatic Dword getPageBaseD(input Dword adr);
-        Dword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    function automatic Mword getPageBaseM(input Mword adr);
-        Mword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
 
 
     typedef struct {

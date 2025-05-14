@@ -5,6 +5,26 @@ package EmulationDefs;
     import Asm::*;
 
 
+    localparam int V_INDEX_BITS = 12;
+
+    function automatic Dword getPageBaseD(input Dword adr);
+        Dword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getPageBaseM(input Mword adr);
+        Mword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+
+            typedef struct {
+                logic ok;
+                Word w;
+            } TMP_FetchResult;
+
 
     // 4kB pages
     class PageBasedProgramMemory;
@@ -51,13 +71,24 @@ package EmulationDefs;
                   //  $error("[[%x, %x...]]", pages[index][0], pages[index][1]);
         endfunction
         
-        function automatic Word fetch(input Dword startAdr);
+            function automatic Word fetch(input Dword startAdr);
+                int index = startAdr/PAGE_BYTES;
+                int offset = (startAdr%PAGE_BYTES)/4;
+                
+                return pages[index][offset];
+            endfunction
+    
+    
+
+        function automatic TMP_FetchResult fetch_N(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             int offset = (startAdr%PAGE_BYTES)/4;
             
-            return pages[index][offset];
+            if (!pages.exists(index)) return '{0, 'x};
+            
+            return '{1, pages[index][offset]};
         endfunction
-        
+       
         
         function automatic Page getPage(input Mword startAdr);
             int index = startAdr/PAGE_BYTES;
@@ -327,5 +358,53 @@ package EmulationDefs;
     endfunction
 
 
+    typedef enum {
+        PE_NONE = 0,
+        
+        PE_FETCH_INVALID_ADDRESS = 16 + 0,
+        PE_FETCH_UNALIGNED_ADDRESS = 16 + 1,
+        PE_FETCH_TLB_MISS = 16 + 2, // HW
+        PE_FETCH_UNMAPPED_ADDRESS = 16 + 3,
+        PE_FETCH_DISALLOWED_ACCESS = 16 + 4,
+        PE_FETCH_UNCACHED = 16 + 5, // HW
+        PE_FETCH_CACHE_MISS = 16 + 6, // HW
+        PE_FETCH_NONEXISTENT_ADDRESS = 16 + 7,
+
+        PE_MEM_INVALID_ADDRESS = 3*16 + 0,
+        PE_MEM_UNALIGNED_ADDRESS = 3*16 + 1, // when crossing blocks/pages
+        PE_MEM_TLB_MISS = 3*16 + 2, // HW
+        PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
+        PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
+        PE_MEM_UNCACHED = 3*16 + 5, // HW
+        PE_MEM_CACHE_MISS = 3*16 + 6, // HW
+        PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
+        
+        PE_SYS_INVALID_ADDRESS = 5*16 + 0,
+        PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
+        PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
+        PE_SYS_ERROR = 5*16 + 3,
+        PE_SYS_CALL = 5*16 + 4,
+        PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
+        
+        FP_EXT_INTERRUPT = 6*16 + 0,
+        FP_EXT_RESET = 6*16 + 1,
+        FP_EXT_DEBUG = 6*16 + 2
+
+    } ProgramEvent;
+
+        // TODO: change to dependent on Mword size?
+        localparam Mword VADR_LIMIT_LOW =  'h01000000;
+        localparam Mword VADR_LIMIT_HIGH = 'hff000000;
+
+        localparam Dword PADR_LIMIT = 'h10000000000;
+
+    // For fetch
+    function automatic logic virtualAddressValid(input Mword vadr);
+        return !$isunknown(vadr) && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
+    endfunction
+
+    function automatic logic physicalAddressValid(input Dword padr);
+        return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
+    endfunction
 
 endpackage

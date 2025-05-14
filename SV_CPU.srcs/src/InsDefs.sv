@@ -97,6 +97,8 @@ package InsDefs;
     localparam Mword IP_RESET = 'h00000200 + 2*PAGE_SIZE;
     localparam Mword IP_INT = 'h00000280 + 2*PAGE_SIZE;
     localparam Mword IP_EXC = 'h00000300 + 2*PAGE_SIZE;
+    localparam Mword IP_FETCH_EXC = 'h00000380 + 2*PAGE_SIZE;
+    localparam Mword IP_MEM_EXC = 'h00000400 + 2*PAGE_SIZE;
     
     
 
