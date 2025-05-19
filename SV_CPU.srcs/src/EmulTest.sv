@@ -32,6 +32,7 @@ module EmulTest();
         emul.progMem.createPage(0);
         
         testFetch();
+        testSys();
         
         $display("DONE");
         $stop(2);
@@ -65,6 +66,46 @@ module EmulTest();
         $display("Fetch tests done");
         
     endtask
+
+
+
+    task automatic testSys();
+
+//        PE_SYS_INVALID_ADDRESS = 5*16 + 0,
+        test_SYS_INVALID_ADR();
+//        PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
+//        PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
+//        PE_SYS_ERROR = 5*16 + 3,
+//        PE_SYS_CALL = 5*16 + 4,
+//        PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
+
+        test_OK();
+        
+        
+        $display("Sys tests done");
+        
+    endtask
+
+
+
+    task automatic test_SYS_INVALID_ADR();
+        emul.resetCore();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("lds r0, r0, 99")});
+
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+
+        emul.executeStep();
+
+        // Check
+        check(emul, PE_SYS_INVALID_ADDRESS, IP_EXC, "sys wrong adr ins");
+    endtask
+
+
+
+
+
 
 
     task automatic test_OK();

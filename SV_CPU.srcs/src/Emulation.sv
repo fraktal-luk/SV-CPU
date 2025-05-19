@@ -54,14 +54,9 @@ package Emulation;
         state.floatRegs[regNum] = value;
     endfunction
     
-    // Return 1 if exc
-    function automatic logic writeSysReg(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
-        assert (!$isunknown(value)) else $error("Writing unknown value!");
-        
-        if (regNum > 31) return 1;
-        
+
+    function automatic void writeSysReg(ref CpuState state, input int regNum, input Mword value);
         state.sysRegs[regNum] = value;
-        return 0;
     endfunction
 
     function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Mword adr);
@@ -88,9 +83,9 @@ package Emulation;
 
     function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
         case (abs.def.o)
-            O_sysStore: begin
-                state.target = adr + 4;
-            end
+//            O_sysStore: begin
+//                state.target = adr + 4;
+//            end
             O_error: begin
                 state.target = IP_ERROR;
 
@@ -382,9 +377,14 @@ package Emulation;
 
         local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             if (isStoreSysIns(ins)) begin
-                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);                
-                if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
-                else modifySysRegs(this.coreState, adr, ins);
+                //logic exc_N = causesSysAccessException(ins, vals[1]);
+
+                logic exc = writeSysReg__(coreState, ins, vals[1], vals[2]);
+                
+                
+                //if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
+                //else modifySysRegs(this.coreState, adr, ins);
+
             end
             else begin
                 modifyStatus(ins);
@@ -398,7 +398,7 @@ package Emulation;
             Mword vadr = calculateEffectiveAddress(ins, vals);
             Dword padr = translateAddressData(vadr);
             
-            if (causesSysAccessException(ins, vadr)) begin
+            if (catchSysAccessException(ins, vadr)) begin
                 modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end
@@ -411,12 +411,28 @@ package Emulation;
             end
         endfunction
 
+
+        // Return 1 if exc
+        local function automatic logic writeSysReg__(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
+            assert (!$isunknown(value)) else $error("Writing unknown value!");
+            
+            if (catchSysAccessException(ins, regNum)) begin
+            //if (regNum > 31) begin
+                modifySysRegsOnException(coreState, ip, ins);
+
+                return 1;
+            end
+            
+            writeSysReg(state, regNum, value);
+            return 0;
+        endfunction
+
         
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
             Dword physAdr = translateAddressData(effAdr);            
-            logic en = !causesSysAccessException(ins, effAdr);
+            logic en = 1;//!causesSysAccessException(ins, effAdr); // TODO: remove because sys writes are note done through this mechanism?
             int size = -1;
             
             case (ins.def.o)
@@ -454,7 +470,23 @@ package Emulation;
             
             return 0;
         endfunction
-        
+
+            local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
+                if (ins.def.o == O_sysLoad && adr > 31) begin
+                    //status.error = 1;
+                    status.eventType = PE_SYS_INVALID_ADDRESS;
+                    coreState.target = IP_EXC;
+                    return 1;
+                end
+                if (ins.def.o == O_sysStore && adr > 31) begin
+                    status.eventType = PE_SYS_INVALID_ADDRESS;
+                    coreState.target = IP_EXC;
+                    return 1;
+                end
+                
+                return 0;
+            endfunction
+
 
         function automatic void interrupt();
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
