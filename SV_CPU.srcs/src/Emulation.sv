@@ -69,7 +69,7 @@ package Emulation;
         bit halted;
         bit error;
         bit send;
-            Mword eventType;
+            ProgramEvent eventType;
             
     } CoreStatus;
 
@@ -189,7 +189,7 @@ package Emulation;
         function automatic void resetCore();
             this.ip = 'x;
 
-            this.status = '{default: 0};
+            this.status = '{eventType: PE_NONE, default: 0};
             this.writeToDo = DEFAULT_MEM_WRITE;
 
             this.coreState = initialState(IP_RESET);
@@ -235,7 +235,7 @@ package Emulation;
         // TODO: introduce mem exceptions etc
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
-    
+
             case (ins.def.o)
                 O_intLoadW: begin
                     result = dataMem.readWord(padr);
@@ -377,18 +377,10 @@ package Emulation;
 
         local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             if (isStoreSysIns(ins)) begin
-                //logic exc_N = causesSysAccessException(ins, vals[1]);
-
                 logic exc = writeSysReg__(coreState, ins, vals[1], vals[2]);
-                
-                
-                //if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
-                //else modifySysRegs(this.coreState, adr, ins);
-
             end
             else begin
                 modifyStatus(ins);
-                // if (status.error) $error("Error encountered at %d: %p", adr, ins);
                 modifySysRegs(this.coreState, adr, ins);
             end
         endfunction
@@ -397,9 +389,16 @@ package Emulation;
         local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals);
             Mword vadr = calculateEffectiveAddress(ins, vals);
             Dword padr = translateAddressData(vadr);
+                MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+            logic present = 1; //found.size() != 0; // TODO: use this condition 
             
             if (catchSysAccessException(ins, vadr)) begin
                 modifySysRegsOnException(this.coreState, this.ip, ins);
+                return;
+            end
+            
+            if (catchMemAccessException(ins, vadr, padr, present)) begin
+                //modifySysRegsOnException(this.coreState, this.ip, ins);
                 return;
             end
             
@@ -451,9 +450,18 @@ package Emulation;
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
                 O_sysStore: ;
-                O_error: begin this.status.error = 1; end
-                O_undef: begin this.status.error = 1; end
-                O_call: ;
+                O_error: begin                    
+                    status.error = 1;
+                    status.eventType = PE_SYS_ERROR;
+                    //coreState.target = IP_FETCH_EXC;
+                end
+                O_undef: begin
+                    status.error = 1;
+                    status.eventType = PE_SYS_UNDEFINED_INSTRUCTION;
+                end
+                O_call: begin
+                    status.eventType = PE_SYS_CALL;
+                end
                 O_sync: ;
                 O_retE: ;
                 O_retI: ;
@@ -464,25 +472,63 @@ package Emulation;
             endcase
         endfunction
 
-        local function automatic logic causesSysAccessException(input AbstractInstruction ins, input Mword adr);
-            if (ins.def.o == O_sysLoad && adr > 31) return 1;
-            if (ins.def.o == O_sysStore && adr > 31) return 1;
+//        local function automatic logic causesSysAccessException(input AbstractInstruction ins, input Mword adr);
+//            if (ins.def.o == O_sysLoad && adr > 31) return 1;
+//            if (ins.def.o == O_sysStore && adr > 31) return 1;
             
-            return 0;
-        endfunction
+//            return 0;
+//        endfunction
 
             local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
                 if (ins.def.o == O_sysLoad && adr > 31) begin
-                    //status.error = 1;
+                    //  status.error = 1;
                     status.eventType = PE_SYS_INVALID_ADDRESS;
                     coreState.target = IP_EXC;
                     return 1;
                 end
                 if (ins.def.o == O_sysStore && adr > 31) begin
+                     //   status.error = 1;
                     status.eventType = PE_SYS_INVALID_ADDRESS;
                     coreState.target = IP_EXC;
                     return 1;
                 end
+                
+                return 0;
+            endfunction
+
+            local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, input Dword padr, input logic present);
+            
+                    // TODO
+                    
+//                    PE_MEM_INVALID_ADDRESS = 3*16 + 0,
+                if (!virtualAddressValid_T(vadr)) begin
+                    //status.error = 1;
+                    status.eventType = PE_MEM_INVALID_ADDRESS;
+                    coreState.target = IP_MEM_EXC;
+                    
+                    return 1;
+                end
+//                    PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
+                if (!present) begin
+                    //status.error = 1;
+                    status.eventType = PE_MEM_UNMAPPED_ADDRESS;
+                    coreState.target = IP_MEM_EXC;
+                    
+                    return 1;         
+                end
+
+//                    PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
+                // TODO
+                
+//                    PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
+                if (!physicalAddressValid(padr)) begin
+                    //status.error = 1;
+                    status.eventType = PE_MEM_NONEXISTENT_ADDRESS;
+                    coreState.target = IP_MEM_EXC;
+                    
+                    return 1; 
+                end                    
+
                 
                 return 0;
             endfunction
