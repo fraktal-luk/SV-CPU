@@ -707,7 +707,7 @@ module AbstractCore
 
 
     assign sig = lateEventInfo.cOp == CO_send;
-    assign wrong = lateEventInfo.cOp == CO_undef;
+    assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
 
 
     // Puts architectural state in a conevient starting point

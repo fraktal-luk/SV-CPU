@@ -16,15 +16,15 @@ module ArchDesc0();
     localparam int ITERATION_LIMIT = 2000;
     localparam Mword COMMON_ADR = 4 * 1024;
 
-    const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "undef"};
-    const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "undef"};
+    const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
+    const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
 
-    const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "undef"};
+    const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
     const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
 
     const string DEFAULT_INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
 
-    const string FAILING_HANDLER[$]  = {"undef", "ja 0", "undef"};
+    const string FAILING_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
 
     const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 

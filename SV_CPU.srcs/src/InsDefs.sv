@@ -333,6 +333,7 @@ package InsDefs;
         O_retE,
         O_retI,
         O_replay,
+        O_error,
         O_halt,
         O_send,
         
@@ -431,7 +432,7 @@ package InsDefs;
         "sys_halt":   '{F_noRegs, P_sysControl, S_sysHalt, T_none, O_halt},
         "sys_sync":   '{F_noRegs, P_sysControl, S_sysSync, T_none, O_sync},
         "sys_replay": '{F_noRegs, P_sysControl, S_sysReplay, T_none, O_replay},
-        "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_undef},
+        "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_error},
         "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
         "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send}
         

@@ -91,6 +91,13 @@ package Emulation;
             O_sysStore: begin
                 state.target = adr + 4;
             end
+            O_error: begin
+                state.target = IP_ERROR;
+
+                state.sysRegs[4] = state.sysRegs[1];
+                state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                state.sysRegs[2] = adr + 4;
+            end
             O_undef: begin
                 state.target = IP_ERROR;
 
@@ -428,6 +435,7 @@ package Emulation;
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
                 O_sysStore: ;
+                O_error: begin this.status.error = 1; end
                 O_undef: begin this.status.error = 1; end
                 O_call: ;
                 O_sync: ;

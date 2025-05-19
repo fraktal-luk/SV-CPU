@@ -17,6 +17,11 @@ package ControlHandling;
                 res.target = IP_EXC;
                 res.redirect = 1;
             end
+            CO_error: begin
+                res.target = IP_ERROR;
+                res.redirect = 1;
+                //res.sigWrong = 1;
+            end
             CO_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
@@ -104,7 +109,7 @@ package ControlHandling;
         else if (exception) res.cOp = CO_exception;
         else begin
             case (uname)
-                UOP_ctrl_error:    res.cOp = CO_undef;
+                UOP_ctrl_error:    res.cOp = CO_error;
                 UOP_ctrl_undef:    res.cOp = CO_undef;
                 UOP_ctrl_call:     res.cOp = CO_call;
                 UOP_ctrl_rete:     res.cOp = CO_retE;
