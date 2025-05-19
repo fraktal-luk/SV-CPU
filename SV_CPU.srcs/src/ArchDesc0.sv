@@ -97,19 +97,31 @@ module ArchDesc0();
         Section testProg;
         setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endfunction
+
     
+    function automatic void map3pages(ref Emulator em);
+        em.programMappings.push_back('{0, 0,  1, 1, 1, 1});        
+        em.programMappings.push_back('{PAGE_SIZE, PAGE_SIZE,  1, 1, 1, 1});        
+        em.programMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
+    endfunction
+
+
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
         Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = name;
         prepareTest(emul_progMem, name);
-           // $error("beginnignof program: %x, %x  ...  %x, %x", emul_progMem[0], emul_progMem[1],  emul_progMem[1024-2], emul_progMem[1-24-1]);
+        
+        
         emul.progMem.assignPage(0, emul_progMem);
     
         saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
         resetAll(emul);
+        map3pages(emul);
+
+        
         performEmul(emul);
     endtask
 
@@ -119,10 +131,12 @@ module ArchDesc0();
         Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = "err signal";
-        writeProgram(emul_progMem, 0, FAILING_SECTION.words);        
+        writeProgram(emul_progMem, 0, FAILING_SECTION.words);
         emul.progMem.assignPage(0, emul_progMem);
 
         resetAll(emul);
+        
+        map3pages(emul);
 
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
@@ -139,10 +153,11 @@ module ArchDesc0();
 
         emulTestName = "int";
         prepareTest(emul_progMem, "events2");
-
         emul.progMem.assignPage(0, emul_progMem);
 
         resetAll(emul);
+
+        map3pages(emul);
 
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
@@ -165,7 +180,7 @@ module ArchDesc0();
 
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
-            if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
+            if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n%p", emul);
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (emul.status.send == 1) break;
             emul.drain();

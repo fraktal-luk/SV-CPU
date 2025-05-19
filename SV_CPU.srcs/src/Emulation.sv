@@ -269,8 +269,9 @@ package Emulation;
                 return;
             end
             else begin
-                // TODO: if not in memory map
                 MemoryMapping found[$] = programMappings.find_first with (item.vadr === getPageBaseM(vadr));             
+                
+               //     $display("MAppings:\n%p\nFound: %p", programMappings, found);
                 
                 if (found.size() == 0) begin
                     status.error = 1;
@@ -292,9 +293,10 @@ package Emulation;
                 end
                 else begin
                     AbstractInstruction absIns;
-                    Dword padr = translateAddressProgram(vadr);
-    
-                    //Word bits = progMem.fetch(padr);
+                    Dword padr = //translateAddressProgram(vadr);
+                                 found[0].padr + vadr - getPageBaseM(vadr);
+
+                   // Word bits = progMem.fetch(padr);
                     TMP_FetchResult fres = progMem.fetch_N(padr);
                     
                     if (!fres.ok) begin
@@ -303,6 +305,8 @@ package Emulation;
                         coreState.target = IP_FETCH_EXC;
                         return;
                     end 
+                    
+                     //   $display("Fetched: %h, %p", bits, fres);
                     
                     absIns = decodeAbstract(fres.w);
                        // $error("Step. %x: %x, %p", padr, bits, absIns);
