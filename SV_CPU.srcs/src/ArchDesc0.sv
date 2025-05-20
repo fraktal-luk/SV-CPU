@@ -105,6 +105,16 @@ module ArchDesc0();
         em.programMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
     endfunction
 
+    function automatic void mapDataPages(ref Emulator em);
+        em.dataMappings.push_back('{0, 0,  1, 1, 1, 1});        
+       // em.dataMappings.push_back('{PAGE_SIZE, PAGE_SIZE,  1, 1, 1, 1});        
+      //  em.dataMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
+        em.dataMappings.push_back('{'h80000000, 'h80000000,  1, 1, 0, 0});
+        em.dataMappings.push_back('{'h20000000, 'h20000000,  1, 1, 1, 1});
+        em.dataMappings.push_back('{'h2000, 'h2000,  1, 1, 1, 1});
+      
+    endfunction
+
 
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
@@ -120,7 +130,7 @@ module ArchDesc0();
 
         resetAll(emul);
         map3pages(emul);
-
+        mapDataPages(emul);
         
         performEmul(emul);
     endtask
@@ -137,6 +147,7 @@ module ArchDesc0();
         resetAll(emul);
         
         map3pages(emul);
+        mapDataPages(emul);
 
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
@@ -158,6 +169,7 @@ module ArchDesc0();
         resetAll(emul);
 
         map3pages(emul);
+        mapDataPages(emul);
 
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
@@ -249,6 +261,8 @@ module ArchDesc0();
 
             core.resetForTest();
             core.programMem = theProgMem;
+                mapDataPages(core.renamedEmul);
+                mapDataPages(core.retiredEmul);
 
             core.instructionCache.prefetchForTest();
             core.dataCache.prefetchForTest();

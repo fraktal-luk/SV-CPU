@@ -169,6 +169,9 @@ package Emulation;
             res.status = status;
             res.coreState = coreState;
             
+                res.programMappings = programMappings;
+                res.dataMappings = dataMappings;
+            
             res.progMem = new ();//progMem;
             res.dataMem = new ();//dataMem;
             
@@ -181,6 +184,10 @@ package Emulation;
             ip = other.ip;
             status = other.status;
             coreState = other.coreState;
+                
+                programMappings = other.programMappings;
+                dataMappings = other.dataMappings;
+            
             dataMem = new other.dataMem;
             // Not setting progMem
             writeToDo = other.writeToDo;
@@ -193,9 +200,11 @@ package Emulation;
             this.writeToDo = DEFAULT_MEM_WRITE;
 
             this.coreState = initialState(IP_RESET);
-            
-                this.programMappings.delete();
-                this.dataMappings.delete();
+                
+               // TODO: think about mappings. They are not cleared here because simulation needs them but it seems inconsistent
+                
+               // this.programMappings.delete();
+               // this.dataMappings.delete();
         endfunction
 
         function automatic void resetWithDataMem();
@@ -388,18 +397,26 @@ package Emulation;
 
         local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals);
             Mword vadr = calculateEffectiveAddress(ins, vals);
-            Dword padr = translateAddressData(vadr);
-                MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
-            logic present = 1; //found.size() != 0; // TODO: use this condition 
+            //logic present = 1; //found.size() != 0; // TODO: use this condition 
+            Dword padr = 'x;// = translateAddressData(vadr);
             
-            if (catchSysAccessException(ins, vadr)) begin
-                modifySysRegsOnException(this.coreState, this.ip, ins);
-                return;
+            
+            if (isLoadSysIns(ins)) begin
+                if (catchSysAccessException(ins, vadr)) begin
+                    modifySysRegsOnException(this.coreState, this.ip, ins);
+                    return;
+                end
             end
-            
-            if (catchMemAccessException(ins, vadr, padr, present)) begin
-                //modifySysRegsOnException(this.coreState, this.ip, ins);
-                return;
+            else begin
+                MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+                logic present = found.size() > 0;
+                padr = found[0].padr + vadr - getPageBaseM(vadr);
+
+                if (catchMemAccessException(ins, vadr, padr, present)) begin
+                    modifySysRegsOnException(this.coreState, this.ip, ins);
+                        coreState.target = IP_MEM_EXC;
+                    return;
+                end
             end
             
             begin
@@ -513,7 +530,7 @@ package Emulation;
                     //status.error = 1;
                     status.eventType = PE_MEM_UNMAPPED_ADDRESS;
                     coreState.target = IP_MEM_EXC;
-                    
+                        $error("not presnt %x", vadr);
                     return 1;         
                 end
 
