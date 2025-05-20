@@ -537,7 +537,7 @@ package Emulation;
                     //status.error = 1;
                     status.eventType = PE_MEM_UNMAPPED_ADDRESS;
                     coreState.target = IP_MEM_EXC;
-                        $error("not presnt %x", vadr);
+                       // $error("not presnt %x", vadr);
                     return 1;         
                 end
 

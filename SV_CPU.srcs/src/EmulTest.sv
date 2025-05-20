@@ -33,6 +33,7 @@ module EmulTest();
         
         testFetch();
         testSys();
+        testMem();
         
         $display("DONE");
         $stop(2);
@@ -86,6 +87,28 @@ module EmulTest();
         
         
         $display("Sys tests done");
+        
+    endtask
+
+
+    task automatic testMem();
+
+//        PE_MEM_INVALID_ADDRESS = 3*16 + 0,
+      //  test_MEM_INVALID();  // TODO: when adr ranges are fixed
+//        PE_MEM_UNALIGNED_ADDRESS = 3*16 + 1, // when crossing blocks/pages
+//        PE_MEM_TLB_MISS = 3*16 + 2, // HW
+//        PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
+        test_MEM_UNMAPPED();
+//        PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
+//        PE_MEM_UNCACHED = 3*16 + 5, // HW
+//        PE_MEM_CACHE_MISS = 3*16 + 6, // HW
+//        PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
+        test_MEM_NONEXISTENT();
+
+        test_OK();
+        
+        
+        $display("Mem tests done");
         
     endtask
 
@@ -226,6 +249,50 @@ module EmulTest();
                 
         // Check
         check(emul, PE_FETCH_NONEXISTENT_ADDRESS, IP_FETCH_EXC, "Fetch nonexistent");
+    endtask
+
+
+    task automatic test_MEM_INVALID();
+//        emul.resetCoreAndMappings();
+     
+//        emul.coreState.target = 0;
+//        emul.progMem.writePage(0, '{0: asm("l 0")});
+
+//        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+
+//        emul.executeStep();
+
+//        // Check
+//        check(emul, PE_NONE, 0, "mem invalid");
+    endtask
+
+    task automatic test_MEM_UNMAPPED();
+        emul.resetCoreAndMappings();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
+
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+
+        emul.executeStep();
+
+        // Check
+        check(emul, PE_MEM_UNMAPPED_ADDRESS, IP_MEM_EXC, "mem unmapped");
+    endtask
+    
+    task automatic test_MEM_NONEXISTENT();
+        emul.resetCoreAndMappings();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
+
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        emul.dataMappings.push_back('{0, 'h0100000000000000,  1, 1, 1, 1});
+
+        emul.executeStep();
+
+        // Check
+        check(emul, PE_MEM_NONEXISTENT_ADDRESS, IP_MEM_EXC, "mem nonexistent");
     endtask
 
 
