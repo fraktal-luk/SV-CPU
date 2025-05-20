@@ -75,8 +75,11 @@ module EmulTest();
         test_SYS_INVALID_ADR();
 //        PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
 //        PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
+        test_SYS_UNDEF();
 //        PE_SYS_ERROR = 5*16 + 3,
+        test_SYS_ERROR();
 //        PE_SYS_CALL = 5*16 + 4,
+        test_SYS_CALL();
 //        PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
 
         test_OK();
@@ -89,7 +92,7 @@ module EmulTest();
 
 
     task automatic test_SYS_INVALID_ADR();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
      
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("lds r0, r0, 99")});
@@ -103,13 +106,52 @@ module EmulTest();
     endtask
 
 
+    task automatic test_SYS_UNDEF();
+        emul.resetCoreAndMappings();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("undef")});
 
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
 
+        emul.executeStep();
+
+        // Check
+        check(emul, PE_SYS_UNDEFINED_INSTRUCTION, IP_ERROR, "sys undefined");
+    endtask
+
+    task automatic test_SYS_ERROR();
+        emul.resetCoreAndMappings();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("sys_error")});
+
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+
+        emul.executeStep();
+
+        // Check
+        check(emul, PE_SYS_ERROR, IP_ERROR, "sys_error");
+    endtask
+    
+    task automatic test_SYS_CALL();
+        emul.resetCoreAndMappings();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("sys_call")});
+
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+
+        emul.executeStep();
+
+        // Check
+        check(emul, PE_SYS_CALL, IP_CALL, "sys call");
+    endtask
 
 
 
     task automatic test_OK();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
      
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -124,7 +166,7 @@ module EmulTest();
     
     
     task automatic test_FETCH_INVALID_ADDRESS();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
         
         emul.coreState.target = 'x;
             
@@ -134,7 +176,7 @@ module EmulTest();
     endtask
 
     task automatic test_FETCH_UNALIGNED_ADDRESS();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
         
         emul.coreState.target = 3;
             
@@ -145,7 +187,7 @@ module EmulTest();
 
 
     task automatic test_FETCH_UNMAPPED();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
                 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -158,7 +200,7 @@ module EmulTest();
 
 
     task automatic test_FETCH_DISALLOWED();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
                 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -173,7 +215,7 @@ module EmulTest();
 
 
     task automatic test_FETCH_NONEXISTENT();
-        emul.resetCore();
+        emul.resetCoreAndMappings();
                 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});

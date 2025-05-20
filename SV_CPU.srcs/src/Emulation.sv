@@ -207,6 +207,13 @@ package Emulation;
                // this.dataMappings.delete();
         endfunction
 
+        function automatic void resetCoreAndMappings();
+            resetCore();
+            programMappings.delete();
+            dataMappings.delete();
+        endfunction
+
+
         function automatic void resetWithDataMem();
             resetCore();
             dataMem.clear();
