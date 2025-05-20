@@ -457,6 +457,7 @@ module AbstractCore
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
             retiredEmul.resetWithDataMem();
+               // retiredEmul.resetCoreAndMappings();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;

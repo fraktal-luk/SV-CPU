@@ -34,6 +34,7 @@ module EmulTest();
         testFetch();
         testSys();
         testMem();
+        testExt();
         
         $display("DONE");
         $stop(2);
@@ -110,6 +111,36 @@ module EmulTest();
         
         $display("Mem tests done");
         
+    endtask
+
+
+    task automatic testExt();
+
+//        FP_EXT_INTERRUPT = 6*16 + 0,
+        test_INTERRUPT();
+//        FP_EXT_RESET = 6*16 + 1,
+//        FP_EXT_DEBUG = 6*16 + 2
+
+        test_OK();
+        
+        
+        $display("Ext tests done");
+        
+    endtask
+
+    
+    task automatic test_INTERRUPT();
+        emul.resetCoreAndMappings();
+     
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("ja 0")});
+
+        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+
+        emul.interrupt();
+
+        // Check
+        check(emul, PE_EXT_INTERRUPT, IP_INT, "ext interrupt");
     endtask
 
 

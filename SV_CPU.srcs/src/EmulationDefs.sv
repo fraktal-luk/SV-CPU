@@ -386,9 +386,9 @@ package EmulationDefs;
         PE_SYS_CALL = 5*16 + 4,
         PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
         
-        FP_EXT_INTERRUPT = 6*16 + 0,
-        FP_EXT_RESET = 6*16 + 1,
-        FP_EXT_DEBUG = 6*16 + 2
+        PE_EXT_INTERRUPT = 6*16 + 0,
+        PE_EXT_RESET = 6*16 + 1,
+        PE_EXT_DEBUG = 6*16 + 2
 
     } ProgramEvent;
 

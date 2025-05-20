@@ -559,6 +559,8 @@ package Emulation;
 
 
         function automatic void interrupt();
+                status.eventType = PE_EXT_INTERRUPT;
+        
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
         
