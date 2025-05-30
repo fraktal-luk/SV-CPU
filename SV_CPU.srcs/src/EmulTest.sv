@@ -36,8 +36,8 @@ module EmulTest();
         testMem();
         testExt();
         
-        $display("DONE");
-        $stop(2);
+        $display("DONE\n");
+        //$stop(2);
     endtask
 
 

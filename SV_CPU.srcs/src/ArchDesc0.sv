@@ -12,6 +12,7 @@ import Testing::*;
 
 
 module ArchDesc0();
+    EmulTest emulTest();
 
     localparam int ITERATION_LIMIT = 2000;
     localparam Mword COMMON_ADR = 4 * 1024;
@@ -203,6 +204,8 @@ module ArchDesc0();
     task automatic resetAll(ref Emulator emul);
         time DELAY = 1;
         emul.resetWithDataMem();
+            emul.programMappings.delete();
+            emul.dataMappings.delete();
         
         #DELAY;
     endtask

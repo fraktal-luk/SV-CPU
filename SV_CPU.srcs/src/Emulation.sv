@@ -238,13 +238,14 @@ package Emulation;
         endfunction
 
         function automatic Translation translateAddressData_Impl(input Mword vadr);
-            localparam logic DO_NOT_TRANSLATE = 1;
+            localparam logic DO_NOT_TRANSLATE = 0;//1;
 
             MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
             Translation res;
 
             if (DO_NOT_TRANSLATE) begin
                 res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+                    assert (found.size() > 0) else $error("not mapped adr: %x", vadr);
             end
             else if (found.size() == 0) begin
                 res = DEFAULT_TRANSLATION;
@@ -303,6 +304,8 @@ package Emulation;
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
 
+            if ($isunknown(padr) && ins.def.o != O_sysLoad) return 0;
+
             case (ins.def.o)
                 O_intLoadW: begin
                     result = dataMem.readWord(padr);
@@ -317,6 +320,8 @@ package Emulation;
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
             endcase
+            
+             //   if ($isunknown(padr)) $error("Unknow padr: %p, %x, %x", ins, adr, padr);
             
             return result;
         endfunction
@@ -465,12 +470,16 @@ package Emulation;
                 end
             end
             else begin
-                MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+                //MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
                 // TODO: translateAdr, use Translation type
-                logic present = found.size() > 0;
-                padr = found[0].padr + vadr - getPageBaseM(vadr);
-
-                if (catchMemAccessException(ins, vadr, padr, present)) begin
+                Translation tr = translateAddressData_Impl(vadr);
+//                logic present = found.size() > 0;
+//                    assert (present === tr.present) else $error("Diff 'presen;t'");
+//                padr = found[0].padr + vadr - getPageBaseM(vadr);
+//                    assert (padr === tr.padr) else $error("Diff padr'");
+                padr = tr.padr;
+                
+                if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) begin
                     modifySysRegsOnException(this.coreState, this.ip, ins);
                         coreState.target = IP_MEM_EXC;
                     return 1;
