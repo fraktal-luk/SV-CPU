@@ -3,6 +3,7 @@ import Base::*;
 import InsDefs::*;
 import Asm::*;
 import Emulation::*;
+import EmulationDefs::*;
 
 import UopList::*;
 import AbstractSim::*;
@@ -403,7 +404,8 @@ module AbstractCore
 
         if (isStoreIns(ins) || isLoadIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Dword padr = renamedEmul.translateAddressData(effAdr);
+            Translation tr = renamedEmul.translateAddressData_Impl(effAdr);
+            Dword padr = tr.padr;//renamedEmul.translateAddressData(effAdr);
             
             memTracker.add(id, uopName, ins, argVals, padr); // DB
         end

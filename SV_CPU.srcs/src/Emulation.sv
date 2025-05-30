@@ -131,8 +131,8 @@ package Emulation;
     endfunction
 
     
-    function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs);
-        state.target = IP_EXC;
+    function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs, input Mword trg);
+        state.target = trg;
 
         state.sysRegs[4] = state.sysRegs[1];
         state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
@@ -156,8 +156,6 @@ package Emulation;
         PageBasedProgramMemory progMem = new();
         SparseDataMemory dataMem = new();
         
-        MemoryWrite writeToDo;
-
 
         function automatic Emulator copyCore();
             Emulator res = new();
@@ -172,8 +170,6 @@ package Emulation;
             res.progMem = new ();
             res.dataMem = new ();
             
-            res.writeToDo = writeToDo;
-            
             return res;
         endfunction
 
@@ -187,14 +183,12 @@ package Emulation;
 
             dataMem = new other.dataMem;
             // Not setting progMem
-            writeToDo = other.writeToDo;
         endfunction
 
         function automatic void resetCore();
             this.ip = 'x;
 
             this.status = '{eventType: PE_NONE, default: 0};
-            this.writeToDo = DEFAULT_MEM_WRITE;
 
             this.coreState = initialState(IP_RESET);
                 
@@ -215,13 +209,10 @@ package Emulation;
             dataMem.clear();
         endfunction
 
-        // TODO
-        function automatic Dword translateAddressProgram(input Mword vadr);
-            return Dword'(vadr);
-        endfunction
+
 
         function automatic Translation translateAddressProgram_Impl(input Mword vadr);
-            localparam logic DO_NOT_TRANSLATE_P = 0;
+            localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
 
             MemoryMapping found[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
             Translation res;
@@ -238,14 +229,13 @@ package Emulation;
         endfunction
 
         function automatic Translation translateAddressData_Impl(input Mword vadr);
-            localparam logic DO_NOT_TRANSLATE = 0;//1;
+            localparam logic DO_NOT_TRANSLATE = 0; // TODO: don't remove, will be a dynamic param
 
             MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
             Translation res;
 
             if (DO_NOT_TRANSLATE) begin
                 res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
-                    assert (found.size() > 0) else $error("not mapped adr: %x", vadr);
             end
             else if (found.size() == 0) begin
                 res = DEFAULT_TRANSLATION;
@@ -255,28 +245,6 @@ package Emulation;
             return res;
         endfunction
 
-            function automatic Dword translateAddressData(input Mword vadr);
-                //localparam logic DO_NOT_TRANSLATE = 1;
-            
-                MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
-                Translation res = translateAddressData_Impl(vadr);
-                return res.padr;
-                
-                
-    //            if (DO_NOT_TRANSLATE) return Dword'(vadr);
-                
-    //            if (found.size() == 0) begin
-    //                res = DEFAULT_TRANSLATION;
-    //                return 'x;
-    //            end
-                
-    //            begin
-    //                res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
-    //                //Dword padr = found[0].padr + vadr - getPageBaseM(vadr);
-                
-    //                return Dword'(vadr);
-    //            end
-            endfunction
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
             FormatSpec fmtSpec = parsingMap[ins.def.f];
@@ -291,10 +259,8 @@ package Emulation;
             // TODO: set exception if any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
-                Dword padr;// = translateAddressData(vadr);
                 Translation tr = translateAddressData_Impl(vadr);
-                padr = tr.padr;
-                return getLoadValue(ins, vadr, padr);
+                return getLoadValue(ins, vadr, tr.padr);
             end
             
             return 'x;
@@ -320,68 +286,57 @@ package Emulation;
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
             endcase
-            
-             //   if ($isunknown(padr)) $error("Unknow padr: %p, %x, %x", ins, adr, padr);
-            
+                        
             return result;
         endfunction
 
 
+    
         function automatic void executeStep();
             Mword vadr = this.coreState.target;
             
             if (!virtualAddressValid(vadr)) begin
                 status.error = 1;
                 status.eventType = PE_FETCH_INVALID_ADDRESS;
-                coreState.target = IP_FETCH_EXC;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
                 return;
             end
             else if (vadr % 4 !== 0) begin
                 status.error = 1;
                 status.eventType = PE_FETCH_UNALIGNED_ADDRESS;
-                coreState.target = IP_FETCH_EXC;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
                 return;
             end
             else begin
-               // MemoryMapping found[$] = programMappings.find_first with (item.vadr === getPageBaseM(vadr));             
                 Translation tr = translateAddressProgram_Impl(vadr);
 
-                //if (found.size() == 0) begin
                 if (!tr.present) begin
-                        assert (!tr.present) else $error("wwoooo");
                     status.error = 1;
                     status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
-                    coreState.target = IP_FETCH_EXC;
+                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
                     return;
                 end
-                //else if (!found[0].exec) begin
                 else if (!tr.desc.canExec) begin
-                        assert (!tr.desc.canExec) else $error("h jo jo oj o ");
                     status.error = 1;
                     status.eventType = PE_FETCH_DISALLOWED_ACCESS;
-                    coreState.target = IP_FETCH_EXC;
+                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
                     return;
                 end
-                //else if (!physicalAddressValid(found[0].padr)) begin
                 else if (!physicalAddressValid(tr.padr)) begin
                     status.error = 1;
                     status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
-                    coreState.target = IP_FETCH_EXC;
+                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
                     return;
                 end
                 else begin
                     AbstractInstruction absIns;
-                    Dword padr = tr.padr;//translateAddressProgram(vadr); TODO
-                                // found[0].padr + vadr - getPageBaseM(vadr);
-
-                    TMP_FetchResult fres = progMem.fetch_N(padr);
+                    TMP_FetchResult fres = progMem.fetch_N(tr.padr);
                     
-                    //padr = tr.padr;
-
                     if (!fres.ok) begin
                         status.error = 1;
                         status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
                         coreState.target = IP_FETCH_EXC;
+                        modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
                         return;
                     end 
                    
@@ -394,17 +349,16 @@ package Emulation;
 
         // Clear mem write and signals to send
         function automatic void drain();
-            this.writeToDo = '{default: 0};
             this.status.send = 0;
         endfunction
+
 
         function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
-            logic exceptionFromMem = 0;
+            MemoryWrite writeToDo = '{default: 0};
 
             this.ip = adr;
-
             this.coreState.target = adr + 4;
             
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
@@ -414,14 +368,14 @@ package Emulation;
                 performBranch(ins, adr, args);
             
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
-                exceptionFromMem = performMem(ins, args);
-                this.writeToDo = exceptionFromMem ? '{default: 0} : getMemWrite(ins, args);
+                logic exceptionFromMem = performMem(ins, args);
+                if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);
             
-            if (this.writeToDo.active) begin
+            if (writeToDo.active) begin
                 case (writeToDo.size)
                     1: dataMem.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
                     4: dataMem.writeWord(writeToDo.padr, writeToDo.value);
@@ -450,7 +404,12 @@ package Emulation;
 
         local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             if (isStoreSysIns(ins)) begin
-                logic exc = writeSysReg__(coreState, ins, vals[1], vals[2]);
+                //logic exc = writeSysReg__(coreState, ins, vals[1], vals[2]);
+                assert (!$isunknown(vals[1]) && !$isunknown(vals[2])) else $error("Writing unknown!");
+                
+                if (catchSysAccessException(ins, vals[1])) return;// 1;
+
+                writeSysReg(coreState, vals[1], vals[2]);
             end
             else begin
                 modifyStatus(ins);
@@ -458,32 +417,19 @@ package Emulation;
             end
         endfunction
         
-
+        // Return 1 if exception
         local function automatic logic performMem(input AbstractInstruction ins, input Mword3 vals);
             Mword vadr = calculateEffectiveAddress(ins, vals);
             Dword padr = 'x;
 
             if (isLoadSysIns(ins)) begin
-                if (catchSysAccessException(ins, vadr)) begin
-                    modifySysRegsOnException(this.coreState, this.ip, ins);
-                    return 1;
-                end
+                if (catchSysAccessException(ins, vadr)) return 1;
             end
             else begin
-                //MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
-                // TODO: translateAdr, use Translation type
                 Translation tr = translateAddressData_Impl(vadr);
-//                logic present = found.size() > 0;
-//                    assert (present === tr.present) else $error("Diff 'presen;t'");
-//                padr = found[0].padr + vadr - getPageBaseM(vadr);
-//                    assert (padr === tr.padr) else $error("Diff padr'");
                 padr = tr.padr;
                 
-                if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) begin
-                    modifySysRegsOnException(this.coreState, this.ip, ins);
-                        coreState.target = IP_MEM_EXC;
-                    return 1;
-                end
+                if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) return 1;
             end
             
             begin
@@ -501,11 +447,8 @@ package Emulation;
         local function automatic logic writeSysReg__(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
             assert (!$isunknown(value)) else $error("Writing unknown value!");
             
-            if (catchSysAccessException(ins, regNum)) begin
-                modifySysRegsOnException(coreState, ip, ins);
-                return 1;
-            end
-            
+            if (catchSysAccessException(ins, regNum)) return 1;
+
             writeSysReg(state, regNum, value);
             return 0;
         endfunction
@@ -514,11 +457,9 @@ package Emulation;
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
-            Dword physAdr;// = translateAddressData(effAdr);            
             Translation tr = translateAddressData_Impl(effAdr);
             logic en = 1;
             int size = -1;
-            physAdr = tr.padr;
 
             case (ins.def.o)
                 //O_intStoreD: size = 8;
@@ -529,9 +470,10 @@ package Emulation;
                 default: ;
             endcase
             
-            if (isStoreMemIns(ins)) res = '{en, effAdr, physAdr, vals[2], size};
+            if (isStoreMemIns(ins)) res = '{en, effAdr, tr.padr, vals[2], size};
             return res;
         endfunction
+
 
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
@@ -539,7 +481,6 @@ package Emulation;
                 O_error: begin                    
                     status.error = 1;
                     status.eventType = PE_SYS_ERROR;
-                    //coreState.target = IP_FETCH_EXC;
                 end
                 O_undef: begin
                     status.error = 1;
@@ -562,12 +503,12 @@ package Emulation;
         local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
             if (ins.def.o == O_sysLoad && adr > 31) begin
                 status.eventType = PE_SYS_INVALID_ADDRESS;
-                coreState.target = IP_EXC;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_EXC);
                 return 1;
             end
             if (ins.def.o == O_sysStore && adr > 31) begin
                 status.eventType = PE_SYS_INVALID_ADDRESS;
-                coreState.target = IP_EXC;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_EXC);
                 return 1;
             end
             
@@ -580,14 +521,14 @@ package Emulation;
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
             if (!virtualAddressValid_T(vadr)) begin
                 status.eventType = PE_MEM_INVALID_ADDRESS;
-                coreState.target = IP_MEM_EXC;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
                 return 1;
             end
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
             if (!present) begin
                 status.eventType = PE_MEM_UNMAPPED_ADDRESS;
-                coreState.target = IP_MEM_EXC;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
                 return 1;         
             end
 
@@ -597,7 +538,7 @@ package Emulation;
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
             if (!physicalAddressValid(padr)) begin
                 status.eventType = PE_MEM_NONEXISTENT_ADDRESS;
-                coreState.target = IP_MEM_EXC;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
                 return 1; 
             end                    
 
