@@ -26,6 +26,31 @@ package EmulationDefs;
             } TMP_FetchResult;
 
 
+    typedef struct {
+        logic allowed;
+        logic canRead;
+        logic canWrite;
+        logic canExec;
+        logic cached;
+    } DataLineDesc;
+
+    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
+
+
+    typedef struct {
+        logic present; // TLB hit
+        DataLineDesc desc;
+        Dword padr;
+    } Translation;
+
+    localparam Translation DEFAULT_TRANSLATION = '{
+        present: 0,
+        desc: DEFAULT_DATA_LINE_DESC,
+        padr: 'x
+    };
+
+
+
     // 4kB pages
     class PageBasedProgramMemory;
         localparam int PAGE_BYTES = PAGE_SIZE;

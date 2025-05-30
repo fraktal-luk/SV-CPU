@@ -220,9 +220,62 @@ package Emulation;
             return Dword'(vadr);
         endfunction
 
-        function automatic Dword translateAddressData(input Mword vadr);
-            return Dword'(vadr);
+        function automatic Translation translateAddressProgram_Impl(input Mword vadr);
+            localparam logic DO_NOT_TRANSLATE_P = 0;
+
+            MemoryMapping found[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
+            Translation res;
+
+            if (DO_NOT_TRANSLATE_P) begin
+                res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+            end
+            else if (found.size() == 0) begin
+                res = DEFAULT_TRANSLATION;
+            end
+            else
+                res = '{present: 1, desc: '{1, found[0].read, found[0].write, found[0].exec, found[0].cache}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+            return res;
         endfunction
+
+        function automatic Translation translateAddressData_Impl(input Mword vadr);
+            localparam logic DO_NOT_TRANSLATE = 1;
+
+            MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+            Translation res;
+
+            if (DO_NOT_TRANSLATE) begin
+                res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+            end
+            else if (found.size() == 0) begin
+                res = DEFAULT_TRANSLATION;
+            end
+            else
+                res = '{present: 1, desc: '{1, found[0].read, found[0].write, found[0].exec, found[0].cache}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+            return res;
+        endfunction
+
+            function automatic Dword translateAddressData(input Mword vadr);
+                //localparam logic DO_NOT_TRANSLATE = 1;
+            
+                MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+                Translation res = translateAddressData_Impl(vadr);
+                return res.padr;
+                
+                
+    //            if (DO_NOT_TRANSLATE) return Dword'(vadr);
+                
+    //            if (found.size() == 0) begin
+    //                res = DEFAULT_TRANSLATION;
+    //                return 'x;
+    //            end
+                
+    //            begin
+    //                res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+    //                //Dword padr = found[0].padr + vadr - getPageBaseM(vadr);
+                
+    //                return Dword'(vadr);
+    //            end
+            endfunction
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
             FormatSpec fmtSpec = parsingMap[ins.def.f];
@@ -234,10 +287,12 @@ package Emulation;
             if (isBranchIns(ins))
                 return adr + 4;
             
-            // TODO: set exception is any is generated? If so, include store and sys instructions
+            // TODO: set exception if any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
-                Dword padr = translateAddressData(vadr);
+                Dword padr;// = translateAddressData(vadr);
+                Translation tr = translateAddressData_Impl(vadr);
+                padr = tr.padr;
                 return getLoadValue(ins, vadr, padr);
             end
             
@@ -283,21 +338,27 @@ package Emulation;
                 return;
             end
             else begin
-                MemoryMapping found[$] = programMappings.find_first with (item.vadr === getPageBaseM(vadr));             
-                
-                if (found.size() == 0) begin
+               // MemoryMapping found[$] = programMappings.find_first with (item.vadr === getPageBaseM(vadr));             
+                Translation tr = translateAddressProgram_Impl(vadr);
+
+                //if (found.size() == 0) begin
+                if (!tr.present) begin
+                        assert (!tr.present) else $error("wwoooo");
                     status.error = 1;
                     status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
                     coreState.target = IP_FETCH_EXC;
                     return;
                 end
-                else if (!found[0].exec) begin
+                //else if (!found[0].exec) begin
+                else if (!tr.desc.canExec) begin
+                        assert (!tr.desc.canExec) else $error("h jo jo oj o ");
                     status.error = 1;
                     status.eventType = PE_FETCH_DISALLOWED_ACCESS;
                     coreState.target = IP_FETCH_EXC;
                     return;
                 end
-                else if (!physicalAddressValid(found[0].padr)) begin
+                //else if (!physicalAddressValid(found[0].padr)) begin
+                else if (!physicalAddressValid(tr.padr)) begin
                     status.error = 1;
                     status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
                     coreState.target = IP_FETCH_EXC;
@@ -305,11 +366,13 @@ package Emulation;
                 end
                 else begin
                     AbstractInstruction absIns;
-                    Dword padr = //translateAddressProgram(vadr); TODO
-                                 found[0].padr + vadr - getPageBaseM(vadr);
+                    Dword padr = tr.padr;//translateAddressProgram(vadr); TODO
+                                // found[0].padr + vadr - getPageBaseM(vadr);
 
                     TMP_FetchResult fres = progMem.fetch_N(padr);
                     
+                    //padr = tr.padr;
+
                     if (!fres.ok) begin
                         status.error = 1;
                         status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
@@ -442,9 +505,11 @@ package Emulation;
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
-            Dword physAdr = translateAddressData(effAdr);            
+            Dword physAdr;// = translateAddressData(effAdr);            
+            Translation tr = translateAddressData_Impl(effAdr);
             logic en = 1;
             int size = -1;
+            physAdr = tr.padr;
 
             case (ins.def.o)
                 //O_intStoreD: size = 8;
