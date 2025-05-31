@@ -18,19 +18,6 @@ package Emulation;
     endfunction
 
 
-    // Abstract description of page mapping and attributes 
-    typedef struct {
-        Mword vadr;
-        Dword padr;
-        bit read;
-        bit write;
-        bit exec;
-        bit cache;
-    } MemoryMapping;
-
-    localparam MemoryMapping DEFAULT_MEMORY_MAPPING = '{'z, 'z, 0, 0, 0, 0};
-
-
     typedef struct {
         bit active;
         Mword vadr;
@@ -148,12 +135,9 @@ package Emulation;
             
         CpuState coreState;
         
-            // For now there are separate maps for program and data
-          //  MemoryMapping programMappings[$];
-          //  MemoryMapping dataMappings[$];
-
-            Translation programMappings_N[$];
-            Translation dataMappings_N[$];        
+        // For now there are separate maps for program and data
+        Translation programMappings[$];
+        Translation dataMappings[$];        
 
         PageBasedProgramMemory progMem = new();
         SparseDataMemory dataMem = new();
@@ -165,13 +149,10 @@ package Emulation;
             res.ip = ip;
             res.status = status;
             res.coreState = coreState;
-            
-//                res.programMappings = programMappings;
-//                res.dataMappings = dataMappings;
 
-                res.programMappings_N = programMappings_N;
-                res.dataMappings_N = dataMappings_N;
-                            
+            res.programMappings = programMappings;
+            res.dataMappings = dataMappings;
+                        
             res.progMem = new ();
             res.dataMem = new ();
             
@@ -183,11 +164,8 @@ package Emulation;
             status = other.status;
             coreState = other.coreState;
 
-  //          programMappings = other.programMappings;
-  //          dataMappings = other.dataMappings;
-
-            programMappings_N = other.programMappings_N;
-            dataMappings_N = other.dataMappings_N;
+            programMappings = other.programMappings;
+            dataMappings = other.dataMappings;
 
             dataMem = new other.dataMem;
             // Not setting progMem
@@ -207,10 +185,8 @@ package Emulation;
 
         function automatic void resetCoreAndMappings();
             resetCore();
-           // programMappings.delete();
-           // dataMappings.delete();
-            programMappings_N.delete();
-            dataMappings_N.delete();
+            programMappings.delete();
+            dataMappings.delete();
         endfunction
 
 
@@ -224,41 +200,31 @@ package Emulation;
         function automatic Translation translateProgramAddress(input Mword vadr);
             localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
 
-            //MemoryMapping found[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
-            Translation foundTr[$] = programMappings_N.find with (item.vadr == getPageBaseM(vadr));
-            Translation res;
-
-            //    assert (found.size() == foundTr.size()) else $error("not same p");
+            Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
 
             if (DO_NOT_TRANSLATE_P) begin
-                res = '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
+                return '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
-                res = DEFAULT_TRANSLATION;
+                return DEFAULT_TRANSLATION;
             end
             else
-                res = '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
-            return res;
+                return '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
         endfunction
 
         function automatic Translation translateDataAddress(input Mword vadr);
             localparam logic DO_NOT_TRANSLATE = 0; // TODO: don't remove, will be a dynamic param
 
-            //MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
-            Translation foundTr[$] = dataMappings_N.find with (item.vadr == getPageBaseM(vadr));
-            Translation res;
-
-            //    assert (found.size() == foundTr.size()) else $error("not same d");
+            Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
 
             if (DO_NOT_TRANSLATE) begin
-                res = '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
+                return '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
-                res = DEFAULT_TRANSLATION;
+                return DEFAULT_TRANSLATION;
             end
             else
-                res = '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
-            return res;
+                return '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
         endfunction
 
 
@@ -286,7 +252,7 @@ package Emulation;
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
 
-            if ($isunknown(padr) && ins.def.o != O_sysLoad) return 0;
+            if ($isunknown(padr) && ins.def.o != O_sysLoad) return 'x;
 
             case (ins.def.o)
                 O_intLoadW: begin

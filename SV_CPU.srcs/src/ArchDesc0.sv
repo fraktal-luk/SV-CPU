@@ -43,14 +43,6 @@ module ArchDesc0();
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
 
-    const MemoryMapping DEFAULT_DATA_MAPPINGS[$] = '{
-        '{0, 0, 1, 1, 1, 1},
-        '{PAGE_SIZE, PAGE_SIZE, 1, 1, 1, 1},
-        '{'h2000, 'h2000, 1, 1, 1, 1},
-        '{'h20000000, 'h200000000, 1, 1, 1, 1},
-        '{'h80000000, 'h800000000, 1, 1, 1, 0}
-    };
-
 
     localparam CYCLE = 10;
 
@@ -62,6 +54,9 @@ module ArchDesc0();
 
     Section common;
     
+    squeue uncachedSuites = '{
+        "Tests_basic_uncached.txt"
+    };
     
     squeue allSuites = '{
         "Tests_basic.txt",
@@ -81,7 +76,7 @@ module ArchDesc0();
 
     class Runner1 extends TestRunner;
         task automatic runTest(input string name);
-            runTestEmul(name, emul_N, DEFAULT_CALL_SECTION);
+            runTestEmul(name, emul_N);
             #1;
         endtask
     endclass
@@ -101,34 +96,21 @@ module ArchDesc0();
 
     
     function automatic void map3pages(ref Emulator em);
-//        em.programMappings.push_back('{0, 0,  1, 1, 1, 1});        
-//        em.programMappings.push_back('{PAGE_SIZE, PAGE_SIZE,  1, 1, 1, 1});        
-//        em.programMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
-            em.programMappings_N.push_back('{1, 0, '{1, 1, 1, 1, 1}, 0});
-            em.programMappings_N.push_back('{1, PAGE_SIZE, '{1, 1, 1, 1, 1}, PAGE_SIZE});
-            em.programMappings_N.push_back('{1, 2*PAGE_SIZE, '{1, 1, 1, 1, 1}, 2*PAGE_SIZE});
+        em.programMappings.push_back('{1, 0, '{1, 1, 1, 1, 1}, 0});
+        em.programMappings.push_back('{1, PAGE_SIZE, '{1, 1, 1, 1, 1}, PAGE_SIZE});
+        em.programMappings.push_back('{1, 2*PAGE_SIZE, '{1, 1, 1, 1, 1}, 2*PAGE_SIZE});
     endfunction
 
     function automatic void mapDataPages(ref Emulator em);
-//        em.dataMappings.push_back('{0, 0,  1, 1, 1, 1});        
-
-//        em.dataMappings.push_back('{'h80000000, 'h80000000,  1, 1, 0, 0});
-//        em.dataMappings.push_back('{'h20000000, 'h20000000,  1, 1, 1, 1});
-//        em.dataMappings.push_back('{'h2000, 'h2000,  1, 1, 1, 1});
-
-            em.dataMappings_N.push_back('{1, 0, '{1, 1, 1, 1, 1}, 0});        
-            em.dataMappings_N.push_back('{1, 'h80000000, '{1, 1, 1, 0, 0}, 'h80000000});        
-            em.dataMappings_N.push_back('{1, 'h20000000, '{1, 1, 1, 1, 1}, 'h20000000});        
-            em.dataMappings_N.push_back('{1, 'h2000, '{1, 1, 1, 1, 1}, 'h2000});        
-    
-            //em.dataMappings_N.push_back('{'h80000000, 'h80000000,  1, 1, 0, 0});
-            //em.dataMappings_N.push_back('{'h20000000, 'h20000000,  1, 1, 1, 1});
-            //em.dataMappings_N.push_back('{'h2000, 'h2000,  1, 1, 1, 1});      
+        em.dataMappings.push_back('{1, 0, '{1, 1, 1, 1, 1}, 0});        
+        em.dataMappings.push_back('{1, 'h80000000, '{1, 1, 1, 0, 0}, 'h80000000});        
+        em.dataMappings.push_back('{1, 'h20000000, '{1, 1, 1, 1, 1}, 'h20000000});        
+        em.dataMappings.push_back('{1, 'h2000, '{1, 1, 1, 1, 1}, 'h2000});             
     endfunction
 
 
     // Emul-only run
-    task automatic runTestEmul(input string name, ref Emulator emul, input Section callSec);
+    task automatic runTestEmul(input string name, ref Emulator emul);
         Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = name;
@@ -214,10 +196,8 @@ module ArchDesc0();
     task automatic resetAll(ref Emulator emul);
         time DELAY = 1;
         emul.resetWithDataMem();
-           // emul.programMappings.delete();
-           // emul.dataMappings.delete();
-            emul.programMappings_N.delete();
-            emul.dataMappings_N.delete();
+            emul.programMappings.delete();
+            emul.dataMappings.delete();
         #DELAY;
     endtask
 
@@ -238,7 +218,7 @@ module ArchDesc0();
         
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-        #1 runTestEmul("events", emul_N, TESTED_CALL_SECTION);
+        #1 runTestEmul("events", emul_N);
         
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
@@ -257,7 +237,7 @@ module ArchDesc0();
     generate
         class SimRunner extends TestRunner;
             task automatic runTest(input string name);
-                runTestSim(name, DEFAULT_CALL_SECTION);
+                runTestSim(name);
             endtask
         endclass
 
@@ -266,7 +246,7 @@ module ArchDesc0();
         Mword fetchAdr;       
 
 
-        task automatic runTestSim(input string name, input Section callSec);
+        task automatic runTestSim(input string name);
                 Word emul_progMem[] = new[4096 / 4]; // TODO: refactor to set page 0 with test program in 1 line, without additional vars
 
             #CYCLE announce(name);
@@ -346,11 +326,17 @@ module ArchDesc0();
         task automatic runSim();
             SimRunner runner = new();
               Word emul_progMem2[] = new[4096 / 4];
-              
                 theProgMem.assignPage(PAGE_SIZE, common.words);
+                
+                
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-            #CYCLE runner.runSuites(allSuites);  
+
+            #CYCLE;// $display("Suites: uncached");  
+            runner.runSuites(uncachedSuites);
+            
+            #CYCLE;// $display("Suites: all");  
+            runner.runSuites(allSuites);  
             
                 // Now assure that a pullback and reissue has happened because of mem replay
                 core.insMap.assertReissue();
@@ -359,7 +345,7 @@ module ArchDesc0();
             
                 prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-            runTestSim("events", TESTED_CALL_SECTION);
+            runTestSim("events");
             
                 prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
