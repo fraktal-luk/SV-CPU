@@ -31,16 +31,38 @@ module InstructionL1(
         way2 = '{default: 'x};
     endfunction
 
+    function automatic InstructionCacheOutput readCache(input Mword readAdr);
+        Mword truncatedAdr = readAdr & ~(4*FETCH_WIDTH-1);
+        InstructionCacheOutput res;
+        
+        foreach (res.words[i]) begin            
+            res.active = 1;
+            res.status = CR_HIT;
+            res.desc = '{1, 1, 1, 1, 1};
+            res.words[i] = content[truncatedAdr/4 + i];
+        end
+        
+        return res;
+    endfunction
+    
+
+        InstructionCacheOutput readOutSig, readOutSig_AC;
+        InstructionCacheOutput readOut_T;
+    
+        assign readOutSig = readCache(readAddress);
+        always_comb readOutSig_AC = readCache(readAddress);
+    
 
     always @(posedge clk) begin
-        automatic Mword truncatedAdr = readAddress & ~(4*FETCH_WIDTH-1);
+//        automatic Mword truncatedAdr = readAddress & ~(4*FETCH_WIDTH-1);
     
-        foreach (readOut.words[i]) begin            
-            readOut.active <= 1;
-            readOut.status <= CR_HIT;
-            readOut.desc <= '{1};
-            readOut.words[i] <= content[truncatedAdr/4 + i];
-        end
+//        foreach (readOut.words[i]) begin            
+//            readOut.active <= 1;
+//            readOut.status <= CR_HIT;
+//            readOut.desc <= '{1, 1, 1, 1, 1};
+//            readOut.words[i] <= content[truncatedAdr/4 + i];
+//        end
+        readOut <= readCache(readAddress);
     end
 
 

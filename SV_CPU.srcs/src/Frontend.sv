@@ -25,6 +25,7 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
+
     int fetchCtr = 0;
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 

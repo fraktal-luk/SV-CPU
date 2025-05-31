@@ -33,14 +33,15 @@ package CacheDefs;
     typedef struct {
         logic active;
         CacheReadStatus status;
-        InstructionLineDesc desc;        
+        //InstructionLineDesc desc;
+        DataLineDesc desc;       
         FetchGroup_N words;
     } InstructionCacheOutput;
     
     localparam InstructionCacheOutput EMPTY_INS_CACHE_OUTPUT = '{
         0,
         CR_INVALID,
-        '{0},
+        DEFAULT_DATA_LINE_DESC,
         '{default: 'x}
     };
     
