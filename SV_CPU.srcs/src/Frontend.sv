@@ -46,16 +46,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
 
 
-        task automatic TMP_cmp();
-            foreach (fetchStage0[i]) begin
-
-            end
-        endtask
-
 
     always @(posedge AbstractCore.clk) begin
-                TMP_cmp();
-
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectFront();
         else
@@ -250,11 +242,6 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
                 break;
             end
         end
-        
-        
-        if ($time() <= 300) begin
-           // $display("adr %d: tr = %p, a = %p, br = %p // %d, [%d] --> %d", res[0].adr, takenTargets, active, constantBranches, -1, lastSlot, nextAdr);
-        end
  
         return branchSlot;
     endfunction
@@ -334,8 +321,8 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
             Word realBits = cacheOut.words[i];
 
             if (res[i].active) begin
-                // TODO: change to frontend emul when created
-                Word bits = AbstractCore.renamedEmul.progMem_N.fetch(res[i].adr); // DB
+                Word bits = AbstractCore.//renamedEmul.progMem.fetch(res[i].adr); // DB
+                                         programMem.fetch(res[i].adr);
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             

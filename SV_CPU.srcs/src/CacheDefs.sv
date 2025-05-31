@@ -6,6 +6,7 @@ package CacheDefs;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
+    import EmulationDefs::*;
     
     import AbstractSim::*;
     import Insmap::*;
@@ -26,15 +27,8 @@ package CacheDefs;
         logic allowed;
     } InstructionLineDesc;
 
-    typedef struct {
-        logic allowed;
-        logic canRead;
-        logic canWrite;
-        logic canExec;
-        logic cached;
-    } DataLineDesc;
 
-    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
+
 
     typedef struct {
         logic active;
@@ -67,9 +61,6 @@ package CacheDefs;
 
 
 //////////////////
-
-    localparam int PAGE_SIZE = 4096;
-
 
     class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
         static
@@ -123,7 +114,6 @@ package CacheDefs;
     typedef Dword EffectiveAddress;
 
 
-    localparam int V_INDEX_BITS = 12;
     localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
     
     typedef logic[V_INDEX_BITS-1:0] VirtualAddressLow;
@@ -141,7 +131,7 @@ package CacheDefs;
     
     typedef logic[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS] BlockBaseD;
     
-    localparam int WAY_SIZE = 4096; // TODO: specific for each cache?
+    localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
     
     
     
@@ -172,17 +162,6 @@ package CacheDefs;
         return res;
     endfunction
 
-    function automatic Dword getPageBaseD(input Dword adr);
-        Dword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    function automatic Mword getPageBaseM(input Mword adr);
-        Mword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
 
 
     typedef struct {
@@ -235,19 +214,6 @@ package CacheDefs;
      } AccessDesc;
 
     localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
-
-
-    typedef struct {
-        logic present; // TLB hit
-        DataLineDesc desc;
-        Dword phys; // TODO: rename to 'padr'
-    } Translation;
-
-    localparam Translation DEFAULT_TRANSLATION = '{
-        present: 0,
-        desc: DEFAULT_DATA_LINE_DESC,
-        phys: 'x
-    };
 
 
 

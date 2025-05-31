@@ -3,6 +3,7 @@ import Base::*;
 import InsDefs::*;
 import Asm::*;
 import Emulation::*;
+import EmulationDefs::*;
 
 import AbstractSim::*;
 import Insmap::*;
@@ -24,7 +25,7 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
 );
     // Fill logic
     logic notifyFill = 0;
-    Key notifiedAdr = 'x; // TODO: change to Dword (with RQ)
+    Key notifiedAdr = 'x;
 
     int     blockFillCounters[Key]; // Container for request in progress
     Key     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
@@ -72,8 +73,6 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
     endtask
 
     function automatic void scheduleBlockFill(input Key adr);
-       // Key physBase = (adr/BLOCK_SIZE)*BLOCK_SIZE;
-
         if (!blockFillCounters.exists(adr))
             blockFillCounters[adr] = DELAY;            
     endfunction
@@ -114,6 +113,14 @@ module UncachedSubsystem(
     Mbyte uncachedArea[PAGE_SIZE];
 
 
+    task automatic UNC_reset();
+        uncachedCounter = -1;
+        uncachedBusy = 0;
+        uncachedOutput = 'x;
+        
+        uncachedArea = '{default: 0};
+    endtask
+
 
     function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
         uncachedReads[0].ongoing = 1;
@@ -152,11 +159,6 @@ module UncachedSubsystem(
         function automatic Mword readByteUncached(input Mword adr);
             return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
         endfunction
-
-        task automatic UNC_reset();
-            uncachedCounter = -1;
-            uncachedBusy = 0;
-        endtask
     
         task automatic UNC_write(input MemWriteInfo wrInfo);
             Mword adr = wrInfo.adr;

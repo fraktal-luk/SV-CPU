@@ -3,6 +3,7 @@ import Base::*;
 import InsDefs::*;
 import Asm::*;
 import Emulation::*;
+import EmulationDefs::*;
 
 import AbstractSim::*;
 import Insmap::*;
@@ -21,7 +22,6 @@ module DataL1(
     // TLB
     localparam int DATA_TLB_SIZE = 32;
 
-    localparam int WAY_SIZE = 4096;
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
 
     typedef Translation TranslationA[N_MEM_PORTS];
@@ -79,74 +79,54 @@ module DataL1(
     endfunction
 
 
-    // CAREFUL: below only for addresses in the range for data miss tests 
-    //DataBlock filledBlocks[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
-    // CAREFUL: below only for addresses in the range for TLB miss tests 
-   // Translation filledMappings[Mword]; // Set of blocks in "force data miss" region which are "filled" and will not miss again 
 
-        //Translation TMP_tlb[DATA_TLB_SIZE] = '{default: DEFAULT_TRANSLATION};
         Translation TMP_tlb[Mword];
         Translation TMP_tlbL2[Mword];
 
-        Mword translationVadrsL1[DATA_TLB_SIZE];
-        Translation translationTableL1[DATA_TLB_SIZE];
+        Translation translationTableL1[DATA_TLB_SIZE]; // DB
 
         
         function automatic void DB_fillTranslations();
             int i = 0;
+            translationTableL1 = '{default: DEFAULT_TRANSLATION};
             foreach (TMP_tlb[a]) begin
-                translationVadrsL1[i] = a;
                 translationTableL1[i] = TMP_tlb[a];
                 i++;
             end
         endfunction
 
 
-        // UNUSED?
-        function automatic logic isUncachedRange(input Mword adr);
-            return adr >= uncachedSubsystem.UNCACHED_BASE && adr < uncachedSubsystem.UNCACHED_BASE + $size(uncachedSubsystem.uncachedArea);
-        endfunction
-
-//    function automatic logic isStaticTlbRange(input Mword adr);        
-//        return isUncachedRange(adr) // TEMP: uncached region is mapped by default
-//                || adr < 'h80000; // TEMP: Let's give 1M for static mappings
-//    endfunction
-
-
     task automatic reset();
-        
-        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-    
-        Translation physPage0 = '{present: 1, desc: cachedDesc, phys: 0};
-        Translation physPage1 = '{present: 1, desc: cachedDesc, phys: 4096};
-        Translation physPage2000 = '{present: 1, desc: cachedDesc, phys: 'h2000};
-        Translation physPage20000000 = '{present: 1, desc: cachedDesc, phys: 'h20000000};
-        Translation physPageUnc = '{present: 1, desc: uncachedDesc, phys: 'h80000000};
-
-            TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
-            TMP_tlbL2 = '{'h20000000: physPage20000000};
-
-            translationVadrsL1 = '{default: 'z};
-            translationTableL1 = '{default: DEFAULT_TRANSLATION};
-            DB_fillTranslations();
-
-            initBlocksWay0();
-            initBlocksWay1();     
-        
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
-        
-      //  filledMappings.delete();
 
         dataFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
 
-        uncachedSubsystem.uncachedArea = '{default: 0};
-        uncachedSubsystem.UNC_reset();
+        uncachedSubsystem.UNC_reset();        
     endtask
 
+
+
+    task automatic prefetchForTest();
+        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+    
+        Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+        Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
+        Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
+        Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+        Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
+
+        TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
+        TMP_tlbL2 = '{'h20000000: physPage20000000};
+
+        DB_fillTranslations();
+
+        initBlocksWay0();
+        initBlocksWay1(); 
+    endtask 
 
 
     function automatic Mword readSized(input Mword val, input AccessSize size);
@@ -182,7 +162,6 @@ module DataL1(
 
 
     function automatic logic tryWriteWay(ref DataWay way, input AccessInfo aInfo, input MemWriteInfo wrInfo);
-        // TODO: may cross blocks
         DataCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(wrInfo.padr);
 
@@ -195,17 +174,9 @@ module DataL1(
     endfunction
 
 
-    ///////////////////////////////
-
-
     ////////////////////////////////////
     // Presence & allocation functions 
     //
-//    function automatic logic isTlbPresent(input Mword adr);
-//        Mword pageBase = (adr/PAGE_SIZE)*PAGE_SIZE;
-//        return isStaticTlbRange(adr) || filledMappings.exists(pageBase);
-//    endfunction
-
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
@@ -234,14 +205,12 @@ module DataL1(
     function automatic void allocInTlb(input Mword adr);
         Translation DUMMY;
         Mword pageBase = adr;
+            
+        assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
         
-      //  filledMappings[pageBase] = DUMMY;
-            
-            assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
-            
-            translationVadrsL1[TMP_tlb.size()] = pageBase;
-            translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
-            TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
+        //translationVadrsL1[TMP_tlb.size()] = pageBase;
+        translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
+        TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
     endfunction
 
 
@@ -258,7 +227,7 @@ module DataL1(
         end
 
         res = TMP_tlb[vbase];
-        res.phys = {adrHigh(res.phys), adrLow(adr)};
+        res.padr = {adrHigh(res.padr), adrLow(adr)};
 
         return res;
     endfunction
@@ -290,7 +259,7 @@ module DataL1(
     function automatic DwordA dataFillPhysical();
         DwordA res = '{default: 'x};
         foreach (readOut[p]) begin
-            res[p] = getBlockBaseD(translations_Reg[p].phys);
+            res[p] = getBlockBaseD(translations_Reg[p].padr);
         end
         return res;
     endfunction
@@ -353,7 +322,8 @@ module DataL1(
         return res;
     endfunction
 
-
+    
+    // TODO: support for block crossing and page crossing accesses
     task automatic handleReads();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
@@ -390,15 +360,12 @@ module DataL1(
 
 
     function automatic ReadResult readWay(input DataWay way, input AccessInfo aInfo, input Translation tr);
-        // TODO: may cross blocks
-
         DataCacheBlock block = way[aInfo.block];
-        Dword accessPbase = getBlockBaseD(tr.phys);
+        Dword accessPbase = getBlockBaseD(tr.padr);
 
         if (block == null) return '{0, 'x};
 
         begin
-            // TODO: handle all possible sizes
             logic hit0 = (accessPbase === block.pbase);
             Mword val0 = aInfo.size == SIZE_1 ? block.readByte(aInfo.blockOffset) : block.readWord(aInfo.blockOffset);                    
 

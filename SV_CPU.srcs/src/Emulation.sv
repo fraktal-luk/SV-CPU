@@ -3,6 +3,7 @@ package Emulation;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import EmulationDefs::*;
 
 
     typedef struct {
@@ -10,274 +11,24 @@ package Emulation;
         Mword target;
     } CpuState;
 
-    const Mword SYS_REGS_INITIAL[32] = '{
-        0: -1,
-        default: 0
-    };
+    const Mword SYS_REGS_INITIAL[32] = '{0: -1, default: 0};
 
     function automatic CpuState initialState(input Mword trg);
         return '{intRegs: '{default: 0}, floatRegs: '{default: 0}, sysRegs: SYS_REGS_INITIAL, target: trg};
     endfunction
 
-    typedef struct {
-       Mword target;
-       logic redirect;
-    } ExecEvent;
 
     typedef struct {
         bit active;
-        Mword adr;
+        Mword vadr;
         Dword padr;
         Mword value;
-        int size;
+        int size; // in bytes
     } MemoryWrite;
 
-    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, adr: 'x, padr: 'x, value: 'x, size: -1};
-
-//    typedef struct {
-//        logic wrInt;
-//        logic wrFloat;
-//        int dest;
-//        Mword value;
-//    } RegisterWrite;
-
-//    const RegisterWrite DEFAULT_REG_WRITE = '{wrInt: 0, wrFloat: 0, dest: -1, value: 'x};
-
-//    typedef struct {
-//        int error;
-//        //RegisterWrite regWrite;          
-//        MemoryWrite memWrite;
-//        Mword target;
-//    } ExecResult;
-
-//    const ExecResult DEFAULT_EXEC_RESULT = '{error: 0,/* regWrite: DEFAULT_REG_WRITE,*/ memWrite: DEFAULT_MEM_WRITE, target: 'x};
-
-
-    // 4kB pages
-    class PageBasedProgramMem;
-        localparam PAGE_BYTES = 4096;
-        localparam PAGE_WORDS = PAGE_BYTES/4;
-        typedef Word Page[];
-        
-        Page pages[int];
-
-      
-        // TODO: removePage()
-      
-        function automatic void resetPage(input Mword startAdr);
-            int index = startAdr/PAGE_BYTES;
-            pages[index] = '{default: 'x};
-        endfunction
-
-        function automatic void createPage(input Mword startAdr);
-            int index = startAdr/PAGE_BYTES;
-            pages[index] = new[PAGE_WORDS]('{default: 'x});
-        endfunction
-
-        function automatic void assignPage(input Mword startAdr, input Word arr[]);
-            int index = startAdr/PAGE_BYTES;
-            pages[index] = arr;
-        endfunction
-
-        function automatic void writePage(input Mword startAdr, input Word arr[]);
-            int index = startAdr/PAGE_BYTES;
-            int size = arr.size() < PAGE_WORDS ? arr.size() : PAGE_WORDS;
-            int offset = 0;
-            while (offset < size) pages[index][offset] = arr[offset++];
-            while (offset < PAGE_WORDS) pages[index][offset++] = 'x;
-        endfunction
-        
-        function automatic Word fetch(input Mword startAdr);
-            int index = startAdr/PAGE_BYTES;
-            int offset = (startAdr%PAGE_BYTES)/4;
-            
-            return pages[index][offset];
-        endfunction
-        
-        
-        function automatic Page getPage(input Mword startAdr);
-            int index = startAdr/PAGE_BYTES;
-            return pages[index];
-        endfunction
-    endclass
-
-
-
-    class SparseDataMem;
-        
-        class RW#(type Elem = Mbyte, int ESIZE = 1);
-            static
-            function automatic void write(input Dword startAdr, input Elem value, ref Mbyte ct[Dword]);
-                Mbyte bytes[ESIZE] = {>>{value}};
-                foreach (bytes[i]) ct[startAdr+i] = bytes[i];
-            endfunction
-            
-            static
-            function automatic Elem read(input Dword startAdr, ref Mbyte ct[Dword]);
-                Mbyte bytes[ESIZE];
-                foreach (bytes[i]) bytes[i] = ct.exists(startAdr+i) ? ct[startAdr+i] : 0;
-                return {>>{bytes}};
-            endfunction     
-        endclass
-        
-        
-        Mbyte content[Dword];
-        
-        function automatic void clear();
-            content.delete();
-        endfunction
-        
-        
-        function automatic void writeWord(input Dword startAdr, input Word value);
-            RW#(Word, 4)::write(startAdr, value, content);
-        endfunction
-
-        function automatic void writeByte(input Dword startAdr, input Mbyte value);
-            RW#(Mbyte, 1)::write(startAdr, value, content);
-        endfunction
-
-
-        function automatic Word readWord(input Dword startAdr);
-            return RW#(Word, 4)::read(startAdr, content);
-        endfunction
-
-        function automatic Mbyte readByte(input Dword startAdr);
-            return RW#(Mbyte, 1)::read(startAdr, content);
-        endfunction
-       
-    endclass
+    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
 
     
-    // Not including memory
-    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
-        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
-    endfunction    
-
-
-    function automatic logic isBranchIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_jump};
-    endfunction
-
-    function automatic logic isBranchImmIns(input AbstractInstruction ins);
-        return ins.mnemonic inside {"ja", "jl", "jz_i", "jnz_i"};
-    endfunction
-
-    function automatic logic isBranchAlwaysIns(input AbstractInstruction ins);
-        return ins.mnemonic inside {"ja", "jl"};
-    endfunction
-
-    function automatic logic isBranchRegIns(input AbstractInstruction ins);
-        return ins.mnemonic inside {"jz_r", "jnz_r"};
-    endfunction       
-        
-
-    function automatic logic isMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD, O_floatLoadW, O_floatStoreW,  O_intLoadB,  O_intStoreB,  O_intLoadAqW, O_intStoreRelW};
-    endfunction
-    
-    function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_undef, O_call, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
-    endfunction
-
-    function automatic logic isLoadIns(input AbstractInstruction ins);
-        return isLoadMemIns(ins) || isLoadSysIns(ins);
-    endfunction
-
-    function automatic logic isLoadSysIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_sysLoad});
-    endfunction
-
-    function automatic logic isLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
-    endfunction
-
-    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_floatLoadW});
-    endfunction
-
-    function automatic logic isStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
-    endfunction
-
-    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_floatStoreW};
-    endfunction
-    
-
-    function automatic logic isStoreSysIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_sysStore};
-    endfunction
-    
-    function automatic logic isStoreIns(input AbstractInstruction ins);
-        return isStoreMemIns(ins) || isStoreSysIns(ins);
-    endfunction
-
-
-    function automatic bit hasIntDest(input AbstractInstruction ins);
-        return ins.def.o inside {
-            O_jump,
-            
-            O_intAnd,
-            O_intOr,
-            O_intXor,
-            
-            O_intAdd,
-            O_intSub,
-            O_intAddH,
-            
-                O_intCmpGtU,
-                O_intCmpGtS,
-            
-            O_intMul,
-            O_intMulHU,
-            O_intMulHS,
-            O_intDivU,
-            O_intDivS,
-            O_intRemU,
-            O_intRemS,
-            
-            O_intShiftLogical,
-            O_intShiftArith,
-            O_intRotate,
-            
-            O_intLoadW,
-            O_intLoadD,
-                
-                O_intLoadB,
-                
-                O_intLoadAqW,
-                O_intStoreRelW,
-            
-            O_sysLoad
-        };
-    endfunction
-
-    function automatic bit hasFloatDest(input AbstractInstruction ins);
-        return ins.def.o inside {
-            O_floatMove,
-            O_floatOr, O_floatAddInt,
-            O_floatLoadW
-        };
-    endfunction
-
-
-    function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);
-        Mword3 args = vals;
-        bit redirect = 0;
-        Mword brTarget = (abs.mnemonic inside {"jz_r", "jnz_r"}) ? args[1] : adr + args[1];
-
-        case (abs.mnemonic)
-            "ja", "jl": redirect = 1;
-            "jz_i": redirect = (args[0] == 0);
-            "jnz_i": redirect = (args[0] != 0);
-            "jz_r": redirect = (args[0] == 0);
-            "jnz_r": redirect = (args[0] != 0);
-            default: ;
-        endcase
-
-        return '{brTarget, redirect};
-    endfunction
-
 
     function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);
         if (regNum == 0) return;
@@ -290,92 +41,10 @@ package Emulation;
         state.floatRegs[regNum] = value;
     endfunction
     
-    // Return 1 if exc
-    function automatic logic writeSysReg(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
-        assert (!$isunknown(value)) else $error("Writing unknown value!");
-        
-        if (regNum > 31) return 1;
-        
+
+    function automatic void writeSysReg(ref CpuState state, input int regNum, input Mword value);
         state.sysRegs[regNum] = value;
-        return 0;
     endfunction
-
-
-    function automatic Mword getArgValue(input Mword intRegs[32], input Mword floatRegs[32], input int src, input byte spec);
-        case (spec)
-           "i": return (intRegs[src]);
-           "f": return (floatRegs[src]);
-           "c": return Mword'(src);
-           "0": return 0;
-           default: $fatal("Wrong arg spec");    
-        endcase;    
-    
-    endfunction
-
-    function automatic Mword3 getArgs(input Mword intRegs[32], input Mword floatRegs[32], input int sources[3], input string typeSpec);
-        Mword3 res;        
-        foreach (sources[i]) res[i] = getArgValue(intRegs, floatRegs, sources[i], typeSpec[i+2]);
-        
-        return res;
-    endfunction
-
-
-   function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
-        Mword result;
-        case (ins.def.o)
-            //O_jump: result = ip + 4; // link adr
-            
-            O_intAnd:  result = vals[0] & vals[1];
-            O_intOr:   result = vals[0] | vals[1];
-            O_intXor:  result = vals[0] ^ vals[1];
-            
-            O_intAdd:  result = vals[0] + vals[1];
-            O_intSub:  result = vals[0] - vals[1];
-            O_intAddH: result = vals[0] + (vals[1] << 16);
-            
-                O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
-                O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
-            
-            O_intMul:   result = vals[0] * vals[1];
-            O_intMulHU: result = (Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
-            O_intMulHS: result = (Dword'($signed(vals[0])) * Dword'($signed(vals[1]))) >> 32;
-            O_intDivU:  result = divUnsignedW(vals[0], vals[1]);//$unsigned(vals[0]) / $unsigned(vals[1]);
-            O_intDivS:  result = divSignedW(vals[0], vals[1]);
-            O_intRemU:  result = remUnsignedW(vals[0], vals[1]);//$unsigned(vals[0]) % $unsigned(vals[1]);
-            O_intRemS:  result = remSignedW(vals[0], vals[1]);
-            
-            O_intShiftLogical: begin                
-                if ($signed(vals[1]) >= 0) result = $unsigned(vals[0]) << vals[1];
-                else                       result = $unsigned(vals[0]) >> -vals[1];
-            end
-            O_intShiftArith: begin                
-                if ($signed(vals[1]) >= 0) result = $signed(vals[0]) << vals[1];
-                else                       result = $signed(vals[0]) >> -vals[1];
-            end
-            O_intRotate: begin
-                if ($signed(vals[1]) >= 0) result = {vals[0], vals[0]} << vals[1];
-                else                       result = {vals[0], vals[0]} >> -vals[1];
-            end
-            
-            O_floatMove: result = vals[0];
-
-            O_floatOr:   result = vals[0] | vals[1];
-            O_floatAddInt: result = vals[0] + vals[1];
-
-            default: ;
-        endcase
-        
-        // Some operations may have undefined cases but must not cause problems for the CPU
-        if ((ins.def.o inside {O_intDivU, O_intDivS, O_intRemU, O_intRemS}) && $isunknown(result)) result = -1;
-        
-        return result;
-    endfunction
-
-
-    function automatic Mword calculateEffectiveAddress(input AbstractInstruction ins, input Mword3 vals);
-        return (ins.def.o inside {O_sysLoad, O_sysStore}) ? vals[1] : vals[0] + vals[1];
-    endfunction
-
 
     function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Mword adr);
         writeIntReg(state, ins.dest, adr + 4);
@@ -387,6 +56,8 @@ package Emulation;
         bit halted;
         bit error;
         bit send;
+        ProgramEvent eventType;
+            
     } CoreStatus;
 
     function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
@@ -399,8 +70,12 @@ package Emulation;
 
     function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
         case (abs.def.o)
-            O_sysStore: begin
-                state.target = adr + 4;
+            O_error: begin
+                state.target = IP_ERROR;
+
+                state.sysRegs[4] = state.sysRegs[1];
+                state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                state.sysRegs[2] = adr + 4;
             end
             O_undef: begin
                 state.target = IP_ERROR;
@@ -443,8 +118,8 @@ package Emulation;
     endfunction
 
     
-    function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs);
-        state.target = IP_EXC;
+    function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs, input Mword trg);
+        state.target = trg;
 
         state.sysRegs[4] = state.sysRegs[1];
         state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
@@ -452,63 +127,108 @@ package Emulation;
     endfunction
 
 
+
+
     class Emulator;
         Mword ip;
-        //string str; // Remove?
         CoreStatus status;
+            
         CpuState coreState;
         
-        PageBasedProgramMem progMem_N = new();
-        SparseDataMem dataMem_N = new();
+        // For now there are separate maps for program and data
+        Translation programMappings[$];
+        Translation dataMappings[$];        
+
+        PageBasedProgramMemory progMem = new();
+        SparseDataMemory dataMem = new();
         
-        MemoryWrite writeToDo;
 
-
-        function automatic Emulator copy();
+        function automatic Emulator copyCore();
             Emulator res = new();
             
             res.ip = ip;
-            //res.str = str;
             res.status = status;
             res.coreState = coreState;
-            
-            res.progMem_N = new progMem_N;
-            res.dataMem_N = new dataMem_N;
-            
-            res.writeToDo = writeToDo;
+
+            res.programMappings = programMappings;
+            res.dataMappings = dataMappings;
+                        
+            res.progMem = new ();
+            res.dataMem = new ();
             
             return res;
         endfunction
 
         function automatic void setLike(input Emulator other);
             ip = other.ip;
-            //str = other.str;
             status = other.status;
             coreState = other.coreState;
-            dataMem_N = new other.dataMem_N;
-            writeToDo = other.writeToDo;
+
+            programMappings = other.programMappings;
+            dataMappings = other.dataMappings;
+
+            dataMem = new other.dataMem;
+            // Not setting progMem
         endfunction
 
-        // CAREFUL: clears data memory, doesn't affect progMem
-        function automatic void reset();
+        function automatic void resetCore();
             this.ip = 'x;
-            //this.str = "";
 
-            this.status = '{default: 0};
-            this.writeToDo = DEFAULT_MEM_WRITE;
+            this.status = '{eventType: PE_NONE, default: 0};
 
             this.coreState = initialState(IP_RESET);
-
-            this.dataMem_N.clear();
+                
+               // TODO: think about mappings. They are not cleared here because simulation needs them but it seems inconsistent
+               // this.programMappings.delete();
+               // this.dataMappings.delete();
         endfunction
 
-        // TODO
-        function automatic Dword translateAddress(input Mword vadr);
-            return Dword'(vadr);
+        function automatic void resetCoreAndMappings();
+            resetCore();
+            programMappings.delete();
+            dataMappings.delete();
         endfunction
+
+
+        function automatic void resetWithDataMem();
+            resetCore();
+            dataMem.clear();
+        endfunction
+
+
+
+        function automatic Translation translateProgramAddress(input Mword vadr);
+            localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
+
+            Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
+
+            if (DO_NOT_TRANSLATE_P) begin
+                return '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
+            end
+            else if (foundTr.size() == 0) begin
+                return DEFAULT_TRANSLATION;
+            end
+            else
+                return '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
+        endfunction
+
+        function automatic Translation translateDataAddress(input Mword vadr);
+            localparam logic DO_NOT_TRANSLATE = 0; // TODO: don't remove, will be a dynamic param
+
+            Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+
+            if (DO_NOT_TRANSLATE) begin
+                return '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
+            end
+            else if (foundTr.size() == 0) begin
+                return DEFAULT_TRANSLATION;
+            end
+            else
+                return '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
+        endfunction
+
 
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
-            //Mword res = 'x;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
     
@@ -518,60 +238,109 @@ package Emulation;
             if (isBranchIns(ins))
                 return adr + 4;
             
+            // TODO: set exception if any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
-                Dword padr = translateAddress(vadr);
-                return getLoadValue(ins, vadr, padr);
+                Translation tr = translateDataAddress(vadr);
+                return getLoadValue(ins, vadr, tr.padr);
             end
             
             return 'x;
         endfunction
-
+        
+        // TODO: introduce mem exceptions etc
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
-    
+
+            if ($isunknown(padr) && ins.def.o != O_sysLoad) return 'x;
+
             case (ins.def.o)
                 O_intLoadW: begin
-                    result = dataMem_N.readWord(padr);
+                    result = dataMem.readWord(padr);
                 end
-                O_intLoadB: result = Mword'(dataMem_N.readByte(padr));
-                O_intLoadAqW: result = dataMem_N.readWord(padr); // TODO
-                
+                O_intLoadB: result = Mword'(dataMem.readByte(padr));
+                O_intLoadAqW: result = dataMem.readWord(padr); // FUTURE
+
                 O_intLoadD: ;
                 O_floatLoadW: begin
-                    result = dataMem_N.readWord(padr);
+                    result = dataMem.readWord(padr);
                 end
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
             endcase
-            
+                        
             return result;
         endfunction
 
 
+    
         function automatic void executeStep();
-            Mword adr = this.coreState.target;
-            Word bits = progMem_N.fetch(adr);
-            AbstractInstruction absIns = decodeAbstract(bits);
-            //ExecResult execRes = 
-            processInstruction(adr, absIns);            
+            Mword vadr = this.coreState.target;
+            
+            if (!virtualAddressValid(vadr)) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_INVALID_ADDRESS;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                return;
+            end
+            else if (vadr % 4 !== 0) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_UNALIGNED_ADDRESS;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                return;
+            end
+            else begin
+                Translation tr = translateProgramAddress(vadr);
+
+                if (!tr.present) begin
+                    status.error = 1;
+                    status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
+                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                    return;
+                end
+                else if (!tr.desc.canExec) begin
+                    status.error = 1;
+                    status.eventType = PE_FETCH_DISALLOWED_ACCESS;
+                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                    return;
+                end
+                else if (!physicalAddressValid(tr.padr)) begin
+                    status.error = 1;
+                    status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
+                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                    return;
+                end
+                else begin
+                    AbstractInstruction absIns;
+                    TMP_FetchResult fres = progMem.fetch_N(tr.padr);
+                    
+                    if (!fres.ok) begin
+                        status.error = 1;
+                        status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
+                        coreState.target = IP_FETCH_EXC;
+                        modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                        return;
+                    end 
+                   
+                    absIns = decodeAbstract(fres.w);
+                    processInstruction(vadr, absIns);
+                end
+            end            
         endfunction 
         
 
         // Clear mem write and signals to send
         function automatic void drain();
-            this.writeToDo = '{default: 0};
             this.status.send = 0;
         endfunction
 
+
         function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
-            //ExecResult res = DEFAULT_EXEC_RESULT;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
+            MemoryWrite writeToDo = '{default: 0};
 
             this.ip = adr;
-            //this.str = disasm(ins.encoding);
-
             this.coreState.target = adr + 4;
             
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
@@ -581,22 +350,21 @@ package Emulation;
                 performBranch(ins, adr, args);
             
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
-                performMem(ins, args);
-                this.writeToDo = getMemWrite(ins, args);
+                logic exceptionFromMem = performMem(ins, args);
+                if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
-            if (this.writeToDo.active) begin
+            if (isSysIns(ins))
+                performSys(adr, ins, args);
+            
+            if (writeToDo.active) begin
                 case (writeToDo.size)
-                    1: dataMem_N.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
-                    4: dataMem_N.writeWord(writeToDo.padr, writeToDo.value);
+                    1: dataMem.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
+                    4: dataMem.writeWord(writeToDo.padr, writeToDo.value);
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end
 
-            if (isSysIns(ins))
-                performSys(adr, ins, args);
-
-            //return res;
         endfunction
 
 
@@ -604,30 +372,6 @@ package Emulation;
             Mword result = calculateResult(ins, vals, adr);
             if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
-        endfunction
-
-        local function automatic logic exceptionCaused(input AbstractInstruction ins, input Mword adr);
-            if (ins.def.o == O_sysLoad && adr > 31) return 1;
-            if (ins.def.o == O_sysStore && adr > 31) return 1;
-            
-            return 0;
-        endfunction
-        
-        local function automatic void performMem(input AbstractInstruction ins, input Mword3 vals);
-            Mword vadr = calculateEffectiveAddress(ins, vals);
-            Dword padr = translateAddress(vadr);
-            
-            if (exceptionCaused(ins, vadr)) begin
-                modifySysRegsOnException(this.coreState, this.ip, ins);
-                return;
-            end
-            
-            begin
-                Mword result = getLoadValue(ins, vadr, padr);
-                if (!isLoadIns(ins)) return;
-                if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
-                if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
-            end
         endfunction
 
         local function automatic void performBranch(input AbstractInstruction ins, input Mword ip, input Mword3 vals);
@@ -640,11 +384,91 @@ package Emulation;
             this.coreState.target = trg;
         endfunction 
 
+        local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
+            if (isStoreSysIns(ins)) begin
+                assert (!$isunknown(vals[1]) && !$isunknown(vals[2])) else $error("Writing unknown!");
+                if (catchSysAccessException(ins, vals[1])) return;
+                
+                writeSysReg(coreState, vals[1], vals[2]);
+            end
+            else begin
+                modifyStatus(ins);
+                modifySysRegs(this.coreState, adr, ins);
+            end
+        endfunction
+        
+        // Return 1 if exception
+        local function automatic logic performMem(input AbstractInstruction ins, input Mword3 vals);
+            Mword vadr = calculateEffectiveAddress(ins, vals);
+            Dword padr = 'x;
+
+            if (isLoadSysIns(ins)) begin
+                if (catchSysAccessException(ins, vadr)) return 1;
+            end
+            else begin
+                Translation tr = translateDataAddress(vadr);
+                padr = tr.padr;
+                
+                if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) return 1;
+            end
+            
+            begin
+                Mword result = getLoadValue(ins, vadr, padr);
+                if (!isLoadIns(ins)) return 0;
+                if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
+                if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
+            end
+            
+            return 0;
+        endfunction
+
+
+        // Return 1 if exc
+        local function automatic logic writeSysReg__(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
+            assert (!$isunknown(value)) else $error("Writing unknown value!");
+            
+            if (catchSysAccessException(ins, regNum)) return 1;
+
+            writeSysReg(state, regNum, value);
+            return 0;
+        endfunction
+
+        
+        local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
+            MemoryWrite res = DEFAULT_MEM_WRITE;
+            Mword effAdr = calculateEffectiveAddress(ins, vals);            
+            Translation tr = translateDataAddress(effAdr);
+            logic en = 1;
+            int size = -1;
+
+            case (ins.def.o)
+                //O_intStoreD: size = 8;
+                O_intStoreW: size = 4;
+                O_intStoreRelW: size = 4;
+                O_intStoreB: size = 1;
+                O_floatStoreW: size = 4;
+                default: ;
+            endcase
+            
+            if (isStoreMemIns(ins)) res = '{en, effAdr, tr.padr, vals[2], size};
+            return res;
+        endfunction
+
+
         function automatic void modifyStatus(input AbstractInstruction abs);
             case (abs.def.o)
                 O_sysStore: ;
-                O_undef: this.status.error = 1;
-                O_call: ;
+                O_error: begin                    
+                    status.error = 1;
+                    status.eventType = PE_SYS_ERROR;
+                end
+                O_undef: begin
+                    status.error = 1;
+                    status.eventType = PE_SYS_UNDEFINED_INSTRUCTION;
+                end
+                O_call: begin
+                    status.eventType = PE_SYS_CALL;
+                end
                 O_sync: ;
                 O_retE: ;
                 O_retI: ;
@@ -655,39 +479,57 @@ package Emulation;
             endcase
         endfunction
 
-        local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
-            if (isStoreSysIns(ins)) begin
-                logic exc = writeSysReg(this.coreState, ins, vals[1], vals[2]);                
-                if (exc) modifySysRegsOnException(this.coreState, this.ip, ins);
-                else modifySysRegs(this.coreState, adr, ins);
+
+        local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
+            if (ins.def.o == O_sysLoad && adr > 31) begin
+                status.eventType = PE_SYS_INVALID_ADDRESS;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_EXC);
+                return 1;
             end
-            else begin
-                modifyStatus(ins);
-                modifySysRegs(this.coreState, adr, ins);
+            if (ins.def.o == O_sysStore && adr > 31) begin
+                status.eventType = PE_SYS_INVALID_ADDRESS;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_EXC);
+                return 1;
             end
-        endfunction
-        
-        local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
-            MemoryWrite res = DEFAULT_MEM_WRITE;
-            Mword effAdr = calculateEffectiveAddress(ins, vals);            
-            Dword physAdr = translateAddress(effAdr);            
-            logic en = !exceptionCaused(ins, effAdr);
-            int size = -1;
             
-            case (ins.def.o)
-                //O_intStoreD: size = 8;
-                O_intStoreW: size = 4;
-                O_intStoreRelW: size = 4;
-                O_intStoreB: size = 1;
-                O_floatStoreW: size = 4;
-                default: ;
-            endcase
-            
-            if (isStoreMemIns(ins)) res = '{en, effAdr, physAdr, vals[2], size};
-            return res;
+            return 0;
         endfunction
 
+        local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, input Dword padr, input logic present);
+                // TODO
+
+            // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
+            if (!virtualAddressValid_T(vadr)) begin
+                status.eventType = PE_MEM_INVALID_ADDRESS;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
+                return 1;
+            end
+            
+            // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
+            if (!present) begin
+                status.eventType = PE_MEM_UNMAPPED_ADDRESS;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
+                return 1;         
+            end
+
+            // PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
+            // TODO
+            
+            // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
+            if (!physicalAddressValid(padr)) begin
+                status.eventType = PE_MEM_NONEXISTENT_ADDRESS;
+                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
+                return 1; 
+            end                    
+
+            
+            return 0;
+        endfunction
+
+
         function automatic void interrupt();
+            status.eventType = PE_EXT_INTERRUPT;
+        
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
         
@@ -696,7 +538,6 @@ package Emulation;
 
     function automatic void runInEmulator(ref Emulator emul, input Mword adr, input Word bits);
         AbstractInstruction ins = decodeAbstract(bits);
-        //ExecResult res = 
         emul.processInstruction(adr, ins);
     endfunction
 

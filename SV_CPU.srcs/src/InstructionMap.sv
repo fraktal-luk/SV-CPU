@@ -4,6 +4,7 @@ package Insmap;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import EmulationDefs::*;
     import Emulation::*;
     
     import UopList::*;
@@ -175,10 +176,11 @@ package Insmap;
                 ReadSysReg,
                 ReadSQ,
             
-            WriteMemAddress, // U
-            WriteMemValue,   // U
+            WriteLoadAddress, // U
+            WriteStoreAddress, // U
+            WriteStoreValue,   // U
             
-            // FUTURE: MQ related: Miss (by type? or types handled separately by mem tracking?), writ to MQ, activate, issue
+            // FUTURE: MQ related: Miss (by type? or types handled separately by mem tracking?), write to MQ, activate, issue
                 MemConfirmed,
                 MemMissed,
             
@@ -293,7 +295,7 @@ package Insmap;
         function automatic void commitCheck();
             while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
 
-                // TODO: remove mids because range [first, last] is enough?
+                // FUTURE: remove mids and uids as queues because range [first, last] is enough?
                 InsId removedId = insBase.mids.pop_front();
             
                 Unum firstUop = insBase.minfos[removedId].firstUop;
@@ -308,7 +310,6 @@ package Insmap;
                     recordsU.delete(firstUop + u);
                     insBase.uinfos.delete(firstUop + u);
                     
-                    // TODO: remove uids because range [first, last] is enough?
                     assert (insBase.uids[0] == firstUop + u) else $error("not match");
                     void'(insBase.uids.pop_front());
                 end

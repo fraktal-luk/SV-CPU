@@ -5,6 +5,7 @@ package Queues;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
+    import EmulationDefs::*;
     
     import AbstractSim::*;
     import Insmap::*;

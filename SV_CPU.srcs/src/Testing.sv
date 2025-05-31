@@ -14,24 +14,28 @@ package Testing;
 
     function automatic void writeProgram(ref Word mem[], input Mword adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
+        //mem = '{default: 'x};
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 
-    task automatic setPrograms(ref Word mem[],
+    function automatic void setBasicPrograms(
+                              ref Word mem[],
                               input Section testSec,
-                              input Section resetSec, input Section errorSec, input Section callSec, input Section intSec, input Section excSec, input Section commonSec, input Mword commonAdr);
+                              input Section resetSec,
+                              input Section errorSec,
+                              input Section callSec,
+                              input Section intSec,
+                              input Section excSec);
         mem = '{default: 'x};
-                 
+
         writeProgram(mem, 0, testSec.words);
-        
-        writeProgram(mem, IP_RESET, resetSec.words);
-        writeProgram(mem, IP_ERROR, errorSec.words);
-        writeProgram(mem, IP_CALL, callSec.words);
-        writeProgram(mem, IP_INT, intSec.words);
-        writeProgram(mem, IP_EXC, excSec.words);
-        
-        writeProgram(mem, commonAdr, commonSec.words);
-    endtask
+
+        writeProgram(mem, IP_RESET % PAGE_SIZE, resetSec.words);
+        writeProgram(mem, IP_ERROR % PAGE_SIZE, errorSec.words);
+        writeProgram(mem, IP_CALL % PAGE_SIZE, callSec.words);
+        writeProgram(mem, IP_INT % PAGE_SIZE, intSec.words);
+        writeProgram(mem, IP_EXC % PAGE_SIZE, excSec.words);
+    endfunction
 
 
     function automatic logic isValidTestName(input squeue line);

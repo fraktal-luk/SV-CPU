@@ -89,12 +89,18 @@ package InsDefs;
     typedef Mword Mword3[3];
     typedef Mword Mword4[4];
 
+    localparam int PAGE_SIZE = 4096;
+
     // Handler addresses
-    localparam Mword IP_ERROR = 'h000100;
-    localparam Mword IP_CALL = 'h00000180;
-    localparam Mword IP_RESET = 'h00000200;
-    localparam Mword IP_INT = 'h00000280;
-    localparam Mword IP_EXC = 'h00000300;
+    localparam Mword IP_ERROR = 'h000100 + 2*PAGE_SIZE;
+    localparam Mword IP_CALL = 'h00000180 + 2*PAGE_SIZE;
+    localparam Mword IP_RESET = 'h00000200 + 2*PAGE_SIZE;
+    localparam Mword IP_INT = 'h00000280 + 2*PAGE_SIZE;
+    localparam Mword IP_EXC = 'h00000300 + 2*PAGE_SIZE;
+    localparam Mword IP_FETCH_EXC = 'h00000380 + 2*PAGE_SIZE;
+    localparam Mword IP_MEM_EXC = 'h00000400 + 2*PAGE_SIZE;
+    
+    
 
 
     class MnemonicClass;
@@ -327,6 +333,7 @@ package InsDefs;
         O_retE,
         O_retI,
         O_replay,
+        O_error,
         O_halt,
         O_send,
         
@@ -425,7 +432,7 @@ package InsDefs;
         "sys_halt":   '{F_noRegs, P_sysControl, S_sysHalt, T_none, O_halt},
         "sys_sync":   '{F_noRegs, P_sysControl, S_sysSync, T_none, O_sync},
         "sys_replay": '{F_noRegs, P_sysControl, S_sysReplay, T_none, O_replay},
-        "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_undef},
+        "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_error},
         "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
         "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send}
         

@@ -3,6 +3,7 @@ import Base::*;
 import InsDefs::*;
 import Asm::*;
 import Emulation::*;
+import EmulationDefs::*;
 
 import UopList::*;
 import AbstractSim::*;
@@ -31,6 +32,8 @@ module AbstractCore
     // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
+    PageBasedProgramMemory programMem;
+
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
@@ -63,7 +66,6 @@ module AbstractCore
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
-    //    Events evts;
 
 
     // Store interface
@@ -77,8 +79,6 @@ module AbstractCore
         Mword retiredTarget = 0;
 
 
-    //DataReadReq TMP_readReqs[N_MEM_PORTS];
-    //DataReadReq TMP_sysReadReqs[N_MEM_PORTS];
     MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
@@ -208,14 +208,13 @@ module AbstractCore
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= getSysReadResponse(/*TMP_sysReadReqs[p],*/ theExecBlock.accessDescs[p]);
+            sysReadOuts[p] <= getSysReadResponse(theExecBlock.accessDescs[p]);
     endtask
 
-    function automatic DataCacheOutput getSysReadResponse(/*input DataReadReq readReq,*/ input AccessDesc aDesc);
+    function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
         Mword regAdr = aDesc.vadr;
         
-        //if (!readReq.active) return res;
         if (!aDesc.active || !aDesc.sys) return res;
         
         res.active = 1;
@@ -291,10 +290,8 @@ module AbstractCore
             renamedEmul.setLike(retiredEmul);
             
             flushBranchCheckpointQueueAll();
-            
-            if (lateEventInfo.cOp == CO_reset) registerTracker.restoreReset();
-            else                               registerTracker.restoreStable();
-
+                          
+            registerTracker.restoreStable();
             registerTracker.flushAll();
             memTracker.flushAll();
             
@@ -304,6 +301,7 @@ module AbstractCore
             BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
+              //  $error("n bytes in checkoubt: %d", causingCP.emul.dataMem.content.size());
             renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
@@ -406,9 +404,9 @@ module AbstractCore
 
         if (isStoreIns(ins) || isLoadIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Dword padr = renamedEmul.translateAddress(effAdr);
+            Translation tr = renamedEmul.translateDataAddress(effAdr);
             
-            memTracker.add(id, uopName, ins, argVals, padr); // DB
+            memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state
@@ -459,7 +457,8 @@ module AbstractCore
     task automatic activateEvent();
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
-            retiredEmul.reset();
+            retiredEmul.resetWithDataMem();
+               // retiredEmul.resetCoreAndMappings();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
@@ -710,6 +709,41 @@ module AbstractCore
 
 
     assign sig = lateEventInfo.cOp == CO_send;
-    assign wrong = lateEventInfo.cOp == CO_undef;
+    assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
+
+
+    // Puts architectural state in a conevient starting point
+    // - sys registers and other control info: initialize
+    // - regular registers: zero
+    // - data cache: initial state for tests
+    // - trackers: reinitialized
+    task automatic resetForTest();
+        // No need to clear insMap
+
+        renamedEmul = new();
+        retiredEmul = new();
+
+        registerTracker = new();
+        memTracker = new();
+
+        programMem = null;
+        
+        
+        dataCache.reset();//resetForTest();
+        // TODO: reset frontend including instruction cache
+        instructionCache.reset();
+
+
+        branchCheckpointQueue.delete();
+        
+        
+        sysRegs = SYS_REGS_INITIAL;       
+        retiredTarget <= IP_RESET;
+        lateEventInfo <= RESET_EVENT;
+            
+        csq = '{EMPTY_SQE, EMPTY_SQE};
+        
+    endtask
+
 
 endmodule

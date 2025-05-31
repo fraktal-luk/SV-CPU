@@ -40,7 +40,7 @@ module StoreQueue
     localparam QEntry EMPTY_QENTRY = HELPER::EMPTY_QENTRY;
 
     int drainPointer = 0, startPointer = 0, scanPointer = 0, endPointer = 0;
-    
+
     int size;
     logic allow;
 
@@ -48,8 +48,6 @@ module StoreQueue
     assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
     QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
-
-    Mword lookupTarget = 'x, lookupLink = 'x; // TODO: move to BQ special submodule because not used in LSQ
 
     QEntry outputQ[$:3*ROB_WIDTH];
     QEntry outputQM[3*ROB_WIDTH] = '{default: EMPTY_QENTRY}; 
@@ -224,7 +222,6 @@ endmodule
 
 
 module TmpSubSq();
-
     UopPacket storeDataD0 = EMPTY_UOP_PACKET, storeDataD1 = EMPTY_UOP_PACKET, storeDataD2 = EMPTY_UOP_PACKET;
     UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;
 
@@ -239,12 +236,12 @@ module TmpSubSq();
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), tr.phys, ad.size);
+            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), tr.padr, ad.size);
 
             if (resb.active) begin
                 AccessSize size = ad.size;
                 AccessSize trSize = getTransactionSize(decMainUop(U2M(resb.TMP_oid)));
-                checkSqResp(loadOp, resb, StoreQueue.memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, /*loadOp.result*/ tr.phys, size);
+                checkSqResp(loadOp, resb, StoreQueue.memTracker.findStoreAll(U2M(resb.TMP_oid)), trSize, tr.padr, size);
             end
 
             theExecBlock.fromSq[p] <= resb;
@@ -254,7 +251,7 @@ module TmpSubSq();
         function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr, input AccessSize loadSize);
             SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
                                                         && item.translation.present && !item.accessDesc.sys
-                                                        && memOverlap(item.translation.phys, item.accessDesc.size, padr, loadSize));
+                                                        && memOverlap(item.translation.padr, item.accessDesc.size, padr, loadSize));
             SqEntry fwEntry;
 
             if (found.size() == 0) return EMPTY_UOP_PACKET;
@@ -263,7 +260,7 @@ module TmpSubSq();
                 fwEntry = vmax[0];
             end
 
-            if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.phys, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
+            if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.padr, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
                 return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
             else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
                 return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
@@ -323,8 +320,7 @@ module TmpSubSq();
                int index = findIndex(packet.TMP_oid);
                updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
                 
-               // TODO: make separate milestones for SQ and LQ
-               putMilestone(packet.TMP_oid, InstructionMap::WriteMemAddress);
+               putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
             end
         end
 
@@ -350,11 +346,7 @@ module TmpSubSq();
 
     function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
         UopName uname = decUname(p.TMP_oid);
-        
-        if (p.status == ES_UNCACHED_1) begin
-            // TODO: no need for special case?
-        end
-        else if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
+        if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
             entry.accessDesc = desc;
             entry.translation = tr;
         end
@@ -369,7 +361,7 @@ module TmpSubSq();
             assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
             
             updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
-            putMilestone(dataUop.TMP_oid, InstructionMap::WriteMemValue);
+            putMilestone(dataUop.TMP_oid, InstructionMap::WriteStoreValue);
             dataUop.result = StoreQueue.content_N[dataFound[0]].accessDesc.vadr; // TODO: verify why this
         end
 
@@ -447,8 +439,8 @@ module TmpSubLq();
             AccessSize trSize = size;
             
             // CAREFUL: we search for all matching entries
-            int found[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.phys, (item.accessDesc.size), padr, (trSize)));
-                LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.phys, (item.accessDesc.size), padr, (trSize)));
+            int found[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+                LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
             
             if (found.size() == 0) return res;
     
@@ -484,7 +476,7 @@ module TmpSubLq();
             begin
                int index = findIndex(packet.TMP_oid);
                updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
-               putMilestone(packet.TMP_oid, InstructionMap::WriteMemAddress);
+               putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
             end
         end
 
@@ -537,17 +529,23 @@ endmodule
 
 
 module TmpSubBr();
+    Mword lookupTarget = 'x, lookupLink = 'x;
+
     task automatic readImpl();        
         UopPacket p = theExecBlock.branch0.p0_E;
 
         if (p.active) begin
             int index = findIndex(p.TMP_oid);     
-            StoreQueue.lookupTarget <= StoreQueue.content_N[index].immTarget;
-            StoreQueue.lookupLink <= StoreQueue.content_N[index].linkAdr;
+            //StoreQueue.lookupTarget <= StoreQueue.content_N[index].immTarget;
+            lookupTarget <= StoreQueue.content_N[index].immTarget;
+            lookupLink <= StoreQueue.content_N[index].linkAdr;
+            //StoreQueue.lookupLink <= StoreQueue.content_N[index].linkAdr;
         end
         else begin
-            StoreQueue.lookupTarget <= 'x;
-            StoreQueue.lookupLink <= 'x;
+            lookupTarget <= 'x;
+            //StoreQueue.lookupTarget <= 'x;
+            lookupLink <= 'x;
+            //StoreQueue.lookupLink <= 'x;
         end
     endtask
     
