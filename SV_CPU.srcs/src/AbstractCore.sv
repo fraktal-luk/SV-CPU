@@ -404,10 +404,9 @@ module AbstractCore
 
         if (isStoreIns(ins) || isLoadIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Translation tr = renamedEmul.translateAddressData_Impl(effAdr);
-            Dword padr = tr.padr;//renamedEmul.translateAddressData(effAdr);
+            Translation tr = renamedEmul.translateDataAddress(effAdr);
             
-            memTracker.add(id, uopName, ins, argVals, padr); // DB
+            memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
         if (isBranchIns(ins)) saveCP(id); // Crucial state

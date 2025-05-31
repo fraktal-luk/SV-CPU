@@ -149,9 +149,11 @@ package Emulation;
         CpuState coreState;
         
             // For now there are separate maps for program and data
-            MemoryMapping programMappings[$];
-            MemoryMapping dataMappings[$];
-        
+          //  MemoryMapping programMappings[$];
+          //  MemoryMapping dataMappings[$];
+
+            Translation programMappings_N[$];
+            Translation dataMappings_N[$];        
 
         PageBasedProgramMemory progMem = new();
         SparseDataMemory dataMem = new();
@@ -164,9 +166,12 @@ package Emulation;
             res.status = status;
             res.coreState = coreState;
             
-                res.programMappings = programMappings;
-                res.dataMappings = dataMappings;
-            
+//                res.programMappings = programMappings;
+//                res.dataMappings = dataMappings;
+
+                res.programMappings_N = programMappings_N;
+                res.dataMappings_N = dataMappings_N;
+                            
             res.progMem = new ();
             res.dataMem = new ();
             
@@ -178,8 +183,11 @@ package Emulation;
             status = other.status;
             coreState = other.coreState;
 
-            programMappings = other.programMappings;
-            dataMappings = other.dataMappings;
+  //          programMappings = other.programMappings;
+  //          dataMappings = other.dataMappings;
+
+            programMappings_N = other.programMappings_N;
+            dataMappings_N = other.dataMappings_N;
 
             dataMem = new other.dataMem;
             // Not setting progMem
@@ -199,8 +207,10 @@ package Emulation;
 
         function automatic void resetCoreAndMappings();
             resetCore();
-            programMappings.delete();
-            dataMappings.delete();
+           // programMappings.delete();
+           // dataMappings.delete();
+            programMappings_N.delete();
+            dataMappings_N.delete();
         endfunction
 
 
@@ -211,37 +221,43 @@ package Emulation;
 
 
 
-        function automatic Translation translateAddressProgram_Impl(input Mword vadr);
+        function automatic Translation translateProgramAddress(input Mword vadr);
             localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
 
-            MemoryMapping found[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
+            //MemoryMapping found[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
+            Translation foundTr[$] = programMappings_N.find with (item.vadr == getPageBaseM(vadr));
             Translation res;
 
+            //    assert (found.size() == foundTr.size()) else $error("not same p");
+
             if (DO_NOT_TRANSLATE_P) begin
-                res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+                res = '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
             end
-            else if (found.size() == 0) begin
+            else if (foundTr.size() == 0) begin
                 res = DEFAULT_TRANSLATION;
             end
             else
-                res = '{present: 1, desc: '{1, found[0].read, found[0].write, found[0].exec, found[0].cache}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+                res = '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
             return res;
         endfunction
 
-        function automatic Translation translateAddressData_Impl(input Mword vadr);
+        function automatic Translation translateDataAddress(input Mword vadr);
             localparam logic DO_NOT_TRANSLATE = 0; // TODO: don't remove, will be a dynamic param
 
-            MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+            //MemoryMapping found[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+            Translation foundTr[$] = dataMappings_N.find with (item.vadr == getPageBaseM(vadr));
             Translation res;
 
+            //    assert (found.size() == foundTr.size()) else $error("not same d");
+
             if (DO_NOT_TRANSLATE) begin
-                res = '{present: 1, desc: '{default: 1}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+                res = '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
             end
-            else if (found.size() == 0) begin
+            else if (foundTr.size() == 0) begin
                 res = DEFAULT_TRANSLATION;
             end
             else
-                res = '{present: 1, desc: '{1, found[0].read, found[0].write, found[0].exec, found[0].cache}, padr: found[0].padr + vadr - getPageBaseM(vadr)};
+                res = '{present: 1, vadr: vadr, desc: foundTr[0].desc, padr: foundTr[0].padr + vadr - getPageBaseM(vadr)};
             return res;
         endfunction
 
@@ -259,7 +275,7 @@ package Emulation;
             // TODO: set exception if any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
-                Translation tr = translateAddressData_Impl(vadr);
+                Translation tr = translateDataAddress(vadr);
                 return getLoadValue(ins, vadr, tr.padr);
             end
             
@@ -308,7 +324,7 @@ package Emulation;
                 return;
             end
             else begin
-                Translation tr = translateAddressProgram_Impl(vadr);
+                Translation tr = translateProgramAddress(vadr);
 
                 if (!tr.present) begin
                     status.error = 1;
@@ -404,11 +420,9 @@ package Emulation;
 
         local function automatic void performSys(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             if (isStoreSysIns(ins)) begin
-                //logic exc = writeSysReg__(coreState, ins, vals[1], vals[2]);
                 assert (!$isunknown(vals[1]) && !$isunknown(vals[2])) else $error("Writing unknown!");
+                if (catchSysAccessException(ins, vals[1])) return;
                 
-                if (catchSysAccessException(ins, vals[1])) return;// 1;
-
                 writeSysReg(coreState, vals[1], vals[2]);
             end
             else begin
@@ -426,7 +440,7 @@ package Emulation;
                 if (catchSysAccessException(ins, vadr)) return 1;
             end
             else begin
-                Translation tr = translateAddressData_Impl(vadr);
+                Translation tr = translateDataAddress(vadr);
                 padr = tr.padr;
                 
                 if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) return 1;
@@ -457,7 +471,7 @@ package Emulation;
         local function automatic MemoryWrite getMemWrite(input AbstractInstruction ins, input Mword3 vals);
             MemoryWrite res = DEFAULT_MEM_WRITE;
             Mword effAdr = calculateEffectiveAddress(ins, vals);            
-            Translation tr = translateAddressData_Impl(effAdr);
+            Translation tr = translateDataAddress(effAdr);
             logic en = 1;
             int size = -1;
 
@@ -548,7 +562,7 @@ package Emulation;
 
 
         function automatic void interrupt();
-                status.eventType = PE_EXT_INTERRUPT;
+            status.eventType = PE_EXT_INTERRUPT;
         
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction

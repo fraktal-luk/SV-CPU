@@ -83,14 +83,13 @@ module DataL1(
         Translation TMP_tlb[Mword];
         Translation TMP_tlbL2[Mword];
 
-        Mword translationVadrsL1[DATA_TLB_SIZE];
-        Translation translationTableL1[DATA_TLB_SIZE];
+        Translation translationTableL1[DATA_TLB_SIZE]; // DB
 
         
         function automatic void DB_fillTranslations();
             int i = 0;
+            translationTableL1 = '{default: DEFAULT_TRANSLATION};
             foreach (TMP_tlb[a]) begin
-                translationVadrsL1[i] = a;
                 translationTableL1[i] = TMP_tlb[a];
                 i++;
             end
@@ -109,46 +108,21 @@ module DataL1(
     endtask
 
 
-//    task automatic resetForTest();
-//        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-//        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-    
-//        Translation physPage0 = '{present: 1, desc: cachedDesc, padr: 0};
-//        Translation physPage1 = '{present: 1, desc: cachedDesc, padr: 4096};
-//        Translation physPage2000 = '{present: 1, desc: cachedDesc, padr: 'h2000};
-//        Translation physPage20000000 = '{present: 1, desc: cachedDesc, padr: 'h20000000};
-//        Translation physPageUnc = '{present: 1, desc: uncachedDesc, padr: 'h80000000};
-
-//        reset();
-
-
-//        TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
-//        TMP_tlbL2 = '{'h20000000: physPage20000000};
-
-//        translationVadrsL1 = '{default: 'z};
-//        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-//            DB_fillTranslations();
-
-//        initBlocksWay0();
-//        initBlocksWay1(); 
-//    endtask 
 
     task automatic prefetchForTest();
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
     
-        Translation physPage0 = '{present: 1, desc: cachedDesc, padr: 0};
-        Translation physPage1 = '{present: 1, desc: cachedDesc, padr: 4096};
-        Translation physPage2000 = '{present: 1, desc: cachedDesc, padr: 'h2000};
-        Translation physPage20000000 = '{present: 1, desc: cachedDesc, padr: 'h20000000};
-        Translation physPageUnc = '{present: 1, desc: uncachedDesc, padr: 'h80000000};
+        Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+        Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
+        Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
+        Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+        Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
 
         TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
         TMP_tlbL2 = '{'h20000000: physPage20000000};
 
-        translationVadrsL1 = '{default: 'z};
-        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-            DB_fillTranslations();
+        DB_fillTranslations();
 
         initBlocksWay0();
         initBlocksWay1(); 
@@ -234,7 +208,7 @@ module DataL1(
             
         assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
         
-        translationVadrsL1[TMP_tlb.size()] = pageBase;
+        //translationVadrsL1[TMP_tlb.size()] = pageBase;
         translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
         TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
     endfunction

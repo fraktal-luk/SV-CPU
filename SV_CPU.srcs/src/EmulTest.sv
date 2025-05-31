@@ -12,13 +12,17 @@ import Testing::*;
 
 
 module EmulTest();
-
+    
     
     function automatic Word asm(input string str);
         squeue q = '{str};
         Section s = processLines(q);
         return s.words[0];
     endfunction
+
+
+    localparam Translation DEFAULT_PAGE0 = '{1, 0, '{1, 1, 1, 1, 1}, 0};
+
 
     Emulator emul = new();
 
@@ -135,7 +139,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.interrupt();
 
@@ -151,7 +156,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("lds r0, r0, 99")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 
@@ -166,7 +172,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("undef")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 
@@ -180,7 +187,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("sys_error")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+       // emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 
@@ -194,7 +202,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("sys_call")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 
@@ -210,7 +219,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 
@@ -259,8 +269,9 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 0, 1});
-           
+        //emul.programMappings.push_back('{0, 0,  1, 1, 0, 1});
+             emul.programMappings_N.push_back('{1, 0, '{1, 1, 1, 0, 1}, 0});
+
         emul.executeStep();
                 
         // Check
@@ -274,8 +285,9 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        emul.programMappings.push_back('{0, 'h0000010000000000,  1, 1, 1, 1});
-           
+        //emul.programMappings.push_back('{0, 'h0000010000000000,  1, 1, 1, 1});
+             emul.programMappings_N.push_back('{1, 0, '{1, 1, 1, 1, 1}, 'h0000010000000000});
+          
         emul.executeStep();
                 
         // Check
@@ -303,7 +315,8 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 
@@ -317,8 +330,11 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
 
-        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
-        emul.dataMappings.push_back('{0, 'h0100000000000000,  1, 1, 1, 1});
+        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings_N.push_back(DEFAULT_PAGE0);
+
+        //emul.dataMappings.push_back('{0, 'h0100000000000000,  1, 1, 1, 1});
+            emul.dataMappings_N.push_back('{1, 0, '{1, 1, 1, 1, 1}, 'h0100000000000000});
 
         emul.executeStep();
 

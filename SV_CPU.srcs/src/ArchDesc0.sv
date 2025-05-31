@@ -101,19 +101,29 @@ module ArchDesc0();
 
     
     function automatic void map3pages(ref Emulator em);
-        em.programMappings.push_back('{0, 0,  1, 1, 1, 1});        
-        em.programMappings.push_back('{PAGE_SIZE, PAGE_SIZE,  1, 1, 1, 1});        
-        em.programMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
+//        em.programMappings.push_back('{0, 0,  1, 1, 1, 1});        
+//        em.programMappings.push_back('{PAGE_SIZE, PAGE_SIZE,  1, 1, 1, 1});        
+//        em.programMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
+            em.programMappings_N.push_back('{1, 0, '{1, 1, 1, 1, 1}, 0});
+            em.programMappings_N.push_back('{1, PAGE_SIZE, '{1, 1, 1, 1, 1}, PAGE_SIZE});
+            em.programMappings_N.push_back('{1, 2*PAGE_SIZE, '{1, 1, 1, 1, 1}, 2*PAGE_SIZE});
     endfunction
 
     function automatic void mapDataPages(ref Emulator em);
-        em.dataMappings.push_back('{0, 0,  1, 1, 1, 1});        
-       // em.dataMappings.push_back('{PAGE_SIZE, PAGE_SIZE,  1, 1, 1, 1});        
-      //  em.dataMappings.push_back('{2*PAGE_SIZE, 2*PAGE_SIZE,  1, 1, 1, 1});
-        em.dataMappings.push_back('{'h80000000, 'h80000000,  1, 1, 0, 0});
-        em.dataMappings.push_back('{'h20000000, 'h20000000,  1, 1, 1, 1});
-        em.dataMappings.push_back('{'h2000, 'h2000,  1, 1, 1, 1});
-      
+//        em.dataMappings.push_back('{0, 0,  1, 1, 1, 1});        
+
+//        em.dataMappings.push_back('{'h80000000, 'h80000000,  1, 1, 0, 0});
+//        em.dataMappings.push_back('{'h20000000, 'h20000000,  1, 1, 1, 1});
+//        em.dataMappings.push_back('{'h2000, 'h2000,  1, 1, 1, 1});
+
+            em.dataMappings_N.push_back('{1, 0, '{1, 1, 1, 1, 1}, 0});        
+            em.dataMappings_N.push_back('{1, 'h80000000, '{1, 1, 1, 0, 0}, 'h80000000});        
+            em.dataMappings_N.push_back('{1, 'h20000000, '{1, 1, 1, 1, 1}, 'h20000000});        
+            em.dataMappings_N.push_back('{1, 'h2000, '{1, 1, 1, 1, 1}, 'h2000});        
+    
+            //em.dataMappings_N.push_back('{'h80000000, 'h80000000,  1, 1, 0, 0});
+            //em.dataMappings_N.push_back('{'h20000000, 'h20000000,  1, 1, 1, 1});
+            //em.dataMappings_N.push_back('{'h2000, 'h2000,  1, 1, 1, 1});      
     endfunction
 
 
@@ -204,9 +214,10 @@ module ArchDesc0();
     task automatic resetAll(ref Emulator emul);
         time DELAY = 1;
         emul.resetWithDataMem();
-            emul.programMappings.delete();
-            emul.dataMappings.delete();
-        
+           // emul.programMappings.delete();
+           // emul.dataMappings.delete();
+            emul.programMappings_N.delete();
+            emul.dataMappings_N.delete();
         #DELAY;
     endtask
 

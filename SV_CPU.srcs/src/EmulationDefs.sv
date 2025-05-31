@@ -39,12 +39,14 @@ package EmulationDefs;
 
     typedef struct {
         logic present; // TLB hit
+        Mword vadr;
         DataLineDesc desc;
         Dword padr;
     } Translation;
 
     localparam Translation DEFAULT_TRANSLATION = '{
         present: 0,
+        vadr: 'x,
         desc: DEFAULT_DATA_LINE_DESC,
         padr: 'x
     };
@@ -80,21 +82,16 @@ package EmulationDefs;
             int size = arr.size() < PAGE_WORDS ? arr.size() : PAGE_WORDS;
             int offset = 0;
             
-                           // $error(" >> %d, %x", arr.size(), arr[0]);
-
-            
             while (offset < size) begin
                 pages[index][offset] = arr[offset];
                 offset++;
             end
-                           //     $error("[[%x, %x...]]", pages[index][0], pages[index][1]);
-
             
             while (offset < PAGE_WORDS) begin
                 pages[index][offset++] = 'x;
             end
-                  //  $error("[[%x, %x...]]", pages[index][0], pages[index][1]);
         endfunction
+        
         
             function automatic Word fetch(input Dword startAdr);
                 int index = startAdr/PAGE_BYTES;
@@ -102,8 +99,6 @@ package EmulationDefs;
                 
                 return pages[index][offset];
             endfunction
-    
-    
 
         function automatic TMP_FetchResult fetch_N(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
