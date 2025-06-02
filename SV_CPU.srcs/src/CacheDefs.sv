@@ -339,5 +339,31 @@ package CacheDefs;
 //                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
 //                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
 
+    typedef Word FetchLine[FETCH_WIDTH];
+
+
+    class InstructionCacheBlock;
+        logic valid;
+        Mword vbase;
+        Dword pbase;
+        Word array[BLOCK_SIZE/4];
+    
+       
+        function automatic Word readWord(input int offset);            
+            assert (offset % 4 == 0) else $error("Trying to read unaligned icache: %x", offset);
+            
+            return array[offset/4];
+        endfunction        
+
+
+        function automatic FetchLine readLine(input int offset);            
+            assert (offset % (FETCH_WIDTH*4) == 0) else $error("Trying to read unaligned icache: %x", offset);
+            
+            return array[(offset/4) +: FETCH_WIDTH];
+        endfunction
+   
+    endclass
+
+
 
 endpackage

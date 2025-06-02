@@ -56,8 +56,10 @@ module DataL1(
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, translations_Reg, tlbFillEnA, tlbFillVirtA);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
-    DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
-    DataCacheBlock blocksWay1[BLOCKS_PER_WAY];
+    //DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
+    //DataCacheBlock blocksWay1[BLOCKS_PER_WAY];
+    DataWay blocksWay0;
+    DataWay blocksWay1;
 
     localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
 
@@ -112,7 +114,7 @@ module DataL1(
     task automatic prefetchForTest();
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-    
+
         Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
         Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
         Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};

@@ -235,6 +235,13 @@ module ArchDesc0();
 
     // Core sim
     generate
+
+        class UncachedSimRunner extends TestRunner;
+            task automatic runTest(input string name);
+                runTestSim(name); // TODO: runTestSimUncached
+            endtask
+        endclass
+
         class SimRunner extends TestRunner;
             task automatic runTest(input string name);
                 runTestSim(name);
@@ -246,6 +253,28 @@ module ArchDesc0();
         Mword fetchAdr;       
 
 
+            task automatic runTestSimUncached(input string name);
+                    Word emul_progMem[] = new[4096 / 4]; // TODO: refactor to set page 0 with test program in 1 line, without additional vars
+    
+                #CYCLE announce(name);
+                prepareTest(emul_progMem, name);
+                theProgMem.assignPage(0, emul_progMem);
+    
+                core.resetForTest();
+                core.programMem = theProgMem;
+                
+                // TODO: don;t map, turn of mapping and caches
+                begin
+                    core.instructionCache.prepareForUncachedTest();
+                end
+                
+                startSim();
+                
+                awaitResult();
+            endtask
+
+
+
         task automatic runTestSim(input string name);
                 Word emul_progMem[] = new[4096 / 4]; // TODO: refactor to set page 0 with test program in 1 line, without additional vars
 
@@ -255,6 +284,7 @@ module ArchDesc0();
 
             core.resetForTest();
             core.programMem = theProgMem;
+            
                 mapDataPages(core.renamedEmul);
                 mapDataPages(core.retiredEmul);
 
@@ -324,7 +354,8 @@ module ArchDesc0();
 
 
         task automatic runSim();
-            SimRunner runner = new();
+            UncachedSimRunner uncachedRunner = new();
+            SimRunner cachedRunner = new();
               Word emul_progMem2[] = new[4096 / 4];
                 theProgMem.assignPage(PAGE_SIZE, common.words);
                 
@@ -333,10 +364,10 @@ module ArchDesc0();
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
 
             #CYCLE;// $display("Suites: uncached");  
-            runner.runSuites(uncachedSuites);
+            uncachedRunner.runSuites(uncachedSuites);
             
             #CYCLE;// $display("Suites: all");  
-            runner.runSuites(allSuites);  
+            cachedRunner.runSuites(allSuites);  
             
                 // Now assure that a pullback and reissue has happened because of mem replay
                 core.insMap.assertReissue();
