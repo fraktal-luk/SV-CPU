@@ -14,6 +14,7 @@ import CacheDefs::*;
 
 module InstructionL1(
                 input logic clk,
+                input logic readEn,
                 input Mword readAddress,
                 output InstructionCacheOutput readOut
               );
@@ -99,15 +100,34 @@ module InstructionL1(
         return res;
     endfunction
 
-    function automatic InstructionCacheOutput readCache_N(input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2);
+    function automatic InstructionCacheOutput readCache_N(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2);
         InstructionCacheOutput res;
         ReadResult selected = selectWay(res0, res1, res2);
         
-            res.active = selected.valid; // ?
-            res.status = CR_HIT; // TODO: determine hit/miss status
-            
-            res.desc = tr.desc;
+        if (!readEnable) return res;
+        // TODO: determine hit/miss status
+        
+        // TLB miss
+        if (!tr.present) begin
+            res.status = CR_TLB_MISS;
+        end
+        // Not cached
+        else if (!tr.desc.cached) begin
+            res.status = CR_HIT; // TODO: introduce CR_UNCACHED to use here?
+        end
+        // Miss
+        else if (!selected.valid) begin
+            res.status = CR_TAG_MISS;
+        end
+        // Hit
+        else begin
+            res.status = CR_HIT;
             res.words = selected.value;
+        end
+        
+        
+        res.active = 1;//selected.valid; // ?
+        res.desc = tr.desc;
         
         return res;
     endfunction
@@ -132,7 +152,7 @@ module InstructionL1(
 
     
     task automatic doCacheAccess();
-        AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_4);
+        AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_4); // TODO: introduce line size as access size?
         Translation tr = translate(readAddress);
         
         ReadResult result0 = readWay(blocksWay0, acc, tr);
@@ -146,7 +166,7 @@ module InstructionL1(
         
         readResultSelected <= selectWay(result0, result1, result2);
         
-        readOut_T <= readCache_N(tr, result0, result1, result2);
+        readOut_T <= readCache_N(readEn, tr, result0, result1, result2);
     endtask
 
     
@@ -211,7 +231,8 @@ module InstructionL1(
                 
                 
                 TMP_tlbL1 = '{0: physPage0, 1: physPage1, 2: physPage2};
-    
+                DB_fillTranslations();
+
         endfunction
 
 

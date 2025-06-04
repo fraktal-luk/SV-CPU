@@ -10,7 +10,10 @@ import Insmap::*;
 import CacheDefs::*;
 
 
-module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
+module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
+
+        localparam logic FETCH_SINGLE = 0;
+
 
     typedef Word FetchGroup[FETCH_WIDTH];
     typedef OpSlotF FetchStage[FETCH_WIDTH];
@@ -21,15 +24,19 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
     int fqSize = 0;
     InstructionCacheOutput cacheOut;
 
-    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE, fetchStage2_A = EMPTY_STAGE;
-    Mword expectedTargetF2 = 'x, expectedTargetF2_A = 'x;
+    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
+    Mword expectedTargetF2 = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
 
-    int fetchCtr = 0;
+    int fetchCtr = 0; // TODO: incremented by FETCH_WIDTH, but should be by 1 when fetching mode is single instruction 
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
     logic frontRed;
+
+
+    InstructionL1 instructionCache(clk, AbstractCore.fetchEnable, AbstractCore.insAdr, cacheOut);
+
 
 //      How to handle:
 //        CR_INVALID,    continue in pipeline, cause exception
@@ -40,9 +47,6 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 //        CR_HIT,        continue in pipeline; if desc says not executable then cause exception
 //        CR_MULTIPLE    cause (async?) error
 //
-
-
-    assign cacheOut = AbstractCore.icacheOut;
 
     assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
 
@@ -65,11 +69,18 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchCtr <= fetchCtr + FETCH_WIDTH;   
     endtask
 
+
+
+
+
+
+
     // FUTURE: introduce fetching by 1 instrution? (for unchached access)
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
             Mword baseTrg = fetchLineBase(ipStage[0].adr);
-            Mword target = baseTrg + 4*FETCH_WIDTH; // FUTURE: next line predictor
+            Mword fetchIncrement = FETCH_SINGLE ? 4 : FETCH_WIDTH*4; // 
+            Mword target = baseTrg + fetchIncrement; // FUTURE: next line predictor
 
             ipStage <= makeIpStage(target);
 
@@ -106,16 +117,13 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
 
         if (frontRed) begin
             fetchStage2 <= EMPTY_STAGE;
-            fetchStage2_A <= EMPTY_STAGE;
             return;
         end
 
         fetchStage2 <= getStageF2(f1var, expectedTargetF2);
-        fetchStage2_A <= getStageF2(f1var, expectedTargetF2_A);
 
         if (anyActiveFetch(f1var)) begin
             expectedTargetF2 <= getNextTargetF2(f1var, expectedTargetF2);
-            expectedTargetF2_A <= TMP_getNextTarget(f1var, expectedTargetF2);
         end
     endtask
 
@@ -134,7 +142,6 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         fetchCtr <= fetchCtr + FETCH_WIDTH;
         
         expectedTargetF2 <= target;
-        expectedTargetF2_A <= target;
     endtask
 
 
@@ -269,7 +276,9 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         foreach (res[i]) 
             if (res[i].active) begin
                 AbstractInstruction ins = decodeAbstract(res[i].bits);
-                        
+                
+                    adr = res[i].adr + 4;   // Last active
+                
                 if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
                     if (isBranchAlwaysIns(ins)) begin
                         adr = res[i].adr + Mword'(ins.sources[1]);
@@ -340,11 +349,14 @@ module Frontend(ref InstructionMap insMap, input EventInfo branchEventInfo, inpu
         FetchStage res = EMPTY_STAGE;
         Mword baseAdr = fetchLineBase(target);
         Mword adr;
-        logic active;
+        logic active, already = 0;
         
         for (int i = 0; i < $size(res); i++) begin
             adr = baseAdr + 4*i;
-            active = !$isunknown(target) && (adr >= target);
+            active = !$isunknown(target) && (adr >= target) && !already;
+            
+            if (FETCH_SINGLE && i > i) already = 1; 
+            
             res[i] = '{active, -1, adr, 'x, 0, 'x};
         end
         

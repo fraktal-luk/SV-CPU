@@ -47,6 +47,7 @@ module AbstractCore
 
 
     Mword insAdr;
+    logic fetchEnable;
     InstructionCacheOutput icacheOut;
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     DataCacheOutput sysReadOuts[N_MEM_PORTS];
@@ -83,10 +84,10 @@ module AbstractCore
 
     ///////////////////////////
 
-    InstructionL1 instructionCache(clk, insAdr, icacheOut);
+    //InstructionL1 instructionCache(clk, fetchEnable, insAdr, icacheOut);
     DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
-    Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
+    Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
@@ -110,6 +111,7 @@ module AbstractCore
 
     //////////////////////////////////////////
 
+    assign fetchEnable = theFrontend.ipStage[0].active;
     assign insAdr = theFrontend.ipStage[0].adr;
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
@@ -730,7 +732,8 @@ module AbstractCore
         
         
         dataCache.reset();
-        instructionCache.reset();
+        //instructionCache.reset();
+        theFrontend.instructionCache.reset();
 
 
         branchCheckpointQueue.delete();

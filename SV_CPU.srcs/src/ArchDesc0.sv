@@ -238,7 +238,7 @@ module ArchDesc0();
 
         class UncachedSimRunner extends TestRunner;
             task automatic runTest(input string name);
-                runTestSim(name); // TODO: runTestSimUncached
+                runTestSimUncached(name); // TODO: runTestSimUncached
             endtask
         endclass
 
@@ -265,7 +265,8 @@ module ArchDesc0();
                 
                 // TODO: don;t map, turn of mapping and caches
                 begin
-                    core.instructionCache.prepareForUncachedTest();
+                    //core.instructionCache.prepareForUncachedTest();
+                    core.theFrontend.instructionCache.prepareForUncachedTest();
                 end
                 
                 startSim();
@@ -288,7 +289,8 @@ module ArchDesc0();
                 mapDataPages(core.renamedEmul);
                 mapDataPages(core.retiredEmul);
 
-            core.instructionCache.prefetchForTest();
+            //core.instructionCache.prefetchForTest();
+            core.theFrontend.instructionCache.prefetchForTest();
             core.dataCache.prefetchForTest();
             startSim();
             
@@ -305,7 +307,8 @@ module ArchDesc0();
             core.resetForTest();
             core.programMem = theProgMem;
             
-            core.instructionCache.prefetchForTest();
+            //core.instructionCache.prefetchForTest();
+            core.theFrontend.instructionCache.prefetchForTest();
             core.dataCache.prefetchForTest();
             startSim();
 
