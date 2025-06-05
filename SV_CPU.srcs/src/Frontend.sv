@@ -78,7 +78,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     // FUTURE: introduce fetching by 1 instrution? (for unchached access)
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
-            Mword baseTrg = fetchLineBase(ipStage[0].adr);
+            Mword baseTrg = FETCH_SINGLE ? ipStage[0].adr : fetchLineBase(ipStage[0].adr);
             Mword fetchIncrement = FETCH_SINGLE ? 4 : FETCH_WIDTH*4; // 
             Mword target = baseTrg + fetchIncrement; // FUTURE: next line predictor
 
@@ -355,7 +355,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             adr = baseAdr + 4*i;
             active = !$isunknown(target) && (adr >= target) && !already;
             
-            if (FETCH_SINGLE && i > i) already = 1; 
+            if (FETCH_SINGLE && active) already = 1; 
             
             res[i] = '{active, -1, adr, 'x, 0, 'x};
         end

@@ -123,6 +123,13 @@ module AbstractCore
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
 
 
+    function automatic InsId oldestCsq();
+        StoreQueueEntry found[$] = csq.find with (item.mid != -1);
+        StoreQueueEntry entry[$] = csq.min with (item.mid);
+        return entry[0].mid;
+    endfunction
+
+
     always @(posedge clk) begin
         insMap.endCycle();
 
@@ -145,7 +152,7 @@ module AbstractCore
 
         updateBookkeeping();
 
-        insMap.commitCheck();
+        insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops form base if csq still contains something that would be deleted
     end
 
 
