@@ -12,7 +12,8 @@ import CacheDefs::*;
 
 module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
-        localparam logic FETCH_SINGLE = 0;
+        localparam logic FETCH_SINGLE = 0;//1;
+            logic chk, chk_2;
 
 
     typedef Word FetchGroup[FETCH_WIDTH];
@@ -24,7 +25,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     int fqSize = 0;
     InstructionCacheOutput cacheOut;
 
-    FetchStage ipStage = EMPTY_STAGE, fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
+    
+    typedef struct {
+        logic active;
+        Mword adr;
+        FetchStage arr;
+    } FrontStage;
+    
+    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, 'x, EMPTY_STAGE};
+
+
+    FrontStage stage_IP = DEFAULT_FRONT_STAGE;
+    FetchStage //ipStage = EMPTY_STAGE, 
+               fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
     Mword expectedTargetF2 = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
@@ -53,6 +66,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     always @(posedge AbstractCore.clk) begin
+           // chk <= (ipStage === stage_IP.arr);
+          //  chk_2 <= (anyActiveFetch(ipStage) === stage_IP.active);
+    
         if (lateEventInfo.redirect || branchEventInfo.redirect)
             redirectFront();
         else
@@ -64,7 +80,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     task automatic redirectF2();
         flushFrontendBeforeF2();
  
-        ipStage <= makeIpStage(expectedTargetF2);
+       // ipStage <= makeIpStage(expectedTargetF2);
+            stage_IP <= makeStage_IP(expectedTargetF2, 1);
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;   
     endtask
@@ -78,17 +95,25 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     // FUTURE: introduce fetching by 1 instrution? (for unchached access)
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow) begin
-            Mword baseTrg = FETCH_SINGLE ? ipStage[0].adr : fetchLineBase(ipStage[0].adr);
-            Mword fetchIncrement = FETCH_SINGLE ? 4 : FETCH_WIDTH*4; // 
-            Mword target = baseTrg + fetchIncrement; // FUTURE: next line predictor
+           // Mword baseTrg = FETCH_SINGLE ? ipStage[0].adr : fetchLineBase(ipStage[0].adr);
+          //  Mword fetchIncrement = FETCH_SINGLE ? 4 : FETCH_WIDTH*4; // 
+           // Mword target = baseTrg + fetchIncrement; // FUTURE: next line predictor
 
-            ipStage <= makeIpStage(target);
+           // ipStage <= makeIpStage(target);
+            
+            
+            begin
+                Mword nextTrg = fetchLineBase(stage_IP.adr) + FETCH_WIDTH*4;
+                if (FETCH_SINGLE) nextTrg = stage_IP.adr + 4;
+                stage_IP <= makeStage_IP(nextTrg, stage_IP.active);
+            end
 
             fetchCtr <= fetchCtr + FETCH_WIDTH;
         end
 
-        if (anyActiveFetch(ipStage) && AbstractCore.fetchAllow) begin
-            fetchStage0 <= ipStage;
+        if (stage_IP.active /*anyActiveFetch(ipStage)*/ && AbstractCore.fetchAllow) begin
+            fetchStage0 <= //ipStage;
+                            stage_IP.arr;
         end
         else begin
             fetchStage0 <= EMPTY_STAGE;
@@ -137,7 +162,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         else if (branchEventInfo.redirect)  target = branchEventInfo.target;
         else $fatal(2, "Should never get here");
 
-        ipStage <= makeIpStage(target);
+       // ipStage <= makeIpStage(target);
+            stage_IP <= makeStage_IP(target, 1);
 
         fetchCtr <= fetchCtr + FETCH_WIDTH;
         
@@ -146,11 +172,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     task automatic flushFrontendBeforeF2();
-        markKilledFrontStage(ipStage);
+        markKilledFrontStage(//ipStage);
+                             stage_IP.arr);
         markKilledFrontStage(fetchStage0);
         markKilledFrontStage(fetchStage1);
 
-        ipStage <= EMPTY_STAGE;
+       // ipStage <= EMPTY_STAGE;
+            stage_IP <= DEFAULT_FRONT_STAGE;
         fetchStage0 <= EMPTY_STAGE;
         fetchStage1 <= EMPTY_STAGE;
     endtask    
@@ -341,23 +369,41 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-    function automatic Mword fetchLineBase(input Mword adr);
-        return adr & ~(4*FETCH_WIDTH-1);
-    endfunction;
+//    function automatic FetchStage makeIpStage(input Mword target);
+//        FetchStage res = EMPTY_STAGE;
+//        Mword baseAdr = fetchLineBase(target);
+//        Mword adr;
+//        logic active, already = 0;
+        
+//        for (int i = 0; i < $size(res); i++) begin
+//            adr = baseAdr + 4*i;
+//            active = !$isunknown(target) && (adr >= target) && !already;
+            
+//            if (FETCH_SINGLE && active) already = 1; 
+            
+//            res[i] = '{active, -1, adr, 'x, 0, 'x};
+//        end
+        
+//        return res;
+//    endfunction
 
-    function automatic FetchStage makeIpStage(input Mword target);
-        FetchStage res = EMPTY_STAGE;
+
+    function automatic FrontStage makeStage_IP(input Mword target, input logic on);
+        FrontStage res = DEFAULT_FRONT_STAGE;
         Mword baseAdr = fetchLineBase(target);
         Mword adr;
         logic active, already = 0;
         
-        for (int i = 0; i < $size(res); i++) begin
+        res.active = on;
+        res.adr = target;
+        
+        for (int i = 0; i < $size(res.arr); i++) begin
             adr = baseAdr + 4*i;
             active = !$isunknown(target) && (adr >= target) && !already;
             
             if (FETCH_SINGLE && active) already = 1; 
             
-            res[i] = '{active, -1, adr, 'x, 0, 'x};
+            res.arr[i] = '{active, -1, adr, 'x, 0, 'x};
         end
         
         return res;

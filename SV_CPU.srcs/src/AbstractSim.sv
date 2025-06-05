@@ -674,4 +674,8 @@ package AbstractSim;
         endcase
     endfunction
 
+    function automatic Mword fetchLineBase(input Mword adr);
+        return adr & ~(4*FETCH_WIDTH-1);
+    endfunction;
+
 endpackage
