@@ -111,10 +111,8 @@ module AbstractCore
 
     //////////////////////////////////////////
 
-    assign fetchEnable = theFrontend.//ipStage[0].active;
-                                     stage_IP.active;
-    assign insAdr = fetchLineBase(theFrontend.//ipStage[0].adr;
-                                              stage_IP.adr);
+    assign fetchEnable = theFrontend.FETCH_UNC ? theFrontend.stageUnc_IP.active : theFrontend.stage_IP.active;
+    assign insAdr = theFrontend.FETCH_UNC ? fetchLineBase(theFrontend.stageUnc_IP.adr) : fetchLineBase(theFrontend.stage_IP.adr);
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
