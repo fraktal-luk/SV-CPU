@@ -13,8 +13,12 @@ import CacheDefs::*;
 module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
         localparam logic FETCH_SINGLE = 0;//1;
-        localparam logic FETCH_UNC = 0;
+        //localparam logic FETCH_UNC = 0;
             logic chk, chk_2;
+
+            logic FETCH_UNC;
+            
+            assign FETCH_UNC = AbstractCore.GlobalParams.uncachedFetch;
 
 
     typedef Word FetchGroup[FETCH_WIDTH];
@@ -55,7 +59,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     int fetchCtr = 0; // TODO: incremented by FETCH_WIDTH, but should be by 1 when fetching mode is single instruction 
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
-    logic frontRed;
+    logic frontRed, adrMismatchF2, blockMismatchF2, wordMismatchF2;
 
 
     InstructionL1 instructionCache(clk, fetchEnable, fetchAdr, cacheOut);
@@ -71,9 +75,20 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 //        CR_MULTIPLE    cause (async?) error
 //
 
+    function automatic Mword firstActiveAdr(input FetchStage stage);
+        foreach (stage[i])
+            if (stage[i].active) return stage[i].adr; 
+            
+        return 'x;
+    endfunction
+
+
     assign fetchStageSelected1 = FETCH_UNC ? fetchStageUnc4 : fetchStage1;
 
-    assign frontRed = anyActiveFetch(fetchStageSelected1) && (fetchLineBase(fetchStageSelected1[0].adr) !== fetchLineBase(expectedTargetF2));
+    assign blockMismatchF2 = (fetchLineBase(fetchStageSelected1[0].adr) !== fetchLineBase(expectedTargetF2));
+    assign wordMismatchF2 = (firstActiveAdr(fetchStageSelected1) !== (expectedTargetF2));
+    always_comb adrMismatchF2 = FETCH_UNC ? wordMismatchF2 : blockMismatchF2;
+    assign frontRed = anyActiveFetch(fetchStageSelected1) && adrMismatchF2;
 
 
 
@@ -251,7 +266,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         FetchStage res = st;
 
         foreach (res[i])
-            res[i].active = !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+            res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
         
         return res;       
     endfunction

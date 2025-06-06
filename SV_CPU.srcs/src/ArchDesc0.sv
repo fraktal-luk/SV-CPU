@@ -55,7 +55,8 @@ module ArchDesc0();
     Section common;
     
     squeue uncachedSuites = '{
-        "Tests_basic_uncached.txt"
+        "Tests_basic_uncached.txt"//,
+        //"Tests_mem_simple.txt"
     };
     
     squeue allSuites = '{
@@ -366,9 +367,13 @@ module ArchDesc0();
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
 
+                core.GlobalParams.uncachedFetch = 1;
+
             #CYCLE;// $display("Suites: uncached");  
             uncachedRunner.runSuites(uncachedSuites);
             
+                core.GlobalParams.uncachedFetch = 0;
+                
             #CYCLE;// $display("Suites: all");  
             cachedRunner.runSuites(allSuites);  
             

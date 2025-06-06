@@ -29,6 +29,11 @@ module AbstractCore
 );
     logic dummy = 'z;
 
+
+    struct {
+        logic uncachedFetch = 0;
+    } GlobalParams;
+
     // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
