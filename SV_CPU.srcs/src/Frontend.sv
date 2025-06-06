@@ -23,10 +23,18 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
-    int fqSize = 0;
+
+    logic fetchEnable;
+    Mword fetchAdr;
     InstructionCacheOutput cacheOut;
 
-    
+    assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
+    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.adr) : fetchLineBase(stage_IP.adr);
+
+
+    int fqSize = 0;
+
+   
     typedef struct {
         logic active;
         Mword adr;
@@ -38,6 +46,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageUnc_IP = DEFAULT_FRONT_STAGE;
     FetchStage fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
+    FetchStage fetchStageUnc0 = EMPTY_STAGE, fetchStageUnc1 = EMPTY_STAGE, fetchStageUnc2 = EMPTY_STAGE, fetchStageUnc3 = EMPTY_STAGE, fetchStageUnc4 = EMPTY_STAGE;
     Mword expectedTargetF2 = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
@@ -48,7 +57,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     logic frontRed;
 
 
-    InstructionL1 instructionCache(clk, AbstractCore.fetchEnable, AbstractCore.insAdr, cacheOut);
+    InstructionL1 instructionCache(clk, fetchEnable, fetchAdr, cacheOut);
 
 
 //      How to handle:
@@ -120,6 +129,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         end
 
         fetchStage1 <= setWords(fetchStage0, cacheOut);
+
+            if (stageUnc_IP.active && AbstractCore.fetchAllow) fetchStageUnc0 <= stageUnc_IP.arr;
+            else fetchStageUnc0 <= EMPTY_STAGE;
+
+            fetchStageUnc1 <= setWords(fetchStageUnc0, cacheOut);
+            fetchStageUnc2 <= fetchStageUnc1;
+            fetchStageUnc3 <= fetchStageUnc2;
+            fetchStageUnc4 <= fetchStageUnc3;
     endtask
 
 
@@ -173,12 +190,25 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     task automatic flushFrontendBeforeF2();
         markKilledFrontStage(stage_IP.arr);
+            markKilledFrontStage(stageUnc_IP.arr);
         markKilledFrontStage(fetchStage0);
         markKilledFrontStage(fetchStage1);
-
+          markKilledFrontStage(fetchStageUnc0);
+          markKilledFrontStage(fetchStageUnc1);
+          markKilledFrontStage(fetchStageUnc2);
+          markKilledFrontStage(fetchStageUnc3);
+          markKilledFrontStage(fetchStageUnc4);
        // ipStage <= EMPTY_STAGE;
             stage_IP <= DEFAULT_FRONT_STAGE;
             stageUnc_IP <= DEFAULT_FRONT_STAGE;
+            
+          fetchStageUnc0 <= EMPTY_STAGE;
+          fetchStageUnc1 <= EMPTY_STAGE;
+          fetchStageUnc2 <= EMPTY_STAGE;
+          fetchStageUnc3 <= EMPTY_STAGE;
+          fetchStageUnc4 <= EMPTY_STAGE;
+            
+            
         fetchStage0 <= EMPTY_STAGE;
         fetchStage1 <= EMPTY_STAGE;
     endtask    
