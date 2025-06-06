@@ -47,6 +47,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageUnc_IP = DEFAULT_FRONT_STAGE;
     FetchStage fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
     FetchStage fetchStageUnc0 = EMPTY_STAGE, fetchStageUnc1 = EMPTY_STAGE, fetchStageUnc2 = EMPTY_STAGE, fetchStageUnc3 = EMPTY_STAGE, fetchStageUnc4 = EMPTY_STAGE;
+    FetchStage fetchStageSelected1;
     Mword expectedTargetF2 = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
 
@@ -70,7 +71,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 //        CR_MULTIPLE    cause (async?) error
 //
 
-    assign frontRed = anyActiveFetch(fetchStage1) && (fetchLineBase(fetchStage1[0].adr) !== fetchLineBase(expectedTargetF2));
+    assign fetchStageSelected1 = FETCH_UNC ? fetchStageUnc4 : fetchStage1;
+
+    assign frontRed = anyActiveFetch(fetchStageSelected1) && (fetchLineBase(fetchStageSelected1[0].adr) !== fetchLineBase(expectedTargetF2));
 
 
 
@@ -155,7 +158,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     task automatic performF2();
-        FetchStage f1var = fetchStage1;
+        FetchStage f1var = fetchStageSelected1;
 
         if (frontRed) begin
             fetchStage2 <= EMPTY_STAGE;
