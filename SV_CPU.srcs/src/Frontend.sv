@@ -28,12 +28,20 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
 
-    logic fetchEnable;
-    Mword fetchAdr;
-    InstructionCacheOutput cacheOut;
+    logic fetchEnable, fetchEnableUncached, fetchEnableCached;
+    Mword fetchAdr, fetchAdrUncached, fetchAdrCached;
+    InstructionCacheOutput cacheOut, uncachedOut;
 
     assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
     assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.adr) : fetchLineBase(stage_IP.adr);
+
+
+    assign fetchEnableUncached = stageUnc_IP.active;
+    assign fetchAdrUncached = (stageUnc_IP.adr);
+
+    assign fetchEnableCached = stage_IP.active;
+    assign fetchAdrCached = fetchLineBase(stage_IP.adr);
+
 
 
     int fqSize = 0;
@@ -48,9 +56,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     localparam FrontStage DEFAULT_FRONT_STAGE = '{0, 'x, EMPTY_STAGE};
 
 
-    FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageUnc_IP = DEFAULT_FRONT_STAGE;
+    FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageUnc_IP = DEFAULT_FRONT_STAGE, stageFetchUnc0 = DEFAULT_FRONT_STAGE;
     FetchStage fetchStage0 = EMPTY_STAGE, fetchStage1 = EMPTY_STAGE, fetchStage2 = EMPTY_STAGE;
-    FetchStage fetchStageUnc0 = EMPTY_STAGE, fetchStageUnc1 = EMPTY_STAGE, fetchStageUnc2 = EMPTY_STAGE, fetchStageUnc3 = EMPTY_STAGE, fetchStageUnc4 = EMPTY_STAGE;
+    FetchStage fetchStageUnc0 = EMPTY_STAGE, fetchStageUnc1 = EMPTY_STAGE, fetchStageUnc1__N = EMPTY_STAGE, fetchStageUnc2 = EMPTY_STAGE, fetchStageUnc3 = EMPTY_STAGE, fetchStageUnc4 = EMPTY_STAGE;
     FetchStage fetchStageSelected1;
     Mword expectedTargetF2 = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
@@ -62,7 +70,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     logic frontRed, adrMismatchF2, blockMismatchF2, wordMismatchF2;
 
 
-    InstructionL1 instructionCache(clk, fetchEnable, fetchAdr, cacheOut);
+    InstructionL1 instructionCache(clk, fetchEnable, fetchAdr, cacheOut,    fetchEnableUncached, fetchAdrUncached, uncachedOut);
 
 
 //      How to handle:
@@ -139,19 +147,27 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         if (stage_IP.active && AbstractCore.fetchAllow) begin
             fetchStage0 <= stage_IP.arr;
         end
-        else if (stageUnc_IP.active && AbstractCore.fetchAllow) begin
-            fetchStage0 <= stageUnc_IP.arr;
-        end
+//        else if (stageUnc_IP.active && AbstractCore.fetchAllow) begin
+//           // fetchStage0 <= stageUnc_IP.arr;
+//        end
         else begin
             fetchStage0 <= EMPTY_STAGE;
         end
 
         fetchStage1 <= setWords(fetchStage0, cacheOut);
 
-            if (stageUnc_IP.active && AbstractCore.fetchAllow) fetchStageUnc0 <= stageUnc_IP.arr;
-            else fetchStageUnc0 <= EMPTY_STAGE;
+            if (stageUnc_IP.active && AbstractCore.fetchAllow) begin
+                fetchStageUnc0 <= stageUnc_IP.arr;
+                stageFetchUnc0 <= stageUnc_IP;
+            end
+            else begin
+                fetchStageUnc0 <= EMPTY_STAGE;
+                stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
+            end
 
             fetchStageUnc1 <= setWords(fetchStageUnc0, cacheOut);
+                fetchStageUnc1__N <= fetchStageUnc0;//setWordsUnc(fetchStageUnc0, uncachedOut);
+
             fetchStageUnc2 <= fetchStageUnc1;
             fetchStageUnc3 <= fetchStageUnc2;
             fetchStageUnc4 <= fetchStageUnc3;
@@ -416,6 +432,26 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return res;
     endfunction
 
+//    function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
+//        FetchStage res = EMPTY_STAGE;//s;
+//        foreach (s[i]) begin
+//            Word realBits = uncachedOut.words[0];
+
+//            if (s[i].active) begin
+//                Word bits = AbstractCore.programMem.fetch(s[i].adr);
+//                assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", s[i].adr, realBits, bits);
+            
+//                res[0].active = 1;
+//                res[0].adr = res[i].adr;
+//                res[0].bits = realBits;
+                
+//                break;
+//            end
+            
+//        end
+                
+//        return res;
+//    endfunction
 
 
     function automatic FrontStage makeStage_IP(input Mword target, input logic on, input logic SINGLE);

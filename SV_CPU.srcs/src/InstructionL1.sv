@@ -14,9 +14,14 @@ import CacheDefs::*;
 
 module InstructionL1(
                 input logic clk,
+                
                 input logic readEn,
                 input Mword readAddress,
-                output InstructionCacheOutput readOut
+                output InstructionCacheOutput readOut,
+                
+                input logic readEnUnc,
+                input Mword readAddressUnc,
+                output InstructionCacheOutput readOutUnc
               );
 
     Word content[4096];
@@ -71,7 +76,7 @@ module InstructionL1(
         
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
         
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in icache");
+        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb");
         
         if (found.size() == 0) return res; 
         
@@ -101,11 +106,10 @@ module InstructionL1(
     endfunction
 
     function automatic InstructionCacheOutput readCache_N(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2);
-        InstructionCacheOutput res;
+        InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
         ReadResult selected = selectWay(res0, res1, res2);
         
         if (!readEnable) return res;
-        // TODO: determine hit/miss status
         
         // TLB miss
         if (!tr.present) begin
@@ -132,12 +136,28 @@ module InstructionL1(
         return res;
     endfunction
 
+    
+    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Translation tr);
+        InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
+
+        if (!readEnable) return res;
+        
+        // TODO: catch invalid adr or nonexistent mem expceion
+        res.status = CR_HIT;
+        
+        res.active = 1;
+        res.desc = tr.desc;
+        res.words = '{0: content[tr.padr/4], default : 'x};
+        
+        return res;
+    endfunction
+
 
    
         Translation translation, translationSig;
 
         InstructionCacheOutput readOutSig, readOutSig_AC;
-        InstructionCacheOutput readOut_T;
+        InstructionCacheOutput readOutCached, readOutUncached;
     
         assign readOutSig = readCache(readAddress);
         always_comb readOutSig_AC = readCache(readAddress);
@@ -166,7 +186,9 @@ module InstructionL1(
         
         readResultSelected <= selectWay(result0, result1, result2);
         
-        readOut_T <= readCache_N(readEn, tr, result0, result1, result2);
+        readOutCached <= readCache_N(readEn, tr, result0, result1, result2);
+        
+        readOutUncached <= readUncached(readEnUnc, tr);
     endtask
 
     
