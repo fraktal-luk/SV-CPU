@@ -171,10 +171,10 @@ module InstructionL1(
         doCacheAccess();
     
         translation <= translate(readAddress);
-        readOut <= readCache(readAddress);
+       // readOut <= readCache(readAddress);
     end
     
-    //    assign readOut = readOutCached;
+        assign readOut = readOutCached;
     
     
     task automatic doCacheAccess();

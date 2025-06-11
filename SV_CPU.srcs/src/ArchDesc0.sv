@@ -372,6 +372,8 @@ module ArchDesc0();
             #CYCLE;// $display("Suites: uncached");  
             uncachedRunner.runSuites(uncachedSuites);
             
+                // CAREFUL: mode switch must happen when frontend is flushed to avoid incorrect state. Hence reset signal is used   
+                startSim();
                 core.GlobalParams.uncachedFetch = 0;
                 
             #CYCLE;// $display("Suites: all");  

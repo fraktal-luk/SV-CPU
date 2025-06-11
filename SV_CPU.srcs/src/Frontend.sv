@@ -77,7 +77,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     logic frontRed, adrMismatchF2, blockMismatchF2, wordMismatchF2;
 
 
-    InstructionL1 instructionCache(clk, fetchEnable, fetchAdr, cacheOut,    fetchEnableUncached, fetchAdrUncached, uncachedOut);
+    InstructionL1 instructionCache(clk, fetchEnableCached, fetchAdrCached, cacheOut,    fetchEnableUncached, fetchAdrUncached, uncachedOut);
 
 
 //      How to handle:
@@ -162,7 +162,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageFetch0 <= DEFAULT_FRONT_STAGE;
         end
 
-        stageFetch1 <= '{stageFetch0.active, stageFetch0.adr, setWords(stageFetch0.arr, cacheOut)};
+        stageFetch1 <= '{stageFetch0.active, stageFetch0.adr, setWords(stageFetch0.active, stageFetch0.arr, cacheOut)};
 
         if (stageUnc_IP.active && AbstractCore.fetchAllow) begin
             stageFetchUnc0 <= stageUnc_IP;
@@ -423,8 +423,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endtask
 
 
-    function automatic FetchStage setWords(input FetchStage s, input InstructionCacheOutput cacheOut);
+    function automatic FetchStage setWords(input logic active, input FetchStage s, input InstructionCacheOutput cacheOut);
         FetchStage res = s;
+        
+        if (!active) return res;
+        
         foreach (res[i]) begin
             Word realBits = cacheOut.words[i];
 
