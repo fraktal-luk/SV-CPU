@@ -136,18 +136,20 @@ module InstructionL1(
         return res;
     endfunction
 
-    
-    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Translation tr);
+    // TODO: change adr to physical (also other places in fetch subsystem) 
+    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Mword adr);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
 
         if (!readEnable) return res;
+        
+        assert (physicalAddressValid(adr)) else $fatal(2, "Wrong fetch");
         
         // TODO: catch invalid adr or nonexistent mem expceion
         res.status = CR_HIT;
         
         res.active = 1;
-        res.desc = tr.desc;
-        res.words = '{0: content[tr.padr/4], default : 'x};
+        res.desc = '{1, 1, 1, 1, 0};//tr.desc;
+        res.words = '{0: content[adr/4], default : 'x};
         
         return res;
     endfunction
@@ -162,6 +164,8 @@ module InstructionL1(
         assign readOutSig = readCache(readAddress);
         always_comb readOutSig_AC = readCache(readAddress);
     
+        assign readOutUnc = readOutUncached;
+    
 
     always @(posedge clk) begin
         doCacheAccess();
@@ -169,7 +173,9 @@ module InstructionL1(
         translation <= translate(readAddress);
         readOut <= readCache(readAddress);
     end
-
+    
+    //    assign readOut = readOutCached;
+    
     
     task automatic doCacheAccess();
         AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_4); // TODO: introduce line size as access size?
@@ -188,7 +194,7 @@ module InstructionL1(
         
         readOutCached <= readCache_N(readEn, tr, result0, result1, result2);
         
-        readOutUncached <= readUncached(readEnUnc, tr);
+        readOutUncached <= readUncached(readEnUnc, readAddressUnc);
     endtask
 
     

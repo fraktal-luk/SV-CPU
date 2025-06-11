@@ -107,11 +107,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
 
-       // assign chk = (stageFetch1.arr === fetchStage1);
-        assign chk_2 = (stageFetch2.arr === fetchStage2);
-        
-      //  assign chk_3 = (stageFetchUnc1.arr === fetchStageUnc1);
-//        assign chk_4 = (stageFetchUnc2.arr === fetchStageUnc2);
+       assign chk = (instructionCache.readOut === instructionCache.readOutCached);
 
     assign fetchStageSelected1 = stageFetchSelected1.arr;
     assign fetchStage2 = stageFetch2.arr;
@@ -175,7 +171,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
         end
 
-        stageFetchUnc1 <= '{stageFetchUnc0.active, stageFetchUnc0.adr, setWordsUnc(stageFetchUnc0.arr, cacheOut)};
+        stageFetchUnc1 <= '{stageFetchUnc0.active, stageFetchUnc0.adr, setWordsUnc(stageFetchUnc0.arr, cacheOut, uncachedOut)};
         stageFetchUnc2 <= stageFetchUnc1;
         stageFetchUnc3 <= stageFetchUnc2;
         stageFetchUnc4 <= stageFetchUnc3;
@@ -442,8 +438,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return res;
     endfunction
     
-        function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput cacheOut);
-            FetchStage res = s;
+        function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput cacheOut, input InstructionCacheOutput uncachedOut);
+            FetchStage res = s, res_N = EMPTY_STAGE;
             foreach (res[i]) begin
                 Word realBits = cacheOut.words[i];
     
@@ -452,9 +448,25 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     //assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
                 end
                 
-                res[i].bits = realBits;
+                //res[i].bits = realBits;
             end
-            return res;
+            
+            foreach (res[i]) begin
+                if (res[i].active) begin
+                    res_N[0] = res[i];
+                    
+                    //assert (res[i].bits === uncachedOut.words[0]) else $fatal(2, "Noth this");
+                    
+                    res_N[0].bits = uncachedOut.words[0];
+                    
+                    break;
+                end
+            end
+            
+                
+            
+            return //res;
+                   res_N;
         endfunction
     
 
