@@ -52,8 +52,8 @@ module DataL1(
     MwordA tlbFillVirtA;
 
     UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
-    DataFillEngine dataFillEngine(clk, translations_Reg, dataFillEnA, dataFillPhysA);
-    DataFillEngine#(Mword, 11) tlbFillEngine(clk, translations_Reg, tlbFillEnA, tlbFillVirtA);
+    DataFillEngine dataFillEngine(clk, dataFillEnA, dataFillPhysA);
+    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
     //DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
@@ -101,12 +101,19 @@ module DataL1(
     task automatic reset();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
-        readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
+        readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+        
+            TMP_tlb.delete();
+            TMP_tlbL2.delete();
+            translationTableL1 = '{default: DEFAULT_TRANSLATION};
+            
+            blocksWay0 = '{default: null};
+            blocksWay1 = '{default: null};
 
         dataFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
 
-        uncachedSubsystem.UNC_reset();        
+        uncachedSubsystem.UNC_reset();
     endtask
 
 
@@ -179,6 +186,46 @@ module DataL1(
     ////////////////////////////////////
     // Presence & allocation functions 
     //
+    
+        function automatic LogicA dataFillEnables();
+            LogicA res = '{default: 0};
+            foreach (readOut[p]) begin
+                if (readOut[p].status == CR_TAG_MISS) begin
+                    res[p] = 1;
+                end
+            end
+            return res;
+        endfunction
+    
+        function automatic DwordA dataFillPhysical();
+            DwordA res = '{default: 'x};
+            foreach (readOut[p]) begin
+                res[p] = getBlockBaseD(translations_Reg[p].padr);
+            end
+            return res;
+        endfunction
+    
+    
+        function automatic LogicA tlbFillEnables();
+            LogicA res = '{default: 0};
+            foreach (readOut[p]) begin
+                if (readOut[p].status == CR_TLB_MISS) begin
+                    res[p] = 1;
+                end
+            end
+            return res;
+        endfunction
+    
+        function automatic MwordA tlbFillVirtual();
+            MwordA res = '{default: 'x};
+            foreach (readOut[p]) begin
+                res[p] = getPageBaseM(accessDescs_Reg[p].vadr);
+            end
+            return res;
+        endfunction
+    
+
+
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
@@ -247,43 +294,6 @@ module DataL1(
     endfunction
 
 
-
-    function automatic LogicA dataFillEnables();
-        LogicA res = '{default: 0};
-        foreach (readOut[p]) begin
-            if (readOut[p].status == CR_TAG_MISS) begin
-                res[p] = 1;
-            end
-        end
-        return res;
-    endfunction
-
-    function automatic DwordA dataFillPhysical();
-        DwordA res = '{default: 'x};
-        foreach (readOut[p]) begin
-            res[p] = getBlockBaseD(translations_Reg[p].padr);
-        end
-        return res;
-    endfunction
-
-
-    function automatic LogicA tlbFillEnables();
-        LogicA res = '{default: 0};
-        foreach (readOut[p]) begin
-            if (readOut[p].status == CR_TLB_MISS) begin
-                res[p] = 1;
-            end
-        end
-        return res;
-    endfunction
-
-    function automatic MwordA tlbFillVirtual();
-        MwordA res = '{default: 'x};
-        foreach (readOut[p]) begin
-            res[p] = getPageBaseM(accessDescs_Reg[p].vadr);
-        end
-        return res;
-    endfunction
 
 
     always_comb dataFillEnA = dataFillEnables();
