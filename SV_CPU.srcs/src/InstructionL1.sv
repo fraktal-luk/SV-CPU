@@ -28,6 +28,7 @@ module InstructionL1(
         Word way0[PAGE_SIZE/4] = '{default: 'x};
         Word way1[PAGE_SIZE/4] = '{default: 'x};
         Word way2[PAGE_SIZE/4] = '{default: 'x};
+        Word way3[PAGE_SIZE/4] = '{default: 'x};
 
 
     Translation TMP_tlbL1[$], TMP_tlbL2[$];
@@ -39,7 +40,7 @@ module InstructionL1(
     InsWay blocksWay0;
     InsWay blocksWay1;
     InsWay blocksWay2;
-
+    InsWay blocksWay3;
 
         typedef struct {
             logic valid;
@@ -49,6 +50,7 @@ module InstructionL1(
         ReadResult readResultsWay0;
         ReadResult readResultsWay1;
         ReadResult readResultsWay2;
+        ReadResult readResultsWay3;
         ReadResult readResultSelected;
 
     
@@ -67,6 +69,7 @@ module InstructionL1(
         way0 = '{default: 'x};
         way1 = '{default: 'x};
         way2 = '{default: 'x};
+        way3 = '{default: 'x};
     endfunction
 
 
@@ -105,9 +108,9 @@ module InstructionL1(
         return res;
     endfunction
 
-    function automatic InstructionCacheOutput readCache_N(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2);
+    function automatic InstructionCacheOutput readCache_N(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
-        ReadResult selected = selectWay(res0, res1, res2);
+        ReadResult selected = selectWay(res0, res1, res2, res3);
         
         if (!readEnable) return res;
         
@@ -184,24 +187,27 @@ module InstructionL1(
         ReadResult result0 = readWay(blocksWay0, acc, tr);
         ReadResult result1 = readWay(blocksWay1, acc, tr);
         ReadResult result2 = readWay(blocksWay2, acc, tr);
+        ReadResult result3 = readWay(blocksWay3, acc, tr);
         
         readResultsWay0 <= result0;
         readResultsWay1 <= result1;
         readResultsWay2 <= result2;
+        readResultsWay3 <= result3;
         
         
-        readResultSelected <= selectWay(result0, result1, result2);
+        readResultSelected <= selectWay(result0, result1, result2, result3);
         
-        readOutCached <= readCache_N(readEn, tr, result0, result1, result2);
+        readOutCached <= readCache_N(readEn, tr, result0, result1, result2, result3);
         
         readOutUncached <= readUncached(readEnUnc, readAddressUnc);
     endtask
 
     
-    function automatic ReadResult selectWay(input ReadResult res0, input ReadResult res1, input ReadResult res2);
+    function automatic ReadResult selectWay(input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
         if (res0.valid === 1) return res0; 
         if (res1.valid === 1) return res1; 
-        return res2;
+        if (res2.valid === 1) return res2; 
+        return res3;
     endfunction 
 
 
@@ -214,6 +220,7 @@ module InstructionL1(
         Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
         Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
         Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
+        Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
 
 
         PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(0);
@@ -223,17 +230,23 @@ module InstructionL1(
         page = AbstractCore.programMem.getPage(2*PAGE_SIZE);
         way2 = page[0+:PAGE_SIZE/4];
         
-            content[0+:1024] = way0;
-            content[1024+:1024] = way1;
-            content[2048+:1024] = way2;
-            
-            
-            TMP_tlbL1 = '{0: physPage0, 1: physPage1, 2: physPage2};
-            DB_fillTranslations();
-            
-            initBlocksWay(blocksWay0, 0);
-            initBlocksWay(blocksWay1, PAGE_SIZE);
-            initBlocksWay(blocksWay2, 2*PAGE_SIZE);
+            page = AbstractCore.programMem.getPage(3*PAGE_SIZE);
+            way3 = page[0+:PAGE_SIZE/4];
+
+        content[0+:1024] = way0;
+        content[1024+:1024] = way1;
+        content[2048+:1024] = way2;
+        content[(1024+2048)+:1024] = way3;
+   
+        TMP_tlbL1 = '{physPage0, physPage1, physPage2,   physPage3}; // TODO: remove page3 from TLB L1 to test cache miss
+        TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3};
+        DB_fillTranslations();
+
+        initBlocksWay(blocksWay0, 0);
+        initBlocksWay(blocksWay1, PAGE_SIZE);
+        initBlocksWay(blocksWay2, 2*PAGE_SIZE);
+        
+            initBlocksWay(blocksWay3, 3*PAGE_SIZE); // TODO: remove this to test cache miss and filling of way3
     endfunction
 
 
@@ -258,7 +271,7 @@ module InstructionL1(
                 content[2048+:1024] = way2;
                 
                 
-                TMP_tlbL1 = '{0: physPage0, 1: physPage1, 2: physPage2};
+                TMP_tlbL1 = '{physPage0, physPage1, physPage2};
                 DB_fillTranslations();
 
         endfunction

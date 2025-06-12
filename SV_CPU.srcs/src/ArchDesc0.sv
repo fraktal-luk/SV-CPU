@@ -214,6 +214,7 @@ module ArchDesc0();
             emul_N.progMem.assignPage(PAGE_SIZE, common.words);
             prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+
         runner1.announceSuites = 0;
         #1 runner1.runSuites(allSuites);
         
@@ -366,7 +367,7 @@ module ArchDesc0();
             SimRunner cachedRunner = new();
               Word emul_progMem2[] = new[4096 / 4];
                 theProgMem.assignPage(PAGE_SIZE, common.words);
-                
+                    theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
                 
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
