@@ -58,7 +58,11 @@ module ArchDesc0();
         "Tests_basic_uncached.txt"//,
         //"Tests_mem_simple.txt"
     };
-    
+
+    squeue cachedFetchSuites = '{
+        "Tests_icache_fetch.txt"
+    };
+   
     squeue allSuites = '{
         "Tests_basic.txt",
         "Tests_mem_simple.txt",
@@ -369,20 +373,28 @@ module ArchDesc0();
 
                 core.GlobalParams.uncachedFetch = 1;
 
-            #CYCLE;// $display("Suites: uncached");  
+            #CYCLE;// $display("Suites: uncached");
+            $display("* Uncached suites");
             uncachedRunner.runSuites(uncachedSuites);
             
                 // CAREFUL: mode switch must happen when frontend is flushed to avoid incorrect state. Hence reset signal is used   
                 startSim();
                 core.GlobalParams.uncachedFetch = 0;
-                
-            #CYCLE;// $display("Suites: all");  
+
+
+            #CYCLE;// $display("Suites: all");
+            $display("* Cached fetch suites");
+            cachedRunner.runSuites(cachedFetchSuites); 
+   
+            #CYCLE;// $display("Suites: all"); 
+            $display("* Normal suites"); 
             cachedRunner.runSuites(allSuites);  
             
                 // Now assure that a pullback and reissue has happened because of mem replay
                 core.insMap.assertReissue();
             
-            $display("Event tests");
+            //#CYCLE
+            $display("* Event tests");
             
                 prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
