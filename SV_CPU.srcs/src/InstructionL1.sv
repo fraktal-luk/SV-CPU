@@ -115,7 +115,13 @@ module InstructionL1(
         
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb");
         
-        if (found.size() == 0) return res; 
+        if (found.size() == 0) begin
+            if (DEV_ICACHE_MISS) begin
+                res.vadr = adr;
+                res.padr = adr;
+            end
+            return res;
+        end 
         
         res = found[0];
 
@@ -151,6 +157,7 @@ module InstructionL1(
         // TLB miss
         if (!tr.present) begin
             res.status = CR_TLB_MISS;
+                if (DEV_ICACHE_MISS) res.words = selected.value;
         end
         // Not cached
         else if (!tr.desc.cached) begin
@@ -173,8 +180,8 @@ module InstructionL1(
         return res;
     endfunction
 
-    // TODO: change adr to physical (also other places in fetch subsystem) 
-    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Mword adr);
+
+    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Dword adr);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
 
         if (!readEnable) return res;
@@ -183,7 +190,7 @@ module InstructionL1(
         
         // TODO: catch invalid adr or nonexistent mem expceion
         res.status = CR_HIT;
-        
+
         res.active = 1;
         res.desc = '{1, 1, 1, 1, 0};//tr.desc;
         res.words = '{0: content[adr/4], default : 'x};
@@ -232,7 +239,7 @@ module InstructionL1(
         
         readOutCached <= readCache_N(readEn, tr, result0, result1, result2, result3);
         
-        readOutUncached <= readUncached(readEnUnc, readAddressUnc);
+        readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
     endtask
 
     
@@ -271,7 +278,8 @@ module InstructionL1(
         content[2048+:1024] = way2;
         content[(1024+2048)+:1024] = way3;
    
-        TMP_tlbL1 = '{physPage0, physPage1, physPage2,   physPage3}; // TODO: remove page3 from TLB L1 to test cache miss
+        TMP_tlbL1 = '{physPage0, physPage1, physPage2};
+            //if (DEV_ICACHE_MISS) TMP_tlbL1.push_back(physPage3);
         TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3};
         DB_fillTranslations();
 
@@ -279,7 +287,7 @@ module InstructionL1(
         initBlocksWay(blocksWay1, PAGE_SIZE);
         initBlocksWay(blocksWay2, 2*PAGE_SIZE);
         
-            initBlocksWay(blocksWay3, 3*PAGE_SIZE); // TODO: remove this to test cache miss and filling of way3
+           if (DEV_ICACHE_MISS) initBlocksWay(blocksWay3, 3*PAGE_SIZE);
     endfunction
 
 

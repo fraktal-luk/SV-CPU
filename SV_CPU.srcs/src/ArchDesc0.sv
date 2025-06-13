@@ -366,7 +366,7 @@ module ArchDesc0();
             UncachedSimRunner uncachedRunner = new();
             SimRunner cachedRunner = new();
               Word emul_progMem2[] = new[4096 / 4];
-                theProgMem.assignPage(PAGE_SIZE, common.words);
+                    theProgMem.assignPage(PAGE_SIZE, common.words);
                     theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
                 
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
@@ -386,6 +386,7 @@ module ArchDesc0();
             #CYCLE;// $display("Suites: all");
             $display("* Cached fetch suites");
             cachedRunner.runSuites(cachedFetchSuites); 
+   
    
             #CYCLE;// $display("Suites: all"); 
             $display("* Normal suites"); 
