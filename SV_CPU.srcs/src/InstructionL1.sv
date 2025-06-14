@@ -113,7 +113,7 @@ module InstructionL1(
         
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
         
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb");
+        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
         
         if (found.size() == 0) begin
             if (DEV_ICACHE_MISS) begin
@@ -442,11 +442,14 @@ module InstructionL1(
         Mword pageBase = adr;
           
         Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
+        
+            return;
+            
         //assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
         assert (found.size() > 0) else $error("NOt prent in TLB L2");
         
         //translationVadrsL1[TMP_tlb.size()] = pageBase;
-        translationTableL1[TMP_tlbL1.size()] =  TMP_tlbL2[pageBase];
+        translationTableL1[TMP_tlbL1.size()] = found[0];
         TMP_tlbL1.push_back(found[0]);
     endfunction
 

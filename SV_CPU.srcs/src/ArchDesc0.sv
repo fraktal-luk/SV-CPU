@@ -78,6 +78,8 @@ module ArchDesc0();
 
     Emulator emul_N = new();
 
+    Mword commonAdr = COMMON_ADR;
+
 
     class Runner1 extends TestRunner;
         task automatic runTest(input string name);
@@ -88,8 +90,8 @@ module ArchDesc0();
 
 
 
-    function automatic void prepareTest(ref Word mem[], input string name);
-        Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, COMMON_ADR);
+    function automatic void prepareTest(ref Word mem[], input string name, input Mword commonAdr);
+        Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
             mem = '{default: 'x};
         writeProgram(mem, 0, testProg.words);
     endfunction
@@ -119,7 +121,7 @@ module ArchDesc0();
         Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = name;
-        prepareTest(emul_progMem, name);
+        prepareTest(emul_progMem, name, COMMON_ADR);
         
         
         emul.progMem.assignPage(0, emul_progMem);
@@ -161,7 +163,7 @@ module ArchDesc0();
         Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = "int";
-        prepareTest(emul_progMem, "events2");
+        prepareTest(emul_progMem, "events2", COMMON_ADR);
         emul.progMem.assignPage(0, emul_progMem);
 
         resetAll(emul);
@@ -263,7 +265,7 @@ module ArchDesc0();
                     Word emul_progMem[] = new[4096 / 4]; // TODO: refactor to set page 0 with test program in 1 line, without additional vars
     
                 #CYCLE announce(name);
-                prepareTest(emul_progMem, name);
+                prepareTest(emul_progMem, name, COMMON_ADR);
                 theProgMem.assignPage(0, emul_progMem);
     
                 core.resetForTest();
@@ -286,7 +288,7 @@ module ArchDesc0();
                 Word emul_progMem[] = new[4096 / 4]; // TODO: refactor to set page 0 with test program in 1 line, without additional vars
 
             #CYCLE announce(name);
-            prepareTest(emul_progMem, name);
+            prepareTest(emul_progMem, name, commonAdr); // CAREFUL: commonAdr is variable here 
             theProgMem.assignPage(0, emul_progMem);
 
             core.resetForTest();
@@ -307,7 +309,7 @@ module ArchDesc0();
                 Word emul_progMem[] = new[4096 / 4];
 
             #CYCLE announce("int");
-            prepareTest(emul_progMem, "events2");
+            prepareTest(emul_progMem, "events2", COMMON_ADR);
             theProgMem.assignPage(0, emul_progMem);
  
             core.resetForTest();
@@ -367,7 +369,7 @@ module ArchDesc0();
             SimRunner cachedRunner = new();
               Word emul_progMem2[] = new[4096 / 4];
                     theProgMem.assignPage(PAGE_SIZE, common.words);
-                    theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
+                        theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
                 
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
@@ -378,15 +380,20 @@ module ArchDesc0();
             $display("* Uncached suites");
             uncachedRunner.runSuites(uncachedSuites);
             
-                // CAREFUL: mode switch must happen when frontend is flushed to avoid incorrect state. Hence reset signal is used   
+                
+                // CAREFUL: mode switch must happen when frontend is flushed to avoid incorrect state. Hence reset signal is used                   
                 startSim();
                 core.GlobalParams.uncachedFetch = 0;
-
+                
+                
+                commonAdr = COMMON_ADR + 2*PAGE_SIZE;
 
             #CYCLE;// $display("Suites: all");
             $display("* Cached fetch suites");
             cachedRunner.runSuites(cachedFetchSuites); 
    
+   
+                commonAdr = COMMON_ADR;
    
             #CYCLE;// $display("Suites: all"); 
             $display("* Normal suites"); 
