@@ -25,11 +25,6 @@ module InstructionL1(
               );
 
     Word content[4096];
-        Word way0[PAGE_SIZE/4] = '{default: 'x};
-        Word way1[PAGE_SIZE/4] = '{default: 'x};
-        Word way2[PAGE_SIZE/4] = '{default: 'x};
-        Word way3[PAGE_SIZE/4] = '{default: 'x};
-
 
     Translation TMP_tlbL1[$], TMP_tlbL2[$];
 
@@ -70,8 +65,15 @@ module InstructionL1(
     
     DataFillEngine blockFillEngine(clk, blockFillEnA, blockFillPhysA);
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
-    
-    
+
+
+    assign readOutSig = readCache(readAddress);
+    always_comb readOutSig_AC = readCache(readAddress);
+
+    assign readOutUnc = readOutUncached;
+    assign readOut = readOutCached;
+
+
         function automatic void DB_fillTranslations();
             int i = 0;
             translationTableL1 = '{default: DEFAULT_TRANSLATION};
@@ -94,11 +96,6 @@ module InstructionL1(
         blocksWay1 = '{default: null};
         blocksWay2 = '{default: null};
         blocksWay3 = '{default: null};
-    
-        way0 = '{default: 'x};
-        way1 = '{default: 'x};
-        way2 = '{default: 'x};
-        way3 = '{default: 'x};
         
         content = '{default: 'x};
         
@@ -200,24 +197,16 @@ module InstructionL1(
 
 
 
-        assign readOutSig = readCache(readAddress);
-        always_comb readOutSig_AC = readCache(readAddress);
-    
-        assign readOutUnc = readOutUncached;
-    
-
     always @(posedge clk) begin
         doCacheAccess();
     
         translation <= translate(readAddress);
-       // readOut <= readCache(readAddress);
        
         if (blockFillEngine.notifyFill) allocInDynamicRange(blockFillEngine.notifiedAdr);
         if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
 
     end
     
-        assign readOut = readOutCached;
     
     
     task automatic doCacheAccess();
@@ -263,6 +252,11 @@ module InstructionL1(
         Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
 
 
+        Word way0[PAGE_SIZE/4] = '{default: 'x};
+        Word way1[PAGE_SIZE/4] = '{default: 'x};
+        Word way2[PAGE_SIZE/4] = '{default: 'x};
+        Word way3[PAGE_SIZE/4] = '{default: 'x};
+
         PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(0);
         way0 = page[0+:PAGE_SIZE/4];
         page = AbstractCore.programMem.getPage(PAGE_SIZE);
@@ -298,7 +292,12 @@ module InstructionL1(
             Translation physPage0 = '{present: 1, vadr: 0, desc: uncachedDesc, padr: 0};
             Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: uncachedDesc, padr: PAGE_SIZE};
             Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: uncachedDesc, padr: 2*PAGE_SIZE};
-        
+ 
+ 
+            Word way0[PAGE_SIZE/4] = '{default: 'x};
+            Word way1[PAGE_SIZE/4] = '{default: 'x};
+            Word way2[PAGE_SIZE/4] = '{default: 'x};
+            Word way3[PAGE_SIZE/4] = '{default: 'x};       
         
             PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(0);
             way0 = page[0+:PAGE_SIZE/4];
@@ -352,61 +351,37 @@ module InstructionL1(
         endfunction
 
 
-    always_comb blockFillEnA = dataFillEnables();
-    always_comb blockFillPhysA = dataFillPhysical();
-    always_comb tlbFillEnA = tlbFillEnables();
-    always_comb tlbFillVirtA = tlbFillVirtual();
+    always_comb blockFillEnA = dataMakeEnables();
+    always_comb blockFillPhysA = dataMakePhysical();
+    always_comb tlbFillEnA = tlbMakeEnables();
+    always_comb tlbFillVirtA = tlbMakeVirtual();
 
 
 /////////////////////////////////////////////////
 
 
-        function automatic LogicA dataFillEnables();
+        function automatic LogicA dataMakeEnables();
             LogicA res = '{default: 0};
-//            foreach (readOut[p]) begin
-//                if (readOut[p].status == CR_TAG_MISS) begin
-//                    res[p] = 1;
-//                end
-//            end
-            
             if (readOutCached.status == CR_TAG_MISS) res[0] = 1;
-            
             return res;
         endfunction
     
-        function automatic DwordA dataFillPhysical();
+        function automatic DwordA dataMakePhysical();
             DwordA res = '{default: 'x};
-//            foreach (readOut[p]) begin
-//                res[p] = getBlockBaseD(translations_Reg[p].padr);
-//            end
-            
             res[0] = getBlockBaseD(translation.padr);
-
             return res;
         endfunction
     
     
-        function automatic LogicA tlbFillEnables();
+        function automatic LogicA tlbMakeEnables();
             LogicA res = '{default: 0};
-//            foreach (readOut[p]) begin
-//                if (readOut[p].status == CR_TLB_MISS) begin
-//                    res[p] = 1;
-//                end
-//            end
-            
             if (readOutCached.status == CR_TLB_MISS) res[0] = 1;
-            
             return res;
         endfunction
     
-        function automatic MwordA tlbFillVirtual();
+        function automatic MwordA tlbMakeVirtual();
             MwordA res = '{default: 'x};
-//            foreach (readOut[p]) begin
-//                res[p] = getPageBaseM(accessDescs_Reg[p].vadr);
-//            end
-
             res[0] = getPageBaseM(translation.vadr);
-
             return res;
         endfunction
     
@@ -445,10 +420,8 @@ module InstructionL1(
         
             return;
             
-        //assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
         assert (found.size() > 0) else $error("NOt prent in TLB L2");
         
-        //translationVadrsL1[TMP_tlb.size()] = pageBase;
         translationTableL1[TMP_tlbL1.size()] = found[0];
         TMP_tlbL1.push_back(found[0]);
     endfunction
