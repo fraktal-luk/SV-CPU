@@ -95,8 +95,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign wordMismatchF2 = (stageFetchSelected1.adr !== expectedTargetF2);
     always_comb adrMismatchF2 = FETCH_UNC ? wordMismatchF2 : blockMismatchF2;
     assign frontRed = stageFetchSelected1.active && adrMismatchF2;
-    assign frontRedOnMiss = stageFetchSelected1.active && stageFetchSelected1.status inside {CR_TLB_MISS, CR_TAG_MISS};
-
+    assign frontRedOnMiss = (stageFetchSelected1.active && stageFetchSelected1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRed;
+        // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
 
 
        assign chk = 0;
@@ -197,7 +197,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     task automatic redirectF2();
         flushFrontendBeforeF2();
 
-        stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC   && !frontRedOnMiss, FETCH_SINGLE);
+        stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC && !frontRedOnMiss, FETCH_SINGLE);
         stageUnc_IP <= makeStage_IP(expectedTargetF2, FETCH_UNC, 1);
 
         incFetchCounter();   
@@ -378,7 +378,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         Mword adr = res[FETCH_WIDTH-1].adr + 4;
         
         
-            if (fs.active && fs.status inside {CR_TLB_MISS, CR_TAG_MISS}) return fs.adr;
+          //  if (fs.active && fs.status inside {CR_TLB_MISS, CR_TAG_MISS}) return fs.adr;
         
         foreach (res[i]) 
             if (res[i].active) begin
