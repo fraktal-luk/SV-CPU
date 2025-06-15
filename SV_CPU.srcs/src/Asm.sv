@@ -97,6 +97,19 @@ package Asm;
     endfunction
 
 
+    function automatic integer parseNumber(input string str);
+         integer value = 'x;
+         int LEN = str.len();
+         if (LEN >= 2 && str[0] && str[1] inside {"x", "X"}) begin
+              value = str.substr(2,LEN-1).atohex();
+         end
+         else
+              value = str.atoi();
+              
+         return value;
+    endfunction; 
+
+
     function automatic Word4 parseArgs(input string4 args);
         Word4 res;
         integer value = 'x;
@@ -106,18 +119,14 @@ package Asm;
                res[i] = 'x;
                continue;
             end
-        
+
             case (args[i][0])
                 "$", "@": value = 'x;
                 "f":      value = args[i].substr(1, args[i].len()-1).atoi();
                 "r":      value = args[i].substr(1, args[i].len()-1).atoi();
-                "-":      value = args[i].substr(0, args[i].len()-1).atoi();
-                "0", "1", "2", "3", "4", "5", "6", "7", "8", "9": begin
-                     if (args[i].len() >= 2 && args[i][1] inside {"x", "X"})
-                          value = args[i].atohex();
-                     else
-                          value = args[i].atoi();
-                end
+                "-":      value = -parseNumber(args[i].substr(1, args[i].len()-1));
+                "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
+                          value = parseNumber(args[i]);
                 default: $fatal("Wrong arg");
             endcase
             

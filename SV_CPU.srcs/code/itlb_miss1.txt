@@ -4,11 +4,8 @@
 	add_i r3, r0, 32
 	add_i r4, r0, 5
 	add_i r5, r0, 0x7ddd
-	ja 0x800c
+	jl r31, $memSet32
 
 	sys_call
 $error
     sys_error
-
-$anotherPage
-	ja -8

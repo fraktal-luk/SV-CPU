@@ -51,7 +51,6 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-
     Section common;
     
     squeue uncachedSuites = '{
@@ -290,6 +289,7 @@ module ArchDesc0();
             #CYCLE announce(name);
             prepareTest(emul_progMem, name, commonAdr); // CAREFUL: commonAdr is variable here 
             theProgMem.assignPage(0, emul_progMem);
+            theProgMem.assignPage(8*PAGE_SIZE, emul_progMem); // TODO: remove when mapping multiple v pages to one physical is possible without tricks (checking in Frontend fetch translation!)
 
             core.resetForTest();
             core.programMem = theProgMem;

@@ -1,4 +1,5 @@
 ; 
 itlb_miss0
+itlb_miss1
 icache_miss0
 
