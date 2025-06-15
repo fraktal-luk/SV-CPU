@@ -407,14 +407,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     function automatic FetchStage setWords(input logic active, input CacheReadStatus status, input FetchStage s, input InstructionCacheOutput cacheOut);
         FetchStage res = s;
-        
+
         if (!active || status != CR_HIT) return res;
 
         foreach (res[i]) begin
             Word realBits = cacheOut.words[i];
 
             if (res[i].active) begin
-                Word bits = AbstractCore.programMem.fetch(res[i].adr);
+                Word bits = AbstractCore.programMem.fetch(res[i].adr); // TODO: we must fetch programMem from physical adr, not virtual!
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             

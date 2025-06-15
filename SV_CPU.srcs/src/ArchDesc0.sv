@@ -370,6 +370,7 @@ module ArchDesc0();
               Word emul_progMem2[] = new[4096 / 4];
                     theProgMem.assignPage(PAGE_SIZE, common.words);
                         theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
+                        theProgMem.assignPage(4*PAGE_SIZE, common.words); // TODO: this temporary hack is to get correct fetch bits from virtual page at 4*PAGE_SIZE mapped to physical 1*PAGE_SIZE
                 
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
@@ -386,7 +387,7 @@ module ArchDesc0();
                 core.GlobalParams.uncachedFetch = 0;
                 
                 
-                commonAdr = COMMON_ADR + 2*PAGE_SIZE;
+                commonAdr = COMMON_ADR + 3*PAGE_SIZE;
 
             #CYCLE;// $display("Suites: all");
             $display("* Cached fetch suites");

@@ -252,6 +252,7 @@ module InstructionL1(
         Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
         Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
         Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+            Translation physPage1_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 1*PAGE_SIZE};
 
 
         Word way0[PAGE_SIZE/4] = '{default: 'x};
@@ -276,7 +277,7 @@ module InstructionL1(
 
         TMP_tlbL1 = '{physPage0, physPage1, physPage2};
             //if (DEV_ICACHE_MISS) TMP_tlbL1.push_back(physPage3);
-        TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3};
+        TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3, physPage1_alt};
         DB_fillTranslations();
 
         initBlocksWay(blocksWay0, 0);
@@ -420,7 +421,7 @@ module InstructionL1(
             
             
         Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-              //      $error("TLB fill: %x", adr);
+                    $error("TLB fill: %x", adr);
 
            // return;
             
