@@ -111,6 +111,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         else
             fetchAndEnqueue();
 
+        if (instructionCache.tlbFillEngine.notifyFill) begin
+            assert (!stage_IP.active && !stageUnc_IP.active) else $fatal(2, "Restarting fetch while not stopped");
+            stage_IP.active <= 1;
+        end
+
         fqSize <= fetchQueue.size();
     end
 
@@ -160,7 +165,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     task automatic fetchAndEnqueue();
-        if (frontRed)
+        if (frontRed || frontRedOnMiss)
             redirectF2();
         else
             fetchNormal();
@@ -174,7 +179,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     task automatic performF2();
-        if (frontRed) begin
+        if (frontRed || frontRedOnMiss) begin
             stageFetch2 <= DEFAULT_FRONT_STAGE;
             return;
         end
@@ -192,7 +197,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     task automatic redirectF2();
         flushFrontendBeforeF2();
 
-        stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC, FETCH_SINGLE);
+        stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC   && !frontRedOnMiss, FETCH_SINGLE);
         stageUnc_IP <= makeStage_IP(expectedTargetF2, FETCH_UNC, 1);
 
         incFetchCounter();   
@@ -373,7 +378,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         Mword adr = res[FETCH_WIDTH-1].adr + 4;
         
         
-            //if (fs.active && fs.status inside {CR_TLB_MISS, CR_TAG_MISS}) return fs.adr;
+            if (fs.active && fs.status inside {CR_TLB_MISS, CR_TAG_MISS}) return fs.adr;
         
         foreach (res[i]) 
             if (res[i].active) begin
@@ -400,11 +405,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endtask
 
 
-    function automatic FetchStage setWords(input logic active, input FetchStage s, input InstructionCacheOutput cacheOut);
+    function automatic FetchStage setWords(input logic active, input CacheReadStatus status, input FetchStage s, input InstructionCacheOutput cacheOut);
         FetchStage res = s;
         
-        if (!active) return res;
-        
+        if (!active || status != CR_HIT) return res;
+
         foreach (res[i]) begin
             Word realBits = cacheOut.words[i];
 
@@ -422,7 +427,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);
         FrontStage res;
         
-        return '{stage.active, cachedOut.status, stage.adr, setWords(stage.active, stage.arr, cachedOut)};
+        return '{stage.active, cachedOut.status, stage.adr, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
     endfunction
 
 

@@ -107,19 +107,20 @@ module InstructionL1(
 
     function automatic Translation translate(input Mword adr);
         Translation res = DEFAULT_TRANSLATION;
-        
+
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
-        
+
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
-        
+
         if (found.size() == 0) begin
+            res.vadr = adr;
+            
             if (DEV_ICACHE_MISS) begin
-                res.vadr = adr;
                 res.padr = adr;
             end
             return res;
         end 
-        
+
         res = found[0];
 
         res.vadr = adr;
@@ -145,6 +146,7 @@ module InstructionL1(
         return res;
     endfunction
 
+
     function automatic InstructionCacheOutput readCache_N(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
         ReadResult selected = selectWay(res0, res1, res2, res3);
@@ -154,7 +156,7 @@ module InstructionL1(
         // TLB miss
         if (!tr.present) begin
             res.status = CR_TLB_MISS;
-                if (DEV_ICACHE_MISS) res.words = selected.value;
+            //    if (DEV_ICACHE_MISS) res.words = selected.value;
         end
         // Not cached
         else if (!tr.desc.cached) begin
@@ -171,7 +173,7 @@ module InstructionL1(
         end
         
         
-        res.active = 1;//selected.valid; // ?
+        res.active = 1;
         res.desc = tr.desc;
         
         return res;
@@ -271,7 +273,7 @@ module InstructionL1(
         content[1024+:1024] = way1;
         content[2048+:1024] = way2;
         content[(1024+2048)+:1024] = way3;
-   
+
         TMP_tlbL1 = '{physPage0, physPage1, physPage2};
             //if (DEV_ICACHE_MISS) TMP_tlbL1.push_back(physPage3);
         TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3};
@@ -415,10 +417,12 @@ module InstructionL1(
     function automatic void allocInTlb(input Mword adr);
         Translation DUMMY;
         Mword pageBase = adr;
-          
+            
+            
         Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-        
-            return;
+              //      $error("TLB fill: %x", adr);
+
+           // return;
             
         assert (found.size() > 0) else $error("NOt prent in TLB L2");
         
