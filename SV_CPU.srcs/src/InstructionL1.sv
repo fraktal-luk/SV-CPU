@@ -285,7 +285,7 @@ module InstructionL1(
         initBlocksWay(blocksWay1, PAGE_SIZE);
         initBlocksWay(blocksWay2, 2*PAGE_SIZE);
         
-           if (DEV_ICACHE_MISS) initBlocksWay(blocksWay3, 3*PAGE_SIZE);
+          // if (DEV_ICACHE_MISS) initBlocksWay(blocksWay3, 3*PAGE_SIZE);
     endfunction
 
 

@@ -289,7 +289,9 @@ module ArchDesc0();
             #CYCLE announce(name);
             prepareTest(emul_progMem, name, commonAdr); // CAREFUL: commonAdr is variable here 
             theProgMem.assignPage(0, emul_progMem);
-            theProgMem.assignPage(8*PAGE_SIZE, emul_progMem); // TODO: remove when mapping multiple v pages to one physical is possible without tricks (checking in Frontend fetch translation!)
+            theProgMem.assignPage(3*PAGE_SIZE, emul_progMem); // not preloaded
+            theProgMem.assignPage(4*PAGE_SIZE, emul_progMem); // mapped to page 3, not in L1 TLB
+            theProgMem.assignPage(8*PAGE_SIZE, emul_progMem); // mapped to page 0, not in L1 TLB
 
             core.resetForTest();
             core.programMem = theProgMem;
@@ -369,8 +371,8 @@ module ArchDesc0();
             SimRunner cachedRunner = new();
               Word emul_progMem2[] = new[4096 / 4];
                     theProgMem.assignPage(PAGE_SIZE, common.words);
-                        theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
-                        theProgMem.assignPage(4*PAGE_SIZE, common.words); // TODO: this temporary hack is to get correct fetch bits from virtual page at 4*PAGE_SIZE mapped to physical 1*PAGE_SIZE
+                     //  theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
+                     //  theProgMem.assignPage(4*PAGE_SIZE, common.words); // TODO: this temporary hack is to get correct fetch bits from virtual page at 4*PAGE_SIZE mapped to physical 1*PAGE_SIZE
                 
                 prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);

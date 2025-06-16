@@ -100,7 +100,7 @@ package Asm;
     function automatic integer parseNumber(input string str);
          integer value = 'x;
          int LEN = str.len();
-         if (LEN >= 2 && str[0] && str[1] inside {"x", "X"}) begin
+         if (LEN >= 2 && str[0] == "0" && str[1] inside {"x", "X"}) begin
               value = str.substr(2,LEN-1).atohex();
          end
          else
