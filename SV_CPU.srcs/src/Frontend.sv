@@ -111,9 +111,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         else
             fetchAndEnqueue();
 
-        if (instructionCache.tlbFillEngine.notifyFill) begin
-            assert (!stage_IP.active && !stageUnc_IP.active) else $fatal(2, "Restarting fetch while not stopped");
-            stage_IP.active <= 1;
+        if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
+            if (!stage_IP.active) stage_IP.active <= 1;
+            // TODO: consider whether this ^ should always be the case; Fetch may have been already rstarted by backend event, or turned off by system op (so that fill is not on the current path)
         end
 
         fqSize <= fetchQueue.size();

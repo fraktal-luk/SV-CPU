@@ -1,5 +1,5 @@
 ; 
 itlb_miss0
-;itlb_miss1
+;itlb_miss1   REMOVE
 icache_miss0
-
+itlb_icache_miss

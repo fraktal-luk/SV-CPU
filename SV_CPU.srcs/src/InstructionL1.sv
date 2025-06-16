@@ -252,7 +252,7 @@ module InstructionL1(
         Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
         Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
         Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-            Translation physPage1_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 1*PAGE_SIZE};
+            Translation physPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
             Translation physPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
 
 
@@ -276,9 +276,9 @@ module InstructionL1(
         content[2048+:1024] = way2;
         content[(1024+2048)+:1024] = way3;
 
-        TMP_tlbL1 = '{physPage0, physPage1, physPage2};
+        TMP_tlbL1 = '{physPage0, physPage1, physPage2, physPage3};
             //if (DEV_ICACHE_MISS) TMP_tlbL1.push_back(physPage3);
-        TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3, physPage1_alt, physPage0_alt};
+        TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
         DB_fillTranslations();
 
         initBlocksWay(blocksWay0, 0);
@@ -409,7 +409,7 @@ module InstructionL1(
         way[aInfo.block] = new();
         way[aInfo.block].valid = 1;
         way[aInfo.block].pbase = fillPbase;
-        way[aInfo.block].array = content[fillPbase +: BLOCK_SIZE/4];
+        way[aInfo.block].array = content[fillPbase/4 +: BLOCK_SIZE/4];
 
         return 1;
     endfunction
