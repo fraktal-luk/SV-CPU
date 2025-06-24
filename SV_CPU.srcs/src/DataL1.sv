@@ -52,12 +52,14 @@ module DataL1(
     MwordA tlbFillVirtA;
 
     UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
-    DataFillEngine dataFillEngine(clk, translations_Reg, dataFillEnA, dataFillPhysA);
-    DataFillEngine#(Mword, 11) tlbFillEngine(clk, translations_Reg, tlbFillEnA, tlbFillVirtA);
+    DataFillEngine dataFillEngine(clk, dataFillEnA, dataFillPhysA);
+    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
-    DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
-    DataCacheBlock blocksWay1[BLOCKS_PER_WAY];
+    //DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
+    //DataCacheBlock blocksWay1[BLOCKS_PER_WAY];
+    DataWay blocksWay0;
+    DataWay blocksWay1;
 
     localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
 
@@ -99,12 +101,19 @@ module DataL1(
     task automatic reset();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
-        readOut = '{default: EMPTY_DATA_CACHE_OUTPUT};
+        readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+        
+            TMP_tlb.delete();
+            TMP_tlbL2.delete();
+            translationTableL1 = '{default: DEFAULT_TRANSLATION};
+            
+            blocksWay0 = '{default: null};
+            blocksWay1 = '{default: null};
 
         dataFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
 
-        uncachedSubsystem.UNC_reset();        
+        uncachedSubsystem.UNC_reset();
     endtask
 
 
@@ -112,7 +121,7 @@ module DataL1(
     task automatic prefetchForTest();
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-    
+
         Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
         Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
         Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
@@ -177,6 +186,46 @@ module DataL1(
     ////////////////////////////////////
     // Presence & allocation functions 
     //
+    
+        function automatic LogicA dataFillEnables();
+            LogicA res = '{default: 0};
+            foreach (readOut[p]) begin
+                if (readOut[p].status == CR_TAG_MISS) begin
+                    res[p] = 1;
+                end
+            end
+            return res;
+        endfunction
+    
+        function automatic DwordA dataFillPhysical();
+            DwordA res = '{default: 'x};
+            foreach (readOut[p]) begin
+                res[p] = getBlockBaseD(translations_Reg[p].padr);
+            end
+            return res;
+        endfunction
+    
+    
+        function automatic LogicA tlbFillEnables();
+            LogicA res = '{default: 0};
+            foreach (readOut[p]) begin
+                if (readOut[p].status == CR_TLB_MISS) begin
+                    res[p] = 1;
+                end
+            end
+            return res;
+        endfunction
+    
+        function automatic MwordA tlbFillVirtual();
+            MwordA res = '{default: 'x};
+            foreach (readOut[p]) begin
+                res[p] = getPageBaseM(accessDescs_Reg[p].vadr);
+            end
+            return res;
+        endfunction
+    
+
+
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
@@ -246,43 +295,6 @@ module DataL1(
 
 
 
-    function automatic LogicA dataFillEnables();
-        LogicA res = '{default: 0};
-        foreach (readOut[p]) begin
-            if (readOut[p].status == CR_TAG_MISS) begin
-                res[p] = 1;
-            end
-        end
-        return res;
-    endfunction
-
-    function automatic DwordA dataFillPhysical();
-        DwordA res = '{default: 'x};
-        foreach (readOut[p]) begin
-            res[p] = getBlockBaseD(translations_Reg[p].padr);
-        end
-        return res;
-    endfunction
-
-
-    function automatic LogicA tlbFillEnables();
-        LogicA res = '{default: 0};
-        foreach (readOut[p]) begin
-            if (readOut[p].status == CR_TLB_MISS) begin
-                res[p] = 1;
-            end
-        end
-        return res;
-    endfunction
-
-    function automatic MwordA tlbFillVirtual();
-        MwordA res = '{default: 'x};
-        foreach (readOut[p]) begin
-            res[p] = getPageBaseM(accessDescs_Reg[p].vadr);
-        end
-        return res;
-    endfunction
-
 
     always_comb dataFillEnA = dataFillEnables();
     always_comb dataFillPhysA = dataFillPhysical();
@@ -309,7 +321,7 @@ module DataL1(
             res = '{1, CR_TLB_MISS, tr.desc, 'x};
         end
         else if (!tr.desc.cached) begin // Just detected uncached access, tr.desc indicates uncached
-            res = '{1, CR_HIT, tr.desc, 'x};
+            res = '{1, CR_HIT, tr.desc, 'x};  // TODO: introduce CR_UNCACHED to use here?
         end
         else if (!hit0 && !hit1) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};

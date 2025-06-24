@@ -9,6 +9,9 @@ package AbstractSim;
     import UopList::*;
 
 
+        localparam logic DEV_ICACHE_MISS = 1; // TODO: remove
+
+
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
@@ -673,5 +676,9 @@ package AbstractSim;
             default: $fatal(2, "Wrong op");
         endcase
     endfunction
+
+    function automatic Mword fetchLineBase(input Mword adr);
+        return adr & ~(4*FETCH_WIDTH-1);
+    endfunction;
 
 endpackage

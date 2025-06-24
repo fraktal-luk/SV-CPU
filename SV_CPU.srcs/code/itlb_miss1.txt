@@ -1,0 +1,11 @@
+
+	;add_i r1, r0, 1
+	
+	add_i r3, r0, 32
+	add_i r4, r0, 5
+	add_i r5, r0, 0x7ddd
+	jl r31, $memSet32
+
+	sys_call
+$error
+    sys_error

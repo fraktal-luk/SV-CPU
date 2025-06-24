@@ -29,6 +29,11 @@ module AbstractCore
 );
     logic dummy = 'z;
 
+
+    struct {
+        logic uncachedFetch = 0;
+    } GlobalParams;
+
     // DB        
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
@@ -47,6 +52,7 @@ module AbstractCore
 
 
     Mword insAdr;
+    logic fetchEnable;
     InstructionCacheOutput icacheOut;
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     DataCacheOutput sysReadOuts[N_MEM_PORTS];
@@ -83,10 +89,10 @@ module AbstractCore
 
     ///////////////////////////
 
-    InstructionL1 instructionCache(clk, insAdr, icacheOut);
+    //InstructionL1 instructionCache(clk, fetchEnable, insAdr, icacheOut);
     DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
-    Frontend theFrontend(insMap, branchEventInfo, lateEventInfo);
+    Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
@@ -110,7 +116,8 @@ module AbstractCore
 
     //////////////////////////////////////////
 
-    assign insAdr = theFrontend.ipStage[0].adr;
+    assign fetchEnable = theFrontend.fetchEnable;//theFrontend.FETCH_UNC ? theFrontend.stageUnc_IP.active : theFrontend.stage_IP.active;
+    assign insAdr = theFrontend.fetchAdr;//theFrontend.FETCH_UNC ? fetchLineBase(theFrontend.stageUnc_IP.adr) : fetchLineBase(theFrontend.stage_IP.adr);
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
@@ -119,6 +126,13 @@ module AbstractCore
 
     assign TMP_writeInfos[0] = writeInfo;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
+
+
+    function automatic InsId oldestCsq();
+        StoreQueueEntry found[$] = csq.find with (item.mid != -1);
+        StoreQueueEntry entry[$] = csq.min with (item.mid);
+        return entry[0].mid;
+    endfunction
 
 
     always @(posedge clk) begin
@@ -143,7 +157,7 @@ module AbstractCore
 
         updateBookkeeping();
 
-        insMap.commitCheck();
+        insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops form base if csq still contains something that would be deleted
     end
 
 
@@ -729,9 +743,9 @@ module AbstractCore
         programMem = null;
         
         
-        dataCache.reset();//resetForTest();
-        // TODO: reset frontend including instruction cache
-        instructionCache.reset();
+        dataCache.reset();
+        //instructionCache.reset();
+        theFrontend.instructionCache.reset();
 
 
         branchCheckpointQueue.delete();

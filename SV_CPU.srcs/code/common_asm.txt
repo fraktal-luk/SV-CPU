@@ -270,6 +270,7 @@ $ms32check
 	jz_i r4, $ms32done
 	sti_i r5, r3, 0	
 	add_i r4, r4, -1
+	add_i r3, r3, 4
 	ja $ms32check
 $ms32done
 	jz_r r0, r0, r31	

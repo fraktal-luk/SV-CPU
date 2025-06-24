@@ -19,7 +19,6 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
 (
     input logic clk,
     
-    input Translation translations[N_MEM_PORTS],
         input logic enable[N_MEM_PORTS],
         input Key dataIn[N_MEM_PORTS]
 );

@@ -292,7 +292,12 @@ package Insmap;
         endfunction
 
 
-        function automatic void commitCheck();
+        function automatic void commitCheck(input logic allow);
+            if (!allow) begin
+                //$error("Can't move imap now");
+                return;
+            end
+        
             while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
 
                 // FUTURE: remove mids and uids as queues because range [first, last] is enough?
@@ -314,7 +319,8 @@ package Insmap;
                     void'(insBase.uids.pop_front());
                 end
             end
-            
+                            //    $error("imap retired to %d, was %d", insBase.retired, insBase.retiredPrev);
+
             insBase.retiredPrev = insBase.retired;
             insBase.retiredPrevM = insBase.retiredM;
         endfunction 
@@ -322,7 +328,7 @@ package Insmap;
 
         // all
         function automatic void setRetired(input InsId id);
-            assert (id != -1) else $fatal(2, "retired -1");
+            assert (id != -1)  /* $error("Retire: %d", id); */  else $fatal(2, "retired -1");
 
             lastRetired = id;
             insBase.retireUpToM(id);

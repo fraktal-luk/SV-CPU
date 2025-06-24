@@ -197,13 +197,14 @@ package Emulation;
 
 
 
+
         function automatic Translation translateProgramAddress(input Mword vadr);
             localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
 
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
 
             if (DO_NOT_TRANSLATE_P) begin
-                return '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
+                return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
                 return DEFAULT_TRANSLATION;
@@ -218,7 +219,7 @@ package Emulation;
             Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
 
             if (DO_NOT_TRANSLATE) begin
-                return '{present: 1, vadr: vadr, desc: '{default: 1}, padr: vadr};
+                return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
                 return DEFAULT_TRANSLATION;

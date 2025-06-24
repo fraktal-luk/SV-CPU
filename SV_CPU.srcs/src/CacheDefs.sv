@@ -33,14 +33,15 @@ package CacheDefs;
     typedef struct {
         logic active;
         CacheReadStatus status;
-        InstructionLineDesc desc;        
+        //InstructionLineDesc desc;
+        DataLineDesc desc;       
         FetchGroup_N words;
     } InstructionCacheOutput;
     
     localparam InstructionCacheOutput EMPTY_INS_CACHE_OUTPUT = '{
         0,
         CR_INVALID,
-        '{0},
+        DEFAULT_DATA_LINE_DESC,
         '{default: 'x}
     };
     
@@ -337,6 +338,32 @@ package CacheDefs;
         
 //                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
 //                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
+
+    typedef Word FetchLine[FETCH_WIDTH];
+
+
+    class InstructionCacheBlock;
+        logic valid;
+        Mword vbase;
+        Dword pbase;
+        Word array[BLOCK_SIZE/4];
+    
+       
+        function automatic Word readWord(input int offset);            
+            assert (offset % 4 == 0) else $error("Trying to read unaligned icache: %x", offset);
+            
+            return array[offset/4];
+        endfunction        
+
+
+        function automatic FetchLine readLine(input int offset);            
+            assert (offset % (FETCH_WIDTH*4) == 0) else $error("Trying to read unaligned icache: %x", offset);
+            
+            return array[(offset/4) +: FETCH_WIDTH];
+        endfunction
+   
+    endclass
+
 
 
 endpackage
