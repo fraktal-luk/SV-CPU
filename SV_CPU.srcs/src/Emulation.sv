@@ -129,11 +129,7 @@ package Emulation;
     function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs, input Mword trg);
         saveStateForExc(state, adr);
         
-        state.target = trg;
-
-//        state.sysRegs[4] = state.sysRegs[1];
-//        state.sysRegs[2] = adr;
-        
+        state.target = trg;        
         state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
     endfunction
 
@@ -284,69 +280,56 @@ package Emulation;
 
 
 
-        function automatic void modifyStatus(input AbstractInstruction abs);
-            case (abs.def.o)
-                O_sysStore: ;
-                O_error: begin                    
-                    status.error = 1;
-                    status.eventType = PE_SYS_ERROR;
-                end
-                O_undef: begin
-                    status.error = 1;
-                    status.eventType = PE_SYS_UNDEFINED_INSTRUCTION;
-                end
-                O_call: begin
-                    status.eventType = PE_SYS_CALL;
-                end
-                O_sync: ;
-                O_retE: ;
-                O_retI: ;
-                O_replay: ;
-                O_halt: this.status.halted = 1;
-                O_send: this.status.send = 1;
-                default: ;
-            endcase
+            function automatic void modifyStatus(input AbstractInstruction abs);
+                case (abs.def.o)
+                    O_sysStore: ;
+    
+                    O_error: status.eventType = PE_SYS_ERROR;
+                    O_undef: status.eventType = PE_SYS_UNDEFINED_INSTRUCTION;
+                    O_call: status.eventType = PE_SYS_CALL;
+    
+                    O_sync: ;
+                    O_retE: ;
+                    O_retI: ;
+                    O_replay: ;
+                    O_send: setSending();
+                    default: ;
+                endcase
+            endfunction
+
+        
+        function automatic void setSending();
+            status.send = 1;
         endfunction
 
 
        function automatic logic catchFetchException(input Mword vadr, input Translation tr);
             if (!virtualAddressValid(vadr)) begin
-                //status.error = 1;
-                
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_INVALID_ADDRESS);
+                
                 return 1;
             end
-            else if (vadr % 4 !== 0) begin
-                //status.error = 1;
-                
+            else if (vadr % 4 !== 0) begin                
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_UNALIGNED_ADDRESS);
 
                 return 1;
             end
-            else if (!tr.present) begin
-                //status.error = 1;
-                
+            else if (!tr.present) begin                
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_UNMAPPED_ADDRESS);
 
                 return 1;
             end
-            else if (!tr.desc.canExec) begin
-                //status.error = 1;
-                
+            else if (!tr.desc.canExec) begin                
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_DISALLOWED_ACCESS);
 
                 return 1;
             end
             else if (!physicalAddressValid(tr.padr)) begin
-                //status.error = 1;
-
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_NONEXISTENT_ADDRESS);
 
                 return 1;
             end
             else if (!progMem.addressValid(tr.padr)) begin
-                //status.error = 1;
-
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_NONEXISTENT_ADDRESS);
 
                 return 1;

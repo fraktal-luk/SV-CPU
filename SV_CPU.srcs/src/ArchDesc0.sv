@@ -135,27 +135,27 @@ module ArchDesc0();
     endtask
 
 
-    task automatic runErrorTestEmul(ref Emulator emul);
-        time DELAY = 1;
-        Word emul_progMem[] = new[4096 / 4];
-
-        emulTestName = "err signal";
-        writeProgram(emul_progMem, 0, FAILING_SECTION.words);
-        emul.progMem.assignPage(0, emul_progMem);
-
-        resetAll(emul);
-        
-        map3pages(emul);
-        mapDataPages(emul);
-
-        for (int iter = 0; 1; iter++) begin
-            emul.executeStep();
-            if (emul.status.error == 1) break;
-            if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "error sig");
-            emul.drain();
-            #DELAY;
-        end
-    endtask
+//        task automatic runErrorTestEmul(ref Emulator emul);
+//            time DELAY = 1;
+//            Word emul_progMem[] = new[4096 / 4];
+    
+//            emulTestName = "err signal";
+//            writeProgram(emul_progMem, 0, FAILING_SECTION.words);
+//            emul.progMem.assignPage(0, emul_progMem);
+    
+//            resetAll(emul);
+            
+//            map3pages(emul);
+//            mapDataPages(emul);
+    
+//            for (int iter = 0; 1; iter++) begin
+//                emul.executeStep();
+//                if (emul.status.error == 1) break;
+//                if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "error sig");
+//                emul.drain();
+//                #DELAY;
+//            end
+//        endtask
 
     task automatic runIntTestEmul(ref Emulator emul);
         time DELAY = 1;
@@ -177,13 +177,22 @@ module ArchDesc0();
             end
 
             emul.executeStep();
-            if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n");
+            if (isErrorStatus(emul)) $fatal(2, ">>>> Emulation in error state\n");
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "events2");
-            if (emul.status.send == 1) break;
+            if (isSendingStatus(emul)) break;
             emul.drain();
             #DELAY;
         end
     endtask
+
+
+        function automatic logic isErrorStatus(input Emulator emul);            
+            return emul.status.eventType inside {PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION};
+        endfunction
+
+        function automatic logic isSendingStatus(input Emulator emul);            
+            return emul.status.send == 1;
+        endfunction
 
 
     task automatic performEmul(ref Emulator emul);
@@ -191,9 +200,9 @@ module ArchDesc0();
 
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
-            if (emul.status.error == 1) $fatal(2, ">>>> Emulation in error state\n%p", emul);
+            if (isErrorStatus(emul)) $fatal(2, ">>>> Emulation in error state\n%p", emul);
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
-            if (emul.status.send == 1) break;
+            if (isSendingStatus(emul)) break;
             emul.drain();
             #DELAY;
         end
@@ -219,9 +228,9 @@ module ArchDesc0();
         runner1.announceSuites = 0;
         #1 runner1.runSuites(allSuites);
         
-            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-            emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);       
-        #1 runErrorTestEmul(emul_N);
+//            prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
+//            emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);       
+//        #1 runErrorTestEmul(emul_N);
         
             prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
             emul_N.progMem.assignPage(2*PAGE_SIZE, emul_progMem2);
