@@ -117,7 +117,7 @@ package Emulation;
         endcase
     endfunction
 
-    
+
     function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs, input Mword trg);
         state.target = trg;
 
@@ -197,7 +197,6 @@ package Emulation;
 
 
 
-
         function automatic Translation translateProgramAddress(input Mword vadr);
             localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
 
@@ -232,7 +231,7 @@ package Emulation;
         function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
-    
+
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
                 return calculateResult(ins, args, adr);
             
@@ -249,7 +248,6 @@ package Emulation;
             return 'x;
         endfunction
         
-        // TODO: introduce mem exceptions etc
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
 
@@ -274,59 +272,65 @@ package Emulation;
         endfunction
 
 
-    
-        function automatic void executeStep();
-            Mword vadr = this.coreState.target;
-            
+
+       function automatic logic catchFetchException(input Mword vadr, input Translation tr);
             if (!virtualAddressValid(vadr)) begin
                 status.error = 1;
                 status.eventType = PE_FETCH_INVALID_ADDRESS;
                 modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
-                return;
+                return 1;
             end
             else if (vadr % 4 !== 0) begin
                 status.error = 1;
                 status.eventType = PE_FETCH_UNALIGNED_ADDRESS;
                 modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
-                return;
+                return 1;
             end
-            else begin
-                Translation tr = translateProgramAddress(vadr);
+            else if (!tr.present) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                return 1;
+            end
+            else if (!tr.desc.canExec) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_DISALLOWED_ACCESS;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                return 1;
+            end
+            else if (!physicalAddressValid(tr.padr)) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                return 1;
+            end
+            else if (!progMem.addressValid(tr.padr)) begin
+                status.error = 1;
+                status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
+                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                return 1;
+            end 
 
-                if (!tr.present) begin
-                    status.error = 1;
-                    status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
-                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
-                    return;
-                end
-                else if (!tr.desc.canExec) begin
-                    status.error = 1;
-                    status.eventType = PE_FETCH_DISALLOWED_ACCESS;
-                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
-                    return;
-                end
-                else if (!physicalAddressValid(tr.padr)) begin
-                    status.error = 1;
-                    status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
-                    modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
-                    return;
-                end
-                else begin
-                    AbstractInstruction absIns;
-                    TMP_FetchResult fres = progMem.fetch_N(tr.padr);
-                    
-                    if (!fres.ok) begin
-                        status.error = 1;
-                        status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
-                        coreState.target = IP_FETCH_EXC;
-                        modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
-                        return;
-                    end 
-                   
-                    absIns = decodeAbstract(fres.w);
-                    processInstruction(vadr, absIns);
-                end
-            end            
+           return 0;
+       endfunction
+
+
+
+        function automatic TMP_runInstruction(input Mword adr, input Word bits);
+            AbstractInstruction ins = decodeAbstract(bits);
+            processInstruction(adr, ins);
+        endfunction
+
+
+        function automatic void executeStep();
+            Mword vadr = this.coreState.target;
+            Translation tr = translateProgramAddress(vadr);
+
+            if (catchFetchException(vadr, tr)) return;
+            else begin
+                Word bits = progMem.fetch(tr.padr);
+                TMP_runInstruction(vadr, bits);
+            end
         endfunction 
         
 
@@ -420,17 +424,6 @@ package Emulation;
                 if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
             end
             
-            return 0;
-        endfunction
-
-
-        // Return 1 if exc
-        local function automatic logic writeSysReg__(ref CpuState state, input AbstractInstruction ins, input int regNum, input Mword value);
-            assert (!$isunknown(value)) else $error("Writing unknown value!");
-            
-            if (catchSysAccessException(ins, regNum)) return 1;
-
-            writeSysReg(state, regNum, value);
             return 0;
         endfunction
 
@@ -534,12 +527,13 @@ package Emulation;
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
         
+        
     endclass
 
 
+
     function automatic void runInEmulator(ref Emulator emul, input Mword adr, input Word bits);
-        AbstractInstruction ins = decodeAbstract(bits);
-        emul.processInstruction(adr, ins);
+        emul.TMP_runInstruction(adr, bits);
     endfunction
 
 endpackage
