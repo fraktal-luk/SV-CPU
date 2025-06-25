@@ -403,6 +403,22 @@ package EmulationDefs;
     } ProgramEvent;
 
 
+    function automatic Mword programEvent2trg(input ProgramEvent evType);
+        case (evType) inside
+            [PE_FETCH_INVALID_ADDRESS:PE_FETCH_NONEXISTENT_ADDRESS]:
+                return IP_FETCH_EXC;
+            [PE_MEM_INVALID_ADDRESS:PE_MEM_NONEXISTENT_ADDRESS]:
+                return IP_MEM_EXC;
+                
+            PE_SYS_INVALID_ADDRESS:
+                return IP_EXC;
+                
+            default: return 'x;
+        endcase
+    endfunction
+        
+        
+
     // For fetch
     function automatic logic virtualAddressValid(input Mword vadr);
         return !$isunknown(vadr) && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));

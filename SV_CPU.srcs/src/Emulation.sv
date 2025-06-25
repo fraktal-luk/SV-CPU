@@ -61,47 +61,68 @@ package Emulation;
     } CoreStatus;
 
     function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
-        state.sysRegs[5] = state.sysRegs[1];
-        state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
-        state.sysRegs[3] = prevTarget;
+        //state.sysRegs[5] = state.sysRegs[1];
+        //state.sysRegs[3] = prevTarget;
+
+        saveStateForInt(state, prevTarget);
 
         state.target = trg;
+        state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
     endfunction
+
+
+    function automatic void saveStateForExc(ref CpuState state, input Mword adr);
+        state.sysRegs[4] = state.sysRegs[1];
+        state.sysRegs[2] = adr + 4;
+    endfunction
+ 
+     function automatic void saveStateForInt(ref CpuState state, input Mword adr);
+        state.sysRegs[5] = state.sysRegs[1];
+        state.sysRegs[3] = adr;
+    endfunction
+ 
+
+
 
     function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
         case (abs.def.o)
             O_error: begin
+                saveStateForExc(state, adr);
+
                 state.target = IP_ERROR;
 
-                state.sysRegs[4] = state.sysRegs[1];
+                //state.sysRegs[4] = state.sysRegs[1];
                 state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                state.sysRegs[2] = adr + 4;
+                //state.sysRegs[2] = adr + 4;
+                
             end
             O_undef: begin
+                saveStateForExc(state, adr);
+            
                 state.target = IP_ERROR;
 
-                state.sysRegs[4] = state.sysRegs[1];
+                //state.sysRegs[4] = state.sysRegs[1];
                 state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                state.sysRegs[2] = adr + 4;
+                //state.sysRegs[2] = adr + 4;
             end
-            O_call: begin                    
+            O_call: begin
+                saveStateForExc(state, adr);
+
                 state.target = IP_CALL;
 
-                state.sysRegs[4] = state.sysRegs[1];
+                //state.sysRegs[4] = state.sysRegs[1];
                 state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                state.sysRegs[2] = adr + 4;
+                //state.sysRegs[2] = adr + 4;
             end
             O_sync: begin
                 state.target = adr + 4;
             end
             O_retE: begin
                 state.target = state.sysRegs[2];
-                
                 state.sysRegs[1] = state.sysRegs[4];
             end
             O_retI: begin
                 state.target = state.sysRegs[3];
-
                 state.sysRegs[1] = state.sysRegs[5];
             end
             O_replay: begin
@@ -273,41 +294,71 @@ package Emulation;
 
 
 
+        function automatic void modifyStatus(input AbstractInstruction abs);
+            case (abs.def.o)
+                O_sysStore: ;
+                O_error: begin                    
+                    status.error = 1;
+                    status.eventType = PE_SYS_ERROR;
+                end
+                O_undef: begin
+                    status.error = 1;
+                    status.eventType = PE_SYS_UNDEFINED_INSTRUCTION;
+                end
+                O_call: begin
+                    status.eventType = PE_SYS_CALL;
+                end
+                O_sync: ;
+                O_retE: ;
+                O_retI: ;
+                O_replay: ;
+                O_halt: this.status.halted = 1;
+                O_send: this.status.send = 1;
+                default: ;
+            endcase
+        endfunction
+
+
        function automatic logic catchFetchException(input Mword vadr, input Translation tr);
             if (!virtualAddressValid(vadr)) begin
                 status.error = 1;
-                status.eventType = PE_FETCH_INVALID_ADDRESS;
-                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                
+                setExecState(DEFAULT_ABS_INS, PE_FETCH_INVALID_ADDRESS);
                 return 1;
             end
             else if (vadr % 4 !== 0) begin
                 status.error = 1;
-                status.eventType = PE_FETCH_UNALIGNED_ADDRESS;
-                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                
+                setExecState(DEFAULT_ABS_INS, PE_FETCH_UNALIGNED_ADDRESS);
+
                 return 1;
             end
             else if (!tr.present) begin
                 status.error = 1;
-                status.eventType = PE_FETCH_UNMAPPED_ADDRESS;
-                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                
+                setExecState(DEFAULT_ABS_INS, PE_FETCH_UNMAPPED_ADDRESS);
+
                 return 1;
             end
             else if (!tr.desc.canExec) begin
                 status.error = 1;
-                status.eventType = PE_FETCH_DISALLOWED_ACCESS;
-                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+                
+                setExecState(DEFAULT_ABS_INS, PE_FETCH_DISALLOWED_ACCESS);
+
                 return 1;
             end
             else if (!physicalAddressValid(tr.padr)) begin
                 status.error = 1;
-                status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
-                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+
+                setExecState(DEFAULT_ABS_INS, PE_FETCH_NONEXISTENT_ADDRESS);
+
                 return 1;
             end
             else if (!progMem.addressValid(tr.padr)) begin
                 status.error = 1;
-                status.eventType = PE_FETCH_NONEXISTENT_ADDRESS;
-                modifySysRegsOnException(coreState, ip, DEFAULT_ABS_INS, IP_FETCH_EXC);
+
+                setExecState(DEFAULT_ABS_INS, PE_FETCH_NONEXISTENT_ADDRESS);
+
                 return 1;
             end 
 
@@ -449,40 +500,23 @@ package Emulation;
         endfunction
 
 
-        function automatic void modifyStatus(input AbstractInstruction abs);
-            case (abs.def.o)
-                O_sysStore: ;
-                O_error: begin                    
-                    status.error = 1;
-                    status.eventType = PE_SYS_ERROR;
-                end
-                O_undef: begin
-                    status.error = 1;
-                    status.eventType = PE_SYS_UNDEFINED_INSTRUCTION;
-                end
-                O_call: begin
-                    status.eventType = PE_SYS_CALL;
-                end
-                O_sync: ;
-                O_retE: ;
-                O_retI: ;
-                O_replay: ;
-                O_halt: this.status.halted = 1;
-                O_send: this.status.send = 1;
-                default: ;
-            endcase
+
+        function automatic void setExecState(input AbstractInstruction ins, input ProgramEvent evType);
+            Mword trg = programEvent2trg(evType);
+            status.eventType = evType;
+            modifySysRegsOnException(coreState, ip, ins, trg);
         endfunction
 
 
         local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
             if (ins.def.o == O_sysLoad && adr > 31) begin
-                status.eventType = PE_SYS_INVALID_ADDRESS;
-                modifySysRegsOnException(this.coreState, this.ip, ins, IP_EXC);
+                setExecState(ins, PE_SYS_INVALID_ADDRESS);
+                
                 return 1;
             end
             if (ins.def.o == O_sysStore && adr > 31) begin
-                status.eventType = PE_SYS_INVALID_ADDRESS;
-                modifySysRegsOnException(this.coreState, this.ip, ins, IP_EXC);
+                setExecState(ins, PE_SYS_INVALID_ADDRESS);
+
                 return 1;
             end
             
@@ -494,15 +528,15 @@ package Emulation;
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
             if (!virtualAddressValid_T(vadr)) begin
-                status.eventType = PE_MEM_INVALID_ADDRESS;
-                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
+                setExecState(ins, PE_MEM_INVALID_ADDRESS);
+
                 return 1;
             end
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
             if (!present) begin
-                status.eventType = PE_MEM_UNMAPPED_ADDRESS;
-                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
+                setExecState(ins, PE_MEM_UNMAPPED_ADDRESS);
+
                 return 1;         
             end
 
@@ -511,8 +545,8 @@ package Emulation;
             
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
             if (!physicalAddressValid(padr)) begin
-                status.eventType = PE_MEM_NONEXISTENT_ADDRESS;
-                modifySysRegsOnException(this.coreState, this.ip, ins, IP_MEM_EXC);
+                setExecState(ins, PE_MEM_NONEXISTENT_ADDRESS);
+
                 return 1; 
             end                    
 
@@ -523,7 +557,6 @@ package Emulation;
 
         function automatic void interrupt();
             status.eventType = PE_EXT_INTERRUPT;
-        
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
         
