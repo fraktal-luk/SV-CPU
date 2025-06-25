@@ -73,7 +73,7 @@ package ControlHandling;
             end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr + 4;
+                sysRegs[2] = adr;// + 4;
                 
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
             end

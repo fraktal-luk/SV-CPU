@@ -60,20 +60,11 @@ package Emulation;
             
     } CoreStatus;
 
-    function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
-        //state.sysRegs[5] = state.sysRegs[1];
-        //state.sysRegs[3] = prevTarget;
-
-        saveStateForInt(state, prevTarget);
-
-        state.target = trg;
-        state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
-    endfunction
 
 
     function automatic void saveStateForExc(ref CpuState state, input Mword adr);
         state.sysRegs[4] = state.sysRegs[1];
-        state.sysRegs[2] = adr + 4;
+        state.sysRegs[2] = adr;
     endfunction
  
      function automatic void saveStateForInt(ref CpuState state, input Mword adr);
@@ -82,6 +73,12 @@ package Emulation;
     endfunction
  
 
+    function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
+        saveStateForInt(state, prevTarget);
+
+        state.target = trg;
+        state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
+    endfunction
 
 
     function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
@@ -90,29 +87,19 @@ package Emulation;
                 saveStateForExc(state, adr);
 
                 state.target = IP_ERROR;
-
-                //state.sysRegs[4] = state.sysRegs[1];
-                state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                //state.sysRegs[2] = adr + 4;
-                
+                state.sysRegs[1] |= 1; // FUTURE: handle state register correctly                
             end
             O_undef: begin
                 saveStateForExc(state, adr);
             
                 state.target = IP_ERROR;
-
-                //state.sysRegs[4] = state.sysRegs[1];
                 state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                //state.sysRegs[2] = adr + 4;
             end
             O_call: begin
-                saveStateForExc(state, adr);
+                saveStateForExc(state, adr + 4);
 
                 state.target = IP_CALL;
-
-                //state.sysRegs[4] = state.sysRegs[1];
                 state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                //state.sysRegs[2] = adr + 4;
             end
             O_sync: begin
                 state.target = adr + 4;
@@ -140,11 +127,14 @@ package Emulation;
 
 
     function automatic void modifySysRegsOnException(ref CpuState state, input Mword adr, input AbstractInstruction abs, input Mword trg);
+        saveStateForExc(state, adr);
+        
         state.target = trg;
 
-        state.sysRegs[4] = state.sysRegs[1];
+//        state.sysRegs[4] = state.sysRegs[1];
+//        state.sysRegs[2] = adr;
+        
         state.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-        state.sysRegs[2] = adr;
     endfunction
 
 
@@ -321,41 +311,41 @@ package Emulation;
 
        function automatic logic catchFetchException(input Mword vadr, input Translation tr);
             if (!virtualAddressValid(vadr)) begin
-                status.error = 1;
+                //status.error = 1;
                 
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_INVALID_ADDRESS);
                 return 1;
             end
             else if (vadr % 4 !== 0) begin
-                status.error = 1;
+                //status.error = 1;
                 
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_UNALIGNED_ADDRESS);
 
                 return 1;
             end
             else if (!tr.present) begin
-                status.error = 1;
+                //status.error = 1;
                 
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_UNMAPPED_ADDRESS);
 
                 return 1;
             end
             else if (!tr.desc.canExec) begin
-                status.error = 1;
+                //status.error = 1;
                 
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_DISALLOWED_ACCESS);
 
                 return 1;
             end
             else if (!physicalAddressValid(tr.padr)) begin
-                status.error = 1;
+                //status.error = 1;
 
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_NONEXISTENT_ADDRESS);
 
                 return 1;
             end
             else if (!progMem.addressValid(tr.padr)) begin
-                status.error = 1;
+                //status.error = 1;
 
                 setExecState(DEFAULT_ABS_INS, PE_FETCH_NONEXISTENT_ADDRESS);
 
