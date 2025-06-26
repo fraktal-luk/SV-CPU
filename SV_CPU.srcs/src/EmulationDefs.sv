@@ -412,6 +412,12 @@ package EmulationDefs;
                 
             PE_SYS_INVALID_ADDRESS:
                 return IP_EXC;
+            
+            PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION:
+                return IP_ERROR;
+            
+            PE_SYS_CALL:
+                return IP_CALL;
                 
             default: return 'x;
         endcase

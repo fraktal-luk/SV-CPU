@@ -15,9 +15,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     localparam logic FETCH_SINGLE = 0;//1;
         logic chk, chk_2, chk_3, chk_4;
 
-        logic FETCH_UNC;
-        
-        assign FETCH_UNC = AbstractCore.GlobalParams.uncachedFetch;
+    logic FETCH_UNC;
+    
+    assign FETCH_UNC = !AbstractCore.GlobalParams.enableMmu;
 
 
     typedef Word FetchGroup[FETCH_WIDTH];
