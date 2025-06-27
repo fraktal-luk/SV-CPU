@@ -242,82 +242,77 @@ module InstructionL1(
     endfunction 
 
 
+    function automatic void copyPageToContent(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
+        PageBasedProgramMemory::Page page;
+        
+        if (!AbstractCore.programMem.hasPage(pageBase)) begin
+            content[pageBase/4 +: PAGE_SIZE/4] = '{default: 'x};
+            return;
+        end
+        
+        page = AbstractCore.programMem.getPage(pageBase);
+        content[pageBase/4 +: PAGE_SIZE/4] = page[0 +: PAGE_SIZE/4];
+    endfunction
 
-    // Copy page 0 and page 1 to cache
-    function automatic void prefetchForTest();
-        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+    function automatic void copyToWay(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
+        
+        case (pageBase)
+            0:              initBlocksWay(blocksWay0, 0);
+            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
+            2*PAGE_SIZE:    initBlocksWay(blocksWay2, 2*PAGE_SIZE);
+            3*PAGE_SIZE:    initBlocksWay(blocksWay3, 3*PAGE_SIZE);
+            default: $error("Incorrect page to init cache: %x", pageBase);
+        endcase
+    endfunction
 
-        Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-        Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
-        Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
-        Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+
+    
+    function automatic void preloadForTest();
+        TMP_tlbL1 = AbstractCore.GlobalParams.preloadedInsTlbL1;
+        TMP_tlbL2 = AbstractCore.GlobalParams.preloadedInsTlbL2;
+        DB_fillTranslations();
+
+        foreach (AbstractCore.GlobalParams.copiedInsPages[i])
+            copyPageToContent(AbstractCore.GlobalParams.copiedInsPages[i]);
+        
+        foreach (AbstractCore.GlobalParams.preloadedInsWays[i])
+            copyToWay(AbstractCore.GlobalParams.preloadedInsWays[i]);
+    endfunction
+
+
+        function automatic void prefetchForTest();
+            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
+            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+    
+            Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
+            Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
+            Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
             Translation physPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
             Translation physPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
 
 
-        Word way0[PAGE_SIZE/4] = '{default: 'x};
-        Word way1[PAGE_SIZE/4] = '{default: 'x};
-        Word way2[PAGE_SIZE/4] = '{default: 'x};
-        Word way3[PAGE_SIZE/4] = '{default: 'x};
-
-        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(0);
-        way0 = page[0+:PAGE_SIZE/4];
-        page = AbstractCore.programMem.getPage(PAGE_SIZE);
-        way1 = page[0+:PAGE_SIZE/4];
-        page = AbstractCore.programMem.getPage(2*PAGE_SIZE);
-        way2 = page[0+:PAGE_SIZE/4];
-        
-            page = AbstractCore.programMem.getPage(3*PAGE_SIZE);
-            way3 = page[0+:PAGE_SIZE/4];
-
-        content[0+:1024] = way0;
-        content[1024+:1024] = way1;
-        content[2048+:1024] = way2;
-        content[(1024+2048)+:1024] = way3;
-
-        TMP_tlbL1 = '{physPage0, physPage1, physPage2, physPage3};
-            //if (DEV_ICACHE_MISS) TMP_tlbL1.push_back(physPage3);
-        TMP_tlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
-        DB_fillTranslations();
-
-        initBlocksWay(blocksWay0, 0);
-        initBlocksWay(blocksWay1, PAGE_SIZE);
-        initBlocksWay(blocksWay2, 2*PAGE_SIZE);
-        
-          // if (DEV_ICACHE_MISS) initBlocksWay(blocksWay3, 3*PAGE_SIZE);
-    endfunction
+            AbstractCore.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+            AbstractCore.GlobalParams.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
+    
+            AbstractCore.GlobalParams.preloadedInsTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
+            AbstractCore.GlobalParams.preloadedInsTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
+    
+    
+            preloadForTest();
+        endfunction
 
 
         function automatic void prepareForUncachedTest();
-            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+            AbstractCore.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+            AbstractCore.GlobalParams.preloadedInsWays = {};
     
-            Translation physPage0 = '{present: 1, vadr: 0, desc: uncachedDesc, padr: 0};
-            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: uncachedDesc, padr: PAGE_SIZE};
-            Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: uncachedDesc, padr: 2*PAGE_SIZE};
- 
- 
-            Word way0[PAGE_SIZE/4] = '{default: 'x};
-            Word way1[PAGE_SIZE/4] = '{default: 'x};
-            Word way2[PAGE_SIZE/4] = '{default: 'x};
-            Word way3[PAGE_SIZE/4] = '{default: 'x};       
-        
-            PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(0);
-            way0 = page[0+:PAGE_SIZE/4];
-            page = AbstractCore.programMem.getPage(PAGE_SIZE);
-            way1 = page[0+:PAGE_SIZE/4];
-            page = AbstractCore.programMem.getPage(2*PAGE_SIZE);
-            way2 = page[0+:PAGE_SIZE/4];
-            
-                content[0+:1024] = way0;
-                content[1024+:1024] = way1;
-                content[2048+:1024] = way2;
-                
-                
-                TMP_tlbL1 = '{physPage0, physPage1, physPage2};
-                DB_fillTranslations();
-
+            AbstractCore.GlobalParams.preloadedInsTlbL1 = '{};
+            AbstractCore.GlobalParams.preloadedInsTlbL2 = '{};
+    
+            preloadForTest();
         endfunction
 
 

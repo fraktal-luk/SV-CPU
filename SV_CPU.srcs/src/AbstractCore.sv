@@ -31,7 +31,20 @@ module AbstractCore
 
 
     struct {
-        logic uncachedFetch = 0;
+        //logic uncachedFetch = 0;
+        logic enableMmu = 0;
+        
+        Translation preloadedInsTlbL1[$] = '{};
+        Translation preloadedInsTlbL2[$] = '{};
+        
+        Dword copiedInsPages[];
+        Dword preloadedInsWays[];
+        
+        Translation preloadedDataTlbL1[$] = '{};
+        Translation preloadedDataTlbL2[$] = '{};
+        
+        Dword copiedDataPages[];
+        Dword preloadedDataWays[];
     } GlobalParams;
 
     // DB        
@@ -744,7 +757,6 @@ module AbstractCore
         
         
         dataCache.reset();
-        //instructionCache.reset();
         theFrontend.instructionCache.reset();
 
 

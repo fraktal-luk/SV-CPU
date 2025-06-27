@@ -61,6 +61,11 @@ package EmulationDefs;
             pages[index] = '{default: 'x};
         endfunction
 
+        function automatic logic hasPage(input Mword startAdr);
+            int index = startAdr/PAGE_BYTES;
+            return pages.exists(index);
+        endfunction
+
         function automatic Page getPage(input Mword startAdr);
             int index = startAdr/PAGE_BYTES;
             return pages[index];

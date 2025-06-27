@@ -56,59 +56,53 @@ module DataL1(
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
-    //DataCacheBlock blocksWay0[BLOCKS_PER_WAY];
-    //DataCacheBlock blocksWay1[BLOCKS_PER_WAY];
+
     DataWay blocksWay0;
     DataWay blocksWay1;
 
-    localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
+    localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
-    function automatic void initBlocksWay0();
-        foreach (blocksWay0[i]) begin
-            Mword vadr = i*BLOCK_SIZE;
+    function automatic void initBlocksWay(ref DataWay way, input Mword baseVadr);
+        foreach (way[i]) begin
+            Mword vadr = baseVadr + i*BLOCK_SIZE;
             Dword padr = vadr;
 
-            blocksWay0[i] = new();
-            blocksWay0[i].valid = 1;
-            blocksWay0[i].vbase = vadr;
-            blocksWay0[i].pbase = padr;
-            blocksWay0[i].array = '{default: 0};
+            way[i] = new();
+            way[i].valid = 1;
+            way[i].vbase = vadr;
+            way[i].pbase = padr;
+            way[i].array = CLEAN_BLOCK;
         end
     endfunction
 
-    function automatic void initBlocksWay1();
-        blocksWay1 = '{default: null};
+
+    Translation TMP_tlb[Mword];
+    Translation TMP_tlbL2[Mword];
+
+    Translation translationTableL1[DATA_TLB_SIZE]; // DB
+
+
+    function automatic void DB_fillTranslations();
+        int i = 0;
+        translationTableL1 = '{default: DEFAULT_TRANSLATION};
+        foreach (TMP_tlb[a]) begin
+            translationTableL1[i] = TMP_tlb[a];
+            i++;
+        end
     endfunction
-
-
-
-        Translation TMP_tlb[Mword];
-        Translation TMP_tlbL2[Mword];
-
-        Translation translationTableL1[DATA_TLB_SIZE]; // DB
-
-        
-        function automatic void DB_fillTranslations();
-            int i = 0;
-            translationTableL1 = '{default: DEFAULT_TRANSLATION};
-            foreach (TMP_tlb[a]) begin
-                translationTableL1[i] = TMP_tlb[a];
-                i++;
-            end
-        endfunction
 
 
     task automatic reset();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+    
+        TMP_tlb.delete();
+        TMP_tlbL2.delete();
+        DB_fillTranslations();
         
-            TMP_tlb.delete();
-            TMP_tlbL2.delete();
-            translationTableL1 = '{default: DEFAULT_TRANSLATION};
-            
-            blocksWay0 = '{default: null};
-            blocksWay1 = '{default: null};
+        blocksWay0 = '{default: null};
+        blocksWay1 = '{default: null};
 
         dataFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
@@ -128,13 +122,21 @@ module DataL1(
         Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
         Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
 
+
+           // AbstractCore.GlobalParams.copiedDataPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+           // AbstractCore.GlobalParams.preloadedDataWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
+    
+           // AbstractCore.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
+          //  AbstractCore.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
+    
+
+
         TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
         TMP_tlbL2 = '{'h20000000: physPage20000000};
 
         DB_fillTranslations();
 
-        initBlocksWay0();
-        initBlocksWay1(); 
+        initBlocksWay(blocksWay0, 0);
     endtask 
 
 
@@ -269,6 +271,8 @@ module DataL1(
         Mword vbase = getPageBaseM(adr);
 
         if ($isunknown(adr)) return res;
+
+        if (!AbstractCore.GlobalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
         if (!TMP_tlb.exists(vbase)) begin
             res.present = 0;

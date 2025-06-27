@@ -135,28 +135,6 @@ module ArchDesc0();
     endtask
 
 
-//        task automatic runErrorTestEmul(ref Emulator emul);
-//            time DELAY = 1;
-//            Word emul_progMem[] = new[4096 / 4];
-    
-//            emulTestName = "err signal";
-//            writeProgram(emul_progMem, 0, FAILING_SECTION.words);
-//            emul.progMem.assignPage(0, emul_progMem);
-    
-//            resetAll(emul);
-            
-//            map3pages(emul);
-//            mapDataPages(emul);
-    
-//            for (int iter = 0; 1; iter++) begin
-//                emul.executeStep();
-//                if (emul.status.error == 1) break;
-//                if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "error sig");
-//                emul.drain();
-//                #DELAY;
-//            end
-//        endtask
-
     task automatic runIntTestEmul(ref Emulator emul);
         time DELAY = 1;
         Word emul_progMem[] = new[4096 / 4];
@@ -281,7 +259,6 @@ module ArchDesc0();
                 
                 // TODO: don;t map, turn of mapping and caches
                 begin
-                    //core.instructionCache.prepareForUncachedTest();
                     core.theFrontend.instructionCache.prepareForUncachedTest();
                 end
                 
@@ -308,7 +285,6 @@ module ArchDesc0();
                 mapDataPages(core.renamedEmul);
                 mapDataPages(core.retiredEmul);
 
-            //core.instructionCache.prefetchForTest();
             core.theFrontend.instructionCache.prefetchForTest();
             core.dataCache.prefetchForTest();
             startSim();
@@ -326,7 +302,6 @@ module ArchDesc0();
             core.resetForTest();
             core.programMem = theProgMem;
             
-            //core.instructionCache.prefetchForTest();
             core.theFrontend.instructionCache.prefetchForTest();
             core.dataCache.prefetchForTest();
             startSim();
@@ -379,34 +354,27 @@ module ArchDesc0();
             UncachedSimRunner uncachedRunner = new();
             SimRunner cachedRunner = new();
               Word emul_progMem2[] = new[4096 / 4];
-                    theProgMem.assignPage(PAGE_SIZE, common.words);
-                     //  theProgMem.assignPage(3*PAGE_SIZE, common.words); // TODO: replace with specific test code?
-                     //  theProgMem.assignPage(4*PAGE_SIZE, common.words); // TODO: this temporary hack is to get correct fetch bits from virtual page at 4*PAGE_SIZE mapped to physical 1*PAGE_SIZE
-                
-                prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-                theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
 
-                core.GlobalParams.uncachedFetch = 1;
+                prepareHandlers(emul_progMem2, DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
+                theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+                theProgMem.assignPage(PAGE_SIZE, common.words);
+
+                  //$display( "the page:\n%p" , theProgMem.getPage(5*PAGE_SIZE) );
+
+                core.GlobalParams.enableMmu = 0;
 
             #CYCLE;// $display("Suites: uncached");
             $display("* Uncached suites");
             uncachedRunner.runSuites(uncachedSuites);
-            
-                
+
                 // CAREFUL: mode switch must happen when frontend is flushed to avoid incorrect state. Hence reset signal is used                   
                 startSim();
-                core.GlobalParams.uncachedFetch = 0;
-                
-                
-                commonAdr = COMMON_ADR + 3*PAGE_SIZE;
+                core.GlobalParams.enableMmu = 1;
 
             #CYCLE;// $display("Suites: all");
             $display("* Cached fetch suites");
             cachedRunner.runSuites(cachedFetchSuites); 
-   
-   
-                commonAdr = COMMON_ADR;
-   
+
             #CYCLE;// $display("Suites: all"); 
             $display("* Normal suites"); 
             cachedRunner.runSuites(allSuites);  
@@ -417,12 +385,10 @@ module ArchDesc0();
             //#CYCLE
             $display("* Event tests");
             
-                prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION);
-                theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
-            runTestSim("events");
-            
                 prepareHandlers(emul_progMem2, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION);
                 theProgMem.assignPage(2*PAGE_SIZE, emul_progMem2);
+
+            runTestSim("events");
             runIntTestSim();
             
             $display("All tests done;");
