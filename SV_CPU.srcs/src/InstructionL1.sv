@@ -110,14 +110,13 @@ module InstructionL1(
 
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
+        if ($isunknown(adr)) return DEFAULT_TRANSLATION;
+        if (!AbstractCore.GlobalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
 
         if (found.size() == 0) begin
-            res.vadr = adr;
-            
-            if (DEV_ICACHE_MISS) begin
-                res.padr = adr;
-            end
+            res.vadr = adr; // It's needed because TLB fill is based on this adr
             return res;
         end 
 
@@ -156,7 +155,6 @@ module InstructionL1(
         // TLB miss
         if (!tr.present) begin
             res.status = CR_TLB_MISS;
-            //    if (DEV_ICACHE_MISS) res.words = selected.value;
         end
         // Not cached
         else if (!tr.desc.cached) begin
@@ -268,7 +266,7 @@ module InstructionL1(
     endfunction
 
 
-    
+
     function automatic void preloadForTest();
         TMP_tlbL1 = AbstractCore.GlobalParams.preloadedInsTlbL1;
         TMP_tlbL2 = AbstractCore.GlobalParams.preloadedInsTlbL2;
@@ -412,8 +410,8 @@ module InstructionL1(
 
 
     function automatic void allocInTlb(input Mword adr);
-        Translation DUMMY;
-        Mword pageBase = adr;
+        //Translation DUMMY;
+        //Mword pageBase = adr;
             
             
         Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  

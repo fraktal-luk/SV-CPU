@@ -75,9 +75,24 @@ module DataL1(
         end
     endfunction
 
+    function automatic void copyToWay(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
+        
+        case (pageBase)
+            0:              initBlocksWay(blocksWay0, 0);
+            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
+//            2*PAGE_SIZE:    initBlocksWay(blocksWay2, 2*PAGE_SIZE);
+//            3*PAGE_SIZE:    initBlocksWay(blocksWay3, 3*PAGE_SIZE);
+            default: $error("Incorrect page to init cache: %x", pageBase);
+        endcase
+    endfunction
 
-    Translation TMP_tlb[Mword];
-    Translation TMP_tlbL2[Mword];
+
+    Translation TMP_tlbL1[$];
+    Translation TMP_tlbL2[$];
+
+//        Translation TMP_tlb_M[Mword];
+//        Translation TMP_tlbL2_M[Mword];
 
     Translation translationTableL1[DATA_TLB_SIZE]; // DB
 
@@ -85,8 +100,8 @@ module DataL1(
     function automatic void DB_fillTranslations();
         int i = 0;
         translationTableL1 = '{default: DEFAULT_TRANSLATION};
-        foreach (TMP_tlb[a]) begin
-            translationTableL1[i] = TMP_tlb[a];
+        foreach (TMP_tlbL1[a]) begin
+            translationTableL1[i] = TMP_tlbL1[a];
             i++;
         end
     endfunction
@@ -97,7 +112,10 @@ module DataL1(
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
     
-        TMP_tlb.delete();
+//            TMP_tlb_M.delete();
+//            TMP_tlbL2_M.delete();
+            
+        TMP_tlbL1.delete();
         TMP_tlbL2.delete();
         DB_fillTranslations();
         
@@ -126,17 +144,23 @@ module DataL1(
            // AbstractCore.GlobalParams.copiedDataPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
            // AbstractCore.GlobalParams.preloadedDataWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
     
-           // AbstractCore.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
-          //  AbstractCore.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
-    
+            AbstractCore.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2000, physPageUnc};
+            AbstractCore.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
 
+            AbstractCore.GlobalParams.preloadedDataWays = '{0};
 
-        TMP_tlb = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
-        TMP_tlbL2 = '{'h20000000: physPage20000000};
+//            TMP_tlb_M = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
+//            TMP_tlbL2_M = '{'h20000000: physPage20000000};
+
+        TMP_tlbL1 = AbstractCore.GlobalParams.preloadedDataTlbL1;//'{physPage0, physPage1, physPage2000, physPageUnc};
+        TMP_tlbL2 = AbstractCore.GlobalParams.preloadedDataTlbL2;//'{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
 
         DB_fillTranslations();
 
-        initBlocksWay(blocksWay0, 0);
+        //initBlocksWay(blocksWay0, 0);
+
+        foreach (AbstractCore.GlobalParams.preloadedDataWays[i])
+            copyToWay(AbstractCore.GlobalParams.preloadedDataWays[i]);
     endtask 
 
 
@@ -252,35 +276,36 @@ module DataL1(
     endfunction
 
 
-
     function automatic void allocInTlb(input Mword adr);
-        Translation DUMMY;
-        Mword pageBase = adr;
+        Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
             
-        assert (TMP_tlbL2.exists(pageBase)) else $error("Filling TLB but such mapping unknown: %x", pageBase);
+        assert (found.size() > 0) else $error("NOt prent in TLB L2");
         
-        //translationVadrsL1[TMP_tlb.size()] = pageBase;
-        translationTableL1[TMP_tlb.size()] =  TMP_tlbL2[pageBase];
-        TMP_tlb[pageBase] = TMP_tlbL2[pageBase];
+        translationTableL1[TMP_tlbL1.size()] = found[0];
+        TMP_tlbL1.push_back(found[0]);
     endfunction
 
 
-
-    function automatic Translation translateAddress(input EffectiveAddress adr);
+    function automatic Translation translateAddress(input Mword adr);    
         Translation res = DEFAULT_TRANSLATION;
         Mword vbase = getPageBaseM(adr);
 
-        if ($isunknown(adr)) return res;
+        Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
+        if ($isunknown(adr)) return DEFAULT_TRANSLATION;
         if (!AbstractCore.GlobalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
-        if (!TMP_tlb.exists(vbase)) begin
-            res.present = 0;
-            return res;
-        end
+        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
 
-        res = TMP_tlb[vbase];
-        res.padr = {adrHigh(res.padr), adrLow(adr)};
+        if (found.size() == 0) begin
+            res.vadr = adr; // It's needed because TLB fill is based on this adr
+            return res;
+        end 
+
+        res = found[0];
+
+        res.vadr = adr;
+        res.padr = adr + res.padr - getPageBaseM(adr);
 
         return res;
     endfunction

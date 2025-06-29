@@ -9,9 +9,6 @@ package AbstractSim;
     import UopList::*;
 
 
-        localparam logic DEV_ICACHE_MISS = 1; // TODO: remove
-
-
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
