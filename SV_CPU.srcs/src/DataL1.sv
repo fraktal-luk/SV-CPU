@@ -91,9 +91,6 @@ module DataL1(
     Translation TMP_tlbL1[$];
     Translation TMP_tlbL2[$];
 
-//        Translation TMP_tlb_M[Mword];
-//        Translation TMP_tlbL2_M[Mword];
-
     Translation translationTableL1[DATA_TLB_SIZE]; // DB
 
 
@@ -111,9 +108,6 @@ module DataL1(
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
-    
-//            TMP_tlb_M.delete();
-//            TMP_tlbL2_M.delete();
             
         TMP_tlbL1.delete();
         TMP_tlbL2.delete();
@@ -130,38 +124,37 @@ module DataL1(
 
 
 
-    task automatic prefetchForTest();
-        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-
-        Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-        Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
-        Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
-        Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
-        Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
-
-
-           // AbstractCore.GlobalParams.copiedDataPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-           // AbstractCore.GlobalParams.preloadedDataWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
-    
-            AbstractCore.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2000, physPageUnc};
-            AbstractCore.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
-
-            AbstractCore.GlobalParams.preloadedDataWays = '{0};
-
-//            TMP_tlb_M = '{0: physPage0, 1: physPage1, 'h2000: physPage2000, 'h80000000: physPageUnc};
-//            TMP_tlbL2_M = '{'h20000000: physPage20000000};
-
-        TMP_tlbL1 = AbstractCore.GlobalParams.preloadedDataTlbL1;//'{physPage0, physPage1, physPage2000, physPageUnc};
-        TMP_tlbL2 = AbstractCore.GlobalParams.preloadedDataTlbL2;//'{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
-
+    function automatic void preloadForTest();
+        TMP_tlbL1 = AbstractCore.GlobalParams.preloadedDataTlbL1;
+        TMP_tlbL2 = AbstractCore.GlobalParams.preloadedDataTlbL2;
         DB_fillTranslations();
 
-        //initBlocksWay(blocksWay0, 0);
-
+        //foreach (AbstractCore.GlobalParams.copiedDataPages[i])
+        //    copyPageToContent(AbstractCore.GlobalParams.copiedDataPages[i]);
+        
         foreach (AbstractCore.GlobalParams.preloadedDataWays[i])
             copyToWay(AbstractCore.GlobalParams.preloadedDataWays[i]);
-    endtask 
+    endfunction
+
+
+//        task automatic prefetchForTest();
+//            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+//            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+    
+//            Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+//            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
+//            Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
+//            Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+//            Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
+
+
+//            AbstractCore.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2000, physPageUnc};
+//            AbstractCore.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
+
+//            AbstractCore.GlobalParams.preloadedDataWays = '{0};
+        
+//            preloadForTest();
+//        endtask
 
 
     function automatic Mword readSized(input Mword val, input AccessSize size);

@@ -285,8 +285,12 @@ module ArchDesc0();
                 mapDataPages(core.renamedEmul);
                 mapDataPages(core.retiredEmul);
 
-            core.theFrontend.instructionCache.prefetchForTest();
-            core.dataCache.prefetchForTest();
+            Ins_prefetchForTest();
+            core.theFrontend.instructionCache.preloadForTest();
+            //core.theFrontend.instructionCache.prefetchForTest();
+            Data_prefetchForTest();
+            core.dataCache.preloadForTest();
+            //core.dataCache.prefetchForTest();
             startSim();
             
             awaitResult();
@@ -302,8 +306,13 @@ module ArchDesc0();
             core.resetForTest();
             core.programMem = theProgMem;
             
-            core.theFrontend.instructionCache.prefetchForTest();
-            core.dataCache.prefetchForTest();
+            
+            Ins_prefetchForTest();
+            core.theFrontend.instructionCache.preloadForTest();
+            //core.theFrontend.instructionCache.prefetchForTest();
+            Data_prefetchForTest();
+            core.dataCache.preloadForTest();
+            //core.dataCache.prefetchForTest();
             startSim();
 
             // The part that differs from regular sim test
@@ -400,7 +409,46 @@ module ArchDesc0();
 
         initial runSim();
 
+
+            task automatic Data_prefetchForTest();
+                DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+                DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+        
+                Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+                Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
+                Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
+                Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+                Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
+    
+    
+                core.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2000, physPageUnc};
+                core.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
+    
+                core.GlobalParams.preloadedDataWays = '{0};            
+            endtask
+
+            task automatic Ins_prefetchForTest();
+                DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
+                DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+        
+                Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+                Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
+                Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
+                Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+                Translation physPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+                Translation physPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
+    
+    
+                core.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+                core.GlobalParams.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
+        
+                core.GlobalParams.preloadedInsTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
+                core.GlobalParams.preloadedInsTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};        
+            endtask
     endgenerate
+
+
+
 
 
 endmodule

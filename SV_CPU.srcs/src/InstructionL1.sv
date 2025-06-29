@@ -280,27 +280,27 @@ module InstructionL1(
     endfunction
 
 
-        function automatic void prefetchForTest();
-            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+//        function automatic void prefetchForTest();
+//            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
+//            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
     
-            Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
-            Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
-            Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-            Translation physPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-            Translation physPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
+//            Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+//            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
+//            Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
+//            Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+//            Translation physPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+//            Translation physPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
 
 
-            AbstractCore.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-            AbstractCore.GlobalParams.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
+//            AbstractCore.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+//            AbstractCore.GlobalParams.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
     
-            AbstractCore.GlobalParams.preloadedInsTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
-            AbstractCore.GlobalParams.preloadedInsTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
+//            AbstractCore.GlobalParams.preloadedInsTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
+//            AbstractCore.GlobalParams.preloadedInsTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
     
     
-            preloadForTest();
-        endfunction
+//            preloadForTest();
+//        endfunction
 
 
         function automatic void prepareForUncachedTest();
