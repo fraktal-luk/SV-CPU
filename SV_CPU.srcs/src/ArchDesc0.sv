@@ -102,8 +102,25 @@ module ArchDesc0();
         setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
     endfunction
 
-    
-    function automatic void map3pages(ref Emulator em);
+
+    task automatic Data_prefetchForTest(ref GlobalParams params);
+        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+
+        Translation physDataPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+        Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
+        Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
+        Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+        Translation physDataPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
+
+
+        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc};
+        params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, physDataPage20000000};
+
+        params.preloadedDataWays = '{0};            
+    endtask
+
+    task automatic Ins_prefetchForTest(ref GlobalParams params);
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
         DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
 
@@ -115,50 +132,63 @@ module ArchDesc0();
         Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
 
 
-        em.programMappings.push_back(physInsPage0);
-        em.programMappings.push_back(physInsPage1);
-        em.programMappings.push_back(physInsPage2);
-    endfunction
+        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+        params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
 
-    function automatic void mapDataPages(ref Emulator em);
-        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
+        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3_alt, physInsPage0_alt};        
+    endtask
+    
+    task automatic Ins_prepareForUncachedTest(ref GlobalParams params);
+        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+        params.preloadedInsWays = {};
 
-        Translation physDataPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-        Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
-        Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
-        Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
-        Translation physDataPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
+        params.preloadedInsTlbL1 = '{};
+        params.preloadedInsTlbL2 = '{};        
+    endtask
+    
+    
+    task automatic map3pages(ref Emulator em);
+        GlobalParams gp;
+        
+        Ins_prefetchForTest(gp);            
+        em.programMappings = gp.preloadedInsTlbL2;
+    endtask
 
+    task automatic mapDataPages(ref Emulator em);
+        GlobalParams gp;
 
-        em.dataMappings.push_back(physDataPage0);        
-        em.dataMappings.push_back(physDataPageUnc);        
-        em.dataMappings.push_back(physDataPage20000000);        
-        em.dataMappings.push_back(physDataPage2000);            
-    endfunction
+        Data_prefetchForTest(gp);
+        em.dataMappings = gp.preloadedDataTlbL2;            
+    endtask
 
 
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul);
+        GlobalParams gp;
+
         Word emul_progMem[] = new[4096 / 4];
 
         emulTestName = name;
         prepareTest(emul_progMem, name, COMMON_ADR);
-        
-        
         emul.progMem.assignPage(0, emul_progMem);
     
-        saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
+            saveProgramToFile({"../../../../sim_files/ZZZ_", name, ".txt"}, emul_progMem);
 
         resetAll(emul);
-        map3pages(emul);
-        mapDataPages(emul);
-        
+
+        Ins_prefetchForTest(gp);
+        Data_prefetchForTest(gp);
+        emul.programMappings = gp.preloadedInsTlbL2;
+        emul.dataMappings = gp.preloadedDataTlbL2;  
+
         performEmul(emul);
     endtask
 
 
     task automatic runIntTestEmul(ref Emulator emul);
+        GlobalParams gp;
+
         time DELAY = 1;
         Word emul_progMem[] = new[4096 / 4];
 
@@ -168,8 +198,10 @@ module ArchDesc0();
 
         resetAll(emul);
 
-        map3pages(emul);
-        mapDataPages(emul);
+        Ins_prefetchForTest(gp);
+        Data_prefetchForTest(gp);
+        emul.programMappings = gp.preloadedInsTlbL2;
+        emul.dataMappings = gp.preloadedDataTlbL2;  
 
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
@@ -324,7 +356,7 @@ module ArchDesc0();
             #CYCLE announce("int");
             prepareTest(emul_progMem, "events2", COMMON_ADR);
             theProgMem.assignPage(0, emul_progMem);
- 
+
             core.resetForTest();
             core.programMem = theProgMem;
             
@@ -429,54 +461,7 @@ module ArchDesc0();
 
         initial runSim();
 
-
-            task automatic Data_prefetchForTest(ref GlobalParams params);
-                DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-                DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-        
-                Translation physDataPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-                Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
-                Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
-                Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
-                Translation physDataPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
-    
-    
-                params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc};
-                params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, physDataPage20000000};
-    
-                params.preloadedDataWays = '{0};            
-            endtask
-
-            task automatic Ins_prefetchForTest(ref GlobalParams params);
-                DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-                DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
-        
-                Translation physInsPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-                Translation physInsPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
-                Translation physInsPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
-                Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-                Translation physInsPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-                Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
-    
-    
-                params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-                params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
-        
-                params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
-                params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3_alt, physInsPage0_alt};        
-            endtask
-            
-            task automatic Ins_prepareForUncachedTest(ref GlobalParams params);
-                params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-                params.preloadedInsWays = {};
-        
-                params.preloadedInsTlbL1 = '{};
-                params.preloadedInsTlbL2 = '{};        
-            endtask
     endgenerate
-
-
-
 
 
 endmodule
