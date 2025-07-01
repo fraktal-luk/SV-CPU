@@ -30,22 +30,7 @@ module AbstractCore
     logic dummy = 'z;
 
 
-    struct {
-        //logic uncachedFetch = 0;
-        logic enableMmu = 0;
-        
-        Translation preloadedInsTlbL1[$] = '{};
-        Translation preloadedInsTlbL2[$] = '{};
-        
-        Dword copiedInsPages[];
-        Dword preloadedInsWays[];
-        
-        Translation preloadedDataTlbL1[$] = '{};
-        Translation preloadedDataTlbL2[$] = '{};
-        
-        Dword copiedDataPages[];
-        Dword preloadedDataWays[];
-    } GlobalParams;
+    GlobalParams globalParams;
 
     // DB        
     InstructionMap insMap = new();

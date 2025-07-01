@@ -111,7 +111,7 @@ module InstructionL1(
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
         if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!AbstractCore.GlobalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+        if (!AbstractCore.globalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
 
@@ -268,51 +268,16 @@ module InstructionL1(
 
 
     function automatic void preloadForTest();
-        TMP_tlbL1 = AbstractCore.GlobalParams.preloadedInsTlbL1;
-        TMP_tlbL2 = AbstractCore.GlobalParams.preloadedInsTlbL2;
+        TMP_tlbL1 = AbstractCore.globalParams.preloadedInsTlbL1;
+        TMP_tlbL2 = AbstractCore.globalParams.preloadedInsTlbL2;
         DB_fillTranslations();
 
-        foreach (AbstractCore.GlobalParams.copiedInsPages[i])
-            copyPageToContent(AbstractCore.GlobalParams.copiedInsPages[i]);
+        foreach (AbstractCore.globalParams.copiedInsPages[i])
+            copyPageToContent(AbstractCore.globalParams.copiedInsPages[i]);
         
-        foreach (AbstractCore.GlobalParams.preloadedInsWays[i])
-            copyToWay(AbstractCore.GlobalParams.preloadedInsWays[i]);
+        foreach (AbstractCore.globalParams.preloadedInsWays[i])
+            copyToWay(AbstractCore.globalParams.preloadedInsWays[i]);
     endfunction
-
-
-//        function automatic void prefetchForTest();
-//            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-//            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
-    
-//            Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-//            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
-//            Translation physPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
-//            Translation physPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-//            Translation physPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-//            Translation physPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
-
-
-//            AbstractCore.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-//            AbstractCore.GlobalParams.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
-    
-//            AbstractCore.GlobalParams.preloadedInsTlbL1 = '{physPage0, physPage1, physPage2, physPage3};
-//            AbstractCore.GlobalParams.preloadedInsTlbL2 = '{physPage0, physPage1, physPage2, physPage3_alt, physPage0_alt};
-    
-    
-//            preloadForTest();
-//        endfunction
-
-
-        function automatic void prepareForUncachedTest();
-            AbstractCore.GlobalParams.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-            AbstractCore.GlobalParams.preloadedInsWays = {};
-    
-            AbstractCore.GlobalParams.preloadedInsTlbL1 = '{};
-            AbstractCore.GlobalParams.preloadedInsTlbL2 = '{};
-    
-            preloadForTest();
-        endfunction
-
 
 
     function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);

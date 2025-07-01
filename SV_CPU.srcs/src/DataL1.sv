@@ -125,36 +125,17 @@ module DataL1(
 
 
     function automatic void preloadForTest();
-        TMP_tlbL1 = AbstractCore.GlobalParams.preloadedDataTlbL1;
-        TMP_tlbL2 = AbstractCore.GlobalParams.preloadedDataTlbL2;
+        TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;
+        TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;
         DB_fillTranslations();
 
-        //foreach (AbstractCore.GlobalParams.copiedDataPages[i])
-        //    copyPageToContent(AbstractCore.GlobalParams.copiedDataPages[i]);
+        //foreach (AbstractCore.globalParams.copiedDataPages[i])
+        //    copyPageToContent(AbstractCore.globalParams.copiedDataPages[i]);
         
-        foreach (AbstractCore.GlobalParams.preloadedDataWays[i])
-            copyToWay(AbstractCore.GlobalParams.preloadedDataWays[i]);
+        foreach (AbstractCore.globalParams.preloadedDataWays[i])
+            copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
     endfunction
 
-
-//        task automatic prefetchForTest();
-//            DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-//            DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
-    
-//            Translation physPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-//            Translation physPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
-//            Translation physPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
-//            Translation physPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
-//            Translation physPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
-
-
-//            AbstractCore.GlobalParams.preloadedDataTlbL1 = '{physPage0, physPage1, physPage2000, physPageUnc};
-//            AbstractCore.GlobalParams.preloadedDataTlbL2 = '{physPage0, physPage1, physPage2000, physPageUnc, physPage20000000};
-
-//            AbstractCore.GlobalParams.preloadedDataWays = '{0};
-        
-//            preloadForTest();
-//        endtask
 
 
     function automatic Mword readSized(input Mword val, input AccessSize size);
@@ -286,7 +267,7 @@ module DataL1(
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
         if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!AbstractCore.GlobalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+        if (!AbstractCore.globalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
 
