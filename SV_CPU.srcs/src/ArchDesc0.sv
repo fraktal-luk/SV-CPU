@@ -85,7 +85,7 @@ module ArchDesc0();
     Mword commonAdr = COMMON_ADR;
 
 
-    class Runner1 extends TestRunner;
+    class EmulRunner extends TestRunner;
         //GlobalParams gp;
         
         task automatic runTest(input string name);
@@ -112,16 +112,16 @@ module ArchDesc0();
 
     // Emul-only run
     task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams __gp);
-        GlobalParams gp;
+        GlobalParams gp = __gp;
 
         emulTestName = name;
         emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
 
         resetAll(emul);
 
-        gp.enableMmu = 1; // TMP
-        Ins_prefetchForTest(gp);
-        Data_prefetchForTest(gp);
+//        gp.enableMmu = 1; // TMP
+//        Ins_prefetchForTest(gp);
+//        Data_prefetchForTest(gp);
         
         emul.status.enableMmu = gp.enableMmu;
         emul.programMappings = gp.preloadedInsTlbL2;
@@ -190,8 +190,10 @@ module ArchDesc0();
 
 
     task automatic runEmul();
-        Runner1 runner1 = new();
+        EmulRunner runner1 = new();
             
+            runner1.gp = Test_fillGpCached();
+
         emul_N.progMem.assignPage(PAGE_SIZE, common.words);
         emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION));
 
@@ -350,7 +352,7 @@ module ArchDesc0();
 
         initial begin
             automatic SimRunner runner = new();
-                automatic Runner1 emRunner = new();
+                automatic EmulRunner emRunner = new();
             automatic TestRunner tr = runner;
 
             runSim(tr);
