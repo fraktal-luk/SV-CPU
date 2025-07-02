@@ -732,6 +732,9 @@ module AbstractCore
     task automatic resetForTest();
         // No need to clear insMap
 
+        GlobalParams gp;
+        globalParams = gp;
+
         renamedEmul = new();
         retiredEmul = new();
 
@@ -754,6 +757,20 @@ module AbstractCore
             
         csq = '{EMPTY_SQE, EMPTY_SQE};
         
+    endtask
+
+    task automatic preloadForTest();
+        renamedEmul.status.enableMmu = globalParams.enableMmu;
+        retiredEmul.status.enableMmu = globalParams.enableMmu;
+
+        renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
+        retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
+        
+        renamedEmul.dataMappings = globalParams.preloadedDataTlbL2;
+        retiredEmul.dataMappings = globalParams.preloadedDataTlbL2;
+        
+        theFrontend.instructionCache.preloadForTest();
+        dataCache.preloadForTest();
     endtask
 
 

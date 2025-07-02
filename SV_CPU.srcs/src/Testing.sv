@@ -4,6 +4,7 @@ package Testing;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import EmulationDefs::*;
     import Emulation::*;
     import AbstractSim::*;
     import Insmap::*;    
@@ -46,6 +47,8 @@ package Testing;
 
     class TestRunner;
         logic announceSuites = 1;
+    
+        GlobalParams gp;
     
         task automatic run();
         
