@@ -50,6 +50,8 @@ package Testing;
     
         GlobalParams gp;
     
+        PageBasedProgramMemory programMem;
+    
         task automatic run();
         
         endtask

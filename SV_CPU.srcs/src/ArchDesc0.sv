@@ -89,7 +89,7 @@ module ArchDesc0();
         //GlobalParams gp;
         
         task automatic runTest(input string name);
-            runTestEmul(name, emul_N, gp);
+            runTestEmul(name, emul_N, gp, programMem);
             #DELAY;
         endtask
     endclass
@@ -111,11 +111,17 @@ module ArchDesc0();
 
 
     // Emul-only run
-    task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams __gp);
+    task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams __gp, input PageBasedProgramMemory progMem);
         GlobalParams gp = __gp;
 
         emulTestName = name;
+            
+           // announce(name);
+
+            emul.progMem = progMem;
+
         emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+        emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
         resetAll(emul);
 
@@ -192,6 +198,8 @@ module ArchDesc0();
     task automatic runEmul();
         EmulRunner runner1 = new();
             
+            runner1.programMem = emul_N.progMem;
+            
             runner1.gp = Test_fillGpCached();
 
         emul_N.progMem.assignPage(PAGE_SIZE, common.words);
@@ -202,7 +210,7 @@ module ArchDesc0();
 
         emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION));
 
-        #DELAY runTestEmul("events", emul_N, Test_fillGpCached());
+        #DELAY runTestEmul("events", emul_N, Test_fillGpCached(), emul_N.progMem);
         
         emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
             
@@ -224,7 +232,7 @@ module ArchDesc0();
             //GlobalParams gp;
         
             task automatic runTest(input string name);            
-                runTestSim(name, gp);
+                runTestSim(name, gp, programMem);
             endtask
         endclass
 
@@ -235,7 +243,7 @@ module ArchDesc0();
 
 
 
-        task automatic runTestSim(input string name, input GlobalParams gp);
+        task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
             #CYCLE announce(name);
             theProgMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
 
@@ -255,7 +263,7 @@ module ArchDesc0();
         endtask
 
 
-        task automatic runIntTestSim(input GlobalParams gp);
+        task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
             #CYCLE announce("int");
             theProgMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
@@ -314,8 +322,12 @@ module ArchDesc0();
         task automatic runSim(ref TestRunner runner);
             GlobalParams gp;
 
-            theProgMem.assignPage(PAGE_SIZE, common.words);
-            theProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+            PageBasedProgramMemory thisProgMem = theProgMem;
+
+            thisProgMem.assignPage(PAGE_SIZE, common.words);
+            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+
+            runner.programMem = thisProgMem;
 
             runner.gp = Test_fillGpUncached();
 
@@ -337,11 +349,11 @@ module ArchDesc0();
             //#CYCLE
             $display("* Event tests");
             
-            theProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
 
-            runTestSim("events", Test_fillGpCached());
+            runTestSim("events", Test_fillGpCached(), thisProgMem);
 
-            runIntTestSim(Test_fillGpCached());
+            runIntTestSim(Test_fillGpCached(), thisProgMem);
             
             $display("All tests done;");
             $stop(2);
@@ -354,7 +366,7 @@ module ArchDesc0();
             automatic SimRunner runner = new();
                 automatic EmulRunner emRunner = new();
             automatic TestRunner tr = runner;
-
+                                      //emRunner;
             runSim(tr);
         end
     endgenerate
@@ -409,7 +421,7 @@ module ArchDesc0();
         params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
 
         params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
-        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3_alt, physInsPage0_alt};        
+        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage3_alt, physInsPage0_alt};        
     endfunction
     
     function automatic void Ins_prepareForUncachedTest(ref GlobalParams params);

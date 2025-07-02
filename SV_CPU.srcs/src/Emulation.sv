@@ -133,7 +133,7 @@ package Emulation;
 
 
         function automatic Translation translateProgramAddress(input Mword vadr);
-            localparam logic DO_NOT_TRANSLATE_P = 0; // TODO: don't remove, will be a dynamic param
+            logic DO_NOT_TRANSLATE_P = !status.enableMmu; // TODO: don't remove, will be a dynamic param
 
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
 
@@ -148,7 +148,7 @@ package Emulation;
         endfunction
 
         function automatic Translation translateDataAddress(input Mword vadr);
-            localparam logic DO_NOT_TRANSLATE = 0; // TODO: don't remove, will be a dynamic param
+            logic DO_NOT_TRANSLATE = !status.enableMmu; // TODO: don't remove, will be a dynamic param
 
             Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
 
@@ -327,6 +327,8 @@ package Emulation;
         function automatic void executeStep();
             Mword vadr = this.coreState.target;
             Translation tr = translateProgramAddress(vadr);
+
+                this.ip = vadr;
 
             if (catchFetchException(vadr, tr)) return;
             else begin
