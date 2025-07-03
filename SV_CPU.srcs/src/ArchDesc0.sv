@@ -12,6 +12,9 @@ import Testing::*;
 
 
 module ArchDesc0();
+    localparam logic RUN_EMUL_TESTS = 1;
+    localparam logic RUN_SIM_TESTS = 1;
+
 
     typedef Word WordArray[];
 
@@ -48,7 +51,6 @@ module ArchDesc0();
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
 
-
     localparam CYCLE = 10;
 
     logic clk = 1;
@@ -56,7 +58,6 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-    Section common;
     
     squeue uncachedSuites = '{
         "Tests_basic_uncached.txt"//,
@@ -80,14 +81,14 @@ module ArchDesc0();
     
     string emulTestName, simTestName;
 
+    Section common;
+
     Emulator emul_N = new();
 
     Mword commonAdr = COMMON_ADR;
 
 
-    class EmulRunner extends TestRunner;
-        //GlobalParams gp;
-        
+    class EmulRunner extends TestRunner;        
         task automatic runTest(input string name);
             runTestEmul(name, emul_N, gp, programMem);
             #DELAY;
@@ -110,7 +111,21 @@ module ArchDesc0();
 
 
 
-    // Emul-only run
+    task automatic runEmulEvents();
+        $display("Emulation event tests");
+
+        emul_N.progMem.assignPage(PAGE_SIZE, common.words);
+        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION));
+
+        #DELAY runTestEmul("events", emul_N, Test_fillGpCached(), emul_N.progMem);
+        
+        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+
+        #DELAY runIntTestEmul(emul_N);
+        #DELAY;
+    endtask
+    
+    
     task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams __gp, input PageBasedProgramMemory progMem);
         GlobalParams gp = __gp;
 
@@ -118,7 +133,7 @@ module ArchDesc0();
             
            // announce(name);
 
-            emul.progMem = progMem;
+        emul.progMem = progMem;
 
         emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
@@ -185,203 +200,192 @@ module ArchDesc0();
 
     task automatic resetAll(ref Emulator emul);
         emul.resetWithDataMem();
-            emul.programMappings.delete();
-            emul.dataMappings.delete();
+        emul.programMappings.delete();
+        emul.dataMappings.delete();
         #DELAY;
     endtask
 
 
-    task automatic runEmul();
-        EmulRunner runner1 = new();
-            
-            runner1.programMem = emul_N.progMem;
-            
-            runner1.gp = Test_fillGpCached();
-
-        emul_N.progMem.assignPage(PAGE_SIZE, common.words);
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION));
-
-        runner1.announceSuites = 0;
-        #DELAY runner1.runSuites(allSuites);
-
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION));
-
-        #DELAY runTestEmul("events", emul_N, Test_fillGpCached(), emul_N.progMem);
-        
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
-            
-        #DELAY runIntTestEmul(emul_N);
-        #DELAY;
-    endtask
-
-    initial common = processLines(readFile({codeDir, "common_asm", ".txt"}));
-
-    initial runEmul();
-
-    //////////////////////////////////////////////////////
-    ////////////////////////////////////////////////
 
     // Core sim
-    generate
 
-        class SimRunner extends TestRunner;
-            //GlobalParams gp;
+    class SimRunner extends TestRunner;
+    
+        task automatic runTest(input string name);            
+            runTestSim(name, gp, programMem);
+        endtask
+    endclass
+
+    logic reset = 0, int0 = 0, done, wrong;
+    PageBasedProgramMemory theProgMem = new();
+    Mword fetchAdr;       
+
+
+    task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
+        #CYCLE announce(name);
+        progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+
+        progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
+            // TODO: remove these assignments when fetch engine is able to translate adrs for programMem check 
+            progMem.assignPage(4*PAGE_SIZE, progMem.getPage(0)); // mapped to page 3, not in L1 TLB
+            progMem.assignPage(8*PAGE_SIZE, progMem.getPage(0)); // mapped to page 0, not in L1 TLB
+
+        core.resetForTest();
+        core.programMem = progMem;
+        core.globalParams = gp;
+        core.preloadForTest();
+
+        startSim();
         
-            task automatic runTest(input string name);            
-                runTestSim(name, gp, programMem);
-            endtask
-        endclass
-
-        logic reset = 0, int0 = 0, done, wrong;
-        PageBasedProgramMemory theProgMem = new();
-        Mword fetchAdr;       
+        awaitResult();
+    endtask
 
 
+    task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
+        #CYCLE announce("int");
+        progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
 
-        task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
-            #CYCLE announce(name);
-            progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+        core.resetForTest();
+        core.programMem = progMem;
+        core.globalParams = gp;
+        core.preloadForTest();
 
-            progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
-                // TODO: remove these assignments when fetch engine is able to translate adrs for programMem check 
-                progMem.assignPage(4*PAGE_SIZE, progMem.getPage(0)); // mapped to page 3, not in L1 TLB
-                progMem.assignPage(8*PAGE_SIZE, progMem.getPage(0)); // mapped to page 0, not in L1 TLB
+        startSim();
 
-            core.resetForTest();
-            core.programMem = progMem;
-            core.globalParams = gp;
-            core.preloadForTest();
+        // The part that differs from regular sim test
+        wait (fetchAdr == IP_CALL);
+        #CYCLE; // FUTURE: should be wait for clock instead of delay?
+        pulseInt0();
 
-            startSim();
-            
-            awaitResult();
-        endtask
+        awaitResult();
+    endtask
 
 
-        task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
-            #CYCLE announce("int");
-            progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
+    task automatic startSim();
+        #CYCLE reset <= 1;
+        #CYCLE reset <= 0;
+        #CYCLE;
+    endtask
 
+    task automatic awaitResult(); 
+        wait (done | wrong);
+        if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
+        #CYCLE;
+    endtask
 
-            core.resetForTest();
-            core.programMem = progMem;
-            core.globalParams = gp;
-            core.preloadForTest();
+    task announce(input string name);
+        simTestName = name;
+        $display("> RUN: %s", name);
+    endtask
 
-            startSim();
+    task pulseInt0();
+        int0 <= 1;
+        #CYCLE;
+        int0 <= 0;
+        #CYCLE;
+    endtask
 
-            // The part that differs from regular sim test
-            wait (fetchAdr == IP_CALL);
-            #CYCLE; // FUTURE: should be wait for clock instead of delay?
-            pulseInt0();
-
-            awaitResult();
-        endtask
-
-
-        task automatic startSim();
-            #CYCLE reset <= 1;
-            #CYCLE reset <= 0;
-            #CYCLE;
-        endtask
-
-        task automatic awaitResult(); 
-            wait (done | wrong);
-            if (wrong) $fatal(2, "TEST FAILED: %s", simTestName);
-            #CYCLE;
-        endtask
-
-        task announce(input string name);
-            simTestName = name;
-            $display("> RUN: %s", name);
-        endtask
-
-        task pulseInt0();
-            int0 <= 1;
-            #CYCLE;
-            int0 <= 0;
-            #CYCLE;
-        endtask
-
+    
+    AbstractCore core(
+        .clk(clk),
         
-        AbstractCore core(
-            .clk(clk),
-            
-            .interrupt(int0),
-            .reset(reset),
-            .sig(done),
-            .wrong(wrong)
-        );
+        .interrupt(int0),
+        .reset(reset),
+        .sig(done),
+        .wrong(wrong)
+    );
 
 
-        task automatic runSim(ref TestRunner runner);
-            //GlobalParams gp;
+    task automatic runSim(ref TestRunner runner);
+        PageBasedProgramMemory thisProgMem = theProgMem;
 
-            PageBasedProgramMemory thisProgMem = theProgMem;
+        thisProgMem.assignPage(PAGE_SIZE, common.words);
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
 
-            thisProgMem.assignPage(PAGE_SIZE, common.words);
-            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+        runner.programMem = thisProgMem;
 
-            runner.programMem = thisProgMem;
+        runner.gp = Test_fillGpUncached();
 
-            runner.gp = Test_fillGpUncached();
+        #CYCLE $display("* Uncached suites");
+        runner.runSuites(uncachedSuites);
 
-            #CYCLE $display("* Uncached suites");
-            runner.runSuites(uncachedSuites);
+        runner.gp = Test_fillGpCached();
 
-            runner.gp = Test_fillGpCached();
+        #CYCLE $display("* Cached fetch suites");
+        runner.runSuites(cachedFetchSuites); 
 
-            #CYCLE $display("* Cached fetch suites");
-            runner.runSuites(cachedFetchSuites); 
-
-            #CYCLE $display("* Normal suites"); 
-            runner.runSuites(allSuites);  
-            
-                // Now assure that a pullback and reissue has happened because of mem replay
-                core.insMap.assertReissue();
-            
-            // TODO: fix strange problem - if delay inserted here, test fails 
-            //#CYCLE
-            $display("* Event tests");
-            
-            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
-
-            runTestSim("events", Test_fillGpCached(), thisProgMem);
-
-            runIntTestSim(Test_fillGpCached(), thisProgMem);
-            
-            $display("All tests done;");
-            $stop(2);
-        endtask
+        #CYCLE $display("* Normal suites"); 
+        runner.runSuites(allSuites);  
+    endtask
 
 
-        assign fetchAdr = core.insAdr; 
+    task automatic runEventSim(ref TestRunner runner);
+        PageBasedProgramMemory thisProgMem = theProgMem;
 
-        initial begin
-            automatic SimRunner runner = new();
-                automatic EmulRunner emRunner = new();
-            automatic TestRunner tr = runner;
-                                      //emRunner;
-            runSim(tr);
+        thisProgMem.assignPage(PAGE_SIZE, common.words);
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+
+        runner.programMem = thisProgMem;
+
+        runner.gp = Test_fillGpCached();
+
+        // TODO: fix strange problem - if delay inserted here, test fails 
+        //#CYCLE
+        $display("* Event tests");
+        
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+
+        runTestSim("events", Test_fillGpCached(), thisProgMem);
+
+        runIntTestSim(Test_fillGpCached(), thisProgMem);
+    endtask
+
+
+    assign fetchAdr = core.insAdr; 
+
+    initial begin    
+        automatic SimRunner runner = new();
+        automatic EmulRunner emRunner = new();
+        automatic TestRunner trSim = runner;
+        automatic TestRunner trEm = emRunner;
+        
+        common = processLines(readFile({codeDir, "common_asm", ".txt"}));
+                
+        if (RUN_EMUL_TESTS) begin
+            runSim(trEm);
+            runEmulEvents();
         end
-    endgenerate
+        
+        if (RUN_SIM_TESTS) begin
+            runSim(trSim);
+            // Now assure that a pullback and reissue has happened because of mem replay
+            core.insMap.assertReissue();
+            
+            runEventSim(trSim);
+        end
+        
+        $display("All tests done;");
+        $stop(2);
+    end
 
 
-        function automatic GlobalParams Test_fillGpUncached();
-            GlobalParams gp;
-            gp.enableMmu = 0;
-            Ins_prepareForUncachedTest(gp);
-            return gp;
-        endfunction
 
-        function automatic GlobalParams Test_fillGpCached();
-            GlobalParams gp;
-            gp.enableMmu = 1;
-            Ins_prefetchForTest(gp);
-            Data_prefetchForTest(gp);
-            return gp;
-        endfunction
+
+    function automatic GlobalParams Test_fillGpUncached();
+        GlobalParams gp;
+        gp.enableMmu = 0;
+        Ins_prepareForUncachedTest(gp);
+        return gp;
+    endfunction
+
+    function automatic GlobalParams Test_fillGpCached();
+        GlobalParams gp;
+        gp.enableMmu = 1;
+        Ins_prefetchForTest(gp);
+        Data_prefetchForTest(gp);
+        return gp;
+    endfunction
 
 
     function automatic void Data_prefetchForTest(ref GlobalParams params);
