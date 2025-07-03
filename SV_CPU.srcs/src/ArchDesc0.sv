@@ -124,10 +124,6 @@ module ArchDesc0();
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
         resetAll(emul);
-
-//        gp.enableMmu = 1; // TMP
-//        Ins_prefetchForTest(gp);
-//        Data_prefetchForTest(gp);
         
         emul.status.enableMmu = gp.enableMmu;
         emul.programMappings = gp.preloadedInsTlbL2;
@@ -245,15 +241,15 @@ module ArchDesc0();
 
         task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
             #CYCLE announce(name);
-            theProgMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+            progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
 
-            theProgMem.assignPage(3*PAGE_SIZE, theProgMem.getPage(0)); // copy of page 0, not preloaded
-                // TODO: remove these assgnments when fetch engine is able to translate adrs for programMem check 
-                theProgMem.assignPage(4*PAGE_SIZE, theProgMem.getPage(0)); // mapped to page 3, not in L1 TLB
-                theProgMem.assignPage(8*PAGE_SIZE, theProgMem.getPage(0)); // mapped to page 0, not in L1 TLB
+            progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
+                // TODO: remove these assignments when fetch engine is able to translate adrs for programMem check 
+                progMem.assignPage(4*PAGE_SIZE, progMem.getPage(0)); // mapped to page 3, not in L1 TLB
+                progMem.assignPage(8*PAGE_SIZE, progMem.getPage(0)); // mapped to page 0, not in L1 TLB
 
             core.resetForTest();
-            core.programMem = theProgMem;
+            core.programMem = progMem;
             core.globalParams = gp;
             core.preloadForTest();
 
@@ -265,11 +261,11 @@ module ArchDesc0();
 
         task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
             #CYCLE announce("int");
-            theProgMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
+            progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
 
             core.resetForTest();
-            core.programMem = theProgMem;
+            core.programMem = progMem;
             core.globalParams = gp;
             core.preloadForTest();
 
@@ -320,7 +316,7 @@ module ArchDesc0();
 
 
         task automatic runSim(ref TestRunner runner);
-            GlobalParams gp;
+            //GlobalParams gp;
 
             PageBasedProgramMemory thisProgMem = theProgMem;
 
