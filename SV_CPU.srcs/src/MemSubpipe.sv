@@ -199,7 +199,7 @@ module MemSubpipe#(
                     return res;
                 end
 
-                if (!cacheResp.desc.cached) begin
+                if (!cacheResp.desc.cached || cacheResp.status == CR_UNCACHED) begin
                     res.status = ES_UNCACHED_1;  
                     return res; // go to RQ
                 end

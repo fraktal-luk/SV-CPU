@@ -79,7 +79,8 @@ package AbstractSim;
         SIZE_NONE = 0,
         SIZE_1 = 1,
         SIZE_4 = 4,
-        SIZE_8 = 8
+        SIZE_8 = 8,
+        SIZE_INS_LINE = FETCH_WIDTH*4
     } AccessSize;
     
     function automatic AccessSize getTransactionSize(input UopName uname);

@@ -224,11 +224,7 @@ module ArchDesc0();
     task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
         #CYCLE announce(name);
         progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
-
         progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
-            // TODO: remove these assignments when fetch engine is able to translate adrs for programMem check 
-            progMem.assignPage(4*PAGE_SIZE, progMem.getPage(0)); // mapped to page 3, not in L1 TLB
-            progMem.assignPage(8*PAGE_SIZE, progMem.getPage(0)); // mapped to page 0, not in L1 TLB
 
         core.resetForTest();
         core.programMem = progMem;

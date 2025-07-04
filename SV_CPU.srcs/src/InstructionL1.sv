@@ -28,13 +28,12 @@ module InstructionL1(
 
     Translation TMP_tlbL1[$], TMP_tlbL2[$];
 
-        Translation translationTableL1[32]; // DB
+    Translation translationTableL1[32]; // DB
 
 
-        Translation translation, translationSig;
+    Translation translation = DEFAULT_TRANSLATION;
 
-        InstructionCacheOutput readOutSig, readOutSig_AC;
-        InstructionCacheOutput readOutCached, readOutUncached;
+    InstructionCacheOutput readOutCached, readOutUncached;
     
 
     typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
@@ -48,12 +47,6 @@ module InstructionL1(
             FetchLine value;
         } ReadResult;
 
-        ReadResult readResultsWay0;
-        ReadResult readResultsWay1;
-        ReadResult readResultsWay2;
-        ReadResult readResultsWay3;
-        ReadResult readResultSelected;
-
 
     typedef logic LogicA[N_MEM_PORTS];
     typedef Mword MwordA[N_MEM_PORTS];
@@ -66,9 +59,6 @@ module InstructionL1(
     DataFillEngine blockFillEngine(clk, blockFillEnA, blockFillPhysA);
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
-
-    assign readOutSig = readCache(readAddress);
-    always_comb readOutSig_AC = readCache(readAddress);
 
     assign readOutUnc = readOutUncached;
     assign readOut = readOutCached;
@@ -85,8 +75,8 @@ module InstructionL1(
 
 
     task automatic reset();
-            readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
-            readOutCached <= EMPTY_INS_CACHE_OUTPUT;
+        readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
+        readOutCached <= EMPTY_INS_CACHE_OUTPUT;
 
         TMP_tlbL1.delete();
         TMP_tlbL2.delete();
@@ -129,24 +119,7 @@ module InstructionL1(
     endfunction
 
 
-    function automatic InstructionCacheOutput readCache(input Mword readAdr);
-        Mword truncatedAdr = readAdr & ~(4*FETCH_WIDTH-1);
-        InstructionCacheOutput res;
-        
-        // TODO: determine hit/miss status
-        
-        foreach (res.words[i]) begin            
-            res.active = 1;
-            res.status = CR_HIT;
-            res.desc = '{1, 1, 1, 1, 1};
-            res.words[i] = content[truncatedAdr/4 + i];
-        end
-        
-        return res;
-    endfunction
-
-
-    function automatic InstructionCacheOutput readCache_N(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
+    function automatic InstructionCacheOutput readCache(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
         ReadResult selected = selectWay(res0, res1, res2, res3);
         
@@ -158,7 +131,7 @@ module InstructionL1(
         end
         // Not cached
         else if (!tr.desc.cached) begin
-            res.status = CR_HIT; // TODO: introduce CR_UNCACHED to use here?
+            res.status = CR_UNCACHED;
         end
         // Miss
         else if (!selected.valid) begin
@@ -185,11 +158,11 @@ module InstructionL1(
         
         assert (physicalAddressValid(adr)) else $fatal(2, "Wrong fetch");
         
-        // TODO: catch invalid adr or nonexistent mem expceion
-        res.status = CR_HIT;
+        // TODO: catch invalid adr or nonexistent mem exception
+        res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend 
 
         res.active = 1;
-        res.desc = '{1, 1, 1, 1, 0};//tr.desc;
+        res.desc = '{1, 1, 1, 1, 0};
         res.words = '{0: content[adr/4], default : 'x};
         
         return res;
@@ -199,34 +172,25 @@ module InstructionL1(
 
     always @(posedge clk) begin
         doCacheAccess();
-    
-        translation <= translate(readAddress);
        
         if (blockFillEngine.notifyFill) allocInDynamicRange(blockFillEngine.notifiedAdr);
         if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
-
     end
     
     
     
     task automatic doCacheAccess();
-        AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_4); // TODO: introduce line size as access size?
+        AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_INS_LINE);
         Translation tr = translate(readAddress);
         
         ReadResult result0 = readWay(blocksWay0, acc, tr);
         ReadResult result1 = readWay(blocksWay1, acc, tr);
         ReadResult result2 = readWay(blocksWay2, acc, tr);
         ReadResult result3 = readWay(blocksWay3, acc, tr);
-        
-        readResultsWay0 <= result0;
-        readResultsWay1 <= result1;
-        readResultsWay2 <= result2;
-        readResultsWay3 <= result3;
-        
-        
-        readResultSelected <= selectWay(result0, result1, result2, result3);
-        
-        readOutCached <= readCache_N(readEn, tr, result0, result1, result2, result3);
+
+        translation <= tr;
+
+        readOutCached <= readCache(readEn, tr, result0, result1, result2, result3);
         
         readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
     endtask
@@ -294,23 +258,23 @@ module InstructionL1(
     endfunction
 
 
-        function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input Translation tr);
-            InstructionCacheBlock block = way[aInfo.block];
-            Dword accessPbase = getBlockBaseD(tr.padr);
-    
-            if (block == null) return '{0, '{default: 'x}};
+    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input Translation tr);
+        InstructionCacheBlock block = way[aInfo.block];
+        Dword accessPbase = getBlockBaseD(tr.padr);
 
-            begin
-                logic hit0 = (accessPbase === block.pbase);
-                FetchLine val0 = block.readLine(aInfo.blockOffset);                    
-    
-                if (aInfo.blockCross) begin
-                    $error("Read crossing block at %x", aInfo.adr);
-                end
-    
-                return '{hit0, val0};
+        if (block == null) return '{0, '{default: 'x}};
+
+        begin
+            logic hit0 = (accessPbase === block.pbase);
+            FetchLine val0 = block.readLine(aInfo.blockOffset);                    
+
+            if (aInfo.blockCross) begin
+                $error("Read crossing block at %x", aInfo.adr);
             end
-        endfunction
+
+            return '{hit0, val0};
+        end
+    endfunction
 
 
     always_comb blockFillEnA = dataMakeEnables();
@@ -375,12 +339,7 @@ module InstructionL1(
 
 
     function automatic void allocInTlb(input Mword adr);
-        //Translation DUMMY;
-        //Mword pageBase = adr;
-            
-            
         Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-            //   $error("TLB fill: %x", adr);
             
         assert (found.size() > 0) else $error("NOt prent in TLB L2");
         

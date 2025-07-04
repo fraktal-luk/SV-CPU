@@ -16,11 +16,12 @@ package CacheDefs;
 
     typedef enum {
         CR_INVALID, // Address illegal
-            CR_NOT_MAPPED, // page table walk finds no mapping entry
+        CR_NOT_MAPPED, // page table walk finds no mapping entry
         CR_TLB_MISS,
         CR_TAG_MISS,
         CR_HIT,
-        CR_MULTIPLE
+        CR_MULTIPLE,
+        CR_UNCACHED
     } CacheReadStatus;
     
     typedef struct {
@@ -33,7 +34,6 @@ package CacheDefs;
     typedef struct {
         logic active;
         CacheReadStatus status;
-        //InstructionLineDesc desc;
         DataLineDesc desc;       
         FetchGroup_N words;
     } InstructionCacheOutput;
@@ -79,7 +79,26 @@ package CacheDefs;
     endclass
 
 
-
+    
+    
+//        typedef struct {
+//            logic valReady;
+//            AccessDesc accessDesc;
+//            Translation translation;
+//            logic committed;
+//            logic error;
+//            logic refetch;
+//        } SqEntry;
+//            typedef struct {
+//                logic active;
+//                logic cancel;
+//                logic sys;
+//                logic uncached;
+//                Mword adr;
+//                Dword padr;
+//                AccessSize size;
+//            } StoreQueueEntry;
+    
     // Write buffer
     // TODO: replace with SQ entry struct?
     typedef struct {
@@ -94,7 +113,7 @@ package CacheDefs;
         AccessSize size;
     } StoreQueueEntry;
 
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'x, 'x, 'x, 'x, SIZE_NONE};
+    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'z, 'z, 'x, 'x, SIZE_NONE};
 
     typedef struct {
         logic req;

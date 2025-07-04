@@ -324,7 +324,7 @@ module DataL1(
             res = '{1, CR_TLB_MISS, tr.desc, 'x};
         end
         else if (!tr.desc.cached) begin // Just detected uncached access, tr.desc indicates uncached
-            res = '{1, CR_HIT, tr.desc, 'x};  // TODO: introduce CR_UNCACHED to use here?
+            res = '{1, CR_UNCACHED, tr.desc, 'x};
         end
         else if (!hit0 && !hit1) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
@@ -338,7 +338,7 @@ module DataL1(
     endfunction
 
     
-    // TODO: support for block crossing and page crossing accesses
+    // FUTURE: support for block crossing and page crossing accesses
     task automatic handleReads();
         accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};

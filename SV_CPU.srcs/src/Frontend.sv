@@ -32,14 +32,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     InstructionCacheOutput cacheOut, uncachedOut;
 
     assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
-    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.adr) : fetchLineBase(stage_IP.adr);
+    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.vadr) : fetchLineBase(stage_IP.vadr);
 
 
     assign fetchEnableUncached = stageUnc_IP.active;
-    assign fetchAdrUncached = (stageUnc_IP.adr);
+    assign fetchAdrUncached = (stageUnc_IP.vadr);
 
     assign fetchEnableCached = stage_IP.active;
-    assign fetchAdrCached = fetchLineBase(stage_IP.adr);
+    assign fetchAdrCached = fetchLineBase(stage_IP.vadr);
 
 
 
@@ -49,11 +49,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     typedef struct {
         logic active;
         CacheReadStatus status;
-        Mword adr;
+        Mword vadr;
+        Dword padr;
         FetchStage arr;
     } FrontStage;
     
-    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, 'x, EMPTY_STAGE};
+    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, 'x, 'x, EMPTY_STAGE};
 
 
     FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
@@ -92,7 +93,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign stageFetchSelected1 = FETCH_UNC ? stageFetchUnc4 : stageFetch1;
 
     assign blockMismatchF2 = (fetchLineBase(stageFetchSelected1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
-    assign wordMismatchF2 = (stageFetchSelected1.adr !== expectedTargetF2);
+    assign wordMismatchF2 = (stageFetchSelected1.vadr !== expectedTargetF2);
     always_comb adrMismatchF2 = FETCH_UNC ? wordMismatchF2 : blockMismatchF2;
     assign frontRed = stageFetchSelected1.active && adrMismatchF2;
     assign frontRedOnMiss = (stageFetchSelected1.active && stageFetchSelected1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRed;
@@ -113,7 +114,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
             if (!stage_IP.active) stage_IP.active <= 1;
-            // TODO: consider whether this ^ should always be the case; Fetch may have been already rstarted by backend event, or turned off by system op (so that fill is not on the current path)
+            // TODO: consider whether this ^ should always be the case; Fetch may have been already restarted by backend event, or turned off by system op (so that fill is not on the current path)
         end
 
         fqSize <= fetchQueue.size();
@@ -128,14 +129,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     task automatic fetchNormal();
         if (AbstractCore.fetchAllow && stage_IP.active) begin
-            Mword nextTrg = fetchLineBase(stage_IP.adr) + FETCH_WIDTH*4;
-            if (FETCH_SINGLE) nextTrg = stage_IP.adr + 4;
+            Mword nextTrg = fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
+            if (FETCH_SINGLE) nextTrg = stage_IP.vadr + 4;
             stage_IP <= makeStage_IP(nextTrg, stage_IP.active, FETCH_SINGLE);
 
             incFetchCounter();   
         end
         else if (AbstractCore.fetchAllow && stageUnc_IP.active) begin
-            Mword nextTrg = stageUnc_IP.adr + 4;
+            Mword nextTrg = stageUnc_IP.vadr + 4;
             stageUnc_IP <= makeStage_IP(nextTrg, stageUnc_IP.active, 1);
 
             incFetchCounter();
@@ -274,8 +275,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     function automatic FetchStage clearBeforeStart(input FetchStage st, input Mword expectedTarget);
         FetchStage res = st;
 
-        //assert (!$isunknown(expectedTarget)) else $fatal(2, "expectedTarget not set");
-
         foreach (res[i])
             res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
         
@@ -367,7 +366,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             arrayF2[brSlot].takenBranch = 1;
         end
        
-        return '{active, fs.status, fs.adr, arrayF2};
+        return '{active, fs.status, fs.vadr, 'x, arrayF2};
     endfunction
    
     
@@ -376,9 +375,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         // If no taken branches, increment base adr. Otherwise get taken target
         FetchStage res = TMP_getStageF2(fs, expectedTarget);
         Mword adr = res[FETCH_WIDTH-1].adr + 4;
-        
-        
-          //  if (fs.active && fs.status inside {CR_TLB_MISS, CR_TAG_MISS}) return fs.adr;
         
         foreach (res[i]) 
             if (res[i].active) begin
@@ -414,7 +410,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             Word realBits = cacheOut.words[i];
 
             if (res[i].active) begin
-                Word bits = AbstractCore.programMem.fetch(res[i].adr); // TODO: we must fetch programMem from physical adr, not virtual!
+                Translation tr = AbstractCore.retiredEmul.translateProgramAddress(res[i].adr);
+                Word bits = AbstractCore.programMem.fetch(tr.padr);
+
                 assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
             end
             
@@ -427,7 +425,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);
         FrontStage res;
         
-        return '{stage.active, cachedOut.status, stage.adr, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
+        return '{stage.active, cachedOut.status, stage.vadr, 'x, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
     endfunction
 
 
@@ -454,7 +452,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
         FrontStage res;
         
-        return '{stage.active, uncachedOut.status, stage.adr, setWordsUnc(stage.arr, uncachedOut)};
+        return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
     endfunction
    
 
@@ -465,7 +463,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         res.active = on;
         res.status = CR_HIT;
-        res.adr = target;
+        res.vadr = target;
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             Mword adr = baseAdr + 4*i;

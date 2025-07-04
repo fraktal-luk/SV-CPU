@@ -28,6 +28,8 @@ module AbstractCore
     output logic wrong
 );
     logic dummy = 'z;
+        logic chA, chB;
+
 
 
     GlobalParams globalParams;
@@ -75,8 +77,13 @@ module AbstractCore
     // Store interface
         // Committed
         StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
+            SqEntry csq_N[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
         StoreQueueEntry drainHead = EMPTY_SQE;
         MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+            MemWriteInfo writeInfo_N = EMPTY_WRITE_INFO, sysWriteInfo_N = EMPTY_WRITE_INFO;
+    
+                assign chA = writeInfo_N === writeInfo;
+                assign chB = sysWriteInfo_N === sysWriteInfo;
     
     // Event control
         Mword sysRegs[32];
@@ -122,12 +129,13 @@ module AbstractCore
     assign theExecBlock.dcacheOuts = dcacheOuts;
     assign theExecBlock.sysOuts = sysReadOuts;
 
-    assign TMP_writeInfos[0] = writeInfo;
+    assign TMP_writeInfos[0] = //writeInfo;
+                               writeInfo_N;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
 
 
     function automatic InsId oldestCsq();
-        StoreQueueEntry found[$] = csq.find with (item.mid != -1);
+       // StoreQueueEntry found[$] = csq.find with (item.mid != -1);
         StoreQueueEntry entry[$] = csq.min with (item.mid);
         return entry[0].mid;
     endfunction
@@ -191,17 +199,29 @@ module AbstractCore
         return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, 'x, sqe.val, sqe.size, 'x};
     endfunction
 
+        function automatic MemWriteInfo makeWriteInfo_N(input SqEntry sqe);
+            return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                    sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
+        endfunction
+
+        function automatic MemWriteInfo makeSysWriteInfo_N(input SqEntry sqe);
+            return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                    sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
+        endfunction
+
     task automatic putWrite();        
         if (drainHead.mid != -1) begin
             memTracker.drain(drainHead.mid);
             putMilestoneC(drainHead.mid, InstructionMap::WqExit);
         end
         void'(csq.pop_front());
+        void'(csq_N.pop_front());
 
         assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
  
         if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
             csq.push_back(EMPTY_SQE);
+                csq_N.push_back(StoreQueueHelper::EMPTY_QENTRY);
             csqEmpty <= 1;
         end
         else begin
@@ -211,11 +231,15 @@ module AbstractCore
         drainHead <= csq[0];
         writeInfo <= makeWriteInfo(csq[1]);
         sysWriteInfo <= makeSysWriteInfo(csq[1]);
+        
+            writeInfo_N <= makeWriteInfo_N(csq_N[1]);
+            sysWriteInfo_N <= makeSysWriteInfo_N(csq_N[1]);
     endtask
 
 
     task automatic performSysStore();
-        if (sysWriteInfo.req) setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
+        //if (sysWriteInfo.req) setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
+        if (sysWriteInfo_N.req) setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
     endtask
 
     task automatic readSysReg();
@@ -609,11 +633,23 @@ module AbstractCore
         
         // Extract 'uncached' info
         int found[$] = theSq.content_N.find_first_index with (item.mid == id);
+        SqEntry foundElem = theSq.content_N[found[0]];
         logic uncached = theSq.content_N[found[0]].accessDesc.uncachedStore;
+        logic sys = theSq.content_N[found[0]].accessDesc.sys;
         AccessSize size = theSq.content_N[found[0]].accessDesc.size;
         
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.padr, tr.val, size};       
+
+        
+        StoreQueueEntry sqe = '{1, id, exception || refetch, sys /*isStoreSysUop(decMainUop(id))*/, uncached, tr.adrAny, tr.padr, tr.val, size};
+        
+            if (exception || refetch) begin
+               // $error("E or R:\n%p\n%p", sqe, theSq.content_N[found[0]]);
+                
+                foundElem.valReady = 0; // Make sure it's inactive
+            end
+
         csq.push_back(sqe); // Normal
+            csq_N.push_back(foundElem); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
@@ -758,6 +794,7 @@ module AbstractCore
         lateEventInfo <= RESET_EVENT;
             
         csq = '{EMPTY_SQE, EMPTY_SQE};
+            csq_N = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
         
     endtask
 
