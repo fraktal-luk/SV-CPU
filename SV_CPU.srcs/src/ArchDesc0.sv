@@ -324,17 +324,14 @@ module ArchDesc0();
         PageBasedProgramMemory thisProgMem = theProgMem;
 
         thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
 
         runner.programMem = thisProgMem;
-
         runner.gp = Test_fillGpCached();
 
-        // TODO: fix strange problem - if delay inserted here, test fails 
-        //#CYCLE
-        $display("* Event tests");
-        
+        startSim(); // Pulse reset to flush old mem content from pipeline
         thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+
+        #CYCLE $display("* Event tests");
 
         runTestSim("events", Test_fillGpCached(), thisProgMem);
 
