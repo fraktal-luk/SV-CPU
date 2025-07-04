@@ -60,7 +60,7 @@ package Testing;
             foreach (suites[i]) begin
                 squeue tests = readFile({codeDir, suites[i]});
                 if (announceSuites)
-                    $display("Suite: %s", suites[i]);
+                    $display("* Suite: %s", suites[i]);
                 runTests(tests);
             end
         endtask

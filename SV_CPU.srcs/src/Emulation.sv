@@ -113,15 +113,14 @@ package Emulation;
 
             this.coreState = initialState(IP_RESET);
 
-               // TODO: think about mappings. They are not cleared here because simulation needs them but it seems inconsistent
-               // this.programMappings.delete();
-               // this.dataMappings.delete();
+            this.programMappings.delete();
+            this.dataMappings.delete();
         endfunction
 
         function automatic void resetCoreAndMappings();
             resetCore();
-            programMappings.delete();
-            dataMappings.delete();
+//            programMappings.delete();
+//            dataMappings.delete();
         endfunction
 
 
@@ -133,11 +132,9 @@ package Emulation;
 
 
         function automatic Translation translateProgramAddress(input Mword vadr);
-            logic DO_NOT_TRANSLATE_P = !status.enableMmu; // TODO: don't remove, will be a dynamic param
-
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
 
-            if (DO_NOT_TRANSLATE_P) begin
+            if (!status.enableMmu) begin
                 return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
@@ -148,11 +145,9 @@ package Emulation;
         endfunction
 
         function automatic Translation translateDataAddress(input Mword vadr);
-            logic DO_NOT_TRANSLATE = !status.enableMmu; // TODO: don't remove, will be a dynamic param
-
             Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
 
-            if (DO_NOT_TRANSLATE) begin
+            if (!status.enableMmu) begin
                 return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
@@ -220,8 +215,7 @@ package Emulation;
      
     
         function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
-            // TODO: set status for interrupt
-                status.eventType = PE_EXT_INTERRUPT; //?
+            status.eventType = PE_EXT_INTERRUPT; //?
             
             saveStateForInt(state, prevTarget);
     
@@ -503,7 +497,11 @@ package Emulation;
             status.eventType = PE_EXT_INTERRUPT;
             performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
         endfunction
-        
+
+        function automatic void resetSignal();
+            status.eventType = PE_NONE;//PE_EXT_INTERRUPT;
+            performAsyncEvent(this.coreState, IP_RESET, this.coreState.target);
+        endfunction        
         
     endclass
 

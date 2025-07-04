@@ -200,8 +200,8 @@ module ArchDesc0();
 
     task automatic resetAll(ref Emulator emul);
         emul.resetWithDataMem();
-        emul.programMappings.delete();
-        emul.dataMappings.delete();
+        //emul.programMappings.delete();
+        //emul.dataMappings.delete();
         #DELAY;
     endtask
 
@@ -307,15 +307,15 @@ module ArchDesc0();
 
         runner.gp = Test_fillGpUncached();
 
-        #CYCLE $display("* Uncached suites");
+        #CYCLE $display("Uncached suites");
         runner.runSuites(uncachedSuites);
 
         runner.gp = Test_fillGpCached();
 
-        #CYCLE $display("* Cached fetch suites");
+        #CYCLE $display("Cached fetch suites");
         runner.runSuites(cachedFetchSuites); 
 
-        #CYCLE $display("* Normal suites"); 
+        #CYCLE $display("Normal suites"); 
         runner.runSuites(allSuites);  
     endtask
 
@@ -331,7 +331,7 @@ module ArchDesc0();
         startSim(); // Pulse reset to flush old mem content from pipeline
         thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
 
-        #CYCLE $display("* Event tests");
+        #CYCLE $display("Event tests");
 
         runTestSim("events", Test_fillGpCached(), thisProgMem);
 

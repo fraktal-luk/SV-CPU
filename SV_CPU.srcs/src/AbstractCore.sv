@@ -469,8 +469,7 @@ module AbstractCore
     task automatic activateEvent();
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
-            retiredEmul.resetWithDataMem(); // TODO: untangle architectural reset from test env?
-               // retiredEmul.resetCoreAndMappings();
+            retiredEmul.resetSignal();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
@@ -737,6 +736,9 @@ module AbstractCore
 
         renamedEmul = new();
         retiredEmul = new();
+
+            renamedEmul.resetCore();
+            retiredEmul.resetCore();
 
         registerTracker = new();
         memTracker = new();
