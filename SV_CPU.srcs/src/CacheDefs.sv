@@ -79,41 +79,6 @@ package CacheDefs;
     endclass
 
 
-    
-    
-//        typedef struct {
-//            logic valReady;
-//            AccessDesc accessDesc;
-//            Translation translation;
-//            logic committed;
-//            logic error;
-//            logic refetch;
-//        } SqEntry;
-//            typedef struct {
-//                logic active;
-//                logic cancel;
-//                logic sys;
-//                logic uncached;
-//                Mword adr;
-//                Dword padr;
-//                AccessSize size;
-//            } StoreQueueEntry;
-    
-    // Write buffer
-    // TODO: replace with SQ entry struct?
-    typedef struct {
-        logic active;
-        InsId mid;
-        logic cancel;
-        logic sys;
-        logic uncached;
-        Mword adr;
-        Dword padr;
-        Mword val;
-        AccessSize size;
-    } StoreQueueEntry;
-
-    localparam StoreQueueEntry EMPTY_SQE = '{0, -1, 0, 'x, 'z, 'z, 'x, 'x, SIZE_NONE};
 
     typedef struct {
         logic req;

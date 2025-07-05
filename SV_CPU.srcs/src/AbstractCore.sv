@@ -28,9 +28,6 @@ module AbstractCore
     output logic wrong
 );
     logic dummy = 'z;
-        logic chA, chB;
-
-
 
     GlobalParams globalParams;
 
@@ -75,16 +72,12 @@ module AbstractCore
 
 
     // Store interface
-        // Committed
-        StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
-            SqEntry csq_N[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-        StoreQueueEntry drainHead = EMPTY_SQE;
-        MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
-            MemWriteInfo writeInfo_N = EMPTY_WRITE_INFO, sysWriteInfo_N = EMPTY_WRITE_INFO;
-    
-                assign chA = writeInfo_N === writeInfo;
-                assign chB = sysWriteInfo_N === sysWriteInfo;
-    
+    // Committed
+    SqEntry csq_N[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    SqEntry drainHead_N = StoreQueueHelper::EMPTY_QENTRY;
+    MemWriteInfo writeInfo_N = EMPTY_WRITE_INFO, sysWriteInfo_N = EMPTY_WRITE_INFO;
+
+
     // Event control
         Mword sysRegs[32];
         Mword retiredTarget = 0;
@@ -121,22 +114,20 @@ module AbstractCore
 
     //////////////////////////////////////////
 
-    assign fetchEnable = theFrontend.fetchEnable;//theFrontend.FETCH_UNC ? theFrontend.stageUnc_IP.active : theFrontend.stage_IP.active;
-    assign insAdr = theFrontend.fetchAdr;//theFrontend.FETCH_UNC ? fetchLineBase(theFrontend.stageUnc_IP.adr) : fetchLineBase(theFrontend.stage_IP.adr);
+    assign fetchEnable = theFrontend.fetchEnable;
+    assign insAdr = theFrontend.fetchAdr;
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
     assign theExecBlock.dcacheOuts = dcacheOuts;
     assign theExecBlock.sysOuts = sysReadOuts;
 
-    assign TMP_writeInfos[0] = //writeInfo;
-                               writeInfo_N;
+    assign TMP_writeInfos[0] = writeInfo_N;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
 
 
     function automatic InsId oldestCsq();
-       // StoreQueueEntry found[$] = csq.find with (item.mid != -1);
-        StoreQueueEntry entry[$] = csq.min with (item.mid);
+        SqEntry entry[$] = csq_N.min with (item.mid);
         return entry[0].mid;
     endfunction
 
@@ -191,54 +182,41 @@ module AbstractCore
 
     ////////////////
 
-    function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.padr, sqe.val, sqe.size, sqe.uncached};
+    function automatic MemWriteInfo makeWriteInfo_N(input SqEntry sqe);
+        return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
     endfunction
 
-    function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
-        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, 'x, sqe.val, sqe.size, 'x};
+    function automatic MemWriteInfo makeSysWriteInfo_N(input SqEntry sqe);
+        return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
     endfunction
-
-        function automatic MemWriteInfo makeWriteInfo_N(input SqEntry sqe);
-            return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                    sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
-        endfunction
-
-        function automatic MemWriteInfo makeSysWriteInfo_N(input SqEntry sqe);
-            return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                    sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
-        endfunction
 
     task automatic putWrite();        
-        if (drainHead.mid != -1) begin
-            memTracker.drain(drainHead.mid);
-            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
+        if (drainHead_N.mid != -1) begin
+            memTracker.drain(drainHead_N.mid);
+            putMilestoneC(drainHead_N.mid, InstructionMap::WqExit);
         end
-        void'(csq.pop_front());
         void'(csq_N.pop_front());
 
-        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
+        assert (csq_N.size() > 0) else $fatal(2, "csq must never become physically empty");
  
-        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq.push_back(EMPTY_SQE);
-                csq_N.push_back(StoreQueueHelper::EMPTY_QENTRY);
+        if (csq_N.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            csq_N.push_back(StoreQueueHelper::EMPTY_QENTRY);
             csqEmpty <= 1;
         end
         else begin
             csqEmpty <= 0;
         end
         
-        drainHead <= csq[0];
-        writeInfo <= makeWriteInfo(csq[1]);
-        sysWriteInfo <= makeSysWriteInfo(csq[1]);
+        drainHead_N <= csq_N[0];
         
-            writeInfo_N <= makeWriteInfo_N(csq_N[1]);
-            sysWriteInfo_N <= makeSysWriteInfo_N(csq_N[1]);
+        writeInfo_N <= makeWriteInfo_N(csq_N[1]);
+        sysWriteInfo_N <= makeSysWriteInfo_N(csq_N[1]);
     endtask
 
 
     task automatic performSysStore();
-        //if (sysWriteInfo.req) setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
         if (sysWriteInfo_N.req) setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
     endtask
 
@@ -337,7 +315,6 @@ module AbstractCore
             BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
-              //  $error("n bytes in checkoubt: %d", causingCP.emul.dataMem.content.size());
             renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
@@ -628,28 +605,13 @@ module AbstractCore
     endtask
 
 
-    task automatic putToWq(input InsId id, input logic exception, input logic refetch);
-        Transaction tr = memTracker.findStore(id);
-        
-        // Extract 'uncached' info
-        int found[$] = theSq.content_N.find_first_index with (item.mid == id);
-        SqEntry foundElem = theSq.content_N[found[0]];
-        logic uncached = theSq.content_N[found[0]].accessDesc.uncachedStore;
-        logic sys = theSq.content_N[found[0]].accessDesc.sys;
-        AccessSize size = theSq.content_N[found[0]].accessDesc.size;
-        
+    task automatic putToWq(input InsId id, input logic exception, input logic refetch);        
+        SqEntry found[$] = theSq.content_N.find_first with (item.mid == id);
+        SqEntry foundElem = found[0];
 
-        
-        StoreQueueEntry sqe = '{1, id, exception || refetch, sys /*isStoreSysUop(decMainUop(id))*/, uncached, tr.adrAny, tr.padr, tr.val, size};
-        
-            if (exception || refetch) begin
-               // $error("E or R:\n%p\n%p", sqe, theSq.content_N[found[0]]);
-                
-                foundElem.valReady = 0; // Make sure it's inactive
-            end
+        if (exception || refetch) foundElem.valReady = 0; // Make sure it's inactive
 
-        csq.push_back(sqe); // Normal
-            csq_N.push_back(foundElem); // Normal
+        csq_N.push_back(foundElem); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
@@ -773,8 +735,8 @@ module AbstractCore
         renamedEmul = new();
         retiredEmul = new();
 
-            renamedEmul.resetCore();
-            retiredEmul.resetCore();
+        renamedEmul.resetCore();
+        retiredEmul.resetCore();
 
         registerTracker = new();
         memTracker = new();
@@ -793,8 +755,7 @@ module AbstractCore
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
-        csq = '{EMPTY_SQE, EMPTY_SQE};
-            csq_N = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+        csq_N = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
         
     endtask
 
