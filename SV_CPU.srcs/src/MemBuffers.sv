@@ -378,7 +378,7 @@ module TmpSubSq();
             assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
             
             updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
-            dataUop.result = StoreQueue.content_N[dataFound[0]].accessDesc.vadr; // TODO: verify why this
+            dataUop.result = StoreQueue.content_N[dataFound[0]].translation.padr; // This may be used in the future for waking up RQ when missed on store forwarding
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteStoreValue);
         end
 
@@ -445,7 +445,7 @@ module TmpSubLq();
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = scanLoadQueue(StoreQueue.content_N, U2M(storeUop.TMP_oid), storeUop.result, theExecBlock.accessDescs[p].size); //TODO: phsical address!
+            resb = scanLoadQueue(StoreQueue.content_N, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations[p].padr, theExecBlock.accessDescs[p].size);
             theExecBlock.fromLq[p] <= resb;      
         end
         
@@ -455,8 +455,7 @@ module TmpSubLq();
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-                resb = scanLoadQueue_N(StoreQueue.content_N, U2M(storeUop.TMP_oid), storeUop.result, theExecBlock.accessDescs_E2[p].size);
-            //theExecBlock.fromLq[p] <= resb;      
+                resb = scanLoadQueue_N(StoreQueue.content_N, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size);
         end
     endtask
 
@@ -480,8 +479,7 @@ module TmpSubLq();
                 
                //    $error("Now found yunger load ");
                 
-                // TODO: temporary DB print. Make testcases where it happens
-               // if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
+              //  if (found.size() > 1) $error("HEHE\n%p\n%p\n> %d", found, found_e, oldestFound);
         end
         
         return res;
@@ -504,15 +502,10 @@ module TmpSubLq();
         
             begin // 'active' indicates that some match has happened without further details
                 int oldestFound[$] = found.min with (entries[item].mid);
-                res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
-                res.active = 1;
-                    
-                    //   $error("Now found yunger  COMPLETED load ");
-                    
-                StoreQueue.insMap.setRefetch(U2M(res.TMP_oid));
-                    
-                    // TODO: temporary DB print. Make testcases where it happens
-                   // if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
+                //res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
+                //res.active = 1;
+
+                StoreQueue.insMap.setRefetch(entries[oldestFound[0]].mid);
             end
             
             return res;
