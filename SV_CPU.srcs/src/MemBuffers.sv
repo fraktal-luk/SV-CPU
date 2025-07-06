@@ -249,26 +249,26 @@ module TmpSubSq();
         end
     endtask
 
-        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr, input AccessSize loadSize);
-            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
-                                                        && item.translation.present && !item.accessDesc.sys
-                                                        && memOverlap(item.translation.padr, item.accessDesc.size, padr, loadSize));
-            SqEntry fwEntry;
+    function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr, input AccessSize loadSize);
+        SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
+                                                    && item.translation.present && !item.accessDesc.sys
+                                                    && memOverlap(item.translation.padr, item.accessDesc.size, padr, loadSize));
+        SqEntry fwEntry;
 
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            else begin // Youngest older overlapping store:
-                SqEntry vmax[$] = found.max with (item.mid);
-                fwEntry = vmax[0];
-            end
+        if (found.size() == 0) return EMPTY_UOP_PACKET;
+        else begin // Youngest older overlapping store:
+            SqEntry vmax[$] = found.max with (item.mid);
+            fwEntry = vmax[0];
+        end
 
-            if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.padr, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
-                return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-            else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
-                return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
-            else                                // Covers and has data -> OK
-                return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+        if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.padr, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
+            return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
+        else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
+            return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
+        else                                // Covers and has data -> OK
+            return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 
-        endfunction
+    endfunction
 
 
     task automatic verify(input SqEntry entry);
@@ -363,7 +363,6 @@ module TmpSubSq();
             
             updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteStoreValue);
-            dataUop.result = StoreQueue.content_N[dataFound[0]].accessDesc.vadr; // TODO: verify why this
         end
 
         storeDataD0 <= tickP(dataUop);
@@ -452,8 +451,10 @@ module TmpSubLq();
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
                 res.active = 1;
                     
+                       $error("Now found yunger load ");
+                    
                     // TODO: temporary DB print. Make testcases where it happens
-                    if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
+                   // if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
             end
             
             return res;
