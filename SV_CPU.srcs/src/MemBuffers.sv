@@ -309,6 +309,7 @@ module TmpSubSq();
 
     task automatic updateMain();
         UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toSqE0;
+        UopMemPacket packetsE1[N_MEM_PORTS] = theExecBlock.toSqE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toSqE2;
 
         foreach (packetsE0[p]) begin
@@ -322,6 +323,21 @@ module TmpSubSq();
                updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
                 
                putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
+            end
+        end
+
+        foreach (packetsE1[p]) begin
+            UopMemPacket packet = packetsE1[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+               //if (packet.status == ES_REFETCH) StoreQueue.content_N[index].refetch = 1;
+              // else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;            
             end
         end
 
@@ -362,6 +378,7 @@ module TmpSubSq();
             assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
             
             updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
+            dataUop.result = StoreQueue.content_N[dataFound[0]].accessDesc.vadr; // TODO: verify why this
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteStoreValue);
         end
 
@@ -428,19 +445,58 @@ module TmpSubLq();
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            resb = scanLoadQueue(StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result, theExecBlock.accessDescs[p].size);
+            resb = scanLoadQueue(StoreQueue.content_N, U2M(storeUop.TMP_oid), storeUop.result, theExecBlock.accessDescs[p].size); //TODO: phsical address!
             theExecBlock.fromLq[p] <= resb;      
+        end
+        
+        foreach (theExecBlock.toSqE2[p]) begin
+            UopMemPacket storeUop = theExecBlock.toSqE2[p];
+            UopPacket resb;
+
+            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+
+                resb = scanLoadQueue_N(StoreQueue.content_N, U2M(storeUop.TMP_oid), storeUop.result, theExecBlock.accessDescs_E2[p].size);
+            //theExecBlock.fromLq[p] <= resb;      
         end
     endtask
 
 
-        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize size);
+    function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize size);
+        UopPacket res = EMPTY_UOP_PACKET;
+        AccessSize trSize = size;
+        
+        // CAREFUL: we search for all matching entries
+        int found[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+            LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+        
+        if (found.size() == 0) return res;
+
+        //foreach (found[i]) entries[found[i]].refetch = 1;
+    
+        begin // 'active' indicates that some match has happened without further details
+            int oldestFound[$] = found.min with (entries[item].mid);
+            res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
+            res.active = 1;
+                
+               //    $error("Now found yunger load ");
+                
+                // TODO: temporary DB print. Make testcases where it happens
+               // if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
+        end
+        
+        return res;
+    endfunction
+
+        function automatic UopPacket scanLoadQueue_N(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize size);
             UopPacket res = EMPTY_UOP_PACKET;
             AccessSize trSize = size;
             
             // CAREFUL: we search for all matching entries
-            int found[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
-                LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+            int found_Old[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+            int found[$] = entries.find_index with (item.mid > id && item.translation.present && item.valReady && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+            //    LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+            
+            //    if (found_Old.size() >  found.size()) $error("Here we have an uncompleted load:\nStore(%p)->load(%p) at %x", id, entries[found_Old[0]].mid, padr);
             
             if (found.size() == 0) return res;
     
@@ -451,7 +507,9 @@ module TmpSubLq();
                 res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
                 res.active = 1;
                     
-                       $error("Now found yunger load ");
+                    //   $error("Now found yunger  COMPLETED load ");
+                    
+                StoreQueue.insMap.setRefetch(U2M(res.TMP_oid));
                     
                     // TODO: temporary DB print. Make testcases where it happens
                    // if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
@@ -459,7 +517,9 @@ module TmpSubLq();
             
             return res;
         endfunction
- 
+
+
+
     task automatic verify(input LqEntry entry);
 
     endtask
@@ -467,6 +527,7 @@ module TmpSubLq();
     
     task automatic updateMain();
         UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toLqE0;
+        UopMemPacket packetsE1[N_MEM_PORTS] = theExecBlock.toLqE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toLqE2;
 
         foreach (packetsE0[p]) begin
@@ -482,18 +543,31 @@ module TmpSubLq();
             end
         end
 
+        foreach (packetsE1[p]) begin
+            UopMemPacket packet = packetsE1[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+
+            end
+        end
+
         foreach (packetsE2[p]) begin
             UopMemPacket packet = packetsE2[p];
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
 
-            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+            //if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
             begin
                int index = findIndex(packet.TMP_oid);
                if (packet.status == ES_REFETCH) StoreQueue.content_N[index].refetch = 1;
-               else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;           
+               else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;
+               else if (packet.status == ES_OK) StoreQueue.content_N[index].valReady = 1;           
             end
         end
     endtask

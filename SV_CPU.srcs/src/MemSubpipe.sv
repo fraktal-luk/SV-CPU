@@ -266,8 +266,8 @@ module MemSubpipe#(
 
         // Resp from LQ indicating that a younger load has a hazard
         if (isStoreMemUop(decUname(uid))) begin
-            if (lqResp.active) begin
-                insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
+            if (lqResp.active) begin // TODO: remove from here and do it in MemBuffers? 
+               // insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
             end
             
             res.status = ES_OK;
