@@ -62,45 +62,6 @@ package ControlHandling;
         return res;
     endfunction
 
-    
-        function automatic void modifyStateSync(input ControlOp cOp, ref Mword sysRegs[32], input Mword adr);
-            case (cOp)
-                CO_exception: begin
-                    sysRegs[4] = sysRegs[1];
-                    sysRegs[2] = adr;
-                    
-                    sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                end
-                CO_undef: begin
-                    sysRegs[4] = sysRegs[1];
-                    sysRegs[2] = adr;// + 4;
-                    
-                    sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                end
-                CO_call: begin                  
-                    sysRegs[4] = sysRegs[1];
-                    sysRegs[2] = adr + 4;
-                    
-                    sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                end
-                CO_retE: begin
-                    sysRegs[1] = sysRegs[4];
-                end
-                CO_retI: begin
-                    sysRegs[1] = sysRegs[5];
-                end
-            endcase
-        endfunction
-        
-        
-    
-        function automatic void saveStateAsync(ref Mword sysRegs[32], input Mword prevTarget);
-            sysRegs[5] = sysRegs[1];
-            sysRegs[3] = prevTarget;
-            
-            sysRegs[1] |= 2; // FUTURE: handle state register correctly
-        endfunction
-    
 
     function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception);
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};

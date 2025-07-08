@@ -22,6 +22,9 @@ package Queues;
 
         localparam Entry EMPTY_QENTRY = '{'x};
 
+        localparam InstructionMap::Milestone QUEUE_ENTER = InstructionMap::SqEnter;
+        localparam InstructionMap::Milestone QUEUE_FLUSH = InstructionMap::SqFlush;
+        localparam InstructionMap::Milestone QUEUE_EXIT =  InstructionMap::SqExit;
     endclass
 
 
@@ -59,18 +62,30 @@ package Queues;
     class StoreQueueHelper;
         typedef SqEntry Entry;
         localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION, 'x, 'x, 'x};
+
+        localparam InstructionMap::Milestone QUEUE_ENTER = InstructionMap::SqEnter;
+        localparam InstructionMap::Milestone QUEUE_FLUSH = InstructionMap::SqFlush;
+        localparam InstructionMap::Milestone QUEUE_EXIT =  InstructionMap::SqExit;
     endclass
 
 
     class LoadQueueHelper;
         typedef LqEntry Entry;
         localparam Entry EMPTY_QENTRY = StoreQueueHelper::EMPTY_QENTRY;
+        
+        localparam InstructionMap::Milestone QUEUE_ENTER = InstructionMap::LqEnter;
+        localparam InstructionMap::Milestone QUEUE_FLUSH = InstructionMap::LqFlush;
+        localparam InstructionMap::Milestone QUEUE_EXIT =  InstructionMap::LqExit;
     endclass
     
     
     class BranchQueueHelper;
         typedef BqEntry Entry;
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};     
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
+
+        localparam InstructionMap::Milestone QUEUE_ENTER = InstructionMap::BqEnter;
+        localparam InstructionMap::Milestone QUEUE_FLUSH = InstructionMap::BqFlush;
+        localparam InstructionMap::Milestone QUEUE_EXIT =  InstructionMap::BqExit;
     endclass
 
 

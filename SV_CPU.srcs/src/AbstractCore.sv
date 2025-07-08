@@ -73,14 +73,13 @@ module AbstractCore
 
     // Store interface
     // Committed
-    SqEntry csq_N[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-    SqEntry drainHead_N = StoreQueueHelper::EMPTY_QENTRY;
-    MemWriteInfo writeInfo_N = EMPTY_WRITE_INFO, sysWriteInfo_N = EMPTY_WRITE_INFO;
+    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
 
     SystemRegisterUnit sysUnit();
 
     // Event control
-      //  Mword sysRegs[32];
         Mword retiredTarget = 0;
 
 
@@ -88,7 +87,6 @@ module AbstractCore
 
     ///////////////////////////
 
-    //InstructionL1 instructionCache(clk, fetchEnable, insAdr, icacheOut);
     DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
@@ -123,12 +121,12 @@ module AbstractCore
     assign theExecBlock.dcacheOuts = dcacheOuts;
     assign theExecBlock.sysOuts = sysReadOuts;
 
-    assign TMP_writeInfos[0] = writeInfo_N;
+    assign TMP_writeInfos[0] = writeInfo;
     assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
 
 
     function automatic InsId oldestCsq();
-        SqEntry entry[$] = csq_N.min with (item.mid);
+        SqEntry entry[$] = csq.min with (item.mid);
         return entry[0].mid;
     endfunction
 
@@ -183,69 +181,48 @@ module AbstractCore
 
     ////////////////
 
-    function automatic MemWriteInfo makeWriteInfo_N(input SqEntry sqe);
+    function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
         return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
                 sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
     endfunction
 
-    function automatic MemWriteInfo makeSysWriteInfo_N(input SqEntry sqe);
+    function automatic MemWriteInfo makeSysWriteInfo(input SqEntry sqe);
         return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
                 sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
     endfunction
 
     task automatic putWrite();        
-        if (drainHead_N.mid != -1) begin
-            memTracker.drain(drainHead_N.mid);
-            putMilestoneC(drainHead_N.mid, InstructionMap::WqExit);
+        if (drainHead.mid != -1) begin
+            memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
         end
-        void'(csq_N.pop_front());
+        void'(csq.pop_front());
 
-        assert (csq_N.size() > 0) else $fatal(2, "csq must never become physically empty");
+        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
  
-        if (csq_N.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq_N.push_back(StoreQueueHelper::EMPTY_QENTRY);
+        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
             csqEmpty <= 1;
         end
         else begin
             csqEmpty <= 0;
         end
         
-        drainHead_N <= csq_N[0];
+        drainHead <= csq[0];
         
-        writeInfo_N <= makeWriteInfo_N(csq_N[1]);
-        sysWriteInfo_N <= makeSysWriteInfo_N(csq_N[1]);
+        writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endtask
 
 
     task automatic performSysStore();
-        //if (sysWriteInfo_N.req) setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
-        if (sysWriteInfo_N.req) sysUnit.setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
+        if (sysWriteInfo.req) sysUnit.setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
     endtask
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            //sysReadOuts[p] <= getSysReadResponse(theExecBlock.accessDescs[p]);
             sysReadOuts[p] <= sysUnit.getSysReadResponse(theExecBlock.accessDescs[p]);
     endtask
-
-//        function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
-//            DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
-//            Mword regAdr = aDesc.vadr;
-            
-//            if (!aDesc.active || !aDesc.sys) return res;
-            
-//            res.active = 1;
-            
-//            if (regAdr > 31) begin
-//                res.status = CR_INVALID;
-//            end
-//            else begin
-//                res.status = CR_HIT;
-//                res.data = getSysReg(regAdr);
-//            end
-            
-//            return res;
-//        endfunction
 
 
     assign oooLevels = '{
@@ -270,6 +247,7 @@ module AbstractCore
 
     // Helper (inline it?)
     function logic fetchQueueAccepts(input int k);
+        // TODO: careful about numbers accounting for pipe lengths! 
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
     endfunction
 
@@ -435,7 +413,7 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isControlUop(/*decMainUop(id)*/insInfo.mainUop) || insInfo.refetch || insInfo.exception);
+        return (isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
@@ -443,16 +421,13 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin        
-            //sysRegs = SYS_REGS_INITIAL;
-                sysUnit.sysRegs = SYS_REGS_INITIAL;
+            sysUnit.sysRegs = SYS_REGS_INITIAL;
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
-            //saveStateAsync(sysRegs, retiredTarget);
-                //saveStateAsync(sysUnit.sysRegs, retiredTarget);
-                sysUnit.saveStateAsync(retiredTarget);
+            sysUnit.saveStateAsync(retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
@@ -461,10 +436,8 @@ module AbstractCore
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
-
-            //modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
-                //modifyStateSync(lateEventInfoWaiting.cOp, sysUnit.sysRegs, lateEventInfoWaiting.adr);            
-                sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);            
+           
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
@@ -614,12 +587,12 @@ module AbstractCore
 
 
     task automatic putToWq(input InsId id, input logic exception, input logic refetch);        
-        SqEntry found[$] = theSq.content_N.find_first with (item.mid == id);
+        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
         SqEntry foundElem = found[0];
 
         if (exception || refetch) foundElem.valReady = 0; // Make sure it's inactive
 
-        csq_N.push_back(foundElem); // Normal
+        csq.push_back(foundElem); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
@@ -634,15 +607,9 @@ module AbstractCore
 
 
     function automatic Mword getSysReg(input Mword adr);
-          //  assert (sysUnit.sysRegs === sysRegs) else $error("But differe!");
         return sysUnit.sysRegs[adr];
     endfunction
 
-//        function automatic void setSysReg(input Mword adr, input Mword val);
-//            assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
-//            sysRegs[adr] = val;
-//               // sysUnit.sysRegs[adr] = val;
-//        endfunction
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
@@ -653,15 +620,6 @@ module AbstractCore
 
     // General
 
-    //  decId - 1
-    //  decUname - 21
-    //  decMainUop - 20
-    //  getAdr - 2
-
-    function automatic AbstractInstruction decId(input InsId id);
-        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
-    endfunction
-
     function automatic UopName decUname(input UidT uid);
         return (uid == UIDT_NONE) ? UOP_none : insMap.getU(uid).name;
     endfunction
@@ -669,7 +627,13 @@ module AbstractCore
     function automatic UopName decMainUop(input InsId id);
         return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
+        
+    //  decId - 1
+    //  getAdr - 2
 
+    function automatic AbstractInstruction decId(input InsId id);
+        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
+    endfunction
 
     function automatic Mword getAdr(input InsId id);
         return (id == -1) ? 'x : insMap.get(id).basicData.adr;
@@ -752,20 +716,16 @@ module AbstractCore
 
         programMem = null;
         
-        
         dataCache.reset();
         theFrontend.instructionCache.reset();
 
-
         branchCheckpointQueue.delete();
         
-        
-       // sysRegs = SYS_REGS_INITIAL;
-            sysUnit.reset();
+        sysUnit.reset();
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
-        csq_N = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
         
     endtask
 
