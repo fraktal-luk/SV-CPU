@@ -108,7 +108,7 @@ module UncachedSubsystem(
     logic uncachedBusy = 0;
     Mword uncachedOutput = 'x;
 
-    localparam Mword UNCACHED_BASE = 'h80000000;
+    localparam Mword UNCACHED_BASE = 'h0000000040000000;
     Mbyte uncachedArea[PAGE_SIZE];
 
 

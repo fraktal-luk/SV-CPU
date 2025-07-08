@@ -85,6 +85,7 @@ package InsDefs;
     import Base::*;
 
     typedef Word Mword;
+    //typedef Dword Mword;
 
     typedef Mword Mword3[3];
     typedef Mword Mword4[4];

@@ -245,7 +245,7 @@ module EmulTest();
             
         emul.executeStep();
                     
-        check(emul, PE_FETCH_UNALIGNED_ADDRESS, IP_FETCH_EXC, "Unaligned fetch adr");
+        check(emul, PE_FETCH_UNALIGNED_ADDRESS, IP_FETCH_EXC, "Unaligned fetch adr");        
     endtask
 
 

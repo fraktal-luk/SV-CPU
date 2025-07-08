@@ -8,8 +8,8 @@ package EmulationDefs;
     localparam int V_INDEX_BITS = 12;
 
     // TODO: change to dependent on Mword size?
-    localparam Mword VADR_LIMIT_LOW =  'h01000000;
-    localparam Mword VADR_LIMIT_HIGH = 'hff000000;
+    localparam Mword VADR_LIMIT_LOW =  'h0000000001000000;
+    localparam Mword VADR_LIMIT_HIGH = 'hffffffffff000000;
 
     localparam Dword PADR_LIMIT = 'h10000000000;
 

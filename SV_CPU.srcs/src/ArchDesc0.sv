@@ -169,7 +169,7 @@ module ArchDesc0();
             end
 
             emul.executeStep();
-            if (isErrorStatus(emul)) $fatal(2, ">>>> Emulation in error state\n");
+            if (isErrorStatus(emul)) $fatal(2, ">>>> Emulation in error state\nTest name: events2");
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "events2");
             if (isSendingStatus(emul)) break;
             emul.drain();
@@ -190,7 +190,10 @@ module ArchDesc0();
     task automatic performEmul(ref Emulator emul);
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
-            if (isErrorStatus(emul)) $fatal(2, ">>>> Emulation in error state\n%p", emul);
+            if (isErrorStatus(emul)) begin
+                    emul.getBasicDbView();
+                $fatal(2, ">>>> Emulation in error state\nTest name: %s\n%p", emulTestName, emul);
+            end
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (isSendingStatus(emul)) break;
             emul.drain();
@@ -389,7 +392,7 @@ module ArchDesc0();
         Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
         Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
         Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
-        Translation physDataPageUnc = '{present: 1, vadr: 'h80000000, desc: uncachedDesc, padr: 'h80000000};
+        Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
 
 
         params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc};
