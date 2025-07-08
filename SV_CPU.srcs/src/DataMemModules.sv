@@ -114,7 +114,7 @@ module UncachedSubsystem(
 
     task automatic UNC_reset();
         uncachedCounter = -1;
-        uncachedBusy = 0;
+        uncachedBusy <= 0;
         uncachedOutput = 'x;
         
         uncachedArea = '{default: 0};
@@ -165,7 +165,7 @@ module UncachedSubsystem(
             Mword val = wrInfo.value;
             
             uncachedCounter = 15;
-            uncachedBusy = 1;
+            uncachedBusy <= 1;
             if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
             if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
         endtask
@@ -173,7 +173,7 @@ module UncachedSubsystem(
 
         // uncached read pipe
         task automatic UNC_handleUncachedData();
-            if (uncachedCounter == 0) uncachedBusy = 0;
+            if (uncachedCounter == 0) uncachedBusy <= 0;
             if (uncachedCounter >= 0) uncachedCounter--;
             
             if (uncachedReads[0].ongoing) begin
