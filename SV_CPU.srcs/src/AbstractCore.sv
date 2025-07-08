@@ -77,9 +77,10 @@ module AbstractCore
     SqEntry drainHead_N = StoreQueueHelper::EMPTY_QENTRY;
     MemWriteInfo writeInfo_N = EMPTY_WRITE_INFO, sysWriteInfo_N = EMPTY_WRITE_INFO;
 
+    SystemRegisterUnit sysUnit();
 
     // Event control
-        Mword sysRegs[32];
+      //  Mword sysRegs[32];
         Mword retiredTarget = 0;
 
 
@@ -217,32 +218,34 @@ module AbstractCore
 
 
     task automatic performSysStore();
-        if (sysWriteInfo_N.req) setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
+        //if (sysWriteInfo_N.req) setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
+        if (sysWriteInfo_N.req) sysUnit.setSysReg(sysWriteInfo_N.adr, sysWriteInfo_N.value);
     endtask
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= getSysReadResponse(theExecBlock.accessDescs[p]);
+            //sysReadOuts[p] <= getSysReadResponse(theExecBlock.accessDescs[p]);
+            sysReadOuts[p] <= sysUnit.getSysReadResponse(theExecBlock.accessDescs[p]);
     endtask
 
-    function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
-        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
-        Mword regAdr = aDesc.vadr;
-        
-        if (!aDesc.active || !aDesc.sys) return res;
-        
-        res.active = 1;
-        
-        if (regAdr > 31) begin
-            res.status = CR_INVALID;
-        end
-        else begin
-            res.status = CR_HIT;
-            res.data = getSysReg(regAdr);
-        end
-        
-        return res;
-    endfunction
+//        function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
+//            DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
+//            Mword regAdr = aDesc.vadr;
+            
+//            if (!aDesc.active || !aDesc.sys) return res;
+            
+//            res.active = 1;
+            
+//            if (regAdr > 31) begin
+//                res.status = CR_INVALID;
+//            end
+//            else begin
+//                res.status = CR_HIT;
+//                res.data = getSysReg(regAdr);
+//            end
+            
+//            return res;
+//        endfunction
 
 
     assign oooLevels = '{
@@ -440,23 +443,28 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin        
-            sysRegs = SYS_REGS_INITIAL;
+            //sysRegs = SYS_REGS_INITIAL;
+                sysUnit.sysRegs = SYS_REGS_INITIAL;
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
-            saveStateAsync(sysRegs, retiredTarget);
+            //saveStateAsync(sysRegs, retiredTarget);
+                //saveStateAsync(sysUnit.sysRegs, retiredTarget);
+                sysUnit.saveStateAsync(retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
-        end  
+        end
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
 
-            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
+            //modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
+                //modifyStateSync(lateEventInfoWaiting.cOp, sysUnit.sysRegs, lateEventInfoWaiting.adr);            
+                sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
@@ -626,14 +634,15 @@ module AbstractCore
 
 
     function automatic Mword getSysReg(input Mword adr);
-        return sysRegs[adr];
+          //  assert (sysUnit.sysRegs === sysRegs) else $error("But differe!");
+        return sysUnit.sysRegs[adr];
     endfunction
 
-    // TODO: define ranges so that range checking is described in one place 
-    function automatic void setSysReg(input Mword adr, input Mword val);
-        assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
-        sysRegs[adr] = val;
-    endfunction
+//        function automatic void setSysReg(input Mword adr, input Mword val);
+//            assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
+//            sysRegs[adr] = val;
+//               // sysUnit.sysRegs[adr] = val;
+//        endfunction
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
@@ -751,7 +760,8 @@ module AbstractCore
         branchCheckpointQueue.delete();
         
         
-        sysRegs = SYS_REGS_INITIAL;       
+       // sysRegs = SYS_REGS_INITIAL;
+            sysUnit.reset();
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             

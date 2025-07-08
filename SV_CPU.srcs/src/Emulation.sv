@@ -447,12 +447,12 @@ package Emulation;
 
 
         local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
-            if (ins.def.o == O_sysLoad && adr > 31) begin
+            if (ins.def.o == O_sysLoad && !isValidSysReg(adr)) begin
                 setExecState(PE_SYS_INVALID_ADDRESS, ip);
                 
                 return 1;
             end
-            if (ins.def.o == O_sysStore && adr > 31) begin
+            if (ins.def.o == O_sysStore && !isValidSysReg(adr)) begin
                 setExecState(PE_SYS_INVALID_ADDRESS, ip);
 
                 return 1;
@@ -462,7 +462,6 @@ package Emulation;
         endfunction
 
         local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, input Dword padr, input logic present);
-                // TODO
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
             if (!virtualAddressValid_T(vadr)) begin

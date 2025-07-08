@@ -428,7 +428,12 @@ package EmulationDefs;
         endcase
     endfunction
         
-        
+
+
+    function automatic logic isValidSysReg(Mword adr);
+        return adr >= 0 && adr <= 31;    
+    endfunction       
+
 
     // For fetch
     function automatic logic virtualAddressValid(input Mword vadr);
