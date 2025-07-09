@@ -9,9 +9,6 @@ package AbstractSim;
     import UopList::*;
 
 
-        localparam logic DEV_ICACHE_MISS = 1; // TODO: remove
-
-
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 8;
     localparam int BC_QUEUE_SIZE = 64;
@@ -82,7 +79,8 @@ package AbstractSim;
         SIZE_NONE = 0,
         SIZE_1 = 1,
         SIZE_4 = 4,
-        SIZE_8 = 8
+        SIZE_8 = 8,
+        SIZE_INS_LINE = FETCH_WIDTH*4
     } AccessSize;
     
     function automatic AccessSize getTransactionSize(input UopName uname);

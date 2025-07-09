@@ -28,9 +28,7 @@ module EmulTest();
 
 
     initial run();
-    
-    
-    
+
     
     task automatic run();
         emul.progMem.createPage(0);
@@ -136,10 +134,10 @@ module EmulTest();
     task automatic test_INTERRUPT();
         emul.resetCoreAndMappings();
      
+        emul.status.enableMmu = 1;
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.interrupt();
@@ -152,11 +150,11 @@ module EmulTest();
 
     task automatic test_SYS_INVALID_ADR();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("lds r0, r0, 99")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
@@ -168,11 +166,11 @@ module EmulTest();
 
     task automatic test_SYS_UNDEF();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("undef")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
@@ -183,11 +181,11 @@ module EmulTest();
 
     task automatic test_SYS_ERROR();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;     
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("sys_error")});
 
-       // emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
@@ -198,11 +196,11 @@ module EmulTest();
     
     task automatic test_SYS_CALL();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;     
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("sys_call")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
@@ -215,11 +213,11 @@ module EmulTest();
 
     task automatic test_OK();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;     
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
@@ -231,7 +229,8 @@ module EmulTest();
     
     task automatic test_FETCH_INVALID_ADDRESS();
         emul.resetCoreAndMappings();
-        
+
+        //emul.status.enableMmu = 1;        
         emul.coreState.target = 'x;
             
         emul.executeStep();
@@ -246,13 +245,14 @@ module EmulTest();
             
         emul.executeStep();
                     
-        check(emul, PE_FETCH_UNALIGNED_ADDRESS, IP_FETCH_EXC, "Unaligned fetch adr");
+        check(emul, PE_FETCH_UNALIGNED_ADDRESS, IP_FETCH_EXC, "Unaligned fetch adr");        
     endtask
 
 
     task automatic test_FETCH_UNMAPPED();
         emul.resetCoreAndMappings();
-                
+
+        emul.status.enableMmu = 1;                
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
             
@@ -265,11 +265,11 @@ module EmulTest();
 
     task automatic test_FETCH_DISALLOWED();
         emul.resetCoreAndMappings();
-                
+
+        emul.status.enableMmu = 1;                
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 0, 1});
              emul.programMappings.push_back('{1, 0, '{1, 1, 1, 0, 1}, 0});
 
         emul.executeStep();
@@ -281,11 +281,11 @@ module EmulTest();
 
     task automatic test_FETCH_NONEXISTENT();
         emul.resetCoreAndMappings();
-                
+
+        emul.status.enableMmu = 1;               
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-        //emul.programMappings.push_back('{0, 'h0000010000000000,  1, 1, 1, 1});
              emul.programMappings.push_back('{1, 0, '{1, 1, 1, 1, 1}, 'h0000010000000000});
           
         emul.executeStep();
@@ -311,11 +311,11 @@ module EmulTest();
 
     task automatic test_MEM_UNMAPPED();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;    
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
@@ -326,14 +326,12 @@ module EmulTest();
     
     task automatic test_MEM_NONEXISTENT();
         emul.resetCoreAndMappings();
-     
+
+        emul.status.enableMmu = 1;     
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
 
-        //emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
             emul.programMappings.push_back(DEFAULT_PAGE0);
-
-        //emul.dataMappings.push_back('{0, 'h0100000000000000,  1, 1, 1, 1});
             emul.dataMappings.push_back('{1, 0, '{1, 1, 1, 1, 1}, 'h0100000000000000});
 
         emul.executeStep();

@@ -59,7 +59,7 @@ package Insmap;
         IndexSet inds;
 
         logic frontBranch;
-        logic exception; // TODO: synchronize with exceptions of contained uops?
+        logic exception;
         logic refetch;
     } InstructionInfo; // FUTURE: rename to MopInfo?
 

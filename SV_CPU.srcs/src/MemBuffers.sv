@@ -30,9 +30,10 @@ module StoreQueue
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
 
-    localparam InstructionMap::Milestone QUEUE_ENTER = IS_BRANCH_QUEUE ? InstructionMap::BqEnter : IS_LOAD_QUEUE ? InstructionMap::LqEnter : InstructionMap::SqEnter;
-    localparam InstructionMap::Milestone QUEUE_FLUSH = IS_BRANCH_QUEUE ? InstructionMap::BqFlush : IS_LOAD_QUEUE ? InstructionMap::LqFlush : InstructionMap::SqFlush;
-    localparam InstructionMap::Milestone QUEUE_EXIT = IS_BRANCH_QUEUE ? InstructionMap::BqExit : IS_LOAD_QUEUE ? InstructionMap::LqExit : InstructionMap::SqExit;
+    localparam InstructionMap::Milestone QUEUE_ENTER = HELPER::QUEUE_ENTER;
+    localparam InstructionMap::Milestone QUEUE_FLUSH = HELPER::QUEUE_FLUSH;
+    localparam InstructionMap::Milestone QUEUE_EXIT = HELPER::QUEUE_EXIT;
+
 
     localparam logic SQ_RETAIN = 1;
 
@@ -47,7 +48,7 @@ module StoreQueue
     assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
     assign allow = (size < SIZE - 3*RENAME_WIDTH);
 
-    QEntry content_N[SIZE] = '{default: EMPTY_QENTRY};
+    QEntry content[SIZE] = '{default: EMPTY_QENTRY};
 
     QEntry outputQ[$:3*ROB_WIDTH];
     QEntry outputQM[3*ROB_WIDTH] = '{default: EMPTY_QENTRY}; 
@@ -75,11 +76,11 @@ module StoreQueue
 
 
     task automatic flushAll();
-        foreach (content_N[i]) begin
-            InsId thisId = content_N[i].mid;        
-            if (submod.isCommitted(content_N[i])) continue; 
+        foreach (content[i]) begin
+            InsId thisId = content[i].mid;        
+            if (submod.isCommitted(content[i])) continue; 
             if (thisId != -1) putMilestoneM(thisId, QUEUE_FLUSH);            
-            content_N[i] = EMPTY_QENTRY;
+            content[i] = EMPTY_QENTRY;
         end
         endPointer = startPointer;
         scanPointer = startPointer;
@@ -92,10 +93,10 @@ module StoreQueue
 
         endPointer = startPointer;
         for (int i = 0; i < SIZE; i++) begin
-            InsId thisId = content_N[p % SIZE].mid;        
+            InsId thisId = content[p % SIZE].mid;        
             if (thisId > branchEventInfo.eventMid) begin
                 putMilestoneM(thisId, QUEUE_FLUSH);
-                content_N[p % SIZE] = EMPTY_QENTRY;
+                content[p % SIZE] = EMPTY_QENTRY;
             end
             else if (thisId == -1) break;
             else endPointer = (p+1) % (2*SIZE);   
@@ -130,7 +131,7 @@ module StoreQueue
 
 
     task automatic checkOnCommit();
-        QEntry startEntry = content_N[startPointer % SIZE];
+        QEntry startEntry = content[startPointer % SIZE];
         submod.verify(startEntry);
     endtask
 
@@ -148,13 +149,13 @@ module StoreQueue
         int nOut = 0;
         outGroup <= '{default: EMPTY_SLOT_B};
 
-        while (isScanned(content_N[scanPointer % SIZE].mid)) begin 
-            outputQ.push_back(content_N[scanPointer % SIZE]);
+        while (isScanned(content[scanPointer % SIZE].mid)) begin 
+            outputQ.push_back(content[scanPointer % SIZE]);
             scanPointer = (scanPointer+1) % (2*SIZE);
         end
 
-        while (isCommittable(content_N[startPointer % SIZE].mid)) begin
-            InsId thisId = content_N[startPointer % SIZE].mid;
+        while (isCommittable(content[startPointer % SIZE].mid)) begin
+            InsId thisId = content[startPointer % SIZE].mid;
             outGroup[nOut].mid <= thisId;
             outGroup[nOut].active <= 1;
             nOut++;
@@ -164,14 +165,14 @@ module StoreQueue
 
             putMilestoneM(thisId, QUEUE_EXIT);
             checkOnCommit();
-            commitEntry(content_N[startPointer % SIZE]);
+            commitEntry(content[startPointer % SIZE]);
             startPointer = (startPointer+1) % (2*SIZE);
         end
 
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
-            if (AbstractCore.drainHead.active) begin
-                assert (AbstractCore.drainHead.mid == content_N[drainPointer % SIZE].mid) else $error("Not matching n id drain %d/%d", AbstractCore.drainHead.mid, content_N[drainPointer % SIZE].mid);            
-                content_N[drainPointer % SIZE] = EMPTY_QENTRY;
+            if (AbstractCore.drainHead.mid != -1) begin
+                assert (AbstractCore.drainHead.mid == content[drainPointer % SIZE].mid) else $error("Not matching n id drain %d/%d", AbstractCore.drainHead.mid, content[drainPointer % SIZE].mid);            
+                content[drainPointer % SIZE] = EMPTY_QENTRY;
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
         end
@@ -189,9 +190,8 @@ module StoreQueue
     endfunction
 
 
-
     function automatic int findIndex(input UopId uid);
-        int found[$] = content_N.find_first_index with (item.mid == U2M(uid));
+        int found[$] = content.find_first_index with (item.mid == U2M(uid));
         assert (found.size() == 1) else $fatal(2, "id %d not found in queue", U2M(uid));
         return found[0];
     endfunction
@@ -210,7 +210,7 @@ module StoreQueue
             InsId thisMid = inGroup[i].mid;
 
             if (appliesU(decMainUop(thisMid))) begin
-                content_N[endPointer % SIZE] = newEntry(thisMid);
+                content[endPointer % SIZE] = newEntry(thisMid);
                 putMilestoneM(thisMid, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
@@ -236,7 +236,7 @@ module TmpSubSq();
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            resb = scanStoreQueue(StoreQueue.content_N, U2M(loadOp.TMP_oid), tr.padr, ad.size);
+            resb = scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr.padr, ad.size);
 
             if (resb.active) begin
                 AccessSize size = ad.size;
@@ -248,26 +248,26 @@ module TmpSubSq();
         end
     endtask
 
-        function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr, input AccessSize loadSize);
-            SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
-                                                        && item.translation.present && !item.accessDesc.sys
-                                                        && memOverlap(item.translation.padr, item.accessDesc.size, padr, loadSize));
-            SqEntry fwEntry;
+    function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Dword padr, input AccessSize loadSize);
+        SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
+                                                    && item.translation.present && !item.accessDesc.sys
+                                                    && memOverlap(item.translation.padr, item.accessDesc.size, padr, loadSize));
+        SqEntry fwEntry;
 
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            else begin // Youngest older overlapping store:
-                SqEntry vmax[$] = found.max with (item.mid);
-                fwEntry = vmax[0];
-            end
+        if (found.size() == 0) return EMPTY_UOP_PACKET;
+        else begin // Youngest older overlapping store:
+            SqEntry vmax[$] = found.max with (item.mid);
+            fwEntry = vmax[0];
+        end
 
-            if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.padr, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
-                return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-            else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
-                return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
-            else                                // Covers and has data -> OK
-                return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+        if ((loadSize != fwEntry.accessDesc.size) || !memInside(padr, (loadSize), fwEntry.translation.padr, (fwEntry.accessDesc.size)))  // don't allow FW of different size because shifting would be needed
+            return '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
+        else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
+            return '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
+        else                                // Covers and has data -> OK
+            return '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
 
-        endfunction
+    endfunction
 
 
     task automatic verify(input SqEntry entry);
@@ -308,6 +308,7 @@ module TmpSubSq();
 
     task automatic updateMain();
         UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toSqE0;
+        UopMemPacket packetsE1[N_MEM_PORTS] = theExecBlock.toSqE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toSqE2;
 
         foreach (packetsE0[p]) begin
@@ -318,9 +319,23 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
+               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
                 
                putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
+            end
+        end
+
+        foreach (packetsE1[p]) begin
+            UopMemPacket packet = packetsE1[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+          
             end
         end
 
@@ -334,8 +349,8 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               if (packet.status == ES_REFETCH) StoreQueue.content_N[index].refetch = 1;
-               else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;            
+               if (packet.status == ES_REFETCH) StoreQueue.content[index].refetch = 1;
+               else if (packet.status == ES_ILLEGAL) StoreQueue.content[index].error = 1;            
             end
         end
         
@@ -357,12 +372,12 @@ module TmpSubSq();
     task automatic updateStoreData();
         UopPacket dataUop = theExecBlock.storeDataE0_E;
         if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin
-            int dataFound[$] = StoreQueue.content_N.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
+            int dataFound[$] = StoreQueue.content.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
             assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
             
-            updateStoreDataImpl(StoreQueue.content_N[dataFound[0]], dataUop);
+            updateStoreDataImpl(StoreQueue.content[dataFound[0]], dataUop);
+            dataUop.result = StoreQueue.content[dataFound[0]].translation.padr; // This may be used in the future for waking up RQ when missed on store forwarding
             putMilestone(dataUop.TMP_oid, InstructionMap::WriteStoreValue);
-            dataUop.result = StoreQueue.content_N[dataFound[0]].accessDesc.vadr; // TODO: verify why this
         end
 
         storeDataD0 <= tickP(dataUop);
@@ -419,45 +434,37 @@ endmodule
 
 
 module TmpSubLq();
-    task automatic readImpl();        
-        foreach (theExecBlock.toSqE0[p]) begin
-            UopMemPacket storeUop = theExecBlock.toSqE0[p];
-            UopPacket resb;
-
-            theExecBlock.fromLq[p] <= EMPTY_UOP_PACKET;
+    task automatic readImpl();               
+        foreach (theExecBlock.toSqE2[p]) begin
+            UopMemPacket storeUop = theExecBlock.toSqE2[p];
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-
-            resb = scanLoadQueue(StoreQueue.content_N, U2M(theExecBlock.toLqE0[p].TMP_oid), storeUop.result, theExecBlock.accessDescs[p].size);
-            theExecBlock.fromLq[p] <= resb;      
+            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size));
         end
     endtask
 
 
-        function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize size);
-            UopPacket res = EMPTY_UOP_PACKET;
-            AccessSize trSize = size;
-            
-            // CAREFUL: we search for all matching entries
-            int found[$] = entries.find_index with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
-                LqEntry found_e[$] = entries.find with (item.mid > id && item.translation.present && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
-            
-            if (found.size() == 0) return res;
-    
-            foreach (found[i]) entries[found[i]].refetch = 1;
+    function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize size);
+        UopPacket res = EMPTY_UOP_PACKET;
+        AccessSize trSize = size;
         
-            begin // 'active' indicates that some match has happened without further details
-                int oldestFound[$] = found.min with (entries[item].mid);
-                res.TMP_oid = FIRST_U(entries[oldestFound[0]].mid);
-                res.active = 1;
-                    
-                    // TODO: temporary DB print. Make testcases where it happens
-                    if (found.size() > 1) $error("%p\n%p\n> %d", found, found_e, oldestFound);
-            end
-            
-            return res;
-        endfunction
- 
+        // We search for all matching entries
+        int found[$] = entries.find_index with (item.mid > id && item.translation.present && item.valReady && memOverlap(item.translation.padr, (item.accessDesc.size), padr, (trSize)));
+
+        if (found.size() == 0) return res;
+
+        foreach (found[i]) entries[found[i]].refetch = 1;
+
+        begin // 'active' indicates that some match has happened without further details
+            int oldestFound[$] = found.min with (entries[item].mid);
+            StoreQueue.insMap.setRefetch(entries[oldestFound[0]].mid);
+        end
+        
+        return res;
+    endfunction
+
+
+
     task automatic verify(input LqEntry entry);
 
     endtask
@@ -465,6 +472,7 @@ module TmpSubLq();
     
     task automatic updateMain();
         UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toLqE0;
+        UopMemPacket packetsE1[N_MEM_PORTS] = theExecBlock.toLqE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toLqE2;
 
         foreach (packetsE0[p]) begin
@@ -475,8 +483,20 @@ module TmpSubLq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content_N[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
+               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
+            end
+        end
+
+        foreach (packetsE1[p]) begin
+            UopMemPacket packet = packetsE1[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active) continue;
+            if (!appliesU(uname)) continue;
+
+            begin
+               int index = findIndex(packet.TMP_oid);
+
             end
         end
 
@@ -486,12 +506,11 @@ module TmpSubLq();
             if (!packet.active) continue;
             if (!appliesU(uname)) continue;
 
-            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
-
             begin
                int index = findIndex(packet.TMP_oid);
-               if (packet.status == ES_REFETCH) StoreQueue.content_N[index].refetch = 1;
-               else if (packet.status == ES_ILLEGAL) StoreQueue.content_N[index].error = 1;           
+               if (packet.status == ES_REFETCH) StoreQueue.content[index].refetch = 1;
+               else if (packet.status == ES_ILLEGAL) StoreQueue.content[index].error = 1;
+               else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;           
             end
         end
     endtask
@@ -536,16 +555,12 @@ module TmpSubBr();
 
         if (p.active) begin
             int index = findIndex(p.TMP_oid);     
-            //StoreQueue.lookupTarget <= StoreQueue.content_N[index].immTarget;
-            lookupTarget <= StoreQueue.content_N[index].immTarget;
-            lookupLink <= StoreQueue.content_N[index].linkAdr;
-            //StoreQueue.lookupLink <= StoreQueue.content_N[index].linkAdr;
+            lookupTarget <= StoreQueue.content[index].immTarget;
+            lookupLink <= StoreQueue.content[index].linkAdr;
         end
         else begin
             lookupTarget <= 'x;
-            //StoreQueue.lookupTarget <= 'x;
             lookupLink <= 'x;
-            //StoreQueue.lookupLink <= 'x;
         end
     endtask
     
@@ -581,7 +596,7 @@ module TmpSubBr();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content_N[index], packet);
+               updateEntry(StoreQueue.content[index], packet);
             end
         end
 

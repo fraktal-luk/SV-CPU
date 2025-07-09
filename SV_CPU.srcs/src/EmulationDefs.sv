@@ -7,23 +7,17 @@ package EmulationDefs;
 
     localparam int V_INDEX_BITS = 12;
 
-    function automatic Dword getPageBaseD(input Dword adr);
-        Dword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
+    // TODO: change to dependent on Mword size?
+    localparam Mword VADR_LIMIT_LOW =  'h0000000001000000;
+    localparam Mword VADR_LIMIT_HIGH = 'hffffffffff000000;
 
-    function automatic Mword getPageBaseM(input Mword adr);
-        Mword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
+    localparam Dword PADR_LIMIT = 'h10000000000;
 
 
-            typedef struct {
-                logic ok;
-                Word w;
-            } TMP_FetchResult;
+        typedef struct {
+            logic ok;
+            Word w;
+        } TMP_FetchResult;
 
 
     typedef struct {
@@ -67,6 +61,16 @@ package EmulationDefs;
             pages[index] = '{default: 'x};
         endfunction
 
+        function automatic logic hasPage(input Mword startAdr);
+            int index = startAdr/PAGE_BYTES;
+            return pages.exists(index);
+        endfunction
+
+        function automatic Page getPage(input Mword startAdr);
+            int index = startAdr/PAGE_BYTES;
+            return pages[index];
+        endfunction
+
         function automatic void createPage(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             pages[index] = new[PAGE_WORDS]('{default: 'x});
@@ -91,33 +95,28 @@ package EmulationDefs;
                 pages[index][offset++] = 'x;
             end
         endfunction
-        
-        
-            function automatic Word fetch(input Dword startAdr);
-                int index = startAdr/PAGE_BYTES;
-                int offset = (startAdr%PAGE_BYTES)/4;
-                
-                return pages[index][offset];
-            endfunction
 
-        function automatic TMP_FetchResult fetch_N(input Dword startAdr);
+
+        function automatic logic addressValid(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             int offset = (startAdr%PAGE_BYTES)/4;
             
-            if (!pages.exists(index)) return '{0, 'x};
-            
-            return '{1, pages[index][offset]};
+            return pages.exists(index);            
         endfunction
-       
-        
-        function automatic Page getPage(input Mword startAdr);
+
+        function automatic Word fetch(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
-            return pages[index];
+            int offset = (startAdr%PAGE_BYTES)/4;
+            
+            assert (pages.exists(index)) else $fatal(2, "Fetch padr nonexistent: %x", startAdr);
+            
+            return pages[index][offset];
         endfunction
+
     endclass
 
 
-
+    // TODO: introduce page based control - existing and non-existing pages
     class SparseDataMemory;
         
         class RW#(type Elem = Mbyte, int ESIZE = 1);
@@ -164,12 +163,10 @@ package EmulationDefs;
 
 
 
-   
     // Not including memory
     function automatic logic isFloatCalcIns(input AbstractInstruction ins);
         return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
     endfunction    
-
 
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
@@ -186,12 +183,11 @@ package EmulationDefs;
     function automatic logic isBranchRegIns(input AbstractInstruction ins);
         return ins.mnemonic inside {"jz_r", "jnz_r"};
     endfunction       
-        
 
     function automatic logic isMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD, O_floatLoadW, O_floatStoreW,  O_intLoadB,  O_intStoreB,  O_intLoadAqW, O_intStoreRelW};
     endfunction
-    
+
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
         return ins.def.o inside {O_undef,   O_error,  O_call, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
     endfunction
@@ -219,12 +215,11 @@ package EmulationDefs;
     function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_floatStoreW};
     endfunction
-    
 
     function automatic logic isStoreSysIns(input AbstractInstruction ins);
         return ins.def.o inside {O_sysStore};
     endfunction
-    
+
     function automatic logic isStoreIns(input AbstractInstruction ins);
         return isStoreMemIns(ins) || isStoreSysIns(ins);
     endfunction
@@ -338,7 +333,7 @@ package EmulationDefs;
             O_floatOr:   result = vals[0] | vals[1];
             O_floatAddInt: result = vals[0] + vals[1];
 
-            default: ;
+            default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
         
         // Some operations may have undefined cases but must not cause problems for the CPU
@@ -362,7 +357,7 @@ package EmulationDefs;
 
     function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);
         Mword3 args = vals;
-        bit redirect = 0;
+        logic redirect = 0;
         Mword brTarget = (abs.mnemonic inside {"jz_r", "jnz_r"}) ? args[1] : adr + args[1];
 
         case (abs.mnemonic)
@@ -412,11 +407,33 @@ package EmulationDefs;
 
     } ProgramEvent;
 
-        // TODO: change to dependent on Mword size?
-        localparam Mword VADR_LIMIT_LOW =  'h01000000;
-        localparam Mword VADR_LIMIT_HIGH = 'hff000000;
 
-        localparam Dword PADR_LIMIT = 'h10000000000;
+    function automatic Mword programEvent2trg(input ProgramEvent evType);
+        case (evType) inside
+            [PE_FETCH_INVALID_ADDRESS:PE_FETCH_NONEXISTENT_ADDRESS]:
+                return IP_FETCH_EXC;
+            [PE_MEM_INVALID_ADDRESS:PE_MEM_NONEXISTENT_ADDRESS]:
+                return IP_MEM_EXC;
+                
+            PE_SYS_INVALID_ADDRESS:
+                return IP_EXC;
+            
+            PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION:
+                return IP_ERROR;
+            
+            PE_SYS_CALL:
+                return IP_CALL;
+                
+            default: return 'x;
+        endcase
+    endfunction
+        
+
+
+    function automatic logic isValidSysReg(Mword adr);
+        return adr >= 0 && adr <= 31;    
+    endfunction       
+
 
     // For fetch
     function automatic logic virtualAddressValid(input Mword vadr);
@@ -431,5 +448,36 @@ package EmulationDefs;
         function automatic logic virtualAddressValid_T(input Mword vadr);
             return !$isunknown(vadr);// && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
         endfunction
+
+    function automatic Dword getPageBaseD(input Dword adr);
+        Dword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getPageBaseM(input Mword adr);
+        Mword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+
+    typedef struct {
+        //logic uncachedFetch = 0;
+        logic enableMmu = 0;
+        
+        Translation preloadedInsTlbL1[$] = '{};
+        Translation preloadedInsTlbL2[$] = '{};
+        
+        Dword copiedInsPages[];
+        Dword preloadedInsWays[];
+        
+        Translation preloadedDataTlbL1[$] = '{};
+        Translation preloadedDataTlbL2[$] = '{};
+        
+        Dword copiedDataPages[];
+        Dword preloadedDataWays[];
+    } GlobalParams;
+
 
 endpackage

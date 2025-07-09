@@ -29,10 +29,7 @@ module AbstractCore
 );
     logic dummy = 'z;
 
-
-    struct {
-        logic uncachedFetch = 0;
-    } GlobalParams;
+    GlobalParams globalParams;
 
     // DB        
     InstructionMap insMap = new();
@@ -75,13 +72,14 @@ module AbstractCore
 
 
     // Store interface
-        // Committed
-        StoreQueueEntry csq[$] = '{EMPTY_SQE, EMPTY_SQE};
-        StoreQueueEntry drainHead = EMPTY_SQE;
-        MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
-    
+    // Committed
+    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+
+    SystemRegisterUnit sysUnit();
+
     // Event control
-        Mword sysRegs[32];
         Mword retiredTarget = 0;
 
 
@@ -89,7 +87,6 @@ module AbstractCore
 
     ///////////////////////////
 
-    //InstructionL1 instructionCache(clk, fetchEnable, insAdr, icacheOut);
     DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
@@ -116,8 +113,8 @@ module AbstractCore
 
     //////////////////////////////////////////
 
-    assign fetchEnable = theFrontend.fetchEnable;//theFrontend.FETCH_UNC ? theFrontend.stageUnc_IP.active : theFrontend.stage_IP.active;
-    assign insAdr = theFrontend.fetchAdr;//theFrontend.FETCH_UNC ? fetchLineBase(theFrontend.stageUnc_IP.adr) : fetchLineBase(theFrontend.stage_IP.adr);
+    assign fetchEnable = theFrontend.fetchEnable;
+    assign insAdr = theFrontend.fetchAdr;
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
@@ -129,8 +126,7 @@ module AbstractCore
 
 
     function automatic InsId oldestCsq();
-        StoreQueueEntry found[$] = csq.find with (item.mid != -1);
-        StoreQueueEntry entry[$] = csq.min with (item.mid);
+        SqEntry entry[$] = csq.min with (item.mid);
         return entry[0].mid;
     endfunction
 
@@ -185,12 +181,14 @@ module AbstractCore
 
     ////////////////
 
-    function automatic MemWriteInfo makeWriteInfo(input StoreQueueEntry sqe);
-        return '{sqe.active && !sqe.sys && !sqe.cancel, sqe.adr, sqe.padr, sqe.val, sqe.size, sqe.uncached};
+    function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
+        return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
     endfunction
 
-    function automatic MemWriteInfo makeSysWriteInfo(input StoreQueueEntry sqe);
-        return '{sqe.active && sqe.sys && !sqe.cancel, sqe.adr, 'x, sqe.val, sqe.size, 'x};
+    function automatic MemWriteInfo makeSysWriteInfo(input SqEntry sqe);
+        return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
     endfunction
 
     task automatic putWrite();        
@@ -203,7 +201,7 @@ module AbstractCore
         assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
  
         if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq.push_back(EMPTY_SQE);
+            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
             csqEmpty <= 1;
         end
         else begin
@@ -211,38 +209,20 @@ module AbstractCore
         end
         
         drainHead <= csq[0];
+        
         writeInfo <= makeWriteInfo(csq[1]);
         sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endtask
 
 
     task automatic performSysStore();
-        if (sysWriteInfo.req) setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
+        if (sysWriteInfo.req) sysUnit.setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
     endtask
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= getSysReadResponse(theExecBlock.accessDescs[p]);
+            sysReadOuts[p] <= sysUnit.getSysReadResponse(theExecBlock.accessDescs[p]);
     endtask
-
-    function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
-        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
-        Mword regAdr = aDesc.vadr;
-        
-        if (!aDesc.active || !aDesc.sys) return res;
-        
-        res.active = 1;
-        
-        if (regAdr > 31) begin
-            res.status = CR_INVALID;
-        end
-        else begin
-            res.status = CR_HIT;
-            res.data = getSysReg(regAdr);
-        end
-        
-        return res;
-    endfunction
 
 
     assign oooLevels = '{
@@ -267,6 +247,7 @@ module AbstractCore
 
     // Helper (inline it?)
     function logic fetchQueueAccepts(input int k);
+        // TODO: careful about numbers accounting for pipe lengths! 
         return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
     endfunction
 
@@ -315,7 +296,6 @@ module AbstractCore
             BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
-              //  $error("n bytes in checkoubt: %d", causingCP.emul.dataMem.content.size());
             renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
@@ -433,7 +413,7 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isControlUop(/*decMainUop(id)*/insInfo.mainUop) || insInfo.refetch || insInfo.exception);
+        return (isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception);
     endfunction
 
 
@@ -441,23 +421,23 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin        
-            sysRegs = SYS_REGS_INITIAL;
+            sysUnit.sysRegs = SYS_REGS_INITIAL;
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
-            saveStateAsync(sysRegs, retiredTarget);
+            sysUnit.saveStateAsync(retiredTarget);
             
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
-        end  
+        end
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
-
-            modifyStateSync(lateEventInfoWaiting.cOp, sysRegs, lateEventInfoWaiting.adr);            
+           
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);            
                          
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
@@ -471,8 +451,7 @@ module AbstractCore
     task automatic activateEvent();
         if (reset) begin
             lateEventInfoWaiting <= RESET_EVENT;
-            retiredEmul.resetWithDataMem();
-               // retiredEmul.resetCoreAndMappings();
+            retiredEmul.resetSignal();
         end
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
@@ -607,16 +586,13 @@ module AbstractCore
     endtask
 
 
-    task automatic putToWq(input InsId id, input logic exception, input logic refetch);
-        Transaction tr = memTracker.findStore(id);
-        
-        // Extract 'uncached' info
-        int found[$] = theSq.content_N.find_first_index with (item.mid == id);
-        logic uncached = theSq.content_N[found[0]].accessDesc.uncachedStore;
-        AccessSize size = theSq.content_N[found[0]].accessDesc.size;
-        
-        StoreQueueEntry sqe = '{1, id, exception || refetch, isStoreSysUop(decMainUop(id)), uncached, tr.adrAny, tr.padr, tr.val, size};       
-        csq.push_back(sqe); // Normal
+    task automatic putToWq(input InsId id, input logic exception, input logic refetch);        
+        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
+        SqEntry foundElem = found[0];
+
+        if (exception || refetch) foundElem.valReady = 0; // Make sure it's inactive
+
+        csq.push_back(foundElem); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
@@ -631,14 +607,9 @@ module AbstractCore
 
 
     function automatic Mword getSysReg(input Mword adr);
-        return sysRegs[adr];
+        return sysUnit.sysRegs[adr];
     endfunction
 
-    // TODO: define ranges so that range checking is described in one place 
-    function automatic void setSysReg(input Mword adr, input Mword val);
-        assert (adr >= 0 && adr <= 31) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
-        sysRegs[adr] = val;
-    endfunction
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
@@ -649,15 +620,6 @@ module AbstractCore
 
     // General
 
-    //  decId - 1
-    //  decUname - 21
-    //  decMainUop - 20
-    //  getAdr - 2
-
-    function automatic AbstractInstruction decId(input InsId id);
-        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
-    endfunction
-
     function automatic UopName decUname(input UidT uid);
         return (uid == UIDT_NONE) ? UOP_none : insMap.getU(uid).name;
     endfunction
@@ -665,7 +627,13 @@ module AbstractCore
     function automatic UopName decMainUop(input InsId id);
         return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
+        
+    //  decId - 1
+    //  getAdr - 2
 
+    function automatic AbstractInstruction decId(input InsId id);
+        return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
+    endfunction
 
     function automatic Mword getAdr(input InsId id);
         return (id == -1) ? 'x : insMap.get(id).basicData.adr;
@@ -734,29 +702,45 @@ module AbstractCore
     task automatic resetForTest();
         // No need to clear insMap
 
+        GlobalParams gp;
+        globalParams = gp;
+
         renamedEmul = new();
         retiredEmul = new();
+
+        renamedEmul.resetCore();
+        retiredEmul.resetCore();
 
         registerTracker = new();
         memTracker = new();
 
         programMem = null;
         
-        
         dataCache.reset();
-        //instructionCache.reset();
         theFrontend.instructionCache.reset();
-
 
         branchCheckpointQueue.delete();
         
-        
-        sysRegs = SYS_REGS_INITIAL;       
+        sysUnit.reset();
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
-        csq = '{EMPTY_SQE, EMPTY_SQE};
+        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
         
+    endtask
+
+    task automatic preloadForTest();
+        renamedEmul.status.enableMmu = globalParams.enableMmu;
+        retiredEmul.status.enableMmu = globalParams.enableMmu;
+
+        renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
+        retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
+        
+        renamedEmul.dataMappings = globalParams.preloadedDataTlbL2;
+        retiredEmul.dataMappings = globalParams.preloadedDataTlbL2;
+        
+        theFrontend.instructionCache.preloadForTest();
+        dataCache.preloadForTest();
     endtask
 
 

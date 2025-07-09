@@ -199,7 +199,7 @@ module MemSubpipe#(
                     return res;
                 end
 
-                if (!cacheResp.desc.cached) begin
+                if (!cacheResp.desc.cached || cacheResp.status == CR_UNCACHED) begin
                     res.status = ES_UNCACHED_1;  
                     return res; // go to RQ
                 end
@@ -233,7 +233,7 @@ module MemSubpipe#(
         return res;
     endfunction
     
-
+    // NOTE: lqResp is UNUSED, may be removed from design? 
     function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
@@ -264,12 +264,7 @@ module MemSubpipe#(
             insMap.setActualResult(uid, res.result);
         end
 
-        // Resp from LQ indicating that a younger load has a hazard
-        if (isStoreMemUop(decUname(uid))) begin
-            if (lqResp.active) begin
-                insMap.setRefetch(U2M(lqResp.TMP_oid)); // Refetch oldest load that violated ordering; set in LQ
-            end
-            
+        if (isStoreMemUop(decUname(uid))) begin            
             res.status = ES_OK;
         end
 

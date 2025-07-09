@@ -4,6 +4,7 @@ package Testing;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import EmulationDefs::*;
     import Emulation::*;
     import AbstractSim::*;
     import Insmap::*;    
@@ -47,6 +48,10 @@ package Testing;
     class TestRunner;
         logic announceSuites = 1;
     
+        GlobalParams gp;
+    
+        PageBasedProgramMemory programMem;
+    
         task automatic run();
         
         endtask
@@ -55,7 +60,7 @@ package Testing;
             foreach (suites[i]) begin
                 squeue tests = readFile({codeDir, suites[i]});
                 if (announceSuites)
-                    $display("Suite: %s", suites[i]);
+                    $display("* Suite: %s", suites[i]);
                 runTests(tests);
             end
         endtask
