@@ -24,12 +24,9 @@ module InstructionL1(
                 output InstructionCacheOutput readOutUnc
               );
 
-    Word content[4096];
-
     Translation TMP_tlbL1[$], TMP_tlbL2[$];
 
     Translation translationTableL1[32]; // DB
-
 
     Translation translation = DEFAULT_TRANSLATION;
 
@@ -51,11 +48,11 @@ module InstructionL1(
     typedef logic LogicA[N_MEM_PORTS];
     typedef Mword MwordA[N_MEM_PORTS];
     typedef Dword DwordA[N_MEM_PORTS];
-    
+
     LogicA blockFillEnA, tlbFillEnA;
     DwordA blockFillPhysA;
     MwordA tlbFillVirtA;
-    
+
     DataFillEngine blockFillEngine(clk, blockFillEnA, blockFillPhysA);
     DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
@@ -64,14 +61,14 @@ module InstructionL1(
     assign readOut = readOutCached;
 
 
-        function automatic void DB_fillTranslations();
-            int i = 0;
-            translationTableL1 = '{default: DEFAULT_TRANSLATION};
-            foreach (TMP_tlbL1[a]) begin
-                translationTableL1[i] = TMP_tlbL1[a];
-                i++;
-            end
-        endfunction
+    function automatic void DB_fillTranslations();
+        int i = 0;
+        translationTableL1 = '{default: DEFAULT_TRANSLATION};
+        foreach (TMP_tlbL1[a]) begin
+            translationTableL1[i] = TMP_tlbL1[a];
+            i++;
+        end
+    endfunction
 
 
     task automatic reset();
@@ -86,8 +83,6 @@ module InstructionL1(
         blocksWay1 = '{default: null};
         blocksWay2 = '{default: null};
         blocksWay3 = '{default: null};
-        
-        content = '{default: 'x};
         
         blockFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
@@ -163,7 +158,7 @@ module InstructionL1(
 
         res.active = 1;
         res.desc = '{1, 1, 1, 1, 0};
-        res.words = '{0: content[adr/4], default : 'x};
+        res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
         
         return res;
     endfunction
@@ -204,17 +199,21 @@ module InstructionL1(
     endfunction 
 
 
-    function automatic void copyPageToContent(Dword pageAdr);
-        Dword pageBase = getPageBaseD(pageAdr);
-        PageBasedProgramMemory::Page page;
-        
-        if (!AbstractCore.programMem.hasPage(pageBase)) begin
-            content[pageBase/4 +: PAGE_SIZE/4] = '{default: 'x};
-            return;
+    function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
+        Dword basePadr = baseVadr;
+
+        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(basePadr);
+
+        foreach (way[i]) begin
+            Mword vadr = baseVadr + i*BLOCK_SIZE;
+            Dword padr = vadr;
+
+            way[i] = new();
+            way[i].valid = 1;
+            way[i].vbase = vadr;
+            way[i].pbase = padr;
+            way[i].array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
         end
-        
-        page = AbstractCore.programMem.getPage(pageBase);
-        content[pageBase/4 +: PAGE_SIZE/4] = page[0 +: PAGE_SIZE/4];
     endfunction
 
     function automatic void copyToWay(Dword pageAdr);
@@ -235,26 +234,9 @@ module InstructionL1(
         TMP_tlbL1 = AbstractCore.globalParams.preloadedInsTlbL1;
         TMP_tlbL2 = AbstractCore.globalParams.preloadedInsTlbL2;
         DB_fillTranslations();
-
-        foreach (AbstractCore.globalParams.copiedInsPages[i])
-            copyPageToContent(AbstractCore.globalParams.copiedInsPages[i]);
         
         foreach (AbstractCore.globalParams.preloadedInsWays[i])
             copyToWay(AbstractCore.globalParams.preloadedInsWays[i]);
-    endfunction
-
-
-    function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
-        foreach (way[i]) begin
-            Mword vadr = baseVadr + i*BLOCK_SIZE;
-            Dword padr = vadr;
-
-            way[i] = new();
-            way[i].valid = 1;
-            way[i].vbase = vadr;
-            way[i].pbase = padr;
-            way[i].array = content[vadr/4 +: BLOCK_SIZE/4];
-        end
     endfunction
 
 
@@ -322,6 +304,8 @@ module InstructionL1(
         AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
         InstructionCacheBlock block = way[aInfo.block];
         Dword fillPbase = getBlockBaseD(adr);
+        Dword fillPageBase = getPageBaseD(adr);
+        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(fillPageBase);
 
         if (block != null) begin
             $error("Block already filled at %x", fillPbase);
@@ -331,7 +315,7 @@ module InstructionL1(
         way[aInfo.block] = new();
         way[aInfo.block].valid = 1;
         way[aInfo.block].pbase = fillPbase;
-        way[aInfo.block].array = content[fillPbase/4 +: BLOCK_SIZE/4];
+        way[aInfo.block].array = page[(fillPbase-fillPageBase)/4 +: BLOCK_SIZE/4];
 
         return 1;
     endfunction
@@ -346,7 +330,6 @@ module InstructionL1(
         translationTableL1[TMP_tlbL1.size()] = found[0];
         TMP_tlbL1.push_back(found[0]);
     endfunction
-
 
 
 endmodule
