@@ -501,25 +501,25 @@ package Emulation;
             status.eventType = PE_NONE;//PE_EXT_INTERRUPT;
             performAsyncEvent(this.coreState, IP_RESET, this.coreState.target);
         endfunction        
-        
-        
+
+
         function automatic string getBasicDbView();
             Mword adr, beginAdr;
             int firstReg = 0;
 
             // Show IP
             $display("ip = %016x (%d), target = %016x (%d)", ip, ip, coreState.target, coreState.target);
-            
+
             $display("\nInteger registers");
-            
+
             while (firstReg < 32) begin
                 $display("[%02d] %016x [%02d] %016x [%02d] %016x [%02d] %016x",
                           firstReg+0, coreState.intRegs[firstReg+0], firstReg+1, coreState.intRegs[firstReg+1], firstReg+2, coreState.intRegs[firstReg+2], firstReg+3,coreState.intRegs[firstReg+3], );
                 firstReg += 4;
             end
- 
+
             $display("\nSys registers");
-            
+
             firstReg = 0;
             while (firstReg < 6) begin
                 $display("[%02d] %016x",
@@ -527,10 +527,10 @@ package Emulation;
                           coreState.sysRegs[firstReg+0]);
                 firstReg += 1;
             end           
-            
+
             $display("\n");
             adr = coreState.sysRegs[2];
-            
+
             // Show last 10 instructions including err address
             beginAdr = (adr < 10*4) ? 0 : adr - 10*4;
 
