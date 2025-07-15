@@ -11,6 +11,21 @@ package Base;
     typedef logic logic3[3];
 
 
+    
+    
+    function automatic Word multiplyW(Word a, Word b);
+        return a * b;
+    endfunction
+
+    function automatic Word multiplyHighUnsignedW(Word a, Word b);
+        return (Dword'($unsigned(a)) * Dword'($unsigned(b))) >> 32;
+    endfunction
+
+    function automatic Word multiplyHighSignedW(Word a, Word b);
+        return (Dword'($signed(a)) * Dword'($signed(b))) >> 32;
+    endfunction
+
+
     function automatic Word divSignedW(input Word a, input Word b);
         Word rInt;// = (b == 0) ? 'hffffffff : $signed(a)/$signed(b);
         Word rem;// = a - rInt * b;
@@ -19,8 +34,6 @@ package Base;
         else rInt = $signed(a)/$signed(b);
         
         rem = a - rInt * b;
-        
-          //  $display("   ----   %p / %p -> %p",a ,b, rInt);
         
         if ($signed(rem) < 0 && $signed(b) > 0) rInt--;
         if ($signed(rem) > 0 && $signed(b) < 0) rInt--;
@@ -53,12 +66,6 @@ package Base;
         else rInt = $unsigned(a)/$unsigned(b);
         
         rem = a - rInt * b;
-        
-          //  $display("   ----   %p / %p -> %p",a ,b, rInt);
-        
-//        if ($unsigned(rem) < 0 && $unsigned(b) > 0) rInt--;
-//        if ($unsigned(rem) > 0 && $unsigned(b) < 0) rInt--;
-        
         return rInt;
     endfunction
     
@@ -70,10 +77,6 @@ package Base;
         else rInt = $unsigned(a)/$unsigned(b);
         
         rem = a - rInt * b;
-        
-//        if ($signed(rem) < 0 && $signed(b) > 0) rem += b;
-//        if ($signed(rem) > 0 && $signed(b) < 0) rem += b;
-        
         return rem;
     endfunction
 
