@@ -88,7 +88,12 @@ package InsDefs;
     import Base::*;
 
     typedef Word Mword;
-    //typedef Dword Mword;
+    //    typedef Dword Mword;
+
+    function automatic Mword w2m(Word w);
+        return $signed(w);
+    endfunction
+
 
     typedef Mword Mword3[3];
     typedef Mword Mword4[4];

@@ -302,21 +302,24 @@ package EmulationDefs;
             
             O_intAdd:  result = vals[0] + vals[1];
             O_intSub:  result = vals[0] - vals[1];
-            O_intAddH: result = vals[0] + (vals[1] << 16);
+            O_intAddH: begin
+                //$error("addh with %x", vals[1]);
+                result = vals[0] + (vals[1] << 16);
+            end
             
                 O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
                 O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
             
-            O_intMul:   result = multiplyW(vals[0], vals[1]);// 
+            O_intMul:   result = w2m( multiplyW(vals[0], vals[1]) ); 
                                 // vals[0] * vals[1];
-            O_intMulHU: result = multiplyHighUnsignedW(vals[0], vals[1]);//
+            O_intMulHU: result = w2m( multiplyHighUnsignedW(vals[0], vals[1]) );
                                 //(Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
-            O_intMulHS: result = multiplyHighSignedW(vals[0], vals[1]);//
+            O_intMulHS: result = w2m( multiplyHighSignedW(vals[0], vals[1]) );
                                 //(Dword'($signed(vals[0])) * Dword'($signed(vals[1]))) >> 32;
-            O_intDivU:  result = divUnsignedW(vals[0], vals[1]);//$unsigned(vals[0]) / $unsigned(vals[1]);
-            O_intDivS:  result = divSignedW(vals[0], vals[1]);
-            O_intRemU:  result = remUnsignedW(vals[0], vals[1]);//$unsigned(vals[0]) % $unsigned(vals[1]);
-            O_intRemS:  result = remSignedW(vals[0], vals[1]);
+            O_intDivU:  result = w2m( divUnsignedW(vals[0], vals[1]) );
+            O_intDivS:  result = w2m( divSignedW(vals[0], vals[1]) );
+            O_intRemU:  result = w2m( remUnsignedW(vals[0], vals[1]) );
+            O_intRemS:  result = w2m( remSignedW(vals[0], vals[1]) );
             
             O_intShiftLogical: begin                
                 if ($signed(vals[1]) >= 0) result = $unsigned(vals[0]) << vals[1];
