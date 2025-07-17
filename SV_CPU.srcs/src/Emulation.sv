@@ -103,7 +103,6 @@ package Emulation;
 
 
 
-
     class Emulator;
         Mword ip;
         CoreStatus status;
@@ -154,7 +153,6 @@ package Emulation;
             this.coreState = initialState(IP_RESET);
                 
                 syncRegsFromStatus();
-
 
             this.programMappings.delete();
             this.dataMappings.delete();
@@ -271,7 +269,7 @@ package Emulation;
                 state.sysRegs[6] = status.eventType;
             
             saveStateForInt(state, prevTarget);
-                    syncStatusFromRegs();
+                syncStatusFromRegs();
 
             state.target = trg;
             state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
@@ -279,8 +277,8 @@ package Emulation;
     
         function automatic void setExecState(input ProgramEvent evType, input Mword adr);
             Mword trg = programEvent2trg(evType);
-                status.eventType = evType;
-                    coreState.sysRegs[6] = status.eventType;                
+            status.eventType = evType;
+            coreState.sysRegs[6] = status.eventType;                
                 
             saveStateForExc(coreState, adr);
             
@@ -321,7 +319,6 @@ package Emulation;
                 default: state.target = adr + 4;
             endcase
         endfunction
-    
 
 
 
@@ -331,45 +328,28 @@ package Emulation;
 
 
        function automatic logic catchFetchException(input Mword vadr, input Translation tr);
-            if (!virtualAddressValid(vadr)) begin
-                setExecState(PE_FETCH_INVALID_ADDRESS, ip);
-                    syncStatusFromRegs();
+            ProgramEvent evt = PE_NONE;
+       
+            if (!virtualAddressValid(vadr))
+                evt = PE_FETCH_INVALID_ADDRESS;
+            else if (vadr % 4 !== 0)
+                evt = PE_FETCH_UNALIGNED_ADDRESS;
+            else if (!tr.present)
+                evt = PE_FETCH_UNMAPPED_ADDRESS;
+            else if (!tr.desc.canExec)
+                evt = PE_FETCH_DISALLOWED_ACCESS;
+            else if (!physicalAddressValid(tr.padr))
+                evt = PE_FETCH_NONEXISTENT_ADDRESS;
+            else if (!progMem.addressValid(tr.padr))
+                evt = PE_FETCH_NONEXISTENT_ADDRESS;
 
-                return 1;
-            end
-            else if (vadr % 4 !== 0) begin
-                setExecState(PE_FETCH_UNALIGNED_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
-            else if (!tr.present) begin                
-                setExecState(PE_FETCH_UNMAPPED_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
-            else if (!tr.desc.canExec) begin                
-                setExecState(PE_FETCH_DISALLOWED_ACCESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
-            else if (!physicalAddressValid(tr.padr)) begin
-                setExecState(PE_FETCH_NONEXISTENT_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
-            else if (!progMem.addressValid(tr.padr)) begin
-                setExecState(PE_FETCH_NONEXISTENT_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end 
-
-           return 0;
-       endfunction
+            if (evt === PE_NONE) return 0;
+            
+            setExecState(evt, ip);
+            syncStatusFromRegs();
+            
+            return 1;
+        endfunction
 
 
 
@@ -383,7 +363,7 @@ package Emulation;
             Mword vadr = this.coreState.target;
             Translation tr = translateProgramAddress(vadr);
 
-                this.ip = vadr;
+            this.ip = vadr;
 
             if (catchFetchException(vadr, tr)) return;
             else begin
@@ -454,12 +434,14 @@ package Emulation;
                 if (catchSysAccessException(ins, vals[1])) return;
                 
                 writeSysReg(coreState, vals[1], vals[2]);
-                    syncStatusFromRegs();
+                    //syncStatusFromRegs();
             end
             else begin
                 modifySysRegs(this.coreState, adr, ins);
-                    syncStatusFromRegs();
+                    //syncStatusFromRegs();
             end
+            
+            syncStatusFromRegs();
         endfunction
         
         // Return 1 if exception
@@ -510,53 +492,45 @@ package Emulation;
 
 
         local function automatic logic catchSysAccessException(input AbstractInstruction ins, input Mword adr);
-            if (ins.def.o == O_sysLoad && !isValidSysReg(adr)) begin
-                setExecState(PE_SYS_INVALID_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
-            if (ins.def.o == O_sysStore && !isValidSysReg(adr)) begin
-                setExecState(PE_SYS_INVALID_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
+            ProgramEvent evt = PE_NONE;
             
-            return 0;
+            if (ins.def.o == O_sysLoad && !isValidSysReg(adr))
+                evt = PE_SYS_INVALID_ADDRESS;
+            else if (ins.def.o == O_sysStore && !isValidSysReg(adr))
+                evt = PE_SYS_INVALID_ADDRESS;
+            
+            if (evt === PE_NONE) return 0;
+
+            setExecState(evt, ip);
+            syncStatusFromRegs();
+            
+            return 1;
         endfunction
 
         local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, input Dword padr, input logic present);
+            ProgramEvent evt = PE_NONE;
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
-            if (!virtualAddressValid_T(vadr)) begin
-                setExecState(PE_MEM_INVALID_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;
-            end
+            if (!virtualAddressValid_T(vadr))
+                evt = PE_MEM_INVALID_ADDRESS;
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
-            if (!present) begin
-                setExecState(PE_MEM_UNMAPPED_ADDRESS, ip);
-                    syncStatusFromRegs();
-
-                return 1;         
-            end
+            else if (!present)
+                evt = PE_MEM_UNMAPPED_ADDRESS;     
 
             // PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
             // TODO
             
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
-            if (!physicalAddressValid(padr)) begin
-                setExecState(PE_MEM_NONEXISTENT_ADDRESS, ip);
-                    syncStatusFromRegs();
+            else if (!physicalAddressValid(padr))
+                evt = PE_MEM_NONEXISTENT_ADDRESS;
 
-                return 1; 
-            end                    
-
+            if (evt === PE_NONE) return 0;
             
-            return 0;
+            setExecState(evt, ip);
+            syncStatusFromRegs();
+
+            return 1;
         endfunction
 
 
