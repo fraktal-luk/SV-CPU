@@ -59,8 +59,48 @@ package Emulation;
         ProgramEvent eventType;
         
         logic enableMmu;
+        Mword memControl;
 
     } CoreStatus;
+
+
+        function automatic void setRegsFromStatus(ref Mword sysRegs[32], CoreStatus status);
+            // Status
+            //coreState.sysRegs[1] = ;
+            
+            // Exc saved IP
+            //coreState.sysRegs[2] = ;
+            
+            // Exc saved status
+            //coreState.sysRegs[3] = ;
+            
+            // Int saved IP
+            //coreState.sysRegs[4] = ;
+            
+            // Int saved status
+            //coreState.sysRegs[5] = ;
+
+
+            // syndrome
+            sysRegs[6] = status.eventType;
+                        
+            // mem control
+            sysRegs['ha] = status.memControl;
+            
+            
+        endfunction
+
+
+        function automatic void setStatusFromRegs(CoreStatus status, ref Mword sysRegs[32]);
+            
+            // syndrome
+            status.eventType = ProgramEvent'(sysRegs[6]);
+
+            // mem control
+            status.memControl = sysRegs['ha];
+            
+        endfunction
+
 
 
 
@@ -112,6 +152,9 @@ package Emulation;
             this.status = '{eventType: PE_NONE, default: 0};
 
             this.coreState = initialState(IP_RESET);
+                
+                syncRegsFromStatus();
+
 
             this.programMappings.delete();
             this.dataMappings.delete();
@@ -127,6 +170,15 @@ package Emulation;
         function automatic void resetWithDataMem();
             resetCore();
             dataMem.clear();
+        endfunction
+
+
+        function automatic void syncRegsFromStatus();
+            setRegsFromStatus(coreState.sysRegs, status);
+        endfunction
+
+        function automatic void syncStatusFromRegs();
+            setStatusFromRegs(status, coreState.sysRegs);
         endfunction
 
 

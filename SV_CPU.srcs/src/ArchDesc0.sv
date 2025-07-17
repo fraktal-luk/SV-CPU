@@ -143,6 +143,9 @@ module ArchDesc0();
         emul.status.enableMmu = gp.enableMmu;
         emul.programMappings = gp.preloadedInsTlbL2;
         emul.dataMappings = gp.preloadedDataTlbL2;  
+        
+        emul.syncRegsFromStatus();
+
 
         performEmul(emul);
     endtask
@@ -233,6 +236,7 @@ module ArchDesc0();
         core.programMem = progMem;
         core.globalParams = gp;
         core.preloadForTest();
+            core.syncRegsFromStatus();
 
         startSim();
         
@@ -249,6 +253,7 @@ module ArchDesc0();
         core.programMem = progMem;
         core.globalParams = gp;
         core.preloadForTest();
+            core.syncRegsFromStatus();
 
         startSim();
 

@@ -733,6 +733,10 @@ module AbstractCore
         renamedEmul.status.enableMmu = globalParams.enableMmu;
         retiredEmul.status.enableMmu = globalParams.enableMmu;
 
+        renamedEmul.syncRegsFromStatus();
+        retiredEmul.syncRegsFromStatus();
+
+
         renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
         retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
         
@@ -743,5 +747,15 @@ module AbstractCore
         dataCache.preloadForTest();
     endtask
 
+
+        function automatic void syncRegsFromStatus();
+            setRegsFromStatus(sysUnit.sysRegs, retiredEmul.status);
+            assert (globalParams.enableMmu === retiredEmul.status.enableMmu) else $error("Not same mmu status!");
+        endfunction
+
+        function automatic void syncStatusFromRegs();
+            setStatusFromRegs(retiredEmul.status, sysUnit.sysRegs);
+            globalParams.enableMmu = retiredEmul.status.enableMmu;
+        endfunction
 
 endmodule
