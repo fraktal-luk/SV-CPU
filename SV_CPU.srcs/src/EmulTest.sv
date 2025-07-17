@@ -135,6 +135,7 @@ module EmulTest();
         emul.resetCoreAndMappings();
      
         emul.status.enableMmu = 1;
+            emul.status.memControl = 7;
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -154,6 +155,7 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -172,6 +174,7 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -189,6 +192,7 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -206,6 +210,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -225,6 +231,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -242,7 +250,8 @@ module EmulTest();
     task automatic test_FETCH_INVALID_ADDRESS();
         emul.resetCoreAndMappings();
 
-        //emul.status.enableMmu = 1;      
+        //emul.status.enableMmu = 1;
+                    emul.status.memControl = 0;     
         emul.coreState.target = 'x;
             
         emul.executeStep();
@@ -265,6 +274,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
             
         emul.coreState.target = 0;
@@ -281,6 +292,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -299,6 +312,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
               
         emul.coreState.target = 0;
@@ -331,6 +346,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
    
         emul.coreState.target = 0;
@@ -348,6 +365,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
+                    emul.status.memControl = 7;
+
         emul.syncRegsFromStatus();
            
         emul.coreState.target = 0;

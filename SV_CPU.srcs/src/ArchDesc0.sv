@@ -141,6 +141,7 @@ module ArchDesc0();
         resetAll(emul);
         
         emul.status.enableMmu = gp.enableMmu;
+            emul.status.memControl[2:0] = {3{gp.enableMmu}};
         emul.programMappings = gp.preloadedInsTlbL2;
         emul.dataMappings = gp.preloadedDataTlbL2;  
         
@@ -236,7 +237,7 @@ module ArchDesc0();
         core.programMem = progMem;
         core.globalParams = gp;
         core.preloadForTest();
-            core.syncRegsFromStatus();
+            //core.syncRegsFromStatus();
 
         startSim();
         
@@ -253,7 +254,7 @@ module ArchDesc0();
         core.programMem = progMem;
         core.globalParams = gp;
         core.preloadForTest();
-            core.syncRegsFromStatus();
+            //core.syncRegsFromStatus();
 
         startSim();
 
@@ -375,14 +376,14 @@ module ArchDesc0();
 
     function automatic GlobalParams Test_fillGpUncached();
         GlobalParams gp;
-        gp.enableMmu = 0;
+            gp.enableMmu = 0;
         Ins_prepareForUncachedTest(gp);
         return gp;
     endfunction
 
     function automatic GlobalParams Test_fillGpCached();
         GlobalParams gp;
-        gp.enableMmu = 1;
+            gp.enableMmu = 1;
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);
         return gp;

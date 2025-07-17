@@ -83,22 +83,22 @@ package Emulation;
 
             // syndrome
             sysRegs[6] = status.eventType;
-                        
+
             // mem control
             sysRegs['ha] = status.memControl;
-            
+                assert (status.memControl[0] === status.enableMmu) else $fatal(2, "Difference in mmu ctrl %p", status);
             
         endfunction
 
 
-        function automatic void setStatusFromRegs(CoreStatus status, ref Mword sysRegs[32]);
+        function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
             
             // syndrome
             status.eventType = ProgramEvent'(sysRegs[6]);
 
             // mem control
             status.memControl = sysRegs['ha];
-            
+                status.enableMmu = status.memControl[0];
         endfunction
 
 

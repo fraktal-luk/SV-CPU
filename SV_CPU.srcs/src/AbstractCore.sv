@@ -421,7 +421,7 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin        
-            sysUnit.sysRegs = SYS_REGS_INITIAL;
+               // sysUnit.sysRegs = SYS_REGS_INITIAL; // TODO: check
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
@@ -722,6 +722,11 @@ module AbstractCore
         branchCheckpointQueue.delete();
         
         sysUnit.reset();
+        
+        // ???
+            syncRegsFromStatus();
+                syncGlobalParamsFromRegs();
+        
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
@@ -730,12 +735,16 @@ module AbstractCore
     endtask
 
     task automatic preloadForTest();
-        renamedEmul.status.enableMmu = globalParams.enableMmu;
-        retiredEmul.status.enableMmu = globalParams.enableMmu;
+            renamedEmul.status.enableMmu = globalParams.enableMmu;
+                renamedEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
+            retiredEmul.status.enableMmu = globalParams.enableMmu;
+                retiredEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
 
         renamedEmul.syncRegsFromStatus();
         retiredEmul.syncRegsFromStatus();
 
+            syncRegsFromStatus();
+              syncGlobalParamsFromRegs();
 
         renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
         retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
@@ -749,13 +758,27 @@ module AbstractCore
 
 
         function automatic void syncRegsFromStatus();
+                //  $error("Prev regs: %p", sysUnit.sysRegs,);
+
+        
             setRegsFromStatus(sysUnit.sysRegs, retiredEmul.status);
-            assert (globalParams.enableMmu === retiredEmul.status.enableMmu) else $error("Not same mmu status!");
+                            //  $error("set from status: %p -> %p", retiredEmul.status, sysUnit.sysRegs,);
+
         endfunction
 
         function automatic void syncStatusFromRegs();
             setStatusFromRegs(retiredEmul.status, sysUnit.sysRegs);
-            globalParams.enableMmu = retiredEmul.status.enableMmu;
+                setStatusFromRegs(renamedEmul.status, sysUnit.sysRegs);
+        endfunction
+        
+        // Call every time sys regs are set
+        function automatic void syncGlobalParamsFromRegs();
+            CoreStatus tmpStatus;
+            setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
+
+          //  $error("set from regs: %p -> %p", sysUnit.sysRegs, tmpStatus);
+
+            globalParams.enableMmu = tmpStatus.enableMmu;
         endfunction
 
 endmodule
