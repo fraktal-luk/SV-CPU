@@ -155,7 +155,7 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
+                emul.status.memControl = 7;
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;

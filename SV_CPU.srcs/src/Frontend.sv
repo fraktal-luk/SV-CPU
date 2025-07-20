@@ -17,7 +17,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     logic FETCH_UNC;
     
-    assign FETCH_UNC = !AbstractCore.globalParams.enableMmu;
+    assign FETCH_UNC = //!AbstractCore.globalParams.enableMmu;
+                       !AbstractCore.CurrentConfig.enableMmu;
 
 
     typedef Word FetchGroup[FETCH_WIDTH];

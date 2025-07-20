@@ -52,16 +52,16 @@ package Emulation;
     endfunction
 
 
-    typedef struct {
+//    typedef struct {
 
-        logic send;
+//        logic send;
         
-        ProgramEvent eventType;
+//        ProgramEvent eventType;
         
-        logic enableMmu;
-        Mword memControl;
+//        logic enableMmu;
+//        Mword memControl;
 
-    } CoreStatus;
+//    } CoreStatus;
 
 
         function automatic void setRegsFromStatus(ref Mword sysRegs[32], CoreStatus status);
@@ -148,7 +148,7 @@ package Emulation;
         function automatic void resetCore();
             this.ip = 'x;
 
-            this.status = '{eventType: PE_NONE, default: 0};
+            this.status = DEFAULT_CORE_STATUS;//'{eventType: PE_NONE, default: 0};
 
             this.coreState = initialState(IP_RESET);
                 
@@ -160,8 +160,6 @@ package Emulation;
 
         function automatic void resetCoreAndMappings();
             resetCore();
-//            programMappings.delete();
-//            dataMappings.delete();
         endfunction
 
 
@@ -434,11 +432,9 @@ package Emulation;
                 if (catchSysAccessException(ins, vals[1])) return;
                 
                 writeSysReg(coreState, vals[1], vals[2]);
-                    //syncStatusFromRegs();
             end
             else begin
                 modifySysRegs(this.coreState, adr, ins);
-                    //syncStatusFromRegs();
             end
             
             syncStatusFromRegs();

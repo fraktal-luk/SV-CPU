@@ -48,6 +48,12 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
 
+    struct {
+        logic enableMmu = 0;
+    } CurrentConfig;
+    
+
+
     Mword insAdr;
     logic fetchEnable;
     InstructionCacheOutput icacheOut;
@@ -734,14 +740,25 @@ module AbstractCore
         
     endtask
 
-    task automatic preloadForTest();
-            renamedEmul.status.enableMmu = globalParams.enableMmu;
-                renamedEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
-            retiredEmul.status.enableMmu = globalParams.enableMmu;
-                retiredEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
 
-        renamedEmul.syncRegsFromStatus();
+    task automatic preloadForTest();
+               // $error(" NN: %p, ctrl: %p", globalParams.enableMmu, globalParams.initialCoreStatus.memControl);
+    
+//            renamedEmul.status.enableMmu = globalParams.enableMmu;
+//            renamedEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
+                
+//                    assert (renamedEmul.status === globalParams.initialCoreStatus) else $error("Not equal:\n%p\n%p", renamedEmul.status, globalParams.initialCoreStatus);
+                
+//            retiredEmul.status.enableMmu = globalParams.enableMmu;
+//            retiredEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
+
+
+        retiredEmul.status = globalParams.initialCoreStatus;
+        renamedEmul.status = globalParams.initialCoreStatus;
+
+///////////////////////////////////////////////////////////////////
         retiredEmul.syncRegsFromStatus();
+        renamedEmul.syncRegsFromStatus();
 
             syncRegsFromStatus();
               syncGlobalParamsFromRegs();
@@ -758,27 +775,23 @@ module AbstractCore
 
 
         function automatic void syncRegsFromStatus();
-                //  $error("Prev regs: %p", sysUnit.sysRegs,);
-
-        
             setRegsFromStatus(sysUnit.sysRegs, retiredEmul.status);
-                            //  $error("set from status: %p -> %p", retiredEmul.status, sysUnit.sysRegs,);
-
         endfunction
 
         function automatic void syncStatusFromRegs();
             setStatusFromRegs(retiredEmul.status, sysUnit.sysRegs);
-                setStatusFromRegs(renamedEmul.status, sysUnit.sysRegs);
+            setStatusFromRegs(renamedEmul.status, sysUnit.sysRegs);
         endfunction
         
         // Call every time sys regs are set
         function automatic void syncGlobalParamsFromRegs();
             CoreStatus tmpStatus;
             setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
-
-          //  $error("set from regs: %p -> %p", sysUnit.sysRegs, tmpStatus);
-
-            globalParams.enableMmu = tmpStatus.enableMmu;
+            
+            // TODO: move state variables from GlobalParams to a specialized object and keep GP as a way of configuration setting
+            //globalParams.enableMmu = tmpStatus.enableMmu;
+            
+            CurrentConfig.enableMmu = tmpStatus.enableMmu;
         endfunction
 
 endmodule

@@ -463,8 +463,24 @@ package EmulationDefs;
 
 
     typedef struct {
+
+        logic send;
+        
+        ProgramEvent eventType;
+        
+        logic enableMmu;
+        Mword memControl;
+
+    } CoreStatus;
+
+    localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};
+
+
+    typedef struct {
         //logic uncachedFetch = 0;
-        logic enableMmu = 0;
+        //logic enableMmu = 0;
+            
+        CoreStatus initialCoreStatus;
         
         Translation preloadedInsTlbL1[$] = '{};
         Translation preloadedInsTlbL2[$] = '{};
