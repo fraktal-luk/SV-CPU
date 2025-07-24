@@ -9,6 +9,47 @@ package Testing;
     import AbstractSim::*;
     import Insmap::*;    
 
+    typedef Word WordArray[];
+
+
+    const string FAILING_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
+
+
+    const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
+
+    const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
+    const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
+    
+    const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
+
+    const string DEFAULT_INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
+
+    const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
+
+    // FETCH_EXC
+    
+    // MEM_EXC
+
+    const string DEFAULT_DB_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
+
+
+
+
+    const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
+
+    const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
+
+    const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
+    const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
+
+    const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
+    const Section FAILING_SECTION = processLines(FAILING_HANDLER);
+
+    const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
+
+    const Section DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
+
+
 
     string codeDir = "../../../../SV_CPU.srcs/code/";
 
@@ -21,7 +62,7 @@ package Testing;
 
     function automatic void setBasicPrograms(
                               ref Word mem[],
-                              input Section testSec,
+                              //input Section testSec,
                               input Section resetSec,
                               input Section errorSec,
                               input Section callSec,
@@ -30,7 +71,7 @@ package Testing;
                               input Section dbSec);
         mem = '{default: 'x};
 
-        writeProgram(mem, 0, testSec.words);
+        //writeProgram(mem, 0, testSec.words);
 
         writeProgram(mem, IP_RESET % PAGE_SIZE, resetSec.words);
         writeProgram(mem, IP_ERROR % PAGE_SIZE, errorSec.words);
@@ -102,5 +143,13 @@ package Testing;
         end
         return res;
     endfunction 
+
+
+    function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
+        WordArray mem = new [PAGE_SIZE/4];
+        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, DEFAULT_DB_SECTION);
+        return mem;
+    endfunction
+
 
 endpackage

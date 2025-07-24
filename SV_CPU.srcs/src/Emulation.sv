@@ -52,18 +52,6 @@ package Emulation;
     endfunction
 
 
-//    typedef struct {
-
-//        logic send;
-        
-//        ProgramEvent eventType;
-        
-//        logic enableMmu;
-//        Mword memControl;
-
-//    } CoreStatus;
-
-
         function automatic void setRegsFromStatus(ref Mword sysRegs[32], CoreStatus status);
             // Status
             //coreState.sysRegs[1] = ;
@@ -540,7 +528,7 @@ package Emulation;
         endfunction
 
         function automatic void resetSignal();
-            status.eventType = PE_NONE;//PE_EXT_INTERRUPT;
+            status.eventType = PE_EXT_RESET;
                 coreState.sysRegs[6] = status.eventType;
             performAsyncEvent(this.coreState, IP_RESET, this.coreState.target);
         endfunction        
@@ -585,6 +573,12 @@ package Emulation;
             $display("                  ^^\n");
             
             return "";
+        endfunction
+        
+        
+        function automatic void DB_enableMmu();
+            status.enableMmu = 1;
+            status.memControl = 7;
         endfunction
         
     endclass

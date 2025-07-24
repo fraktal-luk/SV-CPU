@@ -729,9 +729,8 @@ module AbstractCore
         
         sysUnit.reset();
         
-        // ???
-            syncRegsFromStatus();
-                syncGlobalParamsFromRegs();
+        syncRegsFromStatus();
+        syncGlobalParamsFromRegs();
         
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
@@ -742,26 +741,14 @@ module AbstractCore
 
 
     task automatic preloadForTest();
-               // $error(" NN: %p, ctrl: %p", globalParams.enableMmu, globalParams.initialCoreStatus.memControl);
-    
-//            renamedEmul.status.enableMmu = globalParams.enableMmu;
-//            renamedEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
-                
-//                    assert (renamedEmul.status === globalParams.initialCoreStatus) else $error("Not equal:\n%p\n%p", renamedEmul.status, globalParams.initialCoreStatus);
-                
-//            retiredEmul.status.enableMmu = globalParams.enableMmu;
-//            retiredEmul.status.memControl[2:0] = {3{globalParams.enableMmu}};
-
-
         retiredEmul.status = globalParams.initialCoreStatus;
         renamedEmul.status = globalParams.initialCoreStatus;
 
-///////////////////////////////////////////////////////////////////
         retiredEmul.syncRegsFromStatus();
         renamedEmul.syncRegsFromStatus();
 
-            syncRegsFromStatus();
-              syncGlobalParamsFromRegs();
+        syncRegsFromStatus();
+        syncGlobalParamsFromRegs();
 
         renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
         retiredEmul.programMappings = globalParams.preloadedInsTlbL2;

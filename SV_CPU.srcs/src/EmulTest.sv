@@ -14,11 +14,11 @@ import Testing::*;
 module EmulTest();
     
     
-    function automatic Word asm(input string str);
-        squeue q = '{str};
-        Section s = processLines(q);
-        return s.words[0];
-    endfunction
+//    function automatic Word asm(input string str);
+//        squeue q = '{str};
+//        Section s = processLines(q);
+//        return s.words[0];
+//    endfunction
 
 
     localparam Translation DEFAULT_PAGE0 = '{1, 0, '{1, 1, 1, 1, 1}, 0};
@@ -133,9 +133,8 @@ module EmulTest();
     
     task automatic test_INTERRUPT();
         emul.resetCoreAndMappings();
-     
-        emul.status.enableMmu = 1;
-            emul.status.memControl = 7;
+            
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -154,8 +153,7 @@ module EmulTest();
     task automatic test_SYS_INVALID_ADR();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                emul.status.memControl = 7;
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -173,8 +171,7 @@ module EmulTest();
     task automatic test_SYS_UNDEF();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -191,8 +188,7 @@ module EmulTest();
     task automatic test_SYS_ERROR();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -209,9 +205,7 @@ module EmulTest();
     task automatic test_SYS_CALL();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -230,9 +224,7 @@ module EmulTest();
     task automatic test_OK();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -250,8 +242,7 @@ module EmulTest();
     task automatic test_FETCH_INVALID_ADDRESS();
         emul.resetCoreAndMappings();
 
-        //emul.status.enableMmu = 1;
-                    emul.status.memControl = 0;     
+            emul.status.memControl = 0;     
         emul.coreState.target = 'x;
             
         emul.executeStep();
@@ -273,9 +264,7 @@ module EmulTest();
     task automatic test_FETCH_UNMAPPED();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
             
         emul.coreState.target = 0;
@@ -291,9 +280,7 @@ module EmulTest();
     task automatic test_FETCH_DISALLOWED();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
 
         emul.coreState.target = 0;
@@ -311,9 +298,7 @@ module EmulTest();
     task automatic test_FETCH_NONEXISTENT();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
               
         emul.coreState.target = 0;
@@ -345,9 +330,7 @@ module EmulTest();
     task automatic test_MEM_UNMAPPED();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
    
         emul.coreState.target = 0;
@@ -364,9 +347,7 @@ module EmulTest();
     task automatic test_MEM_NONEXISTENT();
         emul.resetCoreAndMappings();
 
-        emul.status.enableMmu = 1;
-                    emul.status.memControl = 7;
-
+        emul.DB_enableMmu();
         emul.syncRegsFromStatus();
            
         emul.coreState.target = 0;
