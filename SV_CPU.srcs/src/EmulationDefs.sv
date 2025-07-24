@@ -189,7 +189,7 @@ package EmulationDefs;
     endfunction
 
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_undef,   O_error,  O_call, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
+        return ins.def.o inside {O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
     endfunction
 
     function automatic logic isLoadIns(input AbstractInstruction ins);
@@ -400,7 +400,8 @@ package EmulationDefs;
         PE_SYS_ERROR = 5*16 + 3,
         PE_SYS_CALL = 5*16 + 4,
         PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
-        
+            PE_SYS_DBCALL = 5*16 + 6,
+
         PE_EXT_INTERRUPT = 6*16 + 0,
         PE_EXT_RESET = 6*16 + 1,
         PE_EXT_DEBUG = 6*16 + 2
@@ -423,7 +424,10 @@ package EmulationDefs;
             
             PE_SYS_CALL:
                 return IP_CALL;
-                
+
+            PE_SYS_DBCALL:
+                return IP_DB_CALL;
+                                
             default: return 'x;
         endcase
     endfunction

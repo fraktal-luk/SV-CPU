@@ -95,13 +95,14 @@ package InsDefs;
         localparam Mword HANDLER_BASE = 2*PAGE_SIZE; // TMP
 
     // Handler addresses
-    localparam Mword IP_ERROR     = HANDLER_BASE + 'h000100;
+    localparam Mword IP_ERROR     = HANDLER_BASE + 'h00000100;
     localparam Mword IP_CALL      = HANDLER_BASE + 'h00000180;
     localparam Mword IP_RESET     = HANDLER_BASE + 'h00000200;
     localparam Mword IP_INT       = HANDLER_BASE + 'h00000280;
     localparam Mword IP_EXC       = HANDLER_BASE + 'h00000300;
     localparam Mword IP_FETCH_EXC = HANDLER_BASE + 'h00000380;
     localparam Mword IP_MEM_EXC   = HANDLER_BASE + 'h00000400;
+    localparam Mword IP_DB_CALL   = HANDLER_BASE + 'h00000480;
 
 
 
@@ -158,6 +159,7 @@ package InsDefs;
             sys_error,
             sys_call,
             sys_send,
+                sys_dbcall,
 
             undef
         } Mnemonic;
@@ -248,6 +250,7 @@ package InsDefs;
         S_sysSend    = 64*P_sysControl + 6,
         S_sysRetE    = 64*P_sysControl + 7,
         S_sysRetI    = 64*P_sysControl + 8,
+            S_sysDbCall    = 64*P_sysControl + 9,
            
         S_none = -1               
     } Secondary;
@@ -331,6 +334,7 @@ package InsDefs;
     typedef enum {
         O_undef,
         O_call,
+            O_dbcall,
         O_sync,
         O_retE,
         O_retI,
@@ -436,7 +440,8 @@ package InsDefs;
         "sys_replay": '{F_noRegs, P_sysControl, S_sysReplay, T_none, O_replay},
         "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_error},
         "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
-        "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send}
+        "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send},
+            "sys_dbcall":   '{F_noRegs, P_sysControl, S_sysDbCall, T_none, O_dbcall}
         
     };
 

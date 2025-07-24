@@ -61,7 +61,7 @@ $start
 	add_i	r4, r0, 0
 	jl		r31, $check_div_s
 
-	sys_call
+	sys_dbcall
 $error
     sys_error
 

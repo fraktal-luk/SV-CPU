@@ -296,6 +296,9 @@ package Emulation;
                 O_call: begin
                     setExecState(PE_SYS_CALL, ip + 4);
                 end
+                O_dbcall: begin
+                    setExecState(PE_SYS_DBCALL, ip + 4);
+                end
                 O_retE: begin
                     state.target = state.sysRegs[2];
                     state.sysRegs[1] = state.sysRegs[4];

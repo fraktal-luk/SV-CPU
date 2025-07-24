@@ -26,7 +26,8 @@ package Testing;
                               input Section errorSec,
                               input Section callSec,
                               input Section intSec,
-                              input Section excSec);
+                              input Section excSec,
+                              input Section dbSec);
         mem = '{default: 'x};
 
         writeProgram(mem, 0, testSec.words);
@@ -36,6 +37,7 @@ package Testing;
         writeProgram(mem, IP_CALL % PAGE_SIZE, callSec.words);
         writeProgram(mem, IP_INT % PAGE_SIZE, intSec.words);
         writeProgram(mem, IP_EXC % PAGE_SIZE, excSec.words);
+        writeProgram(mem, IP_DB_CALL % PAGE_SIZE, dbSec.words);
     endfunction
 
 
