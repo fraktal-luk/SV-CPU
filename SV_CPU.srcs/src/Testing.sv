@@ -63,7 +63,6 @@ package Testing;
 
     function automatic void setBasicPrograms(
                               ref Word mem[],
-                              //input Section testSec,
                               input Section resetSec,
                               input Section errorSec,
                               input Section callSec,
@@ -87,6 +86,54 @@ package Testing;
         if (line.size() > 1) $error("There should be 1 test per line");
         return line.size() == 1;
     endfunction
+
+
+
+    task automatic saveProgramToFile(input string fname, input Word progMem[]);
+        int file = $fopen(fname, "w");
+        squeue lines = disasmBlock(progMem);
+        foreach (lines[i])
+            $fdisplay(file, lines[i]);
+        $fclose(file);
+    endtask
+
+    localparam int DISASM_LIMIT = 64;
+
+    function automatic squeue disasmBlock(input Word words[]);
+        squeue res;
+        string s;
+        foreach (words[i]) begin
+            $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
+            res.push_back(s);
+            
+            if (i == DISASM_LIMIT) break;
+        end
+        return res;
+    endfunction 
+
+
+    function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
+        WordArray mem = new [PAGE_SIZE/4];
+        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, DEFAULT_DB_SECTION);
+        return mem;
+    endfunction
+
+
+    typedef struct {
+        CoreStatus initialCoreStatus;
+        
+        Translation preloadedInsTlbL1[$] = '{};
+        Translation preloadedInsTlbL2[$] = '{};
+        
+        Dword copiedInsPages[];
+        Dword preloadedInsWays[];
+        
+        Translation preloadedDataTlbL1[$] = '{};
+        Translation preloadedDataTlbL2[$] = '{};
+        
+        Dword copiedDataPages[];
+        Dword preloadedDataWays[];
+    } GlobalParams;
 
 
     class TestRunner;
@@ -121,36 +168,5 @@ package Testing;
         endtask
         
     endclass
-
-
-    task automatic saveProgramToFile(input string fname, input Word progMem[]);
-        int file = $fopen(fname, "w");
-        squeue lines = disasmBlock(progMem);
-        foreach (lines[i])
-            $fdisplay(file, lines[i]);
-        $fclose(file);
-    endtask
-
-    localparam int DISASM_LIMIT = 64;
-
-    function automatic squeue disasmBlock(input Word words[]);
-        squeue res;
-        string s;
-        foreach (words[i]) begin
-            $swrite(s, "%h: %h  %s", 4*i , words[i], disasm(words[i]));
-            res.push_back(s);
-            
-            if (i == DISASM_LIMIT) break;
-        end
-        return res;
-    endfunction 
-
-
-    function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
-        WordArray mem = new [PAGE_SIZE/4];
-        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, DEFAULT_DB_SECTION);
-        return mem;
-    endfunction
-
 
 endpackage

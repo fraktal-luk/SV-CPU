@@ -15,6 +15,8 @@ import CacheDefs::*;
 
 import Queues::*;
 
+import Testing::GlobalParams;
+
 
 module AbstractCore
 #(
