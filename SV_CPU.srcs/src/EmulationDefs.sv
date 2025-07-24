@@ -14,7 +14,7 @@ package EmulationDefs;
     localparam Dword PADR_LIMIT = 'h10000000000; // TODO: ???
 
 
-
+    // Architectural defs:
     typedef enum {
         PE_NONE = 0,
         
@@ -74,6 +74,45 @@ package EmulationDefs;
         endcase
     endfunction
 
+
+    /******
+        SECTION = architectural definitions
+    */
+
+    function automatic logic isValidSysReg(Mword adr);
+        return adr >= 0 && adr <= 31;    
+    endfunction       
+
+
+    // For fetch
+    function automatic logic virtualAddressValid(input Mword vadr);
+        return !$isunknown(vadr) && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
+    endfunction
+
+    function automatic logic physicalAddressValid(input Dword padr);
+        return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
+    endfunction
+        
+        // TODO: for data access temporarily no range check because tests are not conforming
+        function automatic logic virtualAddressValid_T(input Mword vadr);
+            return !$isunknown(vadr);// && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
+        endfunction
+
+    function automatic Dword getPageBaseD(input Dword adr);
+        Dword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getPageBaseM(input Mword adr);
+        Mword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    /****
+    *** END of section
+    */
 
 
 
@@ -312,39 +351,6 @@ package EmulationDefs;
         return '{brTarget, redirect};
     endfunction
 
-
-
-
-    function automatic logic isValidSysReg(Mword adr);
-        return adr >= 0 && adr <= 31;    
-    endfunction       
-
-
-    // For fetch
-    function automatic logic virtualAddressValid(input Mword vadr);
-        return !$isunknown(vadr) && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
-    endfunction
-
-    function automatic logic physicalAddressValid(input Dword padr);
-        return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
-    endfunction
-        
-        // TODO: for data access temporarily no range check because tests are not conforming
-        function automatic logic virtualAddressValid_T(input Mword vadr);
-            return !$isunknown(vadr);// && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
-        endfunction
-
-    function automatic Dword getPageBaseD(input Dword adr);
-        Dword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    function automatic Mword getPageBaseM(input Mword adr);
-        Mword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
 
 
     typedef struct {

@@ -2,6 +2,7 @@
 
 import Base::*;
 import InsDefs::*;
+import ControlRegisters::*;
 import Asm::*;
 import EmulationDefs::*;
 import Emulation::*;
@@ -298,6 +299,9 @@ module ArchDesc0();
         TestRunner trSim = runner;
         TestRunner trEm = emRunner;        
         
+        
+            TMP_tst();
+        
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
         if (RUN_EMUL_TESTS) begin
@@ -320,6 +324,10 @@ module ArchDesc0();
 
     initial simMain();
 
+
+        task automatic TMP_tst();
+            CpuControlRegisters cregs;
+        endtask
 
 
     /*
