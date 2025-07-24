@@ -73,7 +73,8 @@ package UopList;
          UOP_ctrl_refetch,
          UOP_ctrl_error,
          UOP_ctrl_call,
-         UOP_ctrl_send
+         UOP_ctrl_send,
+            UOP_ctrl_dbcall
     
     } UopName;
 
@@ -140,7 +141,8 @@ package UopList;
         "sys_replay": UOP_ctrl_refetch,
         "sys_error":  UOP_ctrl_error,
         "sys_call":   UOP_ctrl_call,
-        "sys_send":   UOP_ctrl_send
+        "sys_send":   UOP_ctrl_send,
+            "sys_dbcall":   UOP_ctrl_dbcall
         
     }; 
 
@@ -167,7 +169,8 @@ package UopList;
             UOP_ctrl_refetch,
             UOP_ctrl_error,
             UOP_ctrl_call,
-            UOP_ctrl_send
+            UOP_ctrl_send,
+                UOP_ctrl_dbcall
         };
     endfunction
 

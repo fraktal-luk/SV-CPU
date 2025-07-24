@@ -21,6 +21,6 @@ $L1
 	add_r r8, r0, r0  ;  change reg
 	jz_i  r8, $error  ;  jump on changed reg
 	
-	sys_call
+	sys_dbcall
 $error
     sys_error

@@ -586,5 +586,10 @@ package Asm;
         return res;
     endfunction
 
+    function automatic Word asm(input string str);
+        squeue q = '{str};
+        Section s = processLines(q);
+        return s.words[0];
+    endfunction
 
 endpackage

@@ -39,7 +39,7 @@
  	jz_i   r16, $error
  	jnz_i   r17, $error
 
-	sys_call
+	sys_dbcall
 $error
     sys_error
 

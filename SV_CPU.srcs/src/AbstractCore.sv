@@ -15,6 +15,8 @@ import CacheDefs::*;
 
 import Queues::*;
 
+import Testing::GlobalParams;
+
 
 module AbstractCore
 #(
@@ -46,6 +48,12 @@ module AbstractCore
     int cycleCtr = 0;
 
     always @(posedge clk) cycleCtr++;
+
+
+    struct {
+        logic enableMmu = 0;
+    } CurrentConfig;
+    
 
 
     Mword insAdr;
@@ -421,7 +429,7 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin        
-            sysUnit.sysRegs = SYS_REGS_INITIAL;
+               // sysUnit.sysRegs = SYS_REGS_INITIAL; // TODO: check
             
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
@@ -722,6 +730,10 @@ module AbstractCore
         branchCheckpointQueue.delete();
         
         sysUnit.reset();
+        
+        syncRegsFromStatus();
+        syncGlobalParamsFromRegs();
+        
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
@@ -729,9 +741,16 @@ module AbstractCore
         
     endtask
 
+
     task automatic preloadForTest();
-        renamedEmul.status.enableMmu = globalParams.enableMmu;
-        retiredEmul.status.enableMmu = globalParams.enableMmu;
+        retiredEmul.status = globalParams.initialCoreStatus;
+        renamedEmul.status = globalParams.initialCoreStatus;
+
+        retiredEmul.syncRegsFromStatus();
+        renamedEmul.syncRegsFromStatus();
+
+        syncRegsFromStatus();
+        syncGlobalParamsFromRegs();
 
         renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
         retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
@@ -743,5 +762,25 @@ module AbstractCore
         dataCache.preloadForTest();
     endtask
 
+
+        function automatic void syncRegsFromStatus();
+            setRegsFromStatus(sysUnit.sysRegs, retiredEmul.status);
+        endfunction
+
+        function automatic void syncStatusFromRegs();
+            setStatusFromRegs(retiredEmul.status, sysUnit.sysRegs);
+            setStatusFromRegs(renamedEmul.status, sysUnit.sysRegs);
+        endfunction
+        
+        // Call every time sys regs are set
+        function automatic void syncGlobalParamsFromRegs();
+            CoreStatus tmpStatus;
+            setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
+            
+            // TODO: move state variables from GlobalParams to a specialized object and keep GP as a way of configuration setting
+            //globalParams.enableMmu = tmpStatus.enableMmu;
+            
+            CurrentConfig.enableMmu = tmpStatus.enableMmu;
+        endfunction
 
 endmodule

@@ -22,6 +22,6 @@ $L3
 $check
     add_i r5, r2, -60
     jnz_i  r5, $error
-	sys_call
+	sys_dbcall
 $error
     sys_error

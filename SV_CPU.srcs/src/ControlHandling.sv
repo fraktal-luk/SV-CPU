@@ -31,6 +31,10 @@ package ControlHandling;
                 res.target = IP_CALL;
                 res.redirect = 1;
             end
+            CO_dbcall: begin
+                res.target = IP_DB_CALL;
+                res.redirect = 1;
+            end
             CO_retE: begin
                 res.target = sr2;
                 res.redirect = 1;
@@ -73,6 +77,7 @@ package ControlHandling;
                 UOP_ctrl_error:    res.cOp = CO_error;
                 UOP_ctrl_undef:    res.cOp = CO_undef;
                 UOP_ctrl_call:     res.cOp = CO_call;
+                UOP_ctrl_dbcall:     res.cOp = CO_dbcall;
                 UOP_ctrl_rete:     res.cOp = CO_retE;
                 UOP_ctrl_reti:     res.cOp = CO_retI;
                 UOP_ctrl_sync:     res.cOp = CO_sync;

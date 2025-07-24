@@ -28,6 +28,6 @@ $out
 	jnz_i r5, $error
 
 $check
-	sys_call
+	sys_dbcall
 $error
     sys_error

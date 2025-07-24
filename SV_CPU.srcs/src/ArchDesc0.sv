@@ -2,6 +2,7 @@
 
 import Base::*;
 import InsDefs::*;
+import ControlRegisters::*;
 import Asm::*;
 import EmulationDefs::*;
 import Emulation::*;
@@ -15,40 +16,13 @@ module ArchDesc0();
     localparam logic RUN_EMUL_TESTS = 1;
     localparam logic RUN_SIM_TESTS = 1;
 
-
-    typedef Word WordArray[];
-
-    EmulTest emulTest();
-
     localparam time DELAY = 1;
 
     localparam int ITERATION_LIMIT = 2000;
     localparam Mword COMMON_ADR = 4 * 1024;
 
-    const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
-    const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
 
-    const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
-    const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
-
-    const string DEFAULT_INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
-
-    const string FAILING_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
-
-    const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
-
-
-    const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
-
-    const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
-
-    const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
-    const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
-
-    const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
-    const Section FAILING_SECTION = processLines(FAILING_HANDLER);
-
-    const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
+    EmulTest emulTest();
 
 
     localparam CYCLE = 10;
@@ -58,7 +32,6 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-    
     squeue uncachedSuites = '{
         "Tests_basic_uncached.txt"//,
         //"Tests_mem_simple.txt"
@@ -78,14 +51,36 @@ module ArchDesc0();
         
         "Tests_all.txt"
     };
-    
+
+
+
     string emulTestName, simTestName;
 
     Section common;
+    Mword commonAdr = COMMON_ADR;
 
+    function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
+        Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
+        return testProg.words;
+    endfunction
+        
+    
+    /* Emulation */    
     Emulator emul_N = new();
 
-    Mword commonAdr = COMMON_ADR;
+
+    function automatic logic isErrorStatus(input Emulator emul);            
+        return emul.status.eventType inside {PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION};
+    endfunction
+
+    function automatic logic isSendingStatus(input Emulator emul);            
+        return emul.status.send == 1;
+    endfunction
+    
+    task automatic resetAll(ref Emulator emul);
+        emul.resetWithDataMem();
+        #DELAY;
+    endtask
 
 
     class EmulRunner extends TestRunner;        
@@ -96,66 +91,46 @@ module ArchDesc0();
     endclass
 
 
-    function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
-        Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
-        return testProg.words;
-    endfunction
-
-    function automatic WordArray prepareHandlersPage(input Section callSec, input Section intSec, input Section excSec);
-        WordArray mem = new [PAGE_SIZE/4];
-        Section testProg;
-        setBasicPrograms(mem, testProg, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, callSec, intSec, excSec);
-        return mem;
-    endfunction
-
-
-
-
     task automatic runEmulEvents();
         $display("Emulation event tests");
 
         emul_N.progMem.assignPage(PAGE_SIZE, common.words);
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, FAILING_SECTION, DEFAULT_EXC_SECTION));
+        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
         #DELAY runTestEmul("events", emul_N, Test_fillGpCached(), emul_N.progMem);
-        
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+
+        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
         #DELAY runIntTestEmul(emul_N);
         #DELAY;
     endtask
     
     
-    task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams __gp, input PageBasedProgramMemory progMem);
-        GlobalParams gp = __gp;
-
+    task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams gp, input PageBasedProgramMemory progMem);
         emulTestName = name;
             
-           // announce(name);
-
+        resetAll(emul);
         emul.progMem = progMem;
 
         emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
-        resetAll(emul);
-        
-        emul.status.enableMmu = gp.enableMmu;
+        emul.status = gp.initialCoreStatus;
         emul.programMappings = gp.preloadedInsTlbL2;
-        emul.dataMappings = gp.preloadedDataTlbL2;  
+        emul.dataMappings = gp.preloadedDataTlbL2;   
+        emul.syncRegsFromStatus();
 
         performEmul(emul);
     endtask
-
 
 
     task automatic runIntTestEmul(ref Emulator emul);
         GlobalParams gp;
 
         emulTestName = "int";
-        emul.progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
         resetAll(emul);
+        emul.progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);
@@ -177,16 +152,6 @@ module ArchDesc0();
         end
     endtask
 
-
-    function automatic logic isErrorStatus(input Emulator emul);            
-        return emul.status.eventType inside {PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION};
-    endfunction
-
-    function automatic logic isSendingStatus(input Emulator emul);            
-        return emul.status.send == 1;
-    endfunction
-
-
     task automatic performEmul(ref Emulator emul);
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
@@ -201,65 +166,23 @@ module ArchDesc0();
         end
     endtask
 
-    task automatic resetAll(ref Emulator emul);
-        emul.resetWithDataMem();
-        //emul.programMappings.delete();
-        //emul.dataMappings.delete();
-        #DELAY;
-    endtask
 
-
-
-    // Core sim
-
-    class SimRunner extends TestRunner;
+    /* Core sim */
     
-        task automatic runTest(input string name);            
-            runTestSim(name, gp, programMem);
-        endtask
-    endclass
-
     logic reset = 0, int0 = 0, done, wrong;
     PageBasedProgramMemory theProgMem = new();
-    Mword fetchAdr;       
+    Mword fetchAdr;
 
-
-    task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
-        #CYCLE announce(name);
-        progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
-        progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
-
-        core.resetForTest();
-        core.programMem = progMem;
-        core.globalParams = gp;
-        core.preloadForTest();
-
-        startSim();
+    AbstractCore core(
+        .clk(clk),
         
-        awaitResult();
-    endtask
+        .interrupt(int0),
+        .reset(reset),
+        .sig(done),
+        .wrong(wrong)
+    );
 
-
-    task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
-        #CYCLE announce("int");
-        progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
-
-
-        core.resetForTest();
-        core.programMem = progMem;
-        core.globalParams = gp;
-        core.preloadForTest();
-
-        startSim();
-
-        // The part that differs from regular sim test
-        wait (fetchAdr == IP_CALL);
-        #CYCLE; // FUTURE: should be wait for clock instead of delay?
-        pulseInt0();
-
-        awaitResult();
-    endtask
-
+    assign fetchAdr = core.insAdr; 
 
     task automatic startSim();
         #CYCLE reset <= 1;
@@ -285,24 +208,57 @@ module ArchDesc0();
         #CYCLE;
     endtask
 
-    
-    AbstractCore core(
-        .clk(clk),
+
+    class SimRunner extends TestRunner;
+        task automatic runTest(input string name);            
+            runTestSim(name, gp, programMem);
+        endtask
+    endclass
+
+
+
+    task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
+        #CYCLE announce(name);
+        progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+        progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
+
+        core.resetForTest();
+        core.programMem = progMem;
+        core.globalParams = gp;
+        core.preloadForTest();
+
+        startSim();
         
-        .interrupt(int0),
-        .reset(reset),
-        .sig(done),
-        .wrong(wrong)
-    );
+        awaitResult();
+    endtask
+
+
+    task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
+        #CYCLE announce("int");
+        progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
+
+        core.resetForTest();
+        core.programMem = progMem;
+        core.globalParams = gp;
+        core.preloadForTest();
+
+        startSim();
+
+        // The part that differs from regular sim test
+        wait (fetchAdr == IP_CALL);
+        #CYCLE; // FUTURE: should be wait for clock instead of delay?
+        pulseInt0();
+
+        awaitResult();
+    endtask
 
 
     task automatic runSim(ref TestRunner runner);
         PageBasedProgramMemory thisProgMem = theProgMem;
+        runner.programMem = thisProgMem;
 
         thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(DEFAULT_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
-
-        runner.programMem = thisProgMem;
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());//TESTED_CALL_SECTION));//, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
 
         runner.gp = Test_fillGpUncached();
 
@@ -321,14 +277,13 @@ module ArchDesc0();
 
     task automatic runEventSim(ref TestRunner runner);
         PageBasedProgramMemory thisProgMem = theProgMem;
-
-        thisProgMem.assignPage(PAGE_SIZE, common.words);
-
         runner.programMem = thisProgMem;
         runner.gp = Test_fillGpCached();
+        
+        thisProgMem.assignPage(PAGE_SIZE, common.words);
 
         startSim(); // Pulse reset to flush old mem content from pipeline
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage(TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());//TESTED_CALL_SECTION));//, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
 
         #CYCLE $display("Event tests");
 
@@ -338,13 +293,14 @@ module ArchDesc0();
     endtask
 
 
-    assign fetchAdr = core.insAdr; 
-
-    initial begin    
-        automatic SimRunner runner = new();
-        automatic EmulRunner emRunner = new();
-        automatic TestRunner trSim = runner;
-        automatic TestRunner trEm = emRunner;
+    task automatic simMain();
+        SimRunner runner = new();
+        EmulRunner emRunner = new();
+        TestRunner trSim = runner;
+        TestRunner trEm = emRunner;        
+        
+        
+            TMP_tst();
         
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
@@ -363,21 +319,36 @@ module ArchDesc0();
         
         $display("All tests done;");
         $stop(2);
-    end
+    endtask
 
 
+    initial simMain();
 
+
+        task automatic TMP_tst();
+            CpuControlRegisters cregs;
+        endtask
+
+
+    /*
+        Test setup routines
+    */
 
     function automatic GlobalParams Test_fillGpUncached();
         GlobalParams gp;
-        gp.enableMmu = 0;
+        gp.initialCoreStatus = DEFAULT_CORE_STATUS;
+        
         Ins_prepareForUncachedTest(gp);
         return gp;
     endfunction
 
     function automatic GlobalParams Test_fillGpCached();
         GlobalParams gp;
-        gp.enableMmu = 1;
+        gp.initialCoreStatus = DEFAULT_CORE_STATUS;
+        // TODO: bring in line with DB_enableMmu - API to work on status indepedently of Emulator object? 
+        gp.initialCoreStatus.enableMmu = 1;
+        gp.initialCoreStatus.memControl = 7;
+        
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);
         return gp;
@@ -393,7 +364,6 @@ module ArchDesc0();
         Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
         Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
         Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
-
 
         params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc};
         params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, physDataPage20000000};
@@ -411,7 +381,6 @@ module ArchDesc0();
         Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
         Translation physInsPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
         Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
-
 
         params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
         params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};

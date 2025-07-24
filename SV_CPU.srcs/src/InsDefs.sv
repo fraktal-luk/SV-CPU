@@ -95,13 +95,14 @@ package InsDefs;
         localparam Mword HANDLER_BASE = 2*PAGE_SIZE; // TMP
 
     // Handler addresses
-    localparam Mword IP_ERROR     = HANDLER_BASE + 'h000100;
+    localparam Mword IP_ERROR     = HANDLER_BASE + 'h00000100;
     localparam Mword IP_CALL      = HANDLER_BASE + 'h00000180;
     localparam Mword IP_RESET     = HANDLER_BASE + 'h00000200;
     localparam Mword IP_INT       = HANDLER_BASE + 'h00000280;
     localparam Mword IP_EXC       = HANDLER_BASE + 'h00000300;
     localparam Mword IP_FETCH_EXC = HANDLER_BASE + 'h00000380;
     localparam Mword IP_MEM_EXC   = HANDLER_BASE + 'h00000400;
+    localparam Mword IP_DB_CALL   = HANDLER_BASE + 'h00000480;
 
 
 
@@ -158,6 +159,7 @@ package InsDefs;
             sys_error,
             sys_call,
             sys_send,
+                sys_dbcall,
 
             undef
         } Mnemonic;
@@ -248,6 +250,7 @@ package InsDefs;
         S_sysSend    = 64*P_sysControl + 6,
         S_sysRetE    = 64*P_sysControl + 7,
         S_sysRetI    = 64*P_sysControl + 8,
+            S_sysDbCall    = 64*P_sysControl + 9,
            
         S_none = -1               
     } Secondary;
@@ -331,6 +334,7 @@ package InsDefs;
     typedef enum {
         O_undef,
         O_call,
+            O_dbcall,
         O_sync,
         O_retE,
         O_retI,
@@ -436,7 +440,8 @@ package InsDefs;
         "sys_replay": '{F_noRegs, P_sysControl, S_sysReplay, T_none, O_replay},
         "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_error},
         "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
-        "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send}
+        "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send},
+            "sys_dbcall":   '{F_noRegs, P_sysControl, S_sysDbCall, T_none, O_dbcall}
         
     };
 
@@ -505,5 +510,87 @@ package InsDefs;
 
         return found[0];               
     endfunction
+
+
+/*
+    System registers
+    
+    0: device ID (readonly)
+    1: status (RW)
+    2: exception adr
+    3: interrupt adr
+    4: exc saved status
+    5: int saved status
+    6: syndrome?
+    7: exc mem access
+    8: 
+    9: FP status
+    a: mem control
+    b: page table base 0
+    c: page table base 1
+    d: 
+    e:
+    f: 
+    
+*/
+
+/*
+    needed:
+      Registers:
+        page table base
+        ?(page table base user)
+        ?(page table base kernel)
+        timer .....
+        syndrome (different regs for exc/int/db?)
+        mem adr (address where mem instruction tried to do something wrong)
+        
+      Fields: (# denotes params not in status reg)
+        privilege level
+        (interrupt level?)
+        int mask
+        #mmu enable
+        #cache enable (different ones?)
+        step mode
+        (other db flags: adr breakpoint, data breakpoint?)
+        FP enable (other ISA subset enables?)
+
+      Notes:
+        In User mode MMU must not be disabled
+        Access to any sys reg is forbidden in user mode?
+            !!What about FP control?
+        Returns (retE, retI, ...?) are special because they transfer the value of some specified register to status reg
+          This reg holds: privilege level, step mode?, int mask?, FP enable?
+          Those fields are a subset of state that needs to be changed on typical task switches (and can fit in a single register)
+          MMU enable and cache enable are not in it - they are disabled on reset, and after setup they are expected to be on. We don't have user processes without MMU or caching 
+          The fields in status reg are conceptually modified at the same time when either an event (exception, int, syscall, dbcall) happens or a return happens
+        Registers are either readonly or RW 
+
+
+        Status reg fields:
+                privilege level - 2/3 bits?
+                int level       - 2/3 bits?
+            OR:
+               priv level: 4b [3] - 1000 interrupt?, 0001 - SV, 0000 - user
+            int mask level  - 4 bits?
+            dbstep - 1 b
+            FP en - 1 b
+        
+        Status reg layout:
+        ... 31 | 30 | 29 | 28 | 27 | 26 | 25 | 24 | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 15 | 14 | 13 | 12 | 11 | 10 | 09 | 08 | 07 | 06 | 05 | 04 | 03 | 02 | 01 | 00 |
+        
+        
+        Mem control reg:
+            MMU en
+            icache en
+            cache en
+        
+            DEV: bits 2:0 either 000 - physical uncached mode or 111 - virtual cached mode
+        
+        FP status reg:
+        
+        
+*/
+
+
 
 endpackage

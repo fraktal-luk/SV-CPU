@@ -6,6 +6,6 @@ $start
 	ldi_i r11, r0, 18
 
 $check
-	sys_call
+	sys_dbcall
 $error
     sys_error

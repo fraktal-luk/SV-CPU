@@ -6,7 +6,7 @@
 	add_i r5, r0, 0x7ddd
 	ja 0x800c
 
-	sys_call
+	sys_dbcall
 $error
     sys_error
 

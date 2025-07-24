@@ -5,6 +5,6 @@ $start
 	add_r r11, r10, r0
 
 $check
-	sys_call
+	sys_dbcall
 $error
     sys_error

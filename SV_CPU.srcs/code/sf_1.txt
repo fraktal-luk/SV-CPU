@@ -36,6 +36,6 @@ $start
 	add_i r0, r0, 0
 	
 $check
-	sys_call
+	sys_dbcall
 $error
     sys_error

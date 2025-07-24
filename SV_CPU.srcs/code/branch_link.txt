@@ -38,7 +38,7 @@ $R6
 
 
 $check	
-	sys_call			
+	sys_dbcall			
 $error
     sys_error
 

@@ -142,7 +142,8 @@ package AbstractSim;
         CO_error,
         CO_send,
         CO_call,
-        
+            CO_dbcall,
+
         CO_exception,
         
         CO_sync,

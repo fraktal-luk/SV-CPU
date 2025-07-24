@@ -3,6 +3,7 @@ import Base::*;
 import InsDefs::*;
 import Asm::*;
 import EmulationDefs::*;
+import EmulationMemories::*;
 import Emulation::*;
 
 import AbstractSim::*;
@@ -96,7 +97,8 @@ module InstructionL1(
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
         if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!AbstractCore.globalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+        //if (!AbstractCore.globalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+        if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
 
