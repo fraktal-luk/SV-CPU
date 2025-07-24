@@ -3,6 +3,7 @@ import Base::*;
 import InsDefs::*;
 import Asm::*;
 import EmulationDefs::*;
+import EmulationMemories::*;
 import Emulation::*;
 
 import AbstractSim::*;

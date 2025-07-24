@@ -5,6 +5,7 @@ package Testing;
     import InsDefs::*;
     import Asm::*;
     import EmulationDefs::*;
+    import EmulationMemories::*;
     import Emulation::*;
     import AbstractSim::*;
     import Insmap::*;    

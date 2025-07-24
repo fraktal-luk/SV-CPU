@@ -292,12 +292,11 @@ module ArchDesc0();
     endtask
 
 
-
-    initial begin    
-        automatic SimRunner runner = new();
-        automatic EmulRunner emRunner = new();
-        automatic TestRunner trSim = runner;
-        automatic TestRunner trEm = emRunner;
+    task automatic simMain();
+        SimRunner runner = new();
+        EmulRunner emRunner = new();
+        TestRunner trSim = runner;
+        TestRunner trEm = emRunner;        
         
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
@@ -316,7 +315,10 @@ module ArchDesc0();
         
         $display("All tests done;");
         $stop(2);
-    end
+    endtask
+
+
+    initial simMain();
 
 
 

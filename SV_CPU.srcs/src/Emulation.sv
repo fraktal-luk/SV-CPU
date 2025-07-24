@@ -4,7 +4,8 @@ package Emulation;
     import InsDefs::*;
     import Asm::*;
     import EmulationDefs::*;
-
+    import EmulationMemories::*;
+    
 
     typedef struct {
         Mword intRegs[32], floatRegs[32], sysRegs[32];

@@ -13,14 +13,6 @@ import Testing::*;
 
 module EmulTest();
     
-    
-//    function automatic Word asm(input string str);
-//        squeue q = '{str};
-//        Section s = processLines(q);
-//        return s.words[0];
-//    endfunction
-
-
     localparam Translation DEFAULT_PAGE0 = '{1, 0, '{1, 1, 1, 1, 1}, 0};
 
 
