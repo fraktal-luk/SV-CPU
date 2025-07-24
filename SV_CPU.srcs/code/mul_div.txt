@@ -51,6 +51,6 @@ $start
 	jnz_i r7, $error
 	or_r  r0, r0, r0
 
-	sys_call
+	sys_dbcall
 $error
     sys_error

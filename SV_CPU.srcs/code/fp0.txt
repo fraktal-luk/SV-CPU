@@ -48,6 +48,6 @@ $start
 		jnz_i r3, $error
 	
 $check
-	sys_call
+	sys_dbcall
 $error
     sys_error

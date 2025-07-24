@@ -79,6 +79,6 @@ $L16
 	add_i r0, r0, 0
 	
 $check
-	sys_call			; 192
+	sys_dbcall			; 192
 $error
     sys_error

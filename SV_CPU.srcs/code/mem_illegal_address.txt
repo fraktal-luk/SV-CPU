@@ -15,6 +15,6 @@ $start
 	jnz_i r13, $error
 
 $check
-	sys_call
+	sys_dbcall
 $error
     sys_error

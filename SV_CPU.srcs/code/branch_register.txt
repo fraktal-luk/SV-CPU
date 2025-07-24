@@ -39,7 +39,7 @@ $loop
 $error
     sys_error
 $check	
-	sys_call
+	sys_dbcall
 	ja $error
 	ja $error
 	

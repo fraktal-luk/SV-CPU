@@ -14,6 +14,6 @@ $start
 $check
 	add_i r22, r21, -57
     jnz_i r22, $error
-	sys_call
+	sys_dbcall
 $error
     sys_error

@@ -60,6 +60,6 @@ $L1
     sys_error
 	
 $L2
-	sys_call			
+	sys_dbcall			
 $error
     sys_error

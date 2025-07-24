@@ -23,6 +23,6 @@ $start
 $check
 	jnz_i r10, $error
 	jnz_i r11, $error
-	sys_call
+	sys_dbcall
 $error
     sys_error
