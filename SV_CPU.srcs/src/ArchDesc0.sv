@@ -324,7 +324,7 @@ module ArchDesc0();
 
     initial simMain();
 
-
+        // TODO: remove when referenced somewhere else
         task automatic TMP_tst();
             CpuControlRegisters cregs;
         endtask

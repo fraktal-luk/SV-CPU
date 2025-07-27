@@ -529,9 +529,9 @@ package InsDefs;
     3: interrupt adr
     4: exc saved status
     5: int saved status
-    6: syndrome?
-    7: exc mem access
-    8: 
+    6: exc syndrome?
+    7: int syndrome>     
+    8:   exc mem access
     9: FP status
     a: mem control
     b: page table base 0

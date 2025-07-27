@@ -2,6 +2,7 @@
 package Emulation;
     import Base::*;
     import InsDefs::*;
+    import ControlRegisters::*;
     import Asm::*;
     import EmulationDefs::*;
     import EmulationMemories::*;
@@ -95,7 +96,9 @@ package Emulation;
     class Emulator;
         Mword ip;
         CoreStatus status;
-            
+        
+        CpuControlRegisters cregs;
+        
         CpuState coreState;
         
         // For now there are separate maps for program and data
@@ -125,6 +128,7 @@ package Emulation;
         function automatic void setLike(input Emulator other);
             ip = other.ip;
             status = other.status;
+            cregs = other.cregs;
             coreState = other.coreState;
 
             programMappings = other.programMappings;
@@ -140,8 +144,10 @@ package Emulation;
             this.status = DEFAULT_CORE_STATUS;//'{eventType: PE_NONE, default: 0};
 
             this.coreState = initialState(IP_RESET);
-                
-                syncRegsFromStatus();
+                    
+            syncRegsFromStatus();
+
+                syncCregsFromArray(cregs, coreState.sysRegs);
 
             this.programMappings.delete();
             this.dataMappings.delete();
