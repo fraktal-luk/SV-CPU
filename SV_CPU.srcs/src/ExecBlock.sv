@@ -263,13 +263,16 @@ module ExecBlock(ref InstructionMap insMap,
                             else                       res = {args[0], args[0]} >> -args[1];
             
             // mul/div/rem
-            UOP_int_mul:   res = args[0] * args[1];
-            UOP_int_mulhu: res = (Dword'($unsigned(args[0])) * Dword'($unsigned(args[1]))) >> 32;
-            UOP_int_mulhs: res = (Dword'($signed(args[0])) * Dword'($signed(args[1]))) >> 32;
-            UOP_int_divu:  res = divUnsignedW(args[0], args[1]);
-            UOP_int_divs:  res = divSignedW(args[0], args[1]);
-            UOP_int_remu:  res = remUnsignedW(args[0], args[1]);
-            UOP_int_rems:  res = remSignedW(args[0], args[1]);
+            UOP_int_mul:   res = //args[0] * args[1];
+                                w2m( multiplyW(args[0], args[1]) );
+            UOP_int_mulhu: res = //(Dword'($unsigned(args[0])) * Dword'($unsigned(args[1]))) >> 32;
+                                w2m( multiplyHighUnsignedW(args[0], args[1]) );
+            UOP_int_mulhs: res = //(Dword'($signed(args[0])) * Dword'($signed(args[1]))) >> 32;
+                                w2m( multiplyHighSignedW(args[0], args[1]) );
+            UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
+            UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
+            UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
+            UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
             
             UOP_int_link: res = linkAdr;
             
