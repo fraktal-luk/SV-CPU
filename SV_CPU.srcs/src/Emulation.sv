@@ -246,34 +246,38 @@ package Emulation;
 
 
     
-        function automatic void saveStateForExc(ref CpuState state, input Mword adr);
-            state.sysRegs[4] = state.sysRegs[1];
-            state.sysRegs[2] = adr;
-        endfunction
+//        function automatic void saveStateForExc(ref CpuState state, input Mword adr);
+//            state.sysRegs[4] = state.sysRegs[1];
+//            state.sysRegs[2] = adr;
+//        endfunction
      
-         function automatic void saveStateForInt(ref CpuState state, input Mword adr);
-            state.sysRegs[5] = state.sysRegs[1];
-            state.sysRegs[3] = adr;
-        endfunction
+//        function automatic void saveStateForInt(ref CpuState state, input Mword adr);
+//            state.sysRegs[5] = state.sysRegs[1];
+//            state.sysRegs[3] = adr;
+//        endfunction
      
     
-        function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
+        function automatic void performAsyncEvent(/*ref CpuState state,*/ input Mword trg, input Mword prevTarget);
             status.eventType = PE_EXT_INTERRUPT; //?
-                state.sysRegs[6] = status.eventType;
-            
-            saveStateForInt(state, prevTarget);
-                syncStatusFromRegs();
+            coreState.sysRegs[6] = status.eventType;
+                    
+            coreState.sysRegs[5] = coreState.sysRegs[1];
+            coreState.sysRegs[3] = prevTarget;
 
-            state.target = trg;
-            state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
+            coreState.target = trg;
+            coreState.sysRegs[1] |= 2; // FUTURE: handle state register correctly
         endfunction
-    
+
+
         function automatic void setExecState(input ProgramEvent evType, input Mword adr);
             Mword trg = programEvent2trg(evType);
+            
             status.eventType = evType;
+            
             coreState.sysRegs[6] = status.eventType;                
-                
-            saveStateForExc(coreState, adr);
+                            
+            coreState.sysRegs[4] = coreState.sysRegs[1];
+            coreState.sysRegs[2] = adr;
             
             coreState.target = trg;        
             coreState.sysRegs[1] |= 1; // FUTURE: handle state register correctly
@@ -281,6 +285,8 @@ package Emulation;
 
     
         function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
+                assert (adr === this.ip) else $fatal(2, "differs");
+            
             case (abs.def.o)
                 O_error: begin
                     setExecState(PE_SYS_ERROR, ip);            
@@ -430,12 +436,15 @@ package Emulation;
                 if (catchSysAccessException(ins, vals[1])) return;
                 
                 writeSysReg(coreState, vals[1], vals[2]);
+                syncStatusFromRegs();
             end
             else begin
                 modifySysRegs(this.coreState, adr, ins);
+                syncStatusFromRegs();
             end
             
-            syncStatusFromRegs();
+                syncCregsFromArray(cregs, coreState.sysRegs);
+            
         endfunction
         
         // Return 1 if exception
@@ -529,15 +538,15 @@ package Emulation;
 
 
         function automatic void interrupt();
-            status.eventType = PE_EXT_INTERRUPT;
-                coreState.sysRegs[6] = status.eventType;
-            performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
+            performAsyncEvent(IP_INT, this.coreState.target);
+            
+            syncStatusFromRegs();
         endfunction
 
         function automatic void resetSignal();
-            status.eventType = PE_EXT_RESET;
-                coreState.sysRegs[6] = status.eventType;
-            performAsyncEvent(this.coreState, IP_RESET, this.coreState.target);
+            performAsyncEvent(IP_RESET, this.coreState.target);
+            
+            syncStatusFromRegs();
         endfunction        
 
 
