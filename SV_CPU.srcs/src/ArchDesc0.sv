@@ -118,7 +118,10 @@ module ArchDesc0();
         emul.status = gp.initialCoreStatus;
         emul.programMappings = gp.preloadedInsTlbL2;
         emul.dataMappings = gp.preloadedDataTlbL2;   
+
+        // TODO: like the comment in AbstractCore
         emul.syncRegsFromStatus();
+        emul.syncCregsFromSysRegs();
 
         performEmul(emul);
     endtask
@@ -136,7 +139,11 @@ module ArchDesc0();
         Data_prefetchForTest(gp);
         emul.programMappings = gp.preloadedInsTlbL2;
         emul.dataMappings = gp.preloadedDataTlbL2;  
-
+        
+        // TODO: like the comment in AbstractCore
+        emul.syncRegsFromStatus();
+        emul.syncCregsFromSysRegs();
+        
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
                 emul.interrupt();

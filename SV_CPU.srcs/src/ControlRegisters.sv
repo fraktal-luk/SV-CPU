@@ -42,6 +42,9 @@ package ControlRegisters;
         //.....
         
         // 9
+        // .....
+        
+        // 10
         struct packed {
             Word resA;
             logic [28:0] resB;
@@ -66,7 +69,7 @@ package ControlRegisters;
         cregs.excSyndrome = arr[6];
         cregs.intSyndrome = arr[7];
         
-        cregs.memControl = arr[9];
+        cregs.memControl = arr[10];
     endfunction
     
     
@@ -80,7 +83,7 @@ package ControlRegisters;
         arr[6] = cregs.excSyndrome;
         arr[7] = cregs.intSyndrome;
         
-        arr[9] = cregs.memControl;
+        arr[10] = cregs.memControl;
     endfunction   
     
     

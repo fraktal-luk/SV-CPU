@@ -46,6 +46,7 @@ package Emulation;
     
 
     function automatic void writeSysReg(ref CpuState state, input int regNum, input Mword value);
+        // SR_SET
         state.sysRegs[regNum] = value;        
     endfunction
 
@@ -114,6 +115,7 @@ package Emulation;
             
             res.ip = ip;
             res.status = status;
+            res.cregs = cregs;
             res.coreState = coreState;
 
             res.programMappings = programMappings;
@@ -170,12 +172,20 @@ package Emulation;
 
         function automatic void syncStatusFromRegs();
             setStatusFromRegs(status, coreState.sysRegs);
+            
+                syncCregsFromArray(cregs, coreState.sysRegs);
         endfunction
 
+
+        function automatic void syncCregsFromSysRegs();
+            syncCregsFromArray(cregs, coreState.sysRegs);
+        endfunction
 
 
         function automatic Translation translateProgramAddress(input Mword vadr);
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
+
+                assert (status.enableMmu === cregs.memControl.enableMMU) else $fatal(2, "Oh no");
 
             if (!status.enableMmu) begin
                 return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
@@ -189,6 +199,8 @@ package Emulation;
 
         function automatic Translation translateDataAddress(input Mword vadr);
             Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
+                
+                assert (status.enableMmu === cregs.memControl.enableMMU) else $error("Oh no");
 
             if (!status.enableMmu) begin
                 return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
@@ -259,6 +271,8 @@ package Emulation;
     
         function automatic void performAsyncEvent(/*ref CpuState state,*/ input Mword trg, input Mword prevTarget);
             status.eventType = PE_EXT_INTERRUPT; //?
+            
+                // SR_SET
             coreState.sysRegs[6] = status.eventType;
                     
             coreState.sysRegs[5] = coreState.sysRegs[1];
@@ -274,6 +288,7 @@ package Emulation;
             
             status.eventType = evType;
             
+            // SR_SET
             coreState.sysRegs[6] = status.eventType;                
                             
             coreState.sysRegs[4] = coreState.sysRegs[1];
@@ -284,21 +299,21 @@ package Emulation;
         endfunction
 
     
-        function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
-                assert (adr === this.ip) else $fatal(2, "differs");
+        function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);            
             
+            // SR_SET
             case (abs.def.o)
                 O_error: begin
-                    setExecState(PE_SYS_ERROR, ip);            
+                    setExecState(PE_SYS_ERROR, adr);            
                 end
                 O_undef: begin
-                    setExecState(PE_SYS_UNDEFINED_INSTRUCTION, ip);
+                    setExecState(PE_SYS_UNDEFINED_INSTRUCTION, adr);
                 end
                 O_call: begin
-                    setExecState(PE_SYS_CALL, ip + 4);
+                    setExecState(PE_SYS_CALL, adr + 4);
                 end
                 O_dbcall: begin
-                    setExecState(PE_SYS_DBCALL, ip + 4);
+                    setExecState(PE_SYS_DBCALL, adr + 4);
                 end
                 O_retE: begin
                     state.target = state.sysRegs[2];
