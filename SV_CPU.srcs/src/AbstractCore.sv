@@ -428,9 +428,7 @@ module AbstractCore
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.active !== 1) return;
 
-        if (lateEventInfoWaiting.cOp == CO_reset) begin        
-               // sysUnit.sysRegs = SYS_REGS_INITIAL; // TODO: check
-            
+        if (lateEventInfoWaiting.cOp == CO_reset) begin            
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
@@ -781,10 +779,7 @@ module AbstractCore
         function automatic void syncGlobalParamsFromRegs();
             CoreStatus tmpStatus;
             setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
-            
-            // TODO: move state variables from GlobalParams to a specialized object and keep GP as a way of configuration setting
-            //globalParams.enableMmu = tmpStatus.enableMmu;
-            
+
             CurrentConfig.enableMmu = tmpStatus.enableMmu;
         endfunction
 

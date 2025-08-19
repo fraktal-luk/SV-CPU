@@ -149,7 +149,7 @@ package Emulation;
                     
             syncRegsFromStatus();
 
-                syncCregsFromArray(cregs, coreState.sysRegs);
+                syncCregsFromSysRegs();
 
             this.programMappings.delete();
             this.dataMappings.delete();
@@ -173,7 +173,7 @@ package Emulation;
         function automatic void syncStatusFromRegs();
             setStatusFromRegs(status, coreState.sysRegs);
             
-                syncCregsFromArray(cregs, coreState.sysRegs);
+                syncCregsFromSysRegs();
         endfunction
 
 
@@ -181,6 +181,9 @@ package Emulation;
             syncCregsFromArray(cregs, coreState.sysRegs);
         endfunction
 
+        function automatic void syncSysRegsFromCregs();
+            syncArrayFromCregs(coreState.sysRegs, cregs);
+        endfunction
 
         function automatic Translation translateProgramAddress(input Mword vadr);
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
@@ -256,30 +259,29 @@ package Emulation;
             return result;
         endfunction
 
-
     
-//        function automatic void saveStateForExc(ref CpuState state, input Mword adr);
-//            state.sysRegs[4] = state.sysRegs[1];
-//            state.sysRegs[2] = adr;
-//        endfunction
-     
-//        function automatic void saveStateForInt(ref CpuState state, input Mword adr);
-//            state.sysRegs[5] = state.sysRegs[1];
-//            state.sysRegs[3] = adr;
-//        endfunction
-     
-    
-        function automatic void performAsyncEvent(/*ref CpuState state,*/ input Mword trg, input Mword prevTarget);
+        function automatic void performAsyncEvent(input Mword trg, input Mword prevTarget);
             status.eventType = PE_EXT_INTERRUPT; //?
             
                 // SR_SET
-            coreState.sysRegs[6] = status.eventType;
-                    
-            coreState.sysRegs[5] = coreState.sysRegs[1];
-            coreState.sysRegs[3] = prevTarget;
+                cregs.intSavedIP = prevTarget;
+                cregs.intSavedStatus = cregs.currentStatus;
 
+                cregs.currentStatus.intLevel |= 1;
+                cregs.intSyndrome = PE_EXT_INTERRUPT;
+                
+                cregs.excSyndrome = PE_EXT_INTERRUPT; // TODO: temporary
+
+                syncSysRegsFromCregs();
+
+//            coreState.sysRegs[5] = coreState.sysRegs[1];
+//            coreState.sysRegs[3] = prevTarget;
+
+//            coreState.sysRegs[1] |= 16; // FUTURE: handle state register correctly
+
+//            coreState.sysRegs[6] = status.eventType;
+                     
             coreState.target = trg;
-            coreState.sysRegs[1] |= 2; // FUTURE: handle state register correctly
         endfunction
 
 
@@ -289,13 +291,22 @@ package Emulation;
             status.eventType = evType;
             
             // SR_SET
-            coreState.sysRegs[6] = status.eventType;                
-                            
-            coreState.sysRegs[4] = coreState.sysRegs[1];
-            coreState.sysRegs[2] = adr;
+
+                cregs.excSavedIP = adr;
+                cregs.excSavedStatus = cregs.currentStatus;
+
+                cregs.currentStatus.excLevel |= 1;
+                cregs.excSyndrome = evType;
+
+                syncSysRegsFromCregs();
+                                            
+//            coreState.sysRegs[4] = coreState.sysRegs[1];
+//            coreState.sysRegs[2] = adr;
             
+//            coreState.sysRegs[1] |= 1; // FUTURE: handle state register correctly
+
+//            coreState.sysRegs[6] = status.eventType;           
             coreState.target = trg;        
-            coreState.sysRegs[1] |= 1; // FUTURE: handle state register correctly
         endfunction
 
     
@@ -458,7 +469,7 @@ package Emulation;
                 syncStatusFromRegs();
             end
             
-                syncCregsFromArray(cregs, coreState.sysRegs);
+            //    syncCregsFromSysRegs();
             
         endfunction
         
