@@ -173,7 +173,7 @@ package Emulation;
         function automatic void syncStatusFromRegs();
             setStatusFromRegs(status, coreState.sysRegs);
             
-                syncCregsFromSysRegs();
+            //    syncCregsFromSysRegs();
         endfunction
 
 
@@ -273,13 +273,6 @@ package Emulation;
                 cregs.excSyndrome = PE_EXT_INTERRUPT; // TODO: temporary
 
                 syncSysRegsFromCregs();
-
-//            coreState.sysRegs[5] = coreState.sysRegs[1];
-//            coreState.sysRegs[3] = prevTarget;
-
-//            coreState.sysRegs[1] |= 16; // FUTURE: handle state register correctly
-
-//            coreState.sysRegs[6] = status.eventType;
                      
             coreState.target = trg;
         endfunction
@@ -291,7 +284,6 @@ package Emulation;
             status.eventType = evType;
             
             // SR_SET
-
                 cregs.excSavedIP = adr;
                 cregs.excSavedStatus = cregs.currentStatus;
 
@@ -299,13 +291,7 @@ package Emulation;
                 cregs.excSyndrome = evType;
 
                 syncSysRegsFromCregs();
-                                            
-//            coreState.sysRegs[4] = coreState.sysRegs[1];
-//            coreState.sysRegs[2] = adr;
-            
-//            coreState.sysRegs[1] |= 1; // FUTURE: handle state register correctly
-
-//            coreState.sysRegs[6] = status.eventType;           
+          
             coreState.target = trg;        
         endfunction
 
@@ -327,12 +313,20 @@ package Emulation;
                     setExecState(PE_SYS_DBCALL, adr + 4);
                 end
                 O_retE: begin
-                    state.target = state.sysRegs[2];
-                    state.sysRegs[1] = state.sysRegs[4];
+                    state.target = //state.sysRegs[2];
+                                   cregs.excSavedIP;
+                    cregs.currentStatus = cregs.excSavedStatus;
+                    
+                    syncSysRegsFromCregs();
+                    //state.sysRegs[1] = state.sysRegs[4];
                 end
                 O_retI: begin
-                    state.target = state.sysRegs[3];
-                    state.sysRegs[1] = state.sysRegs[5];
+                    state.target = //state.sysRegs[3];
+                                   cregs.intSavedIP;
+                    cregs.currentStatus = cregs.intSavedStatus;
+                    
+                    syncSysRegsFromCregs();
+                    //state.sysRegs[1] = state.sysRegs[5];
                 end
                 O_replay: begin
                     state.target = adr;
@@ -462,10 +456,13 @@ package Emulation;
                 if (catchSysAccessException(ins, vals[1])) return;
                 
                 writeSysReg(coreState, vals[1], vals[2]);
-                syncStatusFromRegs();
+                
+                syncCregsFromSysRegs();
+                
+                syncStatusFromRegs();  // !!!!
             end
             else begin
-                modifySysRegs(this.coreState, adr, ins);
+                modifySysRegs(coreState, adr, ins);
                 syncStatusFromRegs();
             end
             
