@@ -2,9 +2,9 @@
 package ControlRegisters; 
     import Base::*;
     import InsDefs::*;
-    
+
+
     typedef struct {
-        //logic dummy;
         
         // 0
         Dword deviceID = -1;

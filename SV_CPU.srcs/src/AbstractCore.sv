@@ -767,13 +767,9 @@ module AbstractCore
 
 
         function automatic void syncRegsFromStatus();
-            setRegsFromStatus(sysUnit.sysRegs, retiredEmul.status);
+            syncArrayFromCregs(sysUnit.sysRegs, retiredEmul.cregs);
         endfunction
 
-        function automatic void syncStatusFromRegs();
-            setStatusFromRegs(retiredEmul.status, sysUnit.sysRegs);
-            setStatusFromRegs(renamedEmul.status, sysUnit.sysRegs);
-        endfunction
         
         // Call every time sys regs are set
         function automatic void syncGlobalParamsFromRegs();
