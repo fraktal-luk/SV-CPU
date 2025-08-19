@@ -69,7 +69,17 @@ package EmulationDefs;
 
             PE_SYS_DBCALL:
                 return IP_DB_CALL;
-                                
+
+
+            PE_EXT_DEBUG:
+                return IP_DB_BREAK;
+
+            PE_EXT_INTERRUPT:
+                return IP_INT;
+
+            PE_EXT_RESET:
+                return IP_RESET;
+                
             default: return 'x;
         endcase
     endfunction

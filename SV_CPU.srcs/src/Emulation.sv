@@ -254,15 +254,18 @@ package Emulation;
         endfunction
 
     
-        function automatic void performAsyncEvent(input Mword trg, input Mword prevTarget);            
+        function automatic void performAsyncEvent(/*input Mword trg,*/ input ProgramEvent evType, input Mword prevTarget);            
+            Mword trg = programEvent2trg(evType);
+
             // SR_SET
             cregs.intSavedIP = prevTarget;
             cregs.intSavedStatus = cregs.currentStatus;
 
             cregs.currentStatus.intLevel |= 1;
-            cregs.intSyndrome = PE_EXT_INTERRUPT;
-            
-                cregs.excSyndrome = PE_EXT_INTERRUPT; // TODO: temporary
+            cregs.currentStatus.dbStep = 0;
+
+            cregs.intSyndrome = evType;
+                cregs.excSyndrome = evType; // TODO: temporary
 
             syncSysRegsFromCregs();
                      
@@ -278,6 +281,8 @@ package Emulation;
             cregs.excSavedStatus = cregs.currentStatus;
 
             cregs.currentStatus.excLevel |= 1;
+            cregs.currentStatus.dbStep = 0;
+            
             cregs.excSyndrome = evType;
 
             syncSysRegsFromCregs();
@@ -414,7 +419,10 @@ package Emulation;
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end
-
+            
+            // TODO: dbtrap
+            catchDbTrap();
+            
         endfunction
 
 
@@ -542,14 +550,23 @@ package Emulation;
         endfunction
 
 
+        local function automatic logic catchDbTrap();
+            if (!cregs.currentStatus.dbStep) return 0;
+
+            performAsyncEvent(/*IP_DB_BREAK,*/ PE_EXT_DEBUG, this.coreState.target);
+            syncStatusFromRegs();
+            return 1;
+        endfunction
+
+
         function automatic void interrupt();
-            performAsyncEvent(IP_INT, this.coreState.target);
+            performAsyncEvent(/*IP_INT,*/ PE_EXT_INTERRUPT, this.coreState.target);
             
             syncStatusFromRegs();
         endfunction
 
         function automatic void resetSignal();
-            performAsyncEvent(IP_RESET, this.coreState.target);
+            performAsyncEvent(/*IP_RESET,*/ PE_EXT_RESET, this.coreState.target);
             
             syncStatusFromRegs();
         endfunction        
