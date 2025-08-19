@@ -13,7 +13,7 @@ package Emulation;
         Mword target;
     } CpuState;
 
-    const Mword SYS_REGS_INITIAL[32] = '{0: -1, default: 0};
+    const Mword SYS_REGS_INITIAL[32] = '{0: -1, 1: 1, default: 0};
 
 
     function automatic CpuState initialState(input Mword trg);

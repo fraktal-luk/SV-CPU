@@ -18,7 +18,7 @@ package Testing;
 
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
 
-    const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
+    //const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
     const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
     
     const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
@@ -42,7 +42,7 @@ package Testing;
 
     const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
 
-    const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
+    //const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
     const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
 
     const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);

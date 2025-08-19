@@ -53,9 +53,9 @@ package EmulationDefs;
 
     function automatic Mword programEvent2trg(input ProgramEvent evType);
         case (evType) inside
-            [PE_FETCH_INVALID_ADDRESS:PE_FETCH_NONEXISTENT_ADDRESS]:
+            [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS]:
                 return IP_FETCH_EXC;
-            [PE_MEM_INVALID_ADDRESS:PE_MEM_NONEXISTENT_ADDRESS]:
+            [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS]:
                 return IP_MEM_EXC;
                 
             PE_SYS_INVALID_ADDRESS:
