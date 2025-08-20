@@ -391,6 +391,7 @@ package Emulation;
 
 
         function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
+            logic dbStepOn = 0;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
             MemoryWrite writeToDo = '{default: 0};
@@ -409,6 +410,9 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
+            // TODO: make sure about timing
+            dbStepOn = cregs.currentStatus.dbStep; // Check here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            
             if (isSysIns(ins))
                 performSys(adr, ins, args);
             
@@ -421,7 +425,7 @@ package Emulation;
             end
             
             // TODO: dbtrap
-            catchDbTrap();
+            catchDbTrap(dbStepOn);
             
         endfunction
 
@@ -550,8 +554,8 @@ package Emulation;
         endfunction
 
 
-        local function automatic logic catchDbTrap();
-            if (!cregs.currentStatus.dbStep) return 0;
+        local function automatic logic catchDbTrap(input logic dbStepOn);
+            if (!dbStepOn) return 0;
 
             performAsyncEvent(/*IP_DB_BREAK,*/ PE_EXT_DEBUG, this.coreState.target);
             syncStatusFromRegs();

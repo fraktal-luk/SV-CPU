@@ -33,7 +33,7 @@ package Testing;
 
     const string DEFAULT_DB_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
 
-    const string DEFAULT_DBBREAK_HANDLER[$]  = {"add_r r0, r0, r0", "ja 0", "sys_error"};
+    const string DEFAULT_DBBREAK_HANDLER[$]  = {"jz_r r0, r0, r30", "ja 0", "sys_error"};
 
 
 
