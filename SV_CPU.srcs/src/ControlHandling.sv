@@ -56,6 +56,10 @@ package ControlHandling;
                 res.redirect = 1;
                 //res.sigOk = 1;
             end
+            CO_break: begin
+                res.target = IP_DB_BREAK;
+                res.redirect = 1;
+            end
             default: ;                            
         endcase
 
@@ -67,7 +71,7 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception);
+    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception, input logic dbStep);
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
@@ -84,7 +88,7 @@ package ControlHandling;
                 UOP_ctrl_refetch:   res.cOp = CO_refetch;
                 //O_halt:     res.cOp = CO_undef;
                 UOP_ctrl_send:     res.cOp = CO_send;
-                default:    res.cOp = CO_none;
+                default:    res.cOp = dbStep ? CO_break : CO_none;
             endcase
         end
         return res;

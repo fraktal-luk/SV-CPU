@@ -52,8 +52,9 @@ module AbstractCore
 
     struct {
         logic enableMmu = 0;
+        logic dbStep = 0;
     } CurrentConfig;
-    
+
 
 
     Mword insAdr;
@@ -160,6 +161,9 @@ module AbstractCore
         handleWrites(); // registerTracker
 
         updateBookkeeping();
+
+            syncGlobalParamsFromRegs();
+
 
         insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops form base if csq still contains something that would be deleted
     end
@@ -421,14 +425,16 @@ module AbstractCore
 
     function automatic logic breaksCommitId(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
-        return (isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception);
+        return isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception || CurrentConfig.dbStep;
     endfunction
 
 
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.active !== 1) return;
 
-        if (lateEventInfoWaiting.cOp == CO_reset) begin            
+        if (lateEventInfoWaiting.cOp == CO_reset) begin
+            sysUnit.saveStateAsync(retiredTarget);
+          
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
@@ -443,8 +449,8 @@ module AbstractCore
             Mword sr3 = getSysReg(3);
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
            
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);            
-                         
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);
+            
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -485,14 +491,14 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception);
+                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, CurrentConfig.dbStep);
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
     endtask
 
-    
-    
+
+
     function automatic void checkUops(input InsId id);
         InstructionInfo info = insMap.get(id);
         
@@ -770,13 +776,16 @@ module AbstractCore
             syncArrayFromCregs(sysUnit.sysRegs, retiredEmul.cregs);
         endfunction
 
-        
+
         // Call every time sys regs are set
         function automatic void syncGlobalParamsFromRegs();
             CoreStatus tmpStatus;
             setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
 
-            CurrentConfig.enableMmu = tmpStatus.enableMmu;
+            CurrentConfig.enableMmu <= tmpStatus.enableMmu; // TODO: use <= assigment?
+                        // Params:
+            //CurrentConfig.enableMMU = sysRegUnit.sysRegs[10][0];
+            CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
         endfunction
 
 endmodule
