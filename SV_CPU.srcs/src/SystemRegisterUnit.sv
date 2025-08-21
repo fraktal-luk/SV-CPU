@@ -83,6 +83,8 @@ module SystemRegisterUnit();
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
             end
+            
+            // TODO: move this into async events (save retiredTarget, not adr + 4 because taken jump can be stepped!)
             CO_break: begin                  
                 sysRegs[5] = sysRegs[1];
                 sysRegs[3] = adr + 4;
@@ -90,6 +92,7 @@ module SystemRegisterUnit();
                 sysRegs[1] |= 16; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
             end
+            
             CO_retE: begin
                 sysRegs[1] = sysRegs[4];
             end
