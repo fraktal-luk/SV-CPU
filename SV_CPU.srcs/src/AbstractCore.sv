@@ -444,6 +444,12 @@ module AbstractCore
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
         end
+        else if (lateEventInfoWaiting.cOp == CO_break) begin
+            sysUnit.saveStateAsync(retiredTarget);
+            
+            retiredTarget <= IP_DB_BREAK;
+            lateEventInfo <= DB_EVENT;
+        end
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
