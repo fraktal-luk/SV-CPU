@@ -372,6 +372,7 @@ package EmulationDefs;
     typedef struct {
 
         logic send;
+        logic dbEventPending;
         
         ProgramEvent eventType;
         

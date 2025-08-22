@@ -157,6 +157,7 @@ module ArchDesc0();
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "events2");
             if (isSendingStatus(emul)) break;
             emul.drain();
+            emul.catchDbTrap();
             #DELAY;
         end
     endtask
@@ -171,6 +172,7 @@ module ArchDesc0();
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (isSendingStatus(emul)) break;
             emul.drain();
+            emul.catchDbTrap();
             #DELAY;
         end
     endtask

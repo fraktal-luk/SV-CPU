@@ -410,8 +410,7 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
-            // TODO: make sure about timing
-            dbStepOn = cregs.currentStatus.dbStep; // Check here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            status.dbEventPending = cregs.currentStatus.dbStep; // Check here because sys reg write may change it and that should take effect after "retirement" which is not yet 
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);
@@ -424,8 +423,7 @@ package Emulation;
                 endcase
             end
             
-            // TODO: dbtrap
-            catchDbTrap(dbStepOn);
+            //catchDbTrap();
             
         endfunction
 
@@ -554,8 +552,10 @@ package Emulation;
         endfunction
 
 
-        local function automatic logic catchDbTrap(input logic dbStepOn);
-            if (!dbStepOn) return 0;
+        function automatic logic catchDbTrap();
+            if (!status.dbEventPending) return 0;
+
+            status.dbEventPending = 0;
 
             performAsyncEvent(/*IP_DB_BREAK,*/ PE_EXT_DEBUG, this.coreState.target);
             syncStatusFromRegs();
