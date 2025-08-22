@@ -374,6 +374,7 @@ module AbstractCore
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
 
+        // TODO: separate DB trap so that target is not overidden by DB handler
         target = renamedEmul.coreState.target; // For insMap
 
         // Main op info
@@ -539,13 +540,15 @@ module AbstractCore
         // Normal or Exceptional
         runInEmulator(retiredEmul, info.basicData.adr, info.basicData.bits);
         retiredEmul.drain();
-    
+
         nextTrg = retiredEmul.coreState.target; // DB
-    
+
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
-        if (!info.exception && isBranchUop(decMainUop(id))) begin // DB         
+        if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
             if (retInfo.takenBranch === 1) begin
-                assert (retInfo.target === nextTrg) else $fatal(2, "MIsmatch of trg: %d, %d", retInfo.target, nextTrg);
+                // TODO: separate DB trap so that target is not overidden by DB handler
+                // If DB interrupt is triggered, target will be overridden!
+                assert (retInfo.target === nextTrg || (retiredEmul.status.eventType == PE_EXT_DEBUG && nextTrg == IP_DB_BREAK)) else $fatal(2, "MIsmatch of trg: %d, %d", retInfo.target, nextTrg);
             end
         end
     endtask
