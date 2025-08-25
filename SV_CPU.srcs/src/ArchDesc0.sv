@@ -49,7 +49,9 @@ module ArchDesc0();
         "Tests_mem_align.txt",
         "Tests_sys_transfers.txt",
         
-        "Tests_all.txt"
+        "Tests_all.txt",
+        
+        "Tests_events.txt"
     };
 
 
@@ -92,13 +94,9 @@ module ArchDesc0();
 
 
     task automatic runEmulEvents();
-        $display("Emulation event tests");
+        $display("Emulation event/int tests");
 
         emul_N.progMem.assignPage(PAGE_SIZE, common.words);
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
-
-        #DELAY runTestEmul("events", emul_N, Test_fillGpCached(), emul_N.progMem);
-
         emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
         #DELAY runIntTestEmul(emul_N);
@@ -115,10 +113,10 @@ module ArchDesc0();
         emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
-        emul.status = gp.initialCoreStatus;
         emul.programMappings = gp.preloadedInsTlbL2;
-        emul.dataMappings = gp.preloadedDataTlbL2;   
-        emul.syncRegsFromStatus();
+        emul.dataMappings = gp.preloadedDataTlbL2;
+
+        emul.initStatus(gp.initialCoreStatus);
 
         performEmul(emul);
     endtask
@@ -135,8 +133,10 @@ module ArchDesc0();
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);
         emul.programMappings = gp.preloadedInsTlbL2;
-        emul.dataMappings = gp.preloadedDataTlbL2;  
+        emul.dataMappings = gp.preloadedDataTlbL2;
 
+        emul.initStatus(gp.initialCoreStatus);
+        
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
                 emul.interrupt();
@@ -148,6 +148,7 @@ module ArchDesc0();
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", "events2");
             if (isSendingStatus(emul)) break;
             emul.drain();
+            emul.catchDbTrap();
             #DELAY;
         end
     endtask
@@ -162,6 +163,7 @@ module ArchDesc0();
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
             if (isSendingStatus(emul)) break;
             emul.drain();
+            emul.catchDbTrap();
             #DELAY;
         end
     endtask
@@ -283,11 +285,9 @@ module ArchDesc0();
         thisProgMem.assignPage(PAGE_SIZE, common.words);
 
         startSim(); // Pulse reset to flush old mem content from pipeline
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());//TESTED_CALL_SECTION));//, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-        #CYCLE $display("Event tests");
-
-        runTestSim("events", Test_fillGpCached(), thisProgMem);
+        #CYCLE $display("Event/int tests");
 
         runIntTestSim(Test_fillGpCached(), thisProgMem);
     endtask
@@ -298,9 +298,6 @@ module ArchDesc0();
         EmulRunner emRunner = new();
         TestRunner trSim = runner;
         TestRunner trEm = emRunner;        
-        
-        
-            TMP_tst();
         
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
@@ -324,10 +321,6 @@ module ArchDesc0();
 
     initial simMain();
 
-
-        task automatic TMP_tst();
-            CpuControlRegisters cregs;
-        endtask
 
 
     /*

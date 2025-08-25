@@ -88,7 +88,10 @@ package InsDefs;
     import Base::*;
 
     //typedef Word Mword;
-        typedef Dword Mword;
+    typedef Dword Mword;
+
+    localparam int MWORD_SIZE = $size(Mword);
+
 
     function automatic Mword w2m(Word w);
         return $signed(w);
@@ -111,6 +114,7 @@ package InsDefs;
     localparam Mword IP_FETCH_EXC = HANDLER_BASE + 'h00000380;
     localparam Mword IP_MEM_EXC   = HANDLER_BASE + 'h00000400;
     localparam Mword IP_DB_CALL   = HANDLER_BASE + 'h00000480;
+    localparam Mword IP_DB_BREAK  = HANDLER_BASE + 'h00000500;
 
 
 
@@ -529,9 +533,9 @@ package InsDefs;
     3: interrupt adr
     4: exc saved status
     5: int saved status
-    6: syndrome?
-    7: exc mem access
-    8: 
+    6: exc syndrome?
+    7: int syndrome>     
+    8:   exc mem access
     9: FP status
     a: mem control
     b: page table base 0

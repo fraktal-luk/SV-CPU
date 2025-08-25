@@ -1,0 +1,73 @@
+$start
+	;jz_i r0, $check ;
+
+	add_i r1, r0, 0 ; counter
+
+
+	; set address of dbstep handler
+	ja $sethandler
+$tmp
+	; Now $stephandler is in r30
+
+	
+	add_i r10, r0, 22
+	add_i r11, r0, 23
+	
+	
+	
+	ja $getstartadr
+$donestartadr
+	sts r3, r0, 3
+	sys_sync
+	ja $setdbstep
+
+
+$getstartadr
+	jl r3, $donestartadr
+$startstep
+	add_i r10, r10, 1			; ctr to 1
+	jz_i r2, $endforbidden      ; ctr to 2
+$forbidden
+	ja $error
+	ja $error
+$endforbidden
+	add_i r12, r0, 99           ; ctr to 3
+	add_i r12, r12, 2            ; ctr to 4
+$error
+	sys_error
+$check
+	jl r31, $sendSignal ; sys send
+	ja 0				; infinite loop
+
+
+$sethandler
+	jl r30, $tmp
+$stephandler
+	; inc counter
+	add_i r1, r1, 1
+
+	; assert r10 == r11
+	sub_r r20, r10, r11
+	jnz_i r20, $error
+	
+		 ; ja $check
+
+	
+	; if r12 == 101, stop stepping
+	add_i r20, r12, -101
+	jnz_i  r20, $return
+	
+		; ja $check
+	
+	; if it's time to end stepping, counter must be 4
+	add_i r20, r1, -4
+	jnz_i r20, $error
+	ja $check
+
+
+$setdbstep
+	lds r5, r0, 5
+	add_h r5, r5, 0x16
+	sts r5, r0, 5
+$return
+	sys_reti

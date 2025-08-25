@@ -18,7 +18,7 @@ package Testing;
 
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
 
-    const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
+    //const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
     const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
     
     const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
@@ -33,6 +33,8 @@ package Testing;
 
     const string DEFAULT_DB_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
 
+    const string DEFAULT_DBBREAK_HANDLER[$]  = {"jz_r r0, r0, r30", "ja 0", "sys_error"};
+
 
 
 
@@ -40,7 +42,7 @@ package Testing;
 
     const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
 
-    const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
+    //const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
     const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
 
     const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
@@ -49,6 +51,8 @@ package Testing;
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
     const Section DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
+
+    const Section DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
 
 
 
@@ -68,7 +72,8 @@ package Testing;
                               input Section callSec,
                               input Section intSec,
                               input Section excSec,
-                              input Section dbSec);
+                              input Section dbSec,
+                              input Section dbBreakSec);
         mem = '{default: 'x};
 
         //writeProgram(mem, 0, testSec.words);
@@ -79,6 +84,7 @@ package Testing;
         writeProgram(mem, IP_INT % PAGE_SIZE, intSec.words);
         writeProgram(mem, IP_EXC % PAGE_SIZE, excSec.words);
         writeProgram(mem, IP_DB_CALL % PAGE_SIZE, dbSec.words);
+        writeProgram(mem, IP_DB_BREAK % PAGE_SIZE, dbBreakSec.words);
     endfunction
 
 
@@ -114,7 +120,7 @@ package Testing;
 
     function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
         WordArray mem = new [PAGE_SIZE/4];
-        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, DEFAULT_DB_SECTION);
+        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION);
         return mem;
     endfunction
 

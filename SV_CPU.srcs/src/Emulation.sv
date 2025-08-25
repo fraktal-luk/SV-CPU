@@ -2,6 +2,7 @@
 package Emulation;
     import Base::*;
     import InsDefs::*;
+    import ControlRegisters::*;
     import Asm::*;
     import EmulationDefs::*;
     import EmulationMemories::*;
@@ -12,7 +13,7 @@ package Emulation;
         Mword target;
     } CpuState;
 
-    const Mword SYS_REGS_INITIAL[32] = '{0: -1, default: 0};
+    const Mword SYS_REGS_INITIAL[32] = '{0: -1, 1: 1, default: 0};
 
 
     function automatic CpuState initialState(input Mword trg);
@@ -45,6 +46,7 @@ package Emulation;
     
 
     function automatic void writeSysReg(ref CpuState state, input int regNum, input Mword value);
+        // SR_SET
         state.sysRegs[regNum] = value;        
     endfunction
 
@@ -95,7 +97,9 @@ package Emulation;
     class Emulator;
         Mword ip;
         CoreStatus status;
-            
+        
+        CpuControlRegisters cregs;
+        
         CpuState coreState;
         
         // For now there are separate maps for program and data
@@ -111,6 +115,7 @@ package Emulation;
             
             res.ip = ip;
             res.status = status;
+            res.cregs = cregs;
             res.coreState = coreState;
 
             res.programMappings = programMappings;
@@ -125,6 +130,7 @@ package Emulation;
         function automatic void setLike(input Emulator other);
             ip = other.ip;
             status = other.status;
+            cregs = other.cregs;
             coreState = other.coreState;
 
             programMappings = other.programMappings;
@@ -140,8 +146,10 @@ package Emulation;
             this.status = DEFAULT_CORE_STATUS;//'{eventType: PE_NONE, default: 0};
 
             this.coreState = initialState(IP_RESET);
-                
-                syncRegsFromStatus();
+                    
+            syncRegsFromStatus();
+
+            syncCregsFromSysRegs();
 
             this.programMappings.delete();
             this.dataMappings.delete();
@@ -167,11 +175,18 @@ package Emulation;
         endfunction
 
 
+        function automatic void syncCregsFromSysRegs();
+            syncCregsFromArray(cregs, coreState.sysRegs);
+        endfunction
+
+        function automatic void syncSysRegsFromCregs();
+            syncArrayFromCregs(coreState.sysRegs, cregs);
+        endfunction
 
         function automatic Translation translateProgramAddress(input Mword vadr);
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
 
-            if (!status.enableMmu) begin
+            if (!cregs.memControl.enableMMU) begin
                 return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
@@ -184,7 +199,7 @@ package Emulation;
         function automatic Translation translateDataAddress(input Mword vadr);
             Translation foundTr[$] = dataMappings.find with (item.vadr == getPageBaseM(vadr));
 
-            if (!status.enableMmu) begin
+            if (!cregs.memControl.enableMMU) begin
                 return '{present: 1, vadr: vadr, desc: '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0}, padr: vadr};
             end
             else if (foundTr.size() == 0) begin
@@ -238,63 +253,69 @@ package Emulation;
             return result;
         endfunction
 
+    
+        function automatic void performAsyncEvent(/*input Mword trg,*/ input ProgramEvent evType, input Mword prevTarget);            
+            Mword trg = programEvent2trg(evType);
 
-    
-        function automatic void saveStateForExc(ref CpuState state, input Mword adr);
-            state.sysRegs[4] = state.sysRegs[1];
-            state.sysRegs[2] = adr;
-        endfunction
-     
-         function automatic void saveStateForInt(ref CpuState state, input Mword adr);
-            state.sysRegs[5] = state.sysRegs[1];
-            state.sysRegs[3] = adr;
-        endfunction
-     
-    
-        function automatic void performAsyncEvent(ref CpuState state, input Mword trg, input Mword prevTarget);
-            status.eventType = PE_EXT_INTERRUPT; //?
-                state.sysRegs[6] = status.eventType;
-            
-            saveStateForInt(state, prevTarget);
-                syncStatusFromRegs();
+            // SR_SET
+            cregs.intSavedIP = prevTarget;
+            cregs.intSavedStatus = cregs.currentStatus;
 
-            state.target = trg;
-            state.sysRegs[1] |= 2; // FUTURE: handle state register correctly
+            cregs.currentStatus.intLevel |= 1;
+            cregs.currentStatus.dbStep = 0;
+
+            cregs.intSyndrome = evType;
+                cregs.excSyndrome = evType; // TODO: temporary
+
+            syncSysRegsFromCregs();
+                     
+            coreState.target = trg;
         endfunction
-    
+
+
         function automatic void setExecState(input ProgramEvent evType, input Mword adr);
             Mword trg = programEvent2trg(evType);
-            status.eventType = evType;
-            coreState.sysRegs[6] = status.eventType;                
-                
-            saveStateForExc(coreState, adr);
             
+            // SR_SET
+            cregs.excSavedIP = adr;
+            cregs.excSavedStatus = cregs.currentStatus;
+
+            cregs.currentStatus.excLevel |= 1;
+            cregs.currentStatus.dbStep = 0;
+            
+            cregs.excSyndrome = evType;
+
+            syncSysRegsFromCregs();
+          
             coreState.target = trg;        
-            coreState.sysRegs[1] |= 1; // FUTURE: handle state register correctly
         endfunction
 
     
-        function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
+        function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);            
+            
+            // SR_SET
             case (abs.def.o)
                 O_error: begin
-                    setExecState(PE_SYS_ERROR, ip);            
+                    setExecState(PE_SYS_ERROR, adr);            
                 end
                 O_undef: begin
-                    setExecState(PE_SYS_UNDEFINED_INSTRUCTION, ip);
+                    setExecState(PE_SYS_UNDEFINED_INSTRUCTION, adr);
                 end
                 O_call: begin
-                    setExecState(PE_SYS_CALL, ip + 4);
+                    setExecState(PE_SYS_CALL, adr + 4);
                 end
                 O_dbcall: begin
-                    setExecState(PE_SYS_DBCALL, ip + 4);
+                    setExecState(PE_SYS_DBCALL, adr + 4);
                 end
                 O_retE: begin
-                    state.target = state.sysRegs[2];
-                    state.sysRegs[1] = state.sysRegs[4];
+                    state.target = cregs.excSavedIP;
+                    cregs.currentStatus = cregs.excSavedStatus;
+                    syncSysRegsFromCregs();
                 end
                 O_retI: begin
-                    state.target = state.sysRegs[3];
-                    state.sysRegs[1] = state.sysRegs[5];
+                    state.target = cregs.intSavedIP;
+                    cregs.currentStatus = cregs.intSavedStatus;
+                    syncSysRegsFromCregs();
                 end
                 O_replay: begin
                     state.target = adr;
@@ -370,6 +391,7 @@ package Emulation;
 
 
         function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
+            logic dbStepOn = 0;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
             MemoryWrite writeToDo = '{default: 0};
@@ -388,6 +410,8 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
+            status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            
             if (isSysIns(ins))
                 performSys(adr, ins, args);
             
@@ -398,7 +422,9 @@ package Emulation;
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end
-
+            
+            //catchDbTrap();
+            
         endfunction
 
 
@@ -424,12 +450,16 @@ package Emulation;
                 if (catchSysAccessException(ins, vals[1])) return;
                 
                 writeSysReg(coreState, vals[1], vals[2]);
+                
+                syncCregsFromSysRegs();
+
+                syncStatusFromRegs();
             end
             else begin
-                modifySysRegs(this.coreState, adr, ins);
+                modifySysRegs(coreState, adr, ins);
+                syncStatusFromRegs();
             end
             
-            syncStatusFromRegs();
         endfunction
         
         // Return 1 if exception
@@ -499,7 +529,7 @@ package Emulation;
             ProgramEvent evt = PE_NONE;
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
-            if (!virtualAddressValid_T(vadr))
+            if (!virtualAddressValid(vadr))
                 evt = PE_MEM_INVALID_ADDRESS;
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
@@ -522,16 +552,27 @@ package Emulation;
         endfunction
 
 
+        function automatic logic catchDbTrap();
+            if (!status.dbEventPending) return 0;
+
+            status.dbEventPending = 0;
+
+            performAsyncEvent(/*IP_DB_BREAK,*/ PE_EXT_DEBUG, this.coreState.target);
+            syncStatusFromRegs();
+            return 1;
+        endfunction
+
+
         function automatic void interrupt();
-            status.eventType = PE_EXT_INTERRUPT;
-                coreState.sysRegs[6] = status.eventType;
-            performAsyncEvent(this.coreState, IP_INT, this.coreState.target);
+            performAsyncEvent(/*IP_INT,*/ PE_EXT_INTERRUPT, this.coreState.target);
+            
+            syncStatusFromRegs();
         endfunction
 
         function automatic void resetSignal();
-            status.eventType = PE_EXT_RESET;
-                coreState.sysRegs[6] = status.eventType;
-            performAsyncEvent(this.coreState, IP_RESET, this.coreState.target);
+            performAsyncEvent(/*IP_RESET,*/ PE_EXT_RESET, this.coreState.target);
+            
+            syncStatusFromRegs();
         endfunction        
 
 
@@ -580,6 +621,13 @@ package Emulation;
         function automatic void DB_enableMmu();
             status.enableMmu = 1;
             status.memControl = 7;
+        endfunction
+        
+        
+        function automatic void initStatus(input CoreStatus cs);
+            status = cs;
+            syncRegsFromStatus();
+            syncCregsFromSysRegs();
         endfunction
         
     endclass

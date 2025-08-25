@@ -7,11 +7,12 @@ package EmulationDefs;
 
     localparam int V_INDEX_BITS = 12;
 
-    // TODO: change to dependent on Mword size?
-    localparam Mword VADR_LIMIT_LOW =  'h0000000001000000;
-    localparam Mword VADR_LIMIT_HIGH = 'hffffffffff000000;
 
-    localparam Dword PADR_LIMIT = 'h10000000000; // TODO: ???
+    //                            byte:  7766554433221100    
+    localparam Mword VADR_LIMIT_LOW =  'h0001000000000000;  // 48b range 
+    localparam Mword VADR_LIMIT_HIGH = 'hffff000000000000;
+
+    localparam Dword PADR_LIMIT = 'h10000000000; // 40b range 
 
 
     // Architectural defs:
@@ -53,9 +54,9 @@ package EmulationDefs;
 
     function automatic Mword programEvent2trg(input ProgramEvent evType);
         case (evType) inside
-            [PE_FETCH_INVALID_ADDRESS:PE_FETCH_NONEXISTENT_ADDRESS]:
+            [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS]:
                 return IP_FETCH_EXC;
-            [PE_MEM_INVALID_ADDRESS:PE_MEM_NONEXISTENT_ADDRESS]:
+            [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS]:
                 return IP_MEM_EXC;
                 
             PE_SYS_INVALID_ADDRESS:
@@ -69,7 +70,17 @@ package EmulationDefs;
 
             PE_SYS_DBCALL:
                 return IP_DB_CALL;
-                                
+
+
+            PE_EXT_DEBUG:
+                return IP_DB_BREAK;
+
+            PE_EXT_INTERRUPT:
+                return IP_INT;
+
+            PE_EXT_RESET:
+                return IP_RESET;
+                
             default: return 'x;
         endcase
     endfunction
@@ -92,11 +103,7 @@ package EmulationDefs;
     function automatic logic physicalAddressValid(input Dword padr);
         return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
     endfunction
-        
-        // TODO: for data access temporarily no range check because tests are not conforming
-        function automatic logic virtualAddressValid_T(input Mword vadr);
-            return !$isunknown(vadr);// && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
-        endfunction
+
 
     function automatic Dword getPageBaseD(input Dword adr);
         Dword res = adr;
@@ -362,6 +369,7 @@ package EmulationDefs;
     typedef struct {
 
         logic send;
+        logic dbEventPending;
         
         ProgramEvent eventType;
         

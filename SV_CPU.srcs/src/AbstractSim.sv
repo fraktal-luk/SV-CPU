@@ -168,6 +168,7 @@ package AbstractSim;
     localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  0, 'x, 'x};
     localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, 1, 'x, IP_RESET};
     localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   1, 'x, IP_INT};
+    localparam EventInfo DB_EVENT =         '{1, -1, CO_break, 1, 'x, IP_DB_BREAK};
 
     typedef struct {
         int iqRegular;
