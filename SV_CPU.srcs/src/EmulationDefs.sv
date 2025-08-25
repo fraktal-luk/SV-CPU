@@ -7,11 +7,12 @@ package EmulationDefs;
 
     localparam int V_INDEX_BITS = 12;
 
-    // TODO: change to dependent on Mword size?
-    localparam Mword VADR_LIMIT_LOW =  'h0000000001000000;
-    localparam Mword VADR_LIMIT_HIGH = 'hffffffffff000000;
 
-    localparam Dword PADR_LIMIT = 'h10000000000; // TODO: ???
+    //                            byte:  7766554433221100    
+    localparam Mword VADR_LIMIT_LOW =  'h0001000000000000;  // 48b range 
+    localparam Mword VADR_LIMIT_HIGH = 'hffff000000000000;
+
+    localparam Dword PADR_LIMIT = 'h10000000000; // 40b range 
 
 
     // Architectural defs:

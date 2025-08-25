@@ -88,7 +88,10 @@ package InsDefs;
     import Base::*;
 
     //typedef Word Mword;
-        typedef Dword Mword;
+    typedef Dword Mword;
+
+    localparam int MWORD_SIZE = $size(Mword);
+
 
     function automatic Mword w2m(Word w);
         return $signed(w);

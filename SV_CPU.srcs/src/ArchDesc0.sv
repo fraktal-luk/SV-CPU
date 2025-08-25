@@ -99,10 +99,6 @@ module ArchDesc0();
         emul_N.progMem.assignPage(PAGE_SIZE, common.words);
         emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-       // #DELAY runTestEmul("events", emul_N, Test_fillGpCached(), emul_N.progMem);
-
-       // emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
-
         #DELAY runIntTestEmul(emul_N);
         #DELAY;
     endtask
@@ -294,11 +290,9 @@ module ArchDesc0();
         thisProgMem.assignPage(PAGE_SIZE, common.words);
 
         startSim(); // Pulse reset to flush old mem content from pipeline
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());//TESTED_CALL_SECTION));//, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
         #CYCLE $display("Event/int tests");
-
-       // runTestSim("events", Test_fillGpCached(), thisProgMem);
 
         runIntTestSim(Test_fillGpCached(), thisProgMem);
     endtask
@@ -309,9 +303,6 @@ module ArchDesc0();
         EmulRunner emRunner = new();
         TestRunner trSim = runner;
         TestRunner trEm = emRunner;        
-        
-        
-            TMP_tst();
         
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
@@ -335,10 +326,6 @@ module ArchDesc0();
 
     initial simMain();
 
-        // TODO: remove when referenced somewhere else
-        task automatic TMP_tst();
-            CpuControlRegisters cregs;
-        endtask
 
 
     /*

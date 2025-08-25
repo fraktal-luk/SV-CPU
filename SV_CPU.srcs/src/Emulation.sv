@@ -410,7 +410,7 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
-            status.dbEventPending = cregs.currentStatus.dbStep; // Check here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);

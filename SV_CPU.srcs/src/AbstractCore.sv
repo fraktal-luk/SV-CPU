@@ -162,8 +162,8 @@ module AbstractCore
 
         updateBookkeeping();
 
-            syncGlobalParamsFromRegs();
-
+        
+        syncGlobalParamsFromRegs();
 
         insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops form base if csq still contains something that would be deleted
     end
@@ -374,10 +374,9 @@ module AbstractCore
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
 
-        // TODO: separate DB trap so that target is not overidden by DB handler
         target = renamedEmul.coreState.target; // For insMap
 
-            renamedEmul.catchDbTrap();
+        renamedEmul.catchDbTrap();
 
         // Main op info
         ii.mainUop = uopName;
@@ -545,15 +544,12 @@ module AbstractCore
 
         nextTrg = retiredEmul.coreState.target; // DB
 
-            retiredEmul.catchDbTrap();
+        retiredEmul.catchDbTrap();
 
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
         if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
             if (retInfo.takenBranch === 1) begin
-                // TODO: separate DB trap so that target is not overidden by DB handler
-                // If DB interrupt is triggered, target will be overridden!
-                assert (retInfo.target === nextTrg)// || (retiredEmul.status.eventType == PE_EXT_DEBUG && nextTrg == IP_DB_BREAK))
-                    else $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
+                assert (retInfo.target === nextTrg) else $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
             end
         end
     endtask
@@ -796,9 +792,7 @@ module AbstractCore
             CoreStatus tmpStatus;
             setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
 
-            CurrentConfig.enableMmu <= tmpStatus.enableMmu; // TODO: use <= assigment?
-                        // Params:
-            //CurrentConfig.enableMMU = sysRegUnit.sysRegs[10][0];
+            CurrentConfig.enableMmu <= tmpStatus.enableMmu;
             CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
         endfunction
 
