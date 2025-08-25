@@ -757,16 +757,9 @@ module AbstractCore
 
 
     task automatic preloadForTest();
-        
-        // TODO: function in Emulator to do the 3 things below
-        retiredEmul.status = globalParams.initialCoreStatus;
-        retiredEmul.syncRegsFromStatus();
-        retiredEmul.syncCregsFromSysRegs();
-        
-        renamedEmul.status = globalParams.initialCoreStatus;
-        renamedEmul.syncRegsFromStatus();
-        renamedEmul.syncCregsFromSysRegs();
 
+        retiredEmul.initStatus(globalParams.initialCoreStatus);
+        renamedEmul.initStatus(globalParams.initialCoreStatus);
 
         syncRegsFromStatus();
         syncGlobalParamsFromRegs();

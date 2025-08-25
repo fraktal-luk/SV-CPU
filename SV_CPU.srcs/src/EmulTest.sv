@@ -89,7 +89,7 @@ module EmulTest();
     task automatic testMem();
 
 //        PE_MEM_INVALID_ADDRESS = 3*16 + 0,
-      //  test_MEM_INVALID();  // TODO: when adr ranges are fixed
+        test_MEM_INVALID();
 //        PE_MEM_UNALIGNED_ADDRESS = 3*16 + 1, // when crossing blocks/pages
 //        PE_MEM_TLB_MISS = 3*16 + 2, // HW
 //        PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
@@ -315,17 +315,27 @@ module EmulTest();
 
 
     task automatic test_MEM_INVALID();
-//        emul.resetCoreAndMappings();
+        emul.resetCoreAndMappings();
+
+        emul.DB_enableMmu();
+        emul.syncRegsFromStatus();
+        emul.syncCregsFromSysRegs();
      
-//        emul.coreState.target = 0;
-//        emul.progMem.writePage(0, '{0: asm("l 0")});
+        emul.coreState.target = 0;
+        emul.progMem.writePage(0, '{0: asm("add_i r30, r0, -1"),
+                                    1: asm("shl_i r31, r30, 60"),
+                                    2: asm("ldi_i r10, r31, 0")
+                                    }
+        );
 
-//        emul.programMappings.push_back('{0, 0,  1, 1, 1, 1});
+            emul.programMappings.push_back(DEFAULT_PAGE0);
 
-//        emul.executeStep();
+        emul.executeStep();
+        emul.executeStep();
+        emul.executeStep();
 
-//        // Check
-//        check(emul, PE_NONE, 0, "mem invalid");
+        // Check
+        check(emul, PE_MEM_INVALID_ADDRESS, IP_MEM_EXC, "mem invalid");
     endtask
 
     task automatic test_MEM_UNMAPPED();

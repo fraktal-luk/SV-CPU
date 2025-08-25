@@ -103,11 +103,7 @@ package EmulationDefs;
     function automatic logic physicalAddressValid(input Dword padr);
         return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
     endfunction
-        
-        // TODO: for data access temporarily no range check because tests are not conforming
-        function automatic logic virtualAddressValid_T(input Mword vadr);
-            return !$isunknown(vadr);// && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
-        endfunction
+
 
     function automatic Dword getPageBaseD(input Dword adr);
         Dword res = adr;

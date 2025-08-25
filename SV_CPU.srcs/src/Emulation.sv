@@ -529,7 +529,7 @@ package Emulation;
             ProgramEvent evt = PE_NONE;
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
-            if (!virtualAddressValid_T(vadr))
+            if (!virtualAddressValid(vadr))
                 evt = PE_MEM_INVALID_ADDRESS;
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
@@ -621,6 +621,13 @@ package Emulation;
         function automatic void DB_enableMmu();
             status.enableMmu = 1;
             status.memControl = 7;
+        endfunction
+        
+        
+        function automatic void initStatus(input CoreStatus cs);
+            status = cs;
+            syncRegsFromStatus();
+            syncCregsFromSysRegs();
         endfunction
         
     endclass

@@ -113,13 +113,10 @@ module ArchDesc0();
         emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
-        emul.status = gp.initialCoreStatus;
         emul.programMappings = gp.preloadedInsTlbL2;
-        emul.dataMappings = gp.preloadedDataTlbL2;   
+        emul.dataMappings = gp.preloadedDataTlbL2;
 
-        // TODO: like the comment in AbstractCore
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+        emul.initStatus(gp.initialCoreStatus);
 
         performEmul(emul);
     endtask
@@ -136,11 +133,9 @@ module ArchDesc0();
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);
         emul.programMappings = gp.preloadedInsTlbL2;
-        emul.dataMappings = gp.preloadedDataTlbL2;  
-        
-        // TODO: like the comment in AbstractCore
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+        emul.dataMappings = gp.preloadedDataTlbL2;
+
+        emul.initStatus(gp.initialCoreStatus);
         
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
