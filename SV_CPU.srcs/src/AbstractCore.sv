@@ -172,9 +172,13 @@ module AbstractCore
     task automatic handleWrites();
         writeResult(theExecBlock.doneRegular0_E);
         writeResult(theExecBlock.doneRegular1_E);
+
+        writeResult(theExecBlock.doneBranch_E);
+        writeResult(theExecBlock.doneDivider_E);
+
         writeResult(theExecBlock.doneFloat0_E);
         writeResult(theExecBlock.doneFloat1_E);
-        writeResult(theExecBlock.doneBranch_E);
+
         writeResult(theExecBlock.doneMem0_E);
         writeResult(theExecBlock.doneMem2_E);
         writeResult(theExecBlock.doneStoreData_E);

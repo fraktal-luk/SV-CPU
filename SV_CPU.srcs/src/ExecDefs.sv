@@ -89,6 +89,7 @@ package ExecDefs;
     typedef struct {
         TMP_Uop regular[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
+        TMP_Uop divider[RENAME_WIDTH];
         TMP_Uop float[RENAME_WIDTH];
         TMP_Uop mem[RENAME_WIDTH];
         TMP_Uop storeData[RENAME_WIDTH];
@@ -97,6 +98,7 @@ package ExecDefs;
     localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
         regular: '{default: TMP_UOP_NONE},
         branch: '{default: TMP_UOP_NONE},
+        divider: '{default: TMP_UOP_NONE},
         float: '{default: TMP_UOP_NONE},
         mem: '{default: TMP_UOP_NONE},
         storeData: '{default: TMP_UOP_NONE}

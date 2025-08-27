@@ -388,6 +388,7 @@ module IssueQueueComplex(
                 else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
                 else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
+                else if (isIntDividerUop(uname)) res.divider[i] = '{1, uid};
                 else res.regular[i] = '{1, uid};
             end
         end
@@ -399,6 +400,7 @@ module IssueQueueComplex(
     RoutedUops routedUops;
     
     UopPacket issuedRegularP[2];
+    UopPacket issuedDividerP[1];
     UopPacket issuedBranchP[1];
     UopPacket issuedFloatP[2];
     UopPacket issuedMemP[1];
@@ -410,8 +412,13 @@ module IssueQueueComplex(
 
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
                                             issuedRegularP);
+
+    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.divider, '1,
+                                            issuedDividerP);                                            
+                                            
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,
                                             issuedBranchP);
+                                            
     IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, routedUops.float, '1,
                                             issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
