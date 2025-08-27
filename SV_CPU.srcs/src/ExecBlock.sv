@@ -88,7 +88,7 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
     // Int 3
-    RegularSubpipe divider(
+    DividerSubpipe divider(
         insMap,
         branchEventInfo,
         lateEventInfo,
