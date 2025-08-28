@@ -35,11 +35,17 @@ module IssueQueue
 
     typedef UopPacket OutGroupP[OUT_WIDTH];
  
-
+    typedef IqEntry InputArray[RENAME_WIDTH];
+    
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
+        InputArray inputArray = '{default: EMPTY_ENTRY};
 
     ReadyQueue  rfq_perSlot;
+    ReadyQueue  rfq_perSlot_Input;
     ReadyQueue3 forwardStates, rq_perArg, fq_perArg, rfq_perArg;
+    ReadyQueue3 rq_perArg_Input, fq_perArg_Input, rfq_perArg_Input;
+
+        logic forwardInputStates[RENAME_WIDTH][3];
 
     typedef logic ReadyArray[TOTAL_SIZE];
     typedef logic ReadyArray3[TOTAL_SIZE][3];
@@ -52,15 +58,22 @@ module IssueQueue
         
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
+    typedef Wakeup WakeupMatrixD[][3];
+
+    typedef Wakeup WakeupInputMatrix[RENAME_WIDTH][3];
 
     WakeupMatrix wMatrix, wMatrixVar;
-
+        WakeupInputMatrix wiMatrix, wiMatrixVar;
 
     assign outPackets = effA(pIssued0);
 
-    always_comb wMatrix = getForwards(array);
-    always_comb forwardStates = fwFromWups(wMatrix, getIdQueue(array));
+        always_comb inputArray = makeInputArray(inGroupU); 
 
+    always_comb wMatrix = getForwardsD(array);
+    always_comb forwardStates = fwFromWupsD(wMatrix, getIdQueue(array));
+
+        always_comb wiMatrix = getForwardsD(inputArray);
+        always_comb forwardInputStates = fwFromWupsD(wiMatrix, getIdQueue(inputArray));
     
     typedef struct {
         UidT uid;
@@ -70,14 +83,17 @@ module IssueQueue
         logic3 registers;
         logic3 bypasses;
         logic3 combined;
+        logic3 prevReady;
+        Poison poisons[3];
         logic all;
     } ReadinessInfo;
 
-    
+
     ReadinessInfo readiness[TOTAL_SIZE],  readinessVar[TOTAL_SIZE];
+        ReadinessInfo readinessInput[RENAME_WIDTH], readinessInputVar[RENAME_WIDTH];
     typedef ReadinessInfo ReadinessInfoArr[TOTAL_SIZE];
 
-    function automatic ReadinessInfo getReadinessInfo(input IqEntry entry, input logic3 fwState);
+    function automatic ReadinessInfo getReadinessInfo(input IqEntry entry, input Wakeup3 wup, input logic3 fwState);
         ReadinessInfo res;
         
         res.uid = entry.uid;
@@ -91,9 +107,13 @@ module IssueQueue
         res.registers = TMP_getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = fwState;
         
+        res.prevReady = entry.state.readyArgs; // CAREFUL: entry.state.readyArgs should be set with nonblocking (we're interested in prev cycle, use $past()?)
+        
         foreach (res.combined[i]) res.combined[i] = res.registers[i] || res.bypasses[i];
         
         res.all = res.combined.and();
+        
+        foreach (res.poisons[i]) res.poisons[i] = wup[i].poison;
         
         return res;
     endfunction
@@ -102,13 +122,14 @@ module IssueQueue
         ReadinessInfoArr res;
         
         foreach (res[i])
-            res[i] = getReadinessInfo(array[i], forwardStates[i]);
+            res[i] = getReadinessInfo(array[i], wMatrix[i], forwardStates[i]);
             
         return res;
     endfunction
 
 
     always_comb readiness = getReadinessArr();
+        //always_comb readinessInput = getReadinessArr();
 
     generate
         logic opsReady[TOTAL_SIZE];
@@ -129,9 +150,16 @@ module IssueQueue
         rfq_perArg  = unifyReadyAndForwardsQ(rq_perArg, fq_perArg);   // module var
         rfq_perSlot = makeReadyQueue(rfq_perArg);                     // module var
 
+            rq_perArg_Input = getReadyRegisterArgsQueue3(insMap, getIdQueue(inputArray));// module var
+    
+            fq_perArg_Input = forwardStates;                                    // module var
+            rfq_perArg_Input  = unifyReadyAndForwardsQ(rq_perArg_Input, fq_perArg_Input);   // module var
+            rfq_perSlot_Input = makeReadyQueue(rfq_perArg_Input);                     // module var
+
+
 
         wMatrixVar = wMatrix; // for DB                               // module var
-
+            wiMatrixVar = wiMatrix;
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flushIq();
@@ -140,9 +168,11 @@ module IssueQueue
         updateWakeups();    // rfq_perArg, wMatrixVar
 
             readinessVar = readiness;
-
+                readinessInputVar = readinessInput;
 
         issue();
+
+        updateWakeups_Part2();
 
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
@@ -163,6 +193,10 @@ module IssueQueue
             if (array[i].used) updateReadyBits(array[i], rfq_perArg[i], wMatrixVar[i], theExecBlock.memImagesTr[0]);
     endtask
 
+    task automatic updateWakeups_Part2();
+        foreach (array[i])
+            if (array[i].used) updateReadyBits_Part2(array[i], rfq_perArg[i], wMatrixVar[i], theExecBlock.memImagesTr[0]);
+    endtask
 
     task automatic issue();
         UidQueueT validIds = getArrOpsToIssue();
@@ -221,7 +255,7 @@ module IssueQueue
             int found[$] = array.find_first_index with (item.uid == theId);
             int s = found[0];
             
-            Poison newPoison = mergePoisons(array[s].poisons.poisoned);
+            Poison newPoison = mergePoisons(array[s].poisons.poisoned); // Entry tr rd (transient is read)
             UopPacket newPacket = '{1, theId, ES_OK, newPoison, 'x};
 
             pIssued0[i] <= tickP(newPacket);
@@ -231,8 +265,8 @@ module IssueQueue
 
             putMilestone(theId, InstructionMap::IqIssue);
   
-            array[s].active = 0;
-            array[s].issueCounter = 0;
+            array[s].active = 0;         // Entry upd
+            array[s].issueCounter = 0;   // Entry upd
         end
     endtask
 
@@ -248,10 +282,21 @@ module IssueQueue
                 putMilestone(array[s].uid, InstructionMap::IqExit);
                                 
                 assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
-                array[s] = EMPTY_ENTRY;
+                array[s] = EMPTY_ENTRY;  // Entry upd
             end
         end
     endtask
+
+
+    function automatic IqEntry makeIqEntry(input TMP_Uop inUop);
+        return inUop.active ? '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop.uid} : EMPTY_ENTRY;
+    endfunction
+
+    function automatic InputArray makeInputArray(input TMP_Uop inUops[RENAME_WIDTH]);
+        InputArray res = '{default: EMPTY_ENTRY};
+        foreach (res[i]) res[i] = makeIqEntry(inUops[i]);
+        return res;
+    endfunction
 
 
     task automatic writeInput();
@@ -262,11 +307,17 @@ module IssueQueue
             if (inGroupU[i].active) begin
                 int location = locs[nInserted];
                 UidT uid = inGroupU[i].uid;
-                                
-                array[location] = '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: uid};
+
+                array[location] = makeIqEntry(inGroupU[i]);//'{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: uid};  // Entry upd
+                
+                    
+                
                 putMilestone(uid, InstructionMap::IqEnter);
 
                 nInserted++;          
+                        
+                     //   updateReadyBits(array[location], rfq_perArg_Input[i], wiMatrixVar[i], theExecBlock.memImagesTr[0]);
+
             end
         end
     endtask
@@ -280,7 +331,7 @@ module IssueQueue
     task automatic flushOpQueueAll();
         foreach (array[i]) begin
             if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
-            array[i] = EMPTY_ENTRY;
+            array[i] = EMPTY_ENTRY;  // Entry upd
         end
     endtask
 
@@ -288,7 +339,7 @@ module IssueQueue
         foreach (array[i]) begin
             if (U2M(array[i].uid) > id) begin
                 if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
-                array[i] = EMPTY_ENTRY;
+                array[i] = EMPTY_ENTRY;  // Entry upd
             end
         end
     endtask
@@ -306,28 +357,54 @@ module IssueQueue
 
     function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3], input ForwardingElement memStage0[N_MEM_PORTS]);                
         foreach (ready3[a]) begin
-            if (ready3[a] && !entry.state.readyArgs[a]) begin // handle wakeup
+            if (ready3[a] && !entry.state.readyArgs[a]) begin // Entry tr rd? (only for DB?)
                 setArgReady(entry, a, wup[a]);
             end
         end
 
-        if (entry.state.readyArgs.and()) begin
+        if (entry.state.readyArgs.and()) begin // Entry tr rd? (only DB)
             if (!entry.state.ready) putMilestone(entry.uid, InstructionMap::IqWakeupComplete);
-            entry.state.ready = 1;
+            entry.state.ready = 1;  // Entry upd
         end
-        
-        
+    endfunction    
+
+    function automatic void updateReadyBits_Part2(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3], input ForwardingElement memStage0[N_MEM_PORTS]);
         foreach (ready3[a]) begin
             // Check for args to cancel.
             // CAREFUL: it seems this can't apply to arg that is being woken up now, because wakeup is suppressed if poisoned by failing op.
-            if (entry.state.readyArgs[a] && shouldFlushPoison(entry.poisons.poisoned[a])) begin // handle retraction if applies
-                pullbackEntry(entry);
+            if (entry.state.readyArgs[a] && shouldFlushPoison(entry.poisons.poisoned[a])) begin // handle retraction if applies   // Entry tr rd? (but state bing read should be in FFs 
+                pullbackEntry(entry);                                                           // - can't be cancelled right when being waked)
                 cancelArg(entry, a);
             end
         end
     endfunction
 
-    
+
+    function automatic void setArgReady(ref IqEntry entry, input int a, input Wakeup wup);
+        entry.state.readyArgs[a] = 1;            // Entry upd
+        entry.poisons.poisoned[a] = wup.poison;  // Entry upd
+
+        putMilestone(entry.uid, wakeupMilestone(a));
+    endfunction
+
+    function automatic void cancelArg(ref IqEntry entry, input int a);
+        entry.state.readyArgs[a] = 0;             // Entry upd
+        entry.poisons.poisoned[a] = EMPTY_POISON; // Entry upd
+
+        putMilestone(entry.uid, cancelMilestone(a));
+    endfunction
+
+    function automatic void pullbackEntry(ref IqEntry entry);
+        if (entry.state.ready) putMilestone(entry.uid, InstructionMap::IqPullback);
+
+        // cancel issue
+        entry.active = 1;        // Entry upd
+        entry.issueCounter = -1; // Entry upd                  
+        entry.state.ready = 0;   // Entry upd
+    endfunction
+
+
+
     function automatic int getNumUsed();
         int res = 0;
         foreach (array[s]) if (array[s].used) res++; 
@@ -341,7 +418,7 @@ module IssueQueue
     endfunction
 
 
-    function automatic UidQueueT getIdQueue(input IqEntry entries[TOTAL_SIZE]);
+    function automatic UidQueueT getIdQueue(input IqEntry entries[]);
         UidT res[$];
         
         foreach (entries[i]) begin
@@ -390,6 +467,14 @@ module IssueQueue
         return res;
     endfunction
 
+    function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
+        WakeupMatrixD res = new[arr.size()];
+        foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
+        
+        return res;
+    endfunction
+
+
     function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input UidT ids[$]);
         ReadyQueue3 res;
         foreach (wm[i]) begin
@@ -404,34 +489,20 @@ module IssueQueue
         return res;
     endfunction
 
-
-
-    function automatic void setArgReady(ref IqEntry entry, input int a, input Wakeup wup);
-        entry.state.readyArgs[a] = 1;
-        entry.poisons.poisoned[a] = wup.poison;
-
-        if (a == 0) putMilestone(entry.uid, InstructionMap::IqWakeup0);
-        else if (a == 1) putMilestone(entry.uid, InstructionMap::IqWakeup1);
-        else if (a == 2) putMilestone(entry.uid, InstructionMap::IqWakeup2);
-    endfunction
-
-    function automatic void cancelArg(ref IqEntry entry, input int a);
-        entry.state.readyArgs[a] = 0;
-        entry.poisons.poisoned[a] = EMPTY_POISON;
-
-        if (a == 0) putMilestone(entry.uid, InstructionMap::IqCancelWakeup0);
-        else if (a == 1) putMilestone(entry.uid, InstructionMap::IqCancelWakeup1);
-        else if (a == 2) putMilestone(entry.uid, InstructionMap::IqCancelWakeup2);
-    endfunction
-
-    function automatic void pullbackEntry(ref IqEntry entry);
-        if (entry.state.ready) putMilestone(entry.uid, InstructionMap::IqPullback);
-
-        // cancel issue
-        entry.active = 1;
-        entry.issueCounter = -1;                    
-        entry.state.ready = 0;
-    endfunction
+    
+        function automatic ReadyQueue3 fwFromWupsD(input Wakeup wm[][3], input UidT ids[$]);
+            ReadyQueue3 res;
+            foreach (wm[i]) begin
+                logic3 r3 = '{'z, 'z, 'z};
+    
+                if (ids[i] != UIDT_NONE)
+                    foreach (r3[a]) r3[a] = wm[i][a].active;
+    
+                res.push_back(r3);
+            end
+            
+            return res;
+        endfunction
 
 
         function automatic ReadyArray arrayFromQueue(input ReadyQueue rq);
@@ -452,6 +523,24 @@ module IssueQueue
             end
         endfunction
 
+
+    function automatic InstructionMap::Milestone wakeupMilestone(input int a);
+        case (a)
+            0: return InstructionMap::IqWakeup0;
+            1: return InstructionMap::IqWakeup1;
+            2: return InstructionMap::IqWakeup2;
+            default: $fatal("Arg doesn't exist");
+        endcase
+    endfunction
+
+    function automatic InstructionMap::Milestone cancelMilestone(input int a);
+        case (a)
+            0: return InstructionMap::IqCancelWakeup0;
+            1: return InstructionMap::IqCancelWakeup1;
+            2: return InstructionMap::IqCancelWakeup2;
+            default: $fatal("Arg doesn't exist");
+        endcase
+    endfunction
 
 endmodule
 
@@ -522,13 +611,7 @@ module IssueQueueComplex(
     function automatic ReadyQueue3 getReadyRegisterArgsQueue3(input InstructionMap imap, input UidT ids[$]);
         ReadyQueue3 res;
         foreach (ids[i])
-            res.push_back(getReadyRegisterArgsForUid(imap, ids[i]));        
-//            if (ids[i] == UIDT_NONE) res.push_back('{'z, 'z, 'z});
-//            else begin
-//                InsDependencies deps = imap.getU(ids[i]).deps;
-//                logic3 ra = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-//                res.push_back(ra);
-//            end
+            res.push_back(getReadyRegisterArgsForUid(imap, ids[i]));
         return res;
     endfunction
 
