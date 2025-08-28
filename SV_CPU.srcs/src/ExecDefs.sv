@@ -219,7 +219,7 @@ package ExecDefs;
         logic active;
         IqArgState state;
         IqPoisonState poisons;
-            int issueCounter;
+        int issueCounter;
         UidT uid;
     } IqEntry;
 
@@ -393,9 +393,9 @@ package ExecDefs;
 
     // IQ logic
 
-    typedef logic ReadyQueue[$];
-    typedef logic ReadyQueue3[$][3];
-    
+    typedef logic ReadyQueue[$];        // queue of bits
+    typedef logic ReadyQueue3[$][3];    // queue of logic[3]
+
 
     function automatic ReadyQueue3 unifyReadyAndForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwarded);
         ReadyQueue3 res;
