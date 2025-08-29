@@ -152,7 +152,7 @@ module IssueQueue
 
             rq_perArg_Input = getReadyRegisterArgsQueue3(insMap, getIdQueue(inputArray));// module var
     
-            fq_perArg_Input = forwardStates;                                    // module var
+            fq_perArg_Input = forwardInputStates;                                    // module var
             rfq_perArg_Input  = unifyReadyAndForwardsQ(rq_perArg_Input, fq_perArg_Input);   // module var
             rfq_perSlot_Input = makeReadyQueue(rfq_perArg_Input);                     // module var
 
@@ -232,7 +232,7 @@ module IssueQueue
 
                 if (!active) continue;
 
-                assert (entry.state.ready == ready) else $fatal(2, "differing ready bits\n%p", entry);  
+                assert (entry.state.ready == ready) else $fatal(2, "differing ready bits: entry %p, rfq %p / %p\n%p", entry.state.ready, rfq_perSlot[arrayLoc[0]], rfq_perArg[arrayLoc[0]], entry);  
 
                 if (ready) res.push_back(thisId);
                 else if (IN_ORDER) break;
@@ -316,7 +316,7 @@ module IssueQueue
 
                 nInserted++;          
                         
-                     //   updateReadyBits(array[location], rfq_perArg_Input[i], wiMatrixVar[i], theExecBlock.memImagesTr[0]);
+                   updateReadyBits(array[location], rfq_perArg_Input[i], wiMatrixVar[i], theExecBlock.memImagesTr[0]);
 
             end
         end
