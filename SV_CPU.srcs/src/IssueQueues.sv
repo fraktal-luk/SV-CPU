@@ -85,6 +85,7 @@ module IssueQueue
         logic3 combined;
         logic3 prevReady;
         Poison poisons[3];
+        Poison prevPoisons[3];
         logic all;
     } ReadinessInfo;
 
@@ -107,13 +108,15 @@ module IssueQueue
         res.registers = TMP_getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = fwState;
         
-        res.prevReady = entry.state.readyArgs; // CAREFUL: entry.state.readyArgs should be set with nonblocking (we're interested in prev cycle, use $past()?)
+        res.prevReady = entry.state.readyArgs; // CAREFUL, TODO: entry.state.readyArgs should be set with nonblocking (we're interested in prev cycle, use $past()?)
         
         foreach (res.combined[i]) res.combined[i] = res.registers[i] || res.bypasses[i];
         
         res.all = res.combined.and();
         
         foreach (res.poisons[i]) res.poisons[i] = wup[i].poison;
+        
+        res.prevPoisons = entry.poisons.poisoned;
         
         return res;
     endfunction
@@ -131,19 +134,18 @@ module IssueQueue
     always_comb readiness = getReadinessArr();
         //always_comb readinessInput = getReadinessArr();
 
-    generate
-        logic opsReady[TOTAL_SIZE];
-        logic registerArgsReady[TOTAL_SIZE][3];
-        logic bypassArgsReady[TOTAL_SIZE][3];
+//    generate
+//        logic opsReady[TOTAL_SIZE];
+//        logic registerArgsReady[TOTAL_SIZE][3];
+//        logic bypassArgsReady[TOTAL_SIZE][3];
         
-       // always_comb registerArgsReady = arrayFromQueue3(getReadyRegisterArgsQueue3(insMap, getIdQueue(array)));
-       // always_comb bypassArgsReady = arrayFromQueue3(forwardStates);
-    endgenerate
+//       // always_comb registerArgsReady = arrayFromQueue3(getReadyRegisterArgsQueue3(insMap, getIdQueue(array)));
+//       // always_comb bypassArgsReady = arrayFromQueue3(forwardStates);
+//    endgenerate
 
 
-    always @(posedge AbstractCore.clk) begin
-        TMP_incIssueCounter();
-
+    
+    task automatic setModuleVars();
         rq_perArg = getReadyRegisterArgsQueue3(insMap, getIdQueue(array));// module var
 
         fq_perArg = forwardStates;                                    // module var
@@ -156,27 +158,43 @@ module IssueQueue
             rfq_perArg_Input  = unifyReadyAndForwardsQ(rq_perArg_Input, fq_perArg_Input);   // module var
             rfq_perSlot_Input = makeReadyQueue(rfq_perArg_Input);                     // module var
 
-
-
         wMatrixVar = wMatrix; // for DB                               // module var
             wiMatrixVar = wiMatrix;
+    endtask
+
+
+    always @(posedge AbstractCore.clk) begin
+        TMP_incIssueCounter();
+
+            setModuleVars();
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flushIq();
         end
 
-        updateWakeups();    // rfq_perArg, wMatrixVar
+          updateWakeups();    // rfq_perArg, wMatrixVar
 
             readinessVar = readiness;
-                readinessInputVar = readinessInput;
+            readinessInputVar = readinessInput;
 
         issue();
 
+
+          //updateWakeups();    // rfq_perArg, wMatrixVar
+
         updateWakeups_Part2();
+
+        // Assure that ready indications in entries agree with ready signals
+        checkReadyStatus();
+        
 
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
         end                
+        
+        
+
+        
         
         removeIssuedFromArray();    
         
@@ -204,6 +222,20 @@ module IssueQueue
     endtask
 
 
+    function automatic void checkReadyStatus();
+        foreach (array[i]) begin
+            logic signalReady = rfq_perSlot[i];
+            IqEntry entry = array[i];
+
+            if (!entry.used || entry.uid == UIDT_NONE   || !entry.active) continue;
+            
+                assert (entry.state.ready == signalReady) else $fatal(2, "Check ready bits: differ %p, rfq %p / %p\n%p", entry.state.ready, signalReady, rfq_perArg[i], entry);
+ 
+        end
+    endfunction
+
+
+
     function automatic UidQueueT getArrOpsToIssue();
         UidQueueT res;
         UidQueueT idsSorted = getIdQueue(array);  // array
@@ -222,24 +254,22 @@ module IssueQueue
                 logic active = entry.used && entry.active;
 
                     logic ready_N = readinessVar[arrayLoc[0]].all;
-                    logic active_A = readinessVar[arrayLoc[0]].active;
-                    logic used_A = readinessVar[arrayLoc[0]].used;
+//                    logic active_A = readinessVar[arrayLoc[0]].active;
+//                    logic used_A = readinessVar[arrayLoc[0]].used;
                     
                     assert (ready_N === ready) else $error("Different ready [%d]: %p, %p", arrayLoc[0], ready, ready_N);
-                    assert (active_A === entry.active) else $error("Different active [%d]: %p, %p", arrayLoc[0], entry.active, active_A);
-                    assert (used_A === entry.used) else $error("Different used [%d]: %p, %p", arrayLoc[0], entry.used, used_A);
-
+//                    assert (active_A === entry.active) else $error("Different active [%d]: %p, %p", arrayLoc[0], entry.active, active_A);
+//                    assert (used_A === entry.used) else $error("Different used [%d]: %p, %p", arrayLoc[0], entry.used, used_A);
 
                 if (!active) continue;
 
-                assert (entry.state.ready == ready) else $fatal(2, "differing ready bits: entry %p, rfq %p / %p\n%p", entry.state.ready, rfq_perSlot[arrayLoc[0]], rfq_perArg[arrayLoc[0]], entry);  
+                 //   assert (entry.state.ready == ready) else $fatal(2, "differing ready bits: entry %p, rfq %p / %p\n%p", entry.state.ready, rfq_perSlot[arrayLoc[0]], rfq_perArg[arrayLoc[0]], entry);  
 
                 if (ready) res.push_back(thisId);
                 else if (IN_ORDER) break;
                 
                 if (res.size() == OUT_WIDTH) break;
             end
-            
         end
         
         return res;
@@ -254,9 +284,22 @@ module IssueQueue
             UidT theId = ids[i];
             int found[$] = array.find_first_index with (item.uid == theId);
             int s = found[0];
+                
+                logic3 prevReady = readiness[s].prevReady;
+                Poison currentPoisons[3] = readiness[s].poisons;
+                Poison prevPoisons[3] = readiness[s].prevPoisons;
+                Poison properPoisons[3];
             
-            Poison newPoison = mergePoisons(array[s].poisons.poisoned); // Entry tr rd (transient is read)
-            UopPacket newPacket = '{1, theId, ES_OK, newPoison, 'x};
+            Poison newPoison;
+            UopPacket newPacket;
+
+                foreach (properPoisons[i]) properPoisons[i] = (prevReady[i]) ? prevPoisons[i] : //prevPoisons[i];// 
+                                                                                                currentPoisons[i];
+        
+                assert (properPoisons === array[s].poisons.poisoned) else $fatal(2, "Diff poison");
+
+                newPoison = mergePoisons(array[s].poisons.poisoned); // Entry tr rd (transient is read)
+                newPacket = '{1, theId, ES_OK, newPoison, 'x};
 
             pIssued0[i] <= tickP(newPacket);
 
@@ -308,16 +351,13 @@ module IssueQueue
                 int location = locs[nInserted];
                 UidT uid = inGroupU[i].uid;
 
-                array[location] = makeIqEntry(inGroupU[i]);//'{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: uid};  // Entry upd
-                
-                    
+                array[location] = makeIqEntry(inGroupU[i]);
                 
                 putMilestone(uid, InstructionMap::IqEnter);
 
                 nInserted++;          
                         
                    updateReadyBits(array[location], rfq_perArg_Input[i], wiMatrixVar[i], theExecBlock.memImagesTr[0]);
-
             end
         end
     endtask
@@ -460,31 +500,10 @@ module IssueQueue
         return res;
     endfunction
 
-    function automatic WakeupMatrix getForwards(input IqEntry arr[TOTAL_SIZE]);
-        WakeupMatrix res;
-        foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
-        
-        return res;
-    endfunction
 
     function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
         WakeupMatrixD res = new[arr.size()];
         foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
-        
-        return res;
-    endfunction
-
-
-    function automatic ReadyQueue3 fwFromWups(input WakeupMatrix wm, input UidT ids[$]);
-        ReadyQueue3 res;
-        foreach (wm[i]) begin
-            logic3 r3 = '{'z, 'z, 'z};
-
-            if (ids[i] != UIDT_NONE)
-                foreach (r3[a]) r3[a] = wm[i][a].active;
-
-            res.push_back(r3);
-        end
         
         return res;
     endfunction
@@ -502,15 +521,6 @@ module IssueQueue
             end
             
             return res;
-        endfunction
-
-
-        function automatic ReadyArray arrayFromQueue(input ReadyQueue rq);
-            return rq[0:TOTAL_SIZE-1];
-        endfunction
-
-        function automatic ReadyArray3 arrayFromQueue3(input ReadyQueue3 rq3);
-            return rq3[0:TOTAL_SIZE-1];
         endfunction
 
         // MOVE?
