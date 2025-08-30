@@ -76,11 +76,11 @@ module IssueQueue
 
     ReadinessInfo readiness[TOTAL_SIZE],  readinessVar[TOTAL_SIZE];
         ReadinessInfo readinessInput[RENAME_WIDTH], readinessInputVar[RENAME_WIDTH];
-    typedef ReadinessInfo ReadinessInfoArr[TOTAL_SIZE];
+    typedef ReadinessInfo ReadinessInfoArr[];
 
 
         function automatic ReadinessInfoArr getReadinessArr();
-            ReadinessInfoArr res;
+            ReadinessInfoArr res = new[TOTAL_SIZE];
             
             foreach (res[i]) res[i] = getReadinessInfo(insMap, array[i], wMatrix[i], forwardStates[i]);
                 
