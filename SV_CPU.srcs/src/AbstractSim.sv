@@ -31,7 +31,7 @@ package AbstractSim;
     localparam int DISPATCH_WIDTH = RENAME_WIDTH;
 
 
-    localparam logic IN_ORDER = 0;
+    //localparam logic IN_ORDER = 0;
 
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;

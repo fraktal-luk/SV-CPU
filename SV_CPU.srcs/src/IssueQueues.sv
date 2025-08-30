@@ -28,6 +28,8 @@ module IssueQueue
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
     localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
 
+    typedef UidT UidArray[];
+
     typedef int InputLocs[RENAME_WIDTH];
 
     typedef UidT IdArr[TOTAL_SIZE];
@@ -149,6 +151,10 @@ module IssueQueue
 
         setModuleVars();
 
+
+        pIssued0 <= '{default: EMPTY_UOP_PACKET};
+
+
         issue();
 
         updateWakeups();    // rfq_perArg, wMatrixVar
@@ -184,8 +190,9 @@ module IssueQueue
     endtask
 
     task automatic issue();
-        UidQueueT validIds = getArrOpsToIssue();
-        issueFromArray(validIds);
+        UidArray selected = getArrOpsToIssue_A();
+        
+        if (allow) issueFromArray(selected);
     endtask
 
 
@@ -201,13 +208,15 @@ module IssueQueue
     endfunction
 
 
-
-    function automatic UidQueueT getArrOpsToIssue();
-        UidQueueT res;
+    function automatic UidArray getArrOpsToIssue_A();
+        UidT res[] = new[OUT_WIDTH];
+        int cnt = 0;
+        
         UidQueueT idsSorted = getIdQueue(array);  // array
+        
+        foreach (res[i]) res[i] = UIDT_NONE;
+        
         idsSorted.sort with (U2M(item));
-
-        if (!allow) return res;
 
         foreach (idsSorted[i]) begin
             UidT thisId = idsSorted[i];
@@ -221,10 +230,9 @@ module IssueQueue
 
                 if (!active) continue;
 
-                if (ready) res.push_back(thisId);
-                else if (IN_ORDER) break;
+                if (ready) res[cnt++] = thisId;
                 
-                if (res.size() == OUT_WIDTH) break;
+                if (cnt == OUT_WIDTH) break;
             end
         end
         
@@ -233,36 +241,54 @@ module IssueQueue
 
 
 
-    task automatic issueFromArray(input UidQueueT ids);
-        pIssued0 <= '{default: EMPTY_UOP_PACKET};
+    
+    function automatic UopPacket makeUop(input IqEntry entry, input ReadinessInfo ri);
+        logic3 prevReady = ri.prevReady;
+        Poison currentPoisons[3] = ri.poisons;
+        Poison prevPoisons[3] = ri.prevPoisons;
+        Poison properPoisons[3];
+        
+        Poison newPoison;
+        UopPacket newPacket;
 
-        foreach (ids[i]) begin
-            UidT theId = ids[i];
+        foreach (properPoisons[i]) properPoisons[i] = (prevReady[i]) ? prevPoisons[i] : currentPoisons[i];
+        
+        newPoison = mergePoisons(properPoisons);
+        return '{1, entry.uid, ES_OK, newPoison, 'x};
+    endfunction
+
+
+    task automatic setIssued(ref IqEntry entry);
+        putMilestone(entry.uid, InstructionMap::IqIssue);
+
+        entry.active = 0;         // Entry upd
+        entry.issueCounter = 0;   // Entry upd
+    endtask
+
+    task automatic issueFromArray(input UidArray ua);
+
+        foreach (ua[i]) begin
+            UidT theId = ua[i];
             int found[$] = array.find_first_index with (item.uid == theId);
             int s = found[0];
-                
-            logic3 prevReady = readiness[s].prevReady;
-            Poison currentPoisons[3] = readiness[s].poisons;
-            Poison prevPoisons[3] = readiness[s].prevPoisons;
-            Poison properPoisons[3];
-            
-            Poison newPoison;
-            UopPacket newPacket;
 
-            foreach (properPoisons[i]) properPoisons[i] = (prevReady[i]) ? prevPoisons[i] : currentPoisons[i];
-            
-            newPoison = mergePoisons(properPoisons);
-            newPacket = '{1, theId, ES_OK, newPoison, 'x};
+            if (theId == UIDT_NONE) continue;
 
-            pIssued0[i] <= tickP(newPacket);
+            begin
+                UopPacket newPacket = makeUop(array[s], readiness[s]);
+                pIssued0[i] <= tickP(newPacket);
+            end
 
-            assert (theId != UIDT_NONE) else $fatal(2, "Wrong id for issue");
             assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
 
-            putMilestone(theId, InstructionMap::IqIssue);
-  
-            array[s].active = 0;         // Entry upd
-            array[s].issueCounter = 0;   // Entry upd
+            setIssued(array[s]);
+
+//            begin
+//                putMilestone(theId, InstructionMap::IqIssue);
+      
+//                array[s].active = 0;         // Entry upd
+//                array[s].issueCounter = 0;   // Entry upd
+//            end
         end
     endtask
 
@@ -299,18 +325,18 @@ module IssueQueue
         InputLocs locs = getInputLocs();
         int nInserted = 0;
 
-        foreach (inGroupU[i]) begin
+        foreach (inputArray[i]) begin
             if (inGroupU[i].active) begin
                 int location = locs[nInserted];
-                UidT uid = inGroupU[i].uid;
+                //UidT uid = inGroupU[i].uid;
 
-                array[location] = makeIqEntry(inGroupU[i]);
+                array[location] = inputArray[i];  // Entry upd
                 
-                putMilestone(uid, InstructionMap::IqEnter);
+                putMilestone(inputArray[i].uid, InstructionMap::IqEnter);
 
                 nInserted++;          
                         
-                   updateReadyBits(array[location], readinessInputVar[i].combined/*rfq_perArg_Input[i]*/, wiMatrixVar[i]);//, theExecBlock.memImagesTr[0]);
+                updateReadyBits(array[location], readinessInputVar[i].combined, wiMatrixVar[i]);
             end
         end
     endtask
