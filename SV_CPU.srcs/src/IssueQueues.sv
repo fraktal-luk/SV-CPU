@@ -54,9 +54,9 @@ module IssueQueue
 
     int num = 0, numUsed = 0;    
         
-    typedef Wakeup Wakeup3[3];
+
+
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
-    typedef Wakeup WakeupMatrixD[][3];
 
     typedef Wakeup WakeupInputMatrix[RENAME_WIDTH][3];
 
@@ -72,62 +72,20 @@ module IssueQueue
 
         always_comb wiMatrix = getForwardsD(inputArray);
         always_comb forwardInputStates = fwFromWupsD(wiMatrix, getIdQueue(inputArray));
-    
-    typedef struct {
-        UidT uid;
-        logic allowed;
-        logic used;
-        logic active;
-        logic3 registers;
-        logic3 bypasses;
-        logic3 combined;
-        logic3 prevReady;
-        Poison poisons[3];
-        Poison prevPoisons[3];
-        logic all;
-    } ReadinessInfo;
 
 
     ReadinessInfo readiness[TOTAL_SIZE],  readinessVar[TOTAL_SIZE];
         ReadinessInfo readinessInput[RENAME_WIDTH], readinessInputVar[RENAME_WIDTH];
     typedef ReadinessInfo ReadinessInfoArr[TOTAL_SIZE];
 
-    function automatic ReadinessInfo getReadinessInfo(input IqEntry entry, input Wakeup3 wup, input logic3 fwState);
-        ReadinessInfo res = '{default: 'z};
-        
-        res.uid = entry.uid;
-        
-        if (entry.uid == UIDT_NONE) return res;
-        
-            res.used = entry.used;
-            res.active = entry.active;
-        
-        res.allowed = entry.used && entry.active;
-        res.registers = TMP_getReadyRegisterArgsForUid(insMap, entry.uid);
-        res.bypasses = fwState;
-        
-        res.prevReady = entry.state.readyArgs; // CAREFUL, TODO: entry.state.readyArgs should be set with nonblocking (we're interested in prev cycle, use $past()?)
-        
-        foreach (res.combined[i]) res.combined[i] = res.registers[i] || res.bypasses[i];
-        
-        res.all = res.combined.and();
-        
-        foreach (res.poisons[i]) res.poisons[i] = wup[i].poison;
-        
-        res.prevPoisons = entry.poisons.poisoned;
-        
-        return res;
-    endfunction
 
-
-    function automatic ReadinessInfoArr getReadinessArr();
-        ReadinessInfoArr res;
-        
-        foreach (res[i])
-            res[i] = getReadinessInfo(array[i], wMatrix[i], forwardStates[i]);
+        function automatic ReadinessInfoArr getReadinessArr();
+            ReadinessInfoArr res;
             
-        return res;
-    endfunction
+            foreach (res[i]) res[i] = getReadinessInfo(insMap, array[i], wMatrix[i], forwardStates[i]);
+                
+            return res;
+        endfunction
 
 
     always_comb readiness = getReadinessArr();
@@ -151,10 +109,6 @@ module IssueQueue
 
         setModuleVars();
 
-
-        pIssued0 <= '{default: EMPTY_UOP_PACKET};
-
-
         issue();
 
         updateWakeups();    // rfq_perArg, wMatrixVar
@@ -168,8 +122,8 @@ module IssueQueue
             writeInput();
         end                
 
-        removeIssuedFromArray();    
-        
+        removeIssuedFromArray();
+
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
 
@@ -191,8 +145,13 @@ module IssueQueue
 
     task automatic issue();
         UidArray selected = getArrOpsToIssue_A();
+
+        pIssued0 <= '{default: EMPTY_UOP_PACKET};
         
-        if (allow) issueFromArray(selected);
+        if (allow) begin
+            issueFromArray_0(selected);
+            issueFromArray_1(selected);
+         end
     endtask
 
 
@@ -265,7 +224,8 @@ module IssueQueue
         entry.issueCounter = 0;   // Entry upd
     endtask
 
-    task automatic issueFromArray(input UidArray ua);
+
+    task automatic issueFromArray_0(input UidArray ua);
 
         foreach (ua[i]) begin
             UidT theId = ua[i];
@@ -273,22 +233,26 @@ module IssueQueue
             int s = found[0];
 
             if (theId == UIDT_NONE) continue;
+            assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
 
             begin
                 UopPacket newPacket = makeUop(array[s], readiness[s]);
                 pIssued0[i] <= tickP(newPacket);
             end
 
+        end
+    endtask
+    
+    task automatic issueFromArray_1(input UidArray ua);
+        foreach (ua[i]) begin
+            UidT theId = ua[i];
+            int found[$] = array.find_first_index with (item.uid == theId);
+            int s = found[0];
+
+            if (theId == UIDT_NONE) continue;
             assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
 
             setIssued(array[s]);
-
-//            begin
-//                putMilestone(theId, InstructionMap::IqIssue);
-      
-//                array[s].active = 0;         // Entry upd
-//                array[s].issueCounter = 0;   // Entry upd
-//            end
         end
     endtask
 
@@ -328,14 +292,11 @@ module IssueQueue
         foreach (inputArray[i]) begin
             if (inGroupU[i].active) begin
                 int location = locs[nInserted];
-                //UidT uid = inGroupU[i].uid;
-
                 array[location] = inputArray[i];  // Entry upd
-                
-                putMilestone(inputArray[i].uid, InstructionMap::IqEnter);
-
                 nInserted++;          
-                        
+
+                putMilestone(inputArray[i].uid, InstructionMap::IqEnter);
+                  
                 updateReadyBits(array[location], readinessInputVar[i].combined, wiMatrixVar[i]);
             end
         end
@@ -502,15 +463,7 @@ module IssueQueue
             return res;
         endfunction
 
-        // MOVE?
-        // Duplicate of original in IssueQueueComplex!
-        function automatic logic3 TMP_getReadyRegisterArgsForUid(input InstructionMap imap, input UidT uid);
-            if (uid == UIDT_NONE) return '{'z, 'z, 'z};
-            else begin
-                InsDependencies deps = imap.getU(uid).deps;
-                return checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-            end
-        endfunction
+
 
     function automatic InstructionMap::Milestone wakeupMilestone(input int a);
         case (a)
@@ -528,6 +481,42 @@ module IssueQueue
             2: return InstructionMap::IqCancelWakeup2;
             default: $fatal("Arg doesn't exist");
         endcase
+    endfunction
+
+
+        function automatic logic3 TMP_getReadyRegisterArgsForUid(input InstructionMap imap, input UidT uid);
+            if (uid == UIDT_NONE) return '{'z, 'z, 'z};
+            else begin
+                InsDependencies deps = imap.getU(uid).deps;
+                return checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+            end
+        endfunction
+
+    function automatic ReadinessInfo getReadinessInfo(input InstructionMap insMap, input IqEntry entry, input Wakeup3 wup, input logic3 fwState);
+        ReadinessInfo res = '{default: 'z};
+        
+        res.uid = entry.uid;
+        
+        if (entry.uid == UIDT_NONE) return res;
+        
+            res.used = entry.used;
+            res.active = entry.active;
+        
+        res.allowed = entry.used && entry.active;
+        res.registers = TMP_getReadyRegisterArgsForUid(insMap, entry.uid);
+        res.bypasses = fwState;
+        
+        res.prevReady = entry.state.readyArgs; // CAREFUL, TODO: entry.state.readyArgs should be set with nonblocking (we're interested in prev cycle, use $past()?)
+        
+        foreach (res.combined[i]) res.combined[i] = res.registers[i] || res.bypasses[i];
+        
+        res.all = res.combined.and();
+        
+        foreach (res.poisons[i]) res.poisons[i] = wup[i].poison;
+        
+        res.prevPoisons = entry.poisons.poisoned;
+        
+        return res;
     endfunction
 
 endmodule
@@ -594,22 +583,5 @@ module IssueQueueComplex(
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
                                             issuedStoreDataP);
-
-
-//    function automatic ReadyQueue3 getReadyRegisterArgsQueue3(input InstructionMap imap, input UidT ids[$]);
-//        ReadyQueue3 res;
-//        foreach (ids[i])
-//            res.push_back(getReadyRegisterArgsForUid(imap, ids[i]));
-//        return res;
-//    endfunction
-
-
-//        function automatic logic3 getReadyRegisterArgsForUid(input InstructionMap imap, input UidT uid);
-//            if (uid == UIDT_NONE) return '{'z, 'z, 'z};
-//            else begin
-//                InsDependencies deps = imap.getU(uid).deps;
-//                return checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-//            end
-//        endfunction
 
 endmodule

@@ -242,6 +242,27 @@ package ExecDefs;
     
     localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
+    typedef Wakeup Wakeup3[3];
+        typedef Wakeup WakeupMatrixD[][3];
+
+
+    typedef struct {
+        UidT uid;
+        logic allowed;
+        logic used;
+        logic active;
+        logic3 registers;
+        logic3 bypasses;
+        logic3 combined;
+        logic3 prevReady;
+        Poison poisons[3];
+        Poison prevPoisons[3];
+        logic all;
+    } ReadinessInfo;
+
+
+
+
 
 
 
