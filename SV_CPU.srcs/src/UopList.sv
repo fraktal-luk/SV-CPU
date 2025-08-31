@@ -191,6 +191,11 @@ package UopList;
         return name inside {UOP_br_z, UOP_br_nz};
     endfunction
 
+    function automatic logic isIntMultiplierUop(input UopName name);
+        return name inside {UOP_int_mul, UOP_int_mulhs, UOP_int_mulhu};
+    endfunction
+
+  
     function automatic logic isIntDividerUop(input UopName name);
         return name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu};
     endfunction

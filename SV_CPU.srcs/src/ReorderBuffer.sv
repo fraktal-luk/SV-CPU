@@ -469,12 +469,16 @@ module ReorderBuffer
         markPacketCompleted(theExecBlock.doneRegular0_E);
         markPacketCompleted(theExecBlock.doneRegular1_E);
     
-        markPacketCompleted(theExecBlock.doneFloat0_E);
-        markPacketCompleted(theExecBlock.doneFloat1_E);
-    
         markPacketCompleted(theExecBlock.doneBranch_E);
 
         markPacketCompleted(theExecBlock.doneDivider_E);
+
+        markPacketCompleted(theExecBlock.doneMultiplier0_E);
+        markPacketCompleted(theExecBlock.doneMultiplier1_E);
+        
+
+        markPacketCompleted(theExecBlock.doneFloat0_E);
+        markPacketCompleted(theExecBlock.doneFloat1_E);
         
         markPacketCompleted(theExecBlock.doneMem0_E);
         markPacketCompleted(theExecBlock.doneMem2_E);

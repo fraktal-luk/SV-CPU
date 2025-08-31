@@ -176,6 +176,9 @@ module AbstractCore
         writeResult(theExecBlock.doneBranch_E);
         writeResult(theExecBlock.doneDivider_E);
 
+        writeResult(theExecBlock.doneMultiplier0_E);
+        writeResult(theExecBlock.doneMultiplier1_E);
+
         writeResult(theExecBlock.doneFloat0_E);
         writeResult(theExecBlock.doneFloat1_E);
 

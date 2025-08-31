@@ -107,7 +107,7 @@ module IssueQueue
 
         removeIssuedFromArray();
 
-            arrayReg <= array;
+        arrayReg <= array;
 
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
@@ -467,7 +467,6 @@ module IssueQueue
     function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
         WakeupMatrixD res = new[arr.size()];
         foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
-        
         return res;
     endfunction
 
@@ -559,6 +558,7 @@ module IssueQueueComplex(
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
                 else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
                 else if (isIntDividerUop(uname)) res.divider[i] = '{1, uid};
+                else if (isIntMultiplierUop(uname)) res.multiply[i] = '{1, uid};
                 else res.regular[i] = '{1, uid};
             end
         end
@@ -570,6 +570,7 @@ module IssueQueueComplex(
     RoutedUops routedUops;
     
     UopPacket issuedRegularP[2];
+    UopPacket issuedMultiplierP[2];
     UopPacket issuedDividerP[1];
     UopPacket issuedBranchP[1];
     UopPacket issuedFloatP[2];
@@ -581,14 +582,19 @@ module IssueQueueComplex(
 
 
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
-                                            issuedRegularP);
-
-    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.divider, theExecBlock.divider.allowIssue,
-                                            issuedDividerP);                                            
+                                            issuedRegularP);                                            
                                             
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,
                                             issuedBranchP);
-                                            
+
+
+    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.divider, theExecBlock.divider.allowIssue,
+                                            issuedDividerP);
+
+    IssueQueue#(.OUT_WIDTH(2)) multiplierQueue(insMap, branchEventInfo, lateEventInfo, routedUops.multiply, '1,
+                                            issuedMultiplierP);
+
+
     IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, routedUops.float, '1,
                                             issuedFloatP);
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,

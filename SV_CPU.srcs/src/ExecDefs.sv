@@ -13,7 +13,7 @@ package ExecDefs;
     
 
     // General uarch defs
-    localparam int N_INT_PORTS = 4;
+    localparam int N_INT_PORTS = 6;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
 
@@ -88,6 +88,7 @@ package ExecDefs;
 
     typedef struct {
         TMP_Uop regular[RENAME_WIDTH];
+        TMP_Uop multiply[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
         TMP_Uop divider[RENAME_WIDTH];
         TMP_Uop float[RENAME_WIDTH];
@@ -97,6 +98,7 @@ package ExecDefs;
 
     localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
         regular: '{default: TMP_UOP_NONE},
+        multiply: '{default: TMP_UOP_NONE},
         branch: '{default: TMP_UOP_NONE},
         divider: '{default: TMP_UOP_NONE},
         float: '{default: TMP_UOP_NONE},
@@ -344,7 +346,7 @@ package ExecDefs;
         return res;
     endfunction
 
-    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feVec.find with (matchProducer(item, producer));
         return res;
     endfunction
