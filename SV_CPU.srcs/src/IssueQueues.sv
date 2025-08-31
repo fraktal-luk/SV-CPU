@@ -35,9 +35,10 @@ module IssueQueue
  
     typedef IqEntry InputArray[RENAME_WIDTH]; // TODO: change to dynamic arr
     
-    IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
+    IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY}, arrayReg[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
     InputArray inputArray = '{default: EMPTY_ENTRY};
 
+    logic readyForIssue[OUT_WIDTH] = '{default: 0};
     UopPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET}, pIssued1[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
 
     int num = 0, numUsed = 0;    
@@ -54,12 +55,18 @@ module IssueQueue
     
     typedef ReadinessInfo ReadinessInfoArr[];
 
+        logic anySelected;
+        //UidArray selectedUops;
+        UidT selectedUops[OUT_WIDTH];
+        //always_comb selectedUops = getArrOpsToIssue_A();
+        //assign anySelected = (selectedUops.size() > 0 && selectedUops[0] != UIDT_NONE);
+        always_comb anySelected = anyReady();//(selectedUops[0] != UIDT_NONE);
 
     assign outPackets = effA(pIssued0);
 
     always_comb inputArray = makeInputArray(inGroupU); 
 
-    always_comb wMatrix = getForwardsD(array);
+    always_comb wMatrix = getForwardsD(arrayReg);
     always_comb wiMatrix = getForwardsD(inputArray);
 
     always_comb readiness = getReadinessArr();
@@ -67,7 +74,16 @@ module IssueQueue
 
 
 
+    function automatic logic anyReady();
+        int inds[$] = readiness.find_first_index with (item.all);
+        return inds.size() > 0;
+    endfunction
+
+
+
     always @(posedge AbstractCore.clk) begin
+            array = arrayReg;
+    
         TMP_incIssueCounter();
 
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
@@ -91,6 +107,8 @@ module IssueQueue
 
         removeIssuedFromArray();
 
+            arrayReg <= array;
+
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
 
@@ -102,7 +120,7 @@ module IssueQueue
         // TODO: make one function for all array lengths
         function automatic ReadinessInfoArr getReadinessArr();
             ReadinessInfoArr res = new[TOTAL_SIZE];           
-            foreach (res[i]) res[i] = getReadinessInfo(insMap, array[i], wMatrix[i]);   
+            foreach (res[i]) res[i] = getReadinessInfo(insMap, arrayReg[i], wMatrix[i]);   
             return res;
         endfunction
 
@@ -133,8 +151,12 @@ module IssueQueue
 
     task automatic issue();
         UidArray selected = getArrOpsToIssue_A();
+        //                    new[OUT_WIDTH](selectedUops);
 
         pIssued0 <= '{default: EMPTY_UOP_PACKET};
+        
+        readyForIssue = '{default: 0};
+        foreach (readyForIssue[i]) readyForIssue[i] = (selected[i] != UIDT_NONE);
         
         if (allow) begin
             issueFromArray_0(selected);
@@ -143,44 +165,34 @@ module IssueQueue
     endtask
 
 
-    function automatic void checkReadyStatus();
-        foreach (array[i]) begin
-            logic signalReady = readinessVar[i].all;
-            IqEntry entry = array[i];
-
-            if (!entry.used || entry.uid == UIDT_NONE || !entry.active) continue;
-            
-            assert (entry.state.ready == signalReady) else $fatal(2, "Check ready bits: differ entry %p, sig %p\n%p", entry.state.ready, signalReady, entry);
-        end
-    endfunction
-
-
     function automatic UidArray getArrOpsToIssue_A();
         UidT res[] = new[OUT_WIDTH];
         int cnt = 0;
         
-        UidQueueT idsSorted = getIdQueue(array);  // array
+        UidQueueT idsSorted = //getIdQueue(array);  // array
+                              getUsedIdQueue(array);
         
-        foreach (res[i]) res[i] = UIDT_NONE;
+        //foreach (res[i]) res[i] = UIDT_NONE;
+        res = '{default: UIDT_NONE};
         
         idsSorted.sort with (U2M(item));
 
         foreach (idsSorted[i]) begin
             UidT thisId = idsSorted[i];
 
-            if (thisId == UIDT_NONE) continue;
-            else begin
+            //begin
                 int arrayLoc[$] = array.find_index with (item.uid == thisId); // array
                 IqEntry entry = array[arrayLoc[0]];     // array
                 logic ready = readinessVar[arrayLoc[0]].all;
                 logic active = entry.used && entry.active;
 
+                assert (active) else $fatal(2, "Issue inactive slot");
                 if (!active) continue;
 
                 if (ready) res[cnt++] = thisId;
                 
                 if (cnt == OUT_WIDTH) break;
-            end
+            //end
         end
         
         return res;
@@ -243,6 +255,16 @@ module IssueQueue
         end
     endtask
 
+    function automatic void checkReadyStatus();
+        foreach (array[i]) begin
+            logic signalReady = readinessVar[i].all;
+            IqEntry entry = array[i];
+
+            if (!entry.used || entry.uid == UIDT_NONE || !entry.active) continue;
+            
+            assert (entry.state.ready == signalReady) else $fatal(2, "Check ready bits: differ entry %p, sig %p\n%p", entry.state.ready, signalReady, entry);
+        end
+    endfunction
 
     task automatic TMP_incIssueCounter();
         foreach (array[s])
@@ -397,6 +419,19 @@ module IssueQueue
         return res;
     endfunction
 
+        function automatic UidQueueT getUsedIdQueue(input IqEntry entries[]);
+            UidT res[$];
+            
+            foreach (entries[i]) begin
+                if (entries[i].active)
+                //UidT uid = entries[i].used ? entries[i].uid : UIDT_NONE;
+                    res.push_back(entries[i].uid);
+            end
+            
+            return res;
+        endfunction
+
+
 
     function automatic OutGroupP effA(input OutGroupP g);
         OutGroupP res;
@@ -548,7 +583,7 @@ module IssueQueueComplex(
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
                                             issuedRegularP);
 
-    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.divider, '1,
+    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.divider, theExecBlock.divider.allowIssue,
                                             issuedDividerP);                                            
                                             
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,

@@ -134,6 +134,25 @@ module DividerSubpipe(
         pD1 <= tickP(pD0);
     end
 
+    logic lock = 0;
+    logic empty, allowIssue;
+
+    assign empty = !(p0.active || p1.active ||  
+                    pE0.active ||  pE1.active ||  pE2.active ||  pE3.active ||
+                    pE4.active ||  pE5.active ||  pE6.active ||  pE7.active ||
+                    pE8.active ||  pE9.active ||  pE10.active ||  pE11.active );
+
+    // allow signal for divider IQ
+    always @(posedge AbstractCore.clk) begin
+        //
+        if (theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow) lock <= 1;
+        else if (empty) lock <= 0;
+        
+    end
+    
+    assign allowIssue = !lock;
+    
+
     assign p0_E = effP(p0);
     assign p1_E = effP(p1);
     
