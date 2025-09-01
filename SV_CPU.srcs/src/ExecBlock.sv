@@ -145,7 +145,7 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
     // Vec 0
-    RegularSubpipe float0(
+    FloatSubpipe float0(
         insMap,
         branchEventInfo,
         lateEventInfo,
@@ -153,7 +153,7 @@ module ExecBlock(ref InstructionMap insMap,
     );
     
     // Vec 1
-    RegularSubpipe float1(
+    FloatSubpipe float1(
         insMap,
         branchEventInfo,
         lateEventInfo,
