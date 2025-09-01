@@ -13,7 +13,7 @@ package ExecDefs;
     
 
     // General uarch defs
-    localparam int N_INT_PORTS = 4;
+    localparam int N_INT_PORTS = 6;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
 
@@ -88,7 +88,9 @@ package ExecDefs;
 
     typedef struct {
         TMP_Uop regular[RENAME_WIDTH];
+        TMP_Uop multiply[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
+        TMP_Uop divider[RENAME_WIDTH];
         TMP_Uop float[RENAME_WIDTH];
         TMP_Uop mem[RENAME_WIDTH];
         TMP_Uop storeData[RENAME_WIDTH];
@@ -96,7 +98,9 @@ package ExecDefs;
 
     localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
         regular: '{default: TMP_UOP_NONE},
+        multiply: '{default: TMP_UOP_NONE},
         branch: '{default: TMP_UOP_NONE},
+        divider: '{default: TMP_UOP_NONE},
         float: '{default: TMP_UOP_NONE},
         mem: '{default: TMP_UOP_NONE},
         storeData: '{default: TMP_UOP_NONE}
@@ -217,7 +221,7 @@ package ExecDefs;
         logic active;
         IqArgState state;
         IqPoisonState poisons;
-            int issueCounter;
+        int issueCounter;
         UidT uid;
     } IqEntry;
 
@@ -240,6 +244,23 @@ package ExecDefs;
     
     localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
+    typedef Wakeup Wakeup3[3];
+    typedef Wakeup WakeupMatrixD[][3];
+
+
+    typedef struct {
+        UidT uid;
+        logic allowed;
+        logic used;
+        logic active;
+        logic3 registers;
+        logic3 bypasses;
+        logic3 combined;
+        logic3 prevReady;
+        Poison poisons[3];
+        Poison prevPoisons[3];
+        logic all;
+    } ReadinessInfo;
 
 
 
@@ -325,7 +346,7 @@ package ExecDefs;
         return res;
     endfunction
 
-    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feVec.find with (matchProducer(item, producer));
         return res;
     endfunction
@@ -363,7 +384,7 @@ package ExecDefs;
 
 
     function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-                                           input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
                        
         if (ready) return tracker.floats.regs[source];
@@ -387,37 +408,6 @@ package ExecDefs;
         $fatal(2, "oh no");
     endfunction
 
-
-
-    // IQ logic
-
-    typedef logic ReadyQueue[$];
-    typedef logic ReadyQueue3[$][3];
-    
-
-    function automatic ReadyQueue3 unifyReadyAndForwardsQ(input ReadyQueue3 ready, input ReadyQueue3 forwarded);
-        ReadyQueue3 res;
-        
-        foreach (ready[i]) begin
-            logic slot[3] = ready[i];
-            res.push_back(slot);
-            foreach (slot[a]) begin
-                if ($isunknown(ready[i][a])) res[i][a] = 'z;
-                else begin
-                    res[i][a] = ready[i][a] | forwarded[i][a];
-                end
-            end
-        end
-        
-        return res;    
-    endfunction
-
-    function automatic ReadyQueue makeReadyQueue(input ReadyQueue3 argV);
-        ReadyQueue res;
-        foreach (argV[i]) 
-            res.push_back( $isunknown(argV[i]) ? 'z : argV[i].and() );
-        return res;
-    endfunction
 
     // IQs
     function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
@@ -452,14 +442,14 @@ package ExecDefs;
 
             res.active = 1;
                 
-                // Don't wake up if this is a failed op
-                if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
+            // Don't wake up if this is a failed op
+            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
             
             res.producer = producer;
             res.group = PG_MEM;
             res.port = p;
             res.stage = found[0];
-                res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
+            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
             return res;
         end
         return res;
@@ -479,7 +469,7 @@ package ExecDefs;
             res.group = PG_VEC;
             res.port = p;
             res.stage = found[0];
-                res.poison = EMPTY_POISON; //TMP!
+            res.poison = EMPTY_POISON; //TMP!
             return res;
         end
         return res;
@@ -498,7 +488,5 @@ package ExecDefs;
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
-
-
 
 endpackage

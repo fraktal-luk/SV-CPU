@@ -106,6 +106,7 @@ package UopList;
         "mult":       UOP_int_mul,
         "mulh_s":     UOP_int_mulhs,
         "mulh_u":     UOP_int_mulhu,
+
         "div_s":      UOP_int_divs, 
         "div_u":      UOP_int_divu,
         "rem_s":      UOP_int_rems,
@@ -190,6 +191,15 @@ package UopList;
         return name inside {UOP_br_z, UOP_br_nz};
     endfunction
 
+    function automatic logic isIntMultiplierUop(input UopName name);
+        return name inside {UOP_int_mul, UOP_int_mulhs, UOP_int_mulhu};
+    endfunction
+
+  
+    function automatic logic isIntDividerUop(input UopName name);
+        return name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu};
+    endfunction
+
     function automatic logic isMemUop(input UopName name);
         return isLoadMemUop(name) || isStoreMemUop(name);
     endfunction
@@ -217,7 +227,7 @@ package UopList;
     function automatic logic isStoreSysUop(input UopName name);
         return name inside {UOP_mem_sts};
     endfunction
-    
+
 
 
 
@@ -257,6 +267,7 @@ package UopList;
          UOP_int_link
         };
     endfunction
+
 
     function automatic logic uopHasFloatDest(input UopName name);
         return name inside {

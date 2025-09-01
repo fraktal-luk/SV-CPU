@@ -284,6 +284,8 @@ package Insmap;
         // For uops
         function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
             if (uid != UIDT_NONE) recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});
+            
+             //   if (uid != UIDT_NONE && uid.m < 25) $error("M %p, %p, %d", uid, kind, cycle);
         endfunction
         
         // For committed

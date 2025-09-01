@@ -15,15 +15,16 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-    UopPacket doneRegular0, doneRegular1;
-    UopPacket doneBranch;
-    UopPacket doneMem0, doneMem2;
-    UopPacket doneFloat0,  doneFloat1; 
+//    UopPacket doneRegular0, doneRegular1;
+//    UopPacket doneBranch;
+//    UopPacket doneMem0, doneMem2;
+//    UopPacket doneFloat0,  doneFloat1; 
     
-    UopPacket doneStoreData;
+//    UopPacket doneStoreData;
 
     UopPacket doneRegular0_E, doneRegular1_E;
-    UopPacket doneBranch_E;
+    UopPacket doneMultiplier0_E, doneMultiplier1_E;
+    UopPacket doneBranch_E, doneDivider_E;
     UopPacket doneMem0_E, doneMem2_E;
     UopPacket doneFloat0_E, doneFloat1_E; 
 
@@ -87,6 +88,31 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedBranchP[0]
     );
 
+    // Int 3
+    DividerSubpipe divider(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedDividerP[0]
+    );
+
+        // Int 4
+        MultiplierSubpipe multiplier0(
+            insMap,
+            branchEventInfo,
+            lateEventInfo,
+            theIssueQueues.issuedMultiplierP[0]
+        );
+        
+        // Int 5
+        MultiplierSubpipe multiplier1(
+            insMap,
+            branchEventInfo,
+            lateEventInfo,
+            theIssueQueues.issuedMultiplierP[1]
+        );
+    
+
     
     // Mem 0
     MemSubpipe#(.HANDLE_UNALIGNED(1))
@@ -119,7 +145,7 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
     // Vec 0
-    RegularSubpipe float0(
+    FloatSubpipe float0(
         insMap,
         branchEventInfo,
         lateEventInfo,
@@ -127,7 +153,7 @@ module ExecBlock(ref InstructionMap insMap,
     );
     
     // Vec 1
-    RegularSubpipe float1(
+    FloatSubpipe float1(
         insMap,
         branchEventInfo,
         lateEventInfo,
@@ -158,7 +184,11 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
+        assign doneMultiplier0_E = multiplier0.stage0_E;
+        assign doneMultiplier1_E = multiplier1.stage0_E;
+    
     assign doneBranch_E = branch0.stage0_E;
+    assign doneDivider_E = divider.stage0_E;
     assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
     assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
     assign doneFloat0_E = float0.stage0_E;
@@ -202,7 +232,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     ForwardsByStage_0 allByStage;
 
-    assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, default: EMPTY_IMAGE};
+    assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, default: EMPTY_IMAGE};
 
