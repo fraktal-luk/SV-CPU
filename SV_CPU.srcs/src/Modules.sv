@@ -50,6 +50,55 @@ module RegularSubpipe(
 endmodule
 
 
+
+
+module MultiplierSubpipe(
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input UopPacket opP
+);
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
+    UopPacket stage0, stage0_E;
+
+    //assign stage0 = pE0;
+    assign stage0_E = pE2_E;
+
+    assign p0 = opP;
+
+    always @(posedge AbstractCore.clk) begin
+        p1 <= tickP(p0);
+        pE0 <= performRegularE0(tickP(p1));
+        pE1 <= (tickP(pE0));
+        pE2 <= (tickP(pE1));
+        pD0 <= tickP(pE2);
+        pD1 <= tickP(pD0);
+    end
+
+    assign p0_E = effP(p0);
+    assign p1_E = effP(p1);
+    assign pE0_E = effP(pE0);
+    assign pE1_E = effP(pE1);
+    assign pE2_E = effP(pE2);
+    assign pD0_E = effP(pD0);
+
+    ForwardingElement image_E[-3:1];
+    
+    assign image_E = '{
+        -2: pE0_E,
+        -1: pE1_E,
+        0: pE2_E,
+        1: pD0_E,
+        default: EMPTY_FORWARDING_ELEMENT
+    };
+
+endmodule
+
+
+
+
+
 module BranchSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,

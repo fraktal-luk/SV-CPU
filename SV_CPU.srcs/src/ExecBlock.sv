@@ -97,7 +97,7 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
         // Int 4
-        RegularSubpipe multiplier0(
+        MultiplierSubpipe multiplier0(
             insMap,
             branchEventInfo,
             lateEventInfo,
@@ -105,7 +105,7 @@ module ExecBlock(ref InstructionMap insMap,
         );
         
         // Int 5
-        RegularSubpipe multiplier1(
+        MultiplierSubpipe multiplier1(
             insMap,
             branchEventInfo,
             lateEventInfo,
