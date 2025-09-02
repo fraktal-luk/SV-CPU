@@ -474,7 +474,7 @@ package Emulation;
                 Translation tr = translateDataAddress(vadr);
                 padr = tr.padr;
                 
-                if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) return 1;
+                if (catchMemAccessException(ins, vadr, tr)) return 1;
             end
             
             begin
@@ -525,7 +525,7 @@ package Emulation;
             return 1;
         endfunction
 
-        local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, input Dword padr, input logic present);
+        local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, Translation tr);
             ProgramEvent evt = PE_NONE;
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
@@ -533,14 +533,15 @@ package Emulation;
                 evt = PE_MEM_INVALID_ADDRESS;
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
-            else if (!present)
+            else if (!tr.present)
                 evt = PE_MEM_UNMAPPED_ADDRESS;     
 
             // PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
-            // TODO
-            
+            else if (!tr.desc.canRead) // TEMPORARY; need to discern reads and writes
+                evt = PE_MEM_DISALLOWED_ACCESS;
+                
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
-            else if (!physicalAddressValid(padr))
+            else if (!physicalAddressValid(tr.padr))
                 evt = PE_MEM_NONEXISTENT_ADDRESS;
 
             if (evt === PE_NONE) return 0;

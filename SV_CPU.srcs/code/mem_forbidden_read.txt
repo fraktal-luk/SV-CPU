@@ -1,0 +1,13 @@
+; Page with no read permission
+$start
+	
+	add_i r8, r0, 0x6000  ; base of page with no read access
+	ldi_i r9, r8, 40   ; cause exception
+
+	add_i r12, r1, -58   ; check magic value of mem exc handler
+	jnz_i r12, $error
+
+$check
+	sys_dbcall
+$error
+    sys_error

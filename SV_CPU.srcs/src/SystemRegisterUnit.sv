@@ -55,7 +55,7 @@ module SystemRegisterUnit();
 
     function automatic void modifyStateSync(input ControlOp cOp, input Mword adr);
         case (cOp)
-            CO_exception: begin
+            CO_exception, CO_specificException: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 

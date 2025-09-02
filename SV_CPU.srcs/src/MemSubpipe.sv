@@ -198,6 +198,11 @@ module MemSubpipe#(
                     res.status = ES_TLB_MISS;
                     return res;
                 end
+                else if (cacheResp.status == CR_NOT_ALLOWED) begin
+                    insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                    res.status = ES_ILLEGAL;
+                    return res;
+                end
 
                 if (!cacheResp.desc.cached || cacheResp.status == CR_UNCACHED) begin
                     res.status = ES_UNCACHED_1;  
@@ -218,7 +223,7 @@ module MemSubpipe#(
         UidT uid = p.TMP_oid;
 
         if (sysResp.status == CR_INVALID) begin
-            insMap.setException(U2M(p.TMP_oid)); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+            insMap.setException(U2M(p.TMP_oid), PE_SYS_INVALID_ADDRESS); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             res.status = ES_ILLEGAL;
         end
         else begin

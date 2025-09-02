@@ -145,6 +145,7 @@ package AbstractSim;
             CO_dbcall,
 
         CO_exception,
+            CO_specificException, // 
         
         CO_sync,
         CO_refetch,

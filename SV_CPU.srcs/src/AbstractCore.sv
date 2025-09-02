@@ -462,7 +462,7 @@ module AbstractCore
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
            
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);
             
@@ -506,7 +506,7 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, CurrentConfig.dbStep);
+                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
