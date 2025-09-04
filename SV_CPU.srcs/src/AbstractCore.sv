@@ -55,7 +55,9 @@ module AbstractCore
         logic dbStep = 0;
     } CurrentConfig;
 
-
+        
+        InsId lastRetired;
+        
 
     Mword insAdr;
     logic fetchEnable;
@@ -502,6 +504,8 @@ module AbstractCore
             if (cancelRest) $fatal(2, "Committing after break");
 
             commitOp(theRob.retirementGroup[i]);
+
+            lastRetired <= theId;
 
             // RET: generate late event
             if (breaksCommitId(theId)) begin

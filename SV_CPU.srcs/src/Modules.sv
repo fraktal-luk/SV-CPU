@@ -186,6 +186,51 @@ module BranchSubpipe(
         1: pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
+    
+
+    // TOPLEVEL
+    function automatic UopPacket performBranchE0(input UopPacket p);
+        if (!p.active) return p;
+        begin
+            UidT uid = p.TMP_oid;
+            Mword3 args = getAndVerifyArgs(uid);
+            p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
+        end
+        return p;
+    endfunction
+    
+
+    task automatic runExecBranch(input logic active, input UidT uid);
+        AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
+
+        if (!active) return;
+
+        setBranchInCore(uid);
+        putMilestone(uid, InstructionMap::ExecRedirect);
+    endtask
+
+
+    task automatic setBranchInCore(input UidT uid);
+        UopName uname = decUname(uid);
+        Mword3 args = insMap.getU(uid).argsA;
+        Mword adr = getAdr(U2M(uid));
+        Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
+        
+        logic predictedDir = insMap.get(U2M(uid)).frontBranch;
+        logic dir = resolveBranchDirection(uname, args[0]);// reg
+        logic redirect = predictedDir ^ dir;
+        
+        Mword expectedTrg = dir ? takenTrg : adr + 4;
+        Mword resolvedTarget = finalTarget(uname, dir, args[1], AbstractCore.theBq.submod.lookupTarget, AbstractCore.theBq.submod.lookupLink);
+        
+        assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
+        assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");
+
+        if (redirect) putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
+
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, resolvedTarget};
+    endtask
+
 endmodule
 
 
@@ -327,5 +372,17 @@ module StoreDataSubpipe(
         1: pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
+
+    
+    function automatic UopPacket performStoreData(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
+                
+        begin
+            UopPacket res = p;
+            Mword3 args = getAndVerifyArgs(p.TMP_oid);
+            res.result = args[2];
+            return res;
+        end
+    endfunction
 
 endmodule
