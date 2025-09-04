@@ -587,6 +587,11 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
+            assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception || isStaticEventIns(insInfo.basicData.dec))) 
+                else $error("MIsmatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
+                            retInfo.refetch, retInfo.exception);
+
+
         verifyOnCommit(retInfo);
 
         // RET: update regs
@@ -710,9 +715,17 @@ module AbstractCore
         return op;
     endfunction
 
+    
+    function automatic logic shouldFlushId(input InsId id);
+        if (id == -1) return 0;
+    
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
+    endfunction 
+
 
     function automatic logic shouldFlushEvent(input UidT uid);
-        return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
+        //return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
+        return shouldFlushId(U2M(uid));
     endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);

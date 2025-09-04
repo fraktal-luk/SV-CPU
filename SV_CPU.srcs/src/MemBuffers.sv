@@ -59,11 +59,11 @@ module StoreQueue
 
     always @(posedge AbstractCore.clk) begin    
         advance();
-
-        submod.updateMain();
-
-        submod.readImpl();
-
+        
+        if (0) begin
+            submod.updateMain();
+            submod.readImpl();
+        end
 
         if (lateEventInfo.redirect)
             flushAll();
@@ -71,6 +71,11 @@ module StoreQueue
             flushPartial(); 
         else
             writeInput(inGroup);
+            
+        if (1) begin
+            submod.updateMain();
+            submod.readImpl();
+        end
     end
 
 
@@ -434,7 +439,10 @@ endmodule
 
 
 module TmpSubLq();
-    task automatic readImpl();               
+
+    LqEntry oldestRefetchEntry = LoadQueueHelper::EMPTY_QENTRY, oldestRefetchEntryP0 = LoadQueueHelper::EMPTY_QENTRY, oldestRefetchEntryP1 = LoadQueueHelper::EMPTY_QENTRY;
+
+    task automatic readImpl();
         foreach (theExecBlock.toSqE2[p]) begin
             UopMemPacket storeUop = theExecBlock.toSqE2[p];
 
@@ -453,7 +461,7 @@ module TmpSubLq();
 
         if (found.size() == 0) return res;
 
-        foreach (found[i]) entries[found[i]].refetch = 1;
+        foreach (found[i]) entries[found[i]].refetch = 1; // Mark which entries have a sotre order violation
 
         begin // 'active' indicates that some match has happened without further details
             int oldestFound[$] = found.min with (entries[item].mid);
@@ -513,6 +521,31 @@ module TmpSubLq();
                else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;           
             end
         end
+        
+        // Scan entries which need to be refetched and find the oldest
+        
+        begin
+            LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
+            LqEntry oldestFound[$] = found.min with (item.mid);
+            
+            int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
+            int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);
+            //int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
+            
+            
+            if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
+            else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
+            
+            // If wasn't killed in queue, pass on
+            if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
+            else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+
+            // If wasn't killed in queue, pass on
+            if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
+            else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
+        end
+        
+        
     endtask
 
     function automatic void updateEntry(ref LqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);

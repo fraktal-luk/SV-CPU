@@ -247,7 +247,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     generate
-        InsId firstEventId = -1;
+        InsId firstEventId = -1, firstEventId_N = -1;
     
         OpSlotB staticEventSlot = EMPTY_SLOT_B;
         UopPacket memEventPacket = EMPTY_UOP_PACKET;
@@ -319,7 +319,28 @@ module ExecBlock(ref InstructionMap insMap,
                 if (U2M(fe.TMP_oid) < firstEventId || firstEventId == -1) firstEventId <= U2M(fe.TMP_oid);
             end
 
+
+            begin
+                InsId nextId = firstEventId_N;
+                
+                if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);
+                
+                if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));
+                                                          
+                nextId = replaceId(nextId, theLq.submod.oldestRefetchEntryP0.mid);
+                
+                if (shouldFlushId(nextId)) firstEventId_N <= -1;
+                else firstEventId_N <= nextId;
+            end
+
         endtask
+        
+        
+        function automatic InsId replaceId(input InsId prev, input InsId next);
+            if (prev == -1) return next;
+            else if (next != -1 && prev > next) return next;
+            else return prev;
+        endfunction
         
         
         
