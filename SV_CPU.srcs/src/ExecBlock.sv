@@ -15,12 +15,6 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-//    UopPacket doneRegular0, doneRegular1;
-//    UopPacket doneBranch;
-//    UopPacket doneMem0, doneMem2;
-//    UopPacket doneFloat0,  doneFloat1; 
-    
-//    UopPacket doneStoreData;
 
     UopPacket doneRegular0_E, doneRegular1_E;
     UopPacket doneMultiplier0_E, doneMultiplier1_E;
@@ -248,59 +242,46 @@ module ExecBlock(ref InstructionMap insMap,
 
     generate
         InsId firstEventId = -1, firstEventId_N = -1;
-    
-        OpSlotB staticEventSlot = EMPTY_SLOT_B;
-        UopPacket memEventPacket = EMPTY_UOP_PACKET;
-        UopPacket memRefetchPacket = EMPTY_UOP_PACKET;
         
-        
-        function automatic logic hasStaticEvent(InsId id);
-            AbstractInstruction abs = insMap.get(id).basicData.dec;
-            return isStaticEventIns(abs);
-        endfunction
-        
-        task automatic gatherMemEvents();        
-            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_ILLEGAL);
+            OpSlotB staticEventSlot = EMPTY_SLOT_B;
+            UopPacket memEventPacket = EMPTY_UOP_PACKET;
+            UopPacket memRefetchPacket = EMPTY_UOP_PACKET;
+
+            function automatic logic hasStaticEvent(InsId id);
+                AbstractInstruction abs = insMap.get(id).basicData.dec;
+                return isStaticEventIns(abs);
+            endfunction
             
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            task automatic gatherMemEvents();        
+                ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
+                ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_ILLEGAL);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                
+                if (found.size() == 0) return;
+                assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
+                if (!memEventPacket.active || U2M(oldest[0].TMP_oid) < U2M(memEventPacket.TMP_oid)) memEventPacket <= tickP(oldest[0]);
+            endtask
+     
+     
+             task automatic gatherMemRefetches();        
+                ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
+                ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_REFETCH);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                
+                if (found.size() == 0) return;
+                assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
+                if (!memRefetchPacket.active || U2M(oldest[0].TMP_oid) < U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= tickP(oldest[0]);
+            endtask       
             
-            if (found.size() == 0) return;
+             task automatic gatherStaticEvents();        
+                OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
+                // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+                if (found.size() == 0) return;       
+                if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];
+            endtask    
             
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
             
-            if (!memEventPacket.active || U2M(oldest[0].TMP_oid) < U2M(memEventPacket.TMP_oid)) memEventPacket <= tickP(oldest[0]);
-        endtask
- 
- 
-         task automatic gatherMemRefetches();        
-            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_REFETCH);
-            
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-            if (found.size() == 0) return;
-            
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
-            
-            if (!memRefetchPacket.active || U2M(oldest[0].TMP_oid) < U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= tickP(oldest[0]);
-        endtask       
-        
-         task automatic gatherStaticEvents();        
-            // TODO: find ops which cause events
-            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
-            
-            // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-            
-            //ForwardingElement oldest[$] = found.min with (item.mid);
-            
-            if (found.size() == 0) return;
-            
-           // assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
-            
-            if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];//tickP(oldest[0]);
-        endtask    
-        
         task automatic updateFirstEvent();
             OpSlotB foundRename[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
         
@@ -309,24 +290,11 @@ module ExecBlock(ref InstructionMap insMap,
             ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
             
             // TODO: verify that oldestMem is empty or .active
-            
-            
-            // 
-            if (!branchEventInfo.redirect && !lateEventInfo.redirect && firstEventId == -1 && foundRename.size() > 0) firstEventId <= foundRename[0].mid; 
-            
-            if (oldestMem.size() > 0) begin
-                ForwardingElement fe = tickP(oldestMem[0]);
-                if (U2M(fe.TMP_oid) < firstEventId || firstEventId == -1) firstEventId <= U2M(fe.TMP_oid);
-            end
-
 
             begin
                 InsId nextId = firstEventId_N;
-                
                 if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);
-                
-                if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));
-                                                          
+                if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));                                    
                 nextId = replaceId(nextId, theLq.submod.oldestRefetchEntryP0.mid);
                 
                 if (shouldFlushId(nextId)) firstEventId_N <= -1;
@@ -344,23 +312,21 @@ module ExecBlock(ref InstructionMap insMap,
         
         
         
-        always @(posedge AbstractCore.clk) begin
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && branchEventInfo.eventMid < firstEventId)) firstEventId <= -1;
-        
+        always @(posedge AbstractCore.clk) begin        
             updateFirstEvent();
         
-            if (lateEventInfo.redirect || branchEventInfo.redirect) staticEventSlot <= EMPTY_SLOT_B;
-            //else memEventPacket <= tickP(memEventPacket);       
-        
-            if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memEventPacket.TMP_oid)) memEventPacket <= EMPTY_UOP_PACKET;
-            else memEventPacket <= tickP(memEventPacket);
-
-            if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= EMPTY_UOP_PACKET;
-            else memRefetchPacket <= tickP(memRefetchPacket);
+                if (lateEventInfo.redirect || branchEventInfo.redirect) staticEventSlot <= EMPTY_SLOT_B;
+                //else memEventPacket <= tickP(memEventPacket);       
             
-            gatherMemEvents();
-            gatherMemRefetches();
-            gatherStaticEvents();
+                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memEventPacket.TMP_oid)) memEventPacket <= EMPTY_UOP_PACKET;
+                else memEventPacket <= tickP(memEventPacket);
+    
+                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= EMPTY_UOP_PACKET;
+                else memRefetchPacket <= tickP(memRefetchPacket);
+                
+                gatherMemEvents();
+                gatherMemRefetches();
+                gatherStaticEvents();
         end
     
     endgenerate

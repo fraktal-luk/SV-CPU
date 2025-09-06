@@ -149,6 +149,8 @@ package EmulationDefs;
     };
 
 
+    
+    // TODO: review functions below, their functionality may be implemented in uop defs 
 
     // Not including memory
     function automatic logic isFloatCalcIns(input AbstractInstruction ins);
@@ -215,7 +217,7 @@ package EmulationDefs;
         return isStoreMemIns(ins) || isStoreSysIns(ins);
     endfunction
 
-
+ 
     function automatic bit hasIntDest(input AbstractInstruction ins);
         return ins.def.o inside {
             O_jump,
@@ -259,6 +261,9 @@ package EmulationDefs;
         return ins.def.o inside {
             O_floatMove,
             O_floatOr, O_floatAddInt,
+            O_floatMulInt, O_floatDivInt,
+            O_floatGenInv, O_floatGenOv,
+            
             O_floatLoadW
         };
     endfunction
@@ -328,6 +333,10 @@ package EmulationDefs;
 
             O_floatOr:   result = vals[0] | vals[1];
             O_floatAddInt: result = vals[0] + vals[1];
+                O_floatMulInt: result = vals[0] * vals[1];
+                O_floatDivInt: result = vals[0] / vals[1];
+                O_floatGenInv: result = 1;
+                O_floatGenOv: result = 1;
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase

@@ -1,0 +1,8 @@
+;
+$start
+
+	
+$check
+	sys_dbcall
+$error
+    sys_error
