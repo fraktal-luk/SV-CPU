@@ -38,6 +38,8 @@ package Testing;
 
     const string DEFAULT_DBBREAK_HANDLER[$]  = {"jz_r r0, r0, r30", "ja 0", "sys_error"};
 
+    const string DEFAULT_ARITH_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
+
 
 
 
@@ -59,6 +61,8 @@ package Testing;
 
     const Section DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
 
+    const Section DEFAULT_ARITH_SECTION = processLines(DEFAULT_ARITH_HANDLER);
+
 
 
     string codeDir = "../../../../SV_CPU.srcs/code/";
@@ -79,7 +83,9 @@ package Testing;
                               input Section excSec,
                               input Section memExcSec,
                               input Section dbSec,
-                              input Section dbBreakSec);
+                              input Section dbBreakSec,
+                              input Section arithSec
+                              );
         mem = '{default: 'x};
 
         //writeProgram(mem, 0, testSec.words);
@@ -92,6 +98,7 @@ package Testing;
         writeProgram(mem, IP_MEM_EXC % PAGE_SIZE, memExcSec.words);
         writeProgram(mem, IP_DB_CALL % PAGE_SIZE, dbSec.words);
         writeProgram(mem, IP_DB_BREAK % PAGE_SIZE, dbBreakSec.words);
+        writeProgram(mem, IP_ARITH_EXC % PAGE_SIZE, arithSec.words);
     endfunction
 
 
@@ -127,7 +134,8 @@ package Testing;
 
     function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
         WordArray mem = new [PAGE_SIZE/4];
-        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, MEM_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION);
+        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION,
+                                MEM_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION, DEFAULT_ARITH_SECTION);
         return mem;
     endfunction
 

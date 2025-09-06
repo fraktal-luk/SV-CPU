@@ -115,6 +115,7 @@ package InsDefs;
     localparam Mword IP_MEM_EXC   = HANDLER_BASE + 'h00000400;
     localparam Mword IP_DB_CALL   = HANDLER_BASE + 'h00000480;
     localparam Mword IP_DB_BREAK  = HANDLER_BASE + 'h00000500;
+    localparam Mword IP_ARITH_EXC = HANDLER_BASE + 'h00000580;
 
 
 

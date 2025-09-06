@@ -37,6 +37,8 @@ package EmulationDefs;
         PE_MEM_CACHE_MISS = 3*16 + 6, // HW
         PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
         
+        PE_ARITH_EXCEPTION = 4*16 + 0,
+        
         PE_SYS_INVALID_ADDRESS = 5*16 + 0,
         PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
         PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
@@ -58,6 +60,9 @@ package EmulationDefs;
                 return IP_FETCH_EXC;
             [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS]:
                 return IP_MEM_EXC;
+            
+            PE_ARITH_EXCEPTION:
+                return IP_ARITH_EXC;
                 
             PE_SYS_INVALID_ADDRESS:
                 return IP_EXC;

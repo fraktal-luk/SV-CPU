@@ -249,7 +249,7 @@ package Emulation;
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
             endcase
-                        
+
             return result;
         endfunction
 
@@ -453,8 +453,28 @@ package Emulation;
 
         
         function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result);
+            logic excGenerated = 0;
                 status.arithException = 0; // TMP
             
+            if (ins.def.o == O_floatGenInv) begin
+                cregs.fpStatus.INV = 1;
+                excGenerated = 1;
+            end
+            else if (ins.def.o == O_floatGenOv) begin
+                cregs.fpStatus.OV = 1;
+                excGenerated = 1;
+            end
+            
+            syncSysRegsFromCregs();
+            
+            // TODO: fire exception if trap is enabled 
+            if (excGenerated && cregs.currentStatus.enArithExc) begin
+                // 
+                setExecState(PE_ARITH_EXCEPTION, ip);
+                syncStatusFromRegs();
+                return 1;
+            end
+                
             return 0;
         endfunction
 

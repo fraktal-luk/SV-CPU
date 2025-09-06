@@ -17,7 +17,9 @@ package ControlRegisters;
             
             logic       dbStep;
             
-            logic [7:0] resC;
+            logic [1:0] resC;
+            logic       enArithExc;
+            logic [4:0] resD;
              
             logic [3:0] intMask;
             logic [3:0] intLevel;
