@@ -383,6 +383,7 @@ package EmulationDefs;
 
         logic send;
         logic dbEventPending;
+        logic arithException;
         
         ProgramEvent eventType;
         

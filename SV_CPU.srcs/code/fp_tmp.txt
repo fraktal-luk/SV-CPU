@@ -1,6 +1,9 @@
 ;
 $start
-
+	
+	addi_f f5, f2, f3
+	
+	inv_f f11, f5, f5
 	
 $check
 	sys_dbcall

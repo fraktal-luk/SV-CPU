@@ -534,6 +534,10 @@ package ExecDefs;
                 UOP_fp_move:   res = args[0];
                 UOP_fp_or:     res = args[0] | args[1];
                 UOP_fp_addi:   res = args[0] + args[1];
+                    UOP_fp_muli:   res = args[0] * args[1];
+                    UOP_fp_divi:   res = args[0] / args[1];
+                    UOP_fp_inv:   res = 1;
+                    UOP_fp_ov:   res = 1;
     
                 default: $fatal(2, "Wrong uop");
             endcase

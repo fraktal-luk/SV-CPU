@@ -39,7 +39,12 @@ package ControlRegisters;
         Dword intSyndrome = 0;
         
         // 8
-        //.....
+        struct packed {
+            Word resA;
+            logic INV;
+            logic OV;
+            logic [29:0] resB;
+        } fpStatus = 0;
         
         // 9
         // .....
@@ -68,6 +73,7 @@ package ControlRegisters;
         cregs.intSavedStatus = arr[5];
         cregs.excSyndrome = arr[6];
         cregs.intSyndrome = arr[7];
+        cregs.fpStatus = arr[8];
         
         cregs.memControl = arr[10];
     endfunction
@@ -82,6 +88,7 @@ package ControlRegisters;
         arr[5] = cregs.intSavedStatus;
         arr[6] = cregs.excSyndrome;
         arr[7] = cregs.intSyndrome;
+        arr[8] = cregs.fpStatus;
         
         arr[10] = cregs.memControl;
     endfunction   
