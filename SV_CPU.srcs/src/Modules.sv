@@ -114,7 +114,7 @@ module FloatSubpipe(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= performRegularE0(tickP(p1));
+        pE0 <= performFP(tickP(p1));
         pE1 <= (tickP(pE0));
         pE2 <= (tickP(pE1));
         pE3 <= (tickP(pE2));
@@ -139,6 +139,18 @@ module FloatSubpipe(
         1: pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
+
+
+    function automatic UopPacket performFP(input UopPacket p);        
+        UopPacket res = performRegularE0(p);
+        
+        if (p.TMP_oid == UIDT_NONE) return res;
+        
+        if (decUname(p.TMP_oid) == UOP_fp_inv) res.status = ES_FP_INVALID;
+        else if (decUname(p.TMP_oid) == UOP_fp_ov) res.status = ES_FP_OVERFLOW;
+        
+        return res;
+    endfunction
 
 endmodule
 

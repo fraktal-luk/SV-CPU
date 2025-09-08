@@ -30,7 +30,10 @@ package ExecDefs;
             ES_TLB_MISS,
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
-        ES_ILLEGAL
+        ES_ILLEGAL,
+        
+            ES_FP_INVALID,
+            ES_FP_OVERFLOW
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);

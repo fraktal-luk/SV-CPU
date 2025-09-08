@@ -22,3 +22,7 @@ sim:/ArchDesc0/core/theLq/submod/oldestRefetchEntry \
 sim:/ArchDesc0/core/theLq/submod/oldestRefetchEntryP0 \
 sim:/ArchDesc0/core/theLq/submod/oldestRefetchEntryP1
 
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/firstFloatInvId \
+sim:/ArchDesc0/core/theExecBlock/firstFloatOvId
+

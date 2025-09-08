@@ -3,8 +3,11 @@ $start
 	
 	addi_f f5, f2, f3
 	
-	inv_f f11, f5, f5
-	
+	inv_f  f11, f5, f5
+	addi_f f20, f4, f2
+	ov_f   f22, f21, f21
+
+
 $check
 	sys_dbcall
 $error

@@ -242,6 +242,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     generate
         InsId firstEventId = -1, firstEventId_N = -1;
+        InsId firstFloatInvId = -1, firstFloatOvId = -1;
         
             OpSlotB staticEventSlot = EMPTY_SLOT_B;
             UopPacket memEventPacket = EMPTY_UOP_PACKET;
@@ -282,19 +283,37 @@ module ExecBlock(ref InstructionMap insMap,
             endtask    
             
             
+
+            
+            function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
+                ForwardingElement found[$] = elems.find with (item.active && item.status == st);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                return oldest;
+            endfunction
+            
+            
         task automatic updateFirstEvent();
             OpSlotB foundRename[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
         
             ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement foundMem[$] = memStages0.find with (item.active && item.status inside {ES_ILLEGAL, ES_REFETCH});
-            ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
-            
+            ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);//foundMem.min with (U2M(item.TMP_oid));
+
+                ForwardingElement foundMem[$] = memStages0.find with (item.active && item.status inside {ES_ILLEGAL, ES_REFETCH});
+
+                ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
+                
+                assert (oldestMem.size() <= oldestMemIll.size() + oldestMemRef.size()) else $error("Wtf: %p, %p, %p", oldestMem, oldestMemIll, oldestMemRef);
+                
             // TODO: verify that oldestMem is empty or .active
 
             begin
                 InsId nextId = firstEventId_N;
                 if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);
-                if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));                                    
+                //if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));                                    
+                
+                if (oldestMemIll.size() > 0) nextId = replaceId(nextId, U2M(oldestMemIll[0].TMP_oid));                                    
+                if (oldestMemRef.size() > 0) nextId = replaceId(nextId, U2M(oldestMemRef[0].TMP_oid));                                    
                 nextId = replaceId(nextId, theLq.submod.oldestRefetchEntryP0.mid);
                 
                 if (shouldFlushId(nextId)) firstEventId_N <= -1;
@@ -302,8 +321,33 @@ module ExecBlock(ref InstructionMap insMap,
             end
 
         endtask
-        
-        
+
+
+        task automatic updateArithBits();        
+            ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
+
+            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
+
+            begin
+                InsId nextId = firstFloatInvId;
+                if (oldestInv.size() > 0) nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));                                    
+                
+                if (shouldFlushId(nextId)) firstFloatInvId <= -1;
+                else firstFloatInvId <= nextId;
+            end
+
+            begin
+                InsId nextId = firstFloatOvId;
+                if (oldestOv.size() > 0) nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));                                    
+                
+                if (shouldFlushId(nextId)) firstFloatOvId <= -1;
+                else firstFloatOvId <= nextId;
+            end
+
+        endtask
+
+
         function automatic InsId replaceId(input InsId prev, input InsId next);
             if (prev == -1) return next;
             else if (next != -1 && prev > next) return next;
@@ -314,6 +358,8 @@ module ExecBlock(ref InstructionMap insMap,
         
         always @(posedge AbstractCore.clk) begin        
             updateFirstEvent();
+        
+            updateArithBits();
         
                 if (lateEventInfo.redirect || branchEventInfo.redirect) staticEventSlot <= EMPTY_SLOT_B;
                 //else memEventPacket <= tickP(memEventPacket);       

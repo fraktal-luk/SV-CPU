@@ -100,7 +100,7 @@ package ControlHandling;
                 UOP_ctrl_refetch:   res.cOp = CO_refetch;
                 //O_halt:     res.cOp = CO_undef;
                 UOP_ctrl_send:     res.cOp = CO_send;
-                default:    res.cOp = dbStep ? CO_break : CO_none;
+                default:    res.cOp = dbStep ? CO_break : CO_none; // TODO: maybe dbstep should override sync, send, refetch because they are not "real" events? See Emulation
             endcase
         end
         return res;
