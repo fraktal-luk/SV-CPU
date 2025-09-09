@@ -53,6 +53,7 @@ module AbstractCore
     struct {
         logic enableMmu = 0;
         logic dbStep = 0;
+        logic enArithExc = 0;
     } CurrentConfig;
 
         
@@ -505,6 +506,18 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
+                begin
+                    if (theId == theExecBlock.firstFloatInvId) begin
+                        sysUnit.setFpInv();
+                    end
+                    if (theId == theExecBlock.firstFloatOvId) begin
+                        sysUnit.setFpOv();
+                    end
+                    
+                    syncGlobalParamsFromRegs();
+                end
+            
+
             lastRetired <= theId;
 
             // RET: generate late event
@@ -811,6 +824,8 @@ module AbstractCore
 
             CurrentConfig.enableMmu <= tmpStatus.enableMmu;
             CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
+            // TODO: en FP exceptions likewise
+            CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
         endfunction
 
 endmodule

@@ -334,6 +334,7 @@ module ExecBlock(ref InstructionMap insMap,
                 if (oldestInv.size() > 0) nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));                                    
                 
                 if (shouldFlushId(nextId)) firstFloatInvId <= -1;
+                else if (AbstractCore.lastRetired == nextId) firstFloatInvId <= -1;
                 else firstFloatInvId <= nextId;
             end
 
@@ -342,6 +343,7 @@ module ExecBlock(ref InstructionMap insMap,
                 if (oldestOv.size() > 0) nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));                                    
                 
                 if (shouldFlushId(nextId)) firstFloatOvId <= -1;
+                else if (AbstractCore.lastRetired == nextId) firstFloatOvId <= -1;
                 else firstFloatOvId <= nextId;
             end
 

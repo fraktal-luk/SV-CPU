@@ -43,8 +43,8 @@ package ControlRegisters;
         // 8
         struct packed {
             Word resA;
-            logic INV;
-            logic OV;
+            logic INV;  // 31
+            logic OV;   // 30
             logic [29:0] resB;
         } fpStatus = 0;
         

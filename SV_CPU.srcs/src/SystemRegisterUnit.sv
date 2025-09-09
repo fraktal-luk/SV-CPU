@@ -106,4 +106,12 @@ module SystemRegisterUnit();
         sysRegs[1] &= ~('h00100000); // clear dbstep
     endfunction
 
+    function automatic void setFpInv();
+        sysRegs[8][31] = 1;
+    endfunction
+
+    function automatic void setFpOv();
+        sysRegs[8][30] = 1;
+    endfunction
+
 endmodule
