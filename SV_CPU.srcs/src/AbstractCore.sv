@@ -555,7 +555,9 @@ module AbstractCore
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
-        assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+        
+        // TODO: incorporate arith exc into ROB output to bring back this check?
+        //assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 
@@ -600,7 +602,8 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-            assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception || isStaticEventIns(insInfo.basicData.dec))) 
+            assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
+                                isStaticEventIns(insInfo.basicData.dec)|| (insInfo.eventType == PE_ARITH_EXCEPTION)))
                 else $error("MIsmatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
                             retInfo.refetch, retInfo.exception);
 

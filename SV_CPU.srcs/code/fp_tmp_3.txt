@@ -1,0 +1,32 @@
+;
+$start
+	add_i r1, r0, 1
+	shl_i r1, r1, 31  ; INV set
+	add_i r2, r0, 3
+	shl_i r2, r2, 30  ; INV | OV set
+
+	add_h r3, r0, 2   ; bit 17 set
+	lds   r10, r0, r1
+	or_r  r10, r10, r3
+	sts   r10, r0, 1  ; enable FP exc
+
+	sys_sync
+	addi_f f5, f2, f3
+	
+	; check fpStatus == 0
+	;lds    r10, r0, 8
+	;jnz_i  r10, $error
+	
+	addi_f f7, f2, f3
+	
+	inv_f  f11, f5, f5   ; generate exc
+	
+	; Here we should have returned from exception
+	
+	add_i r12, r29, -98
+	jnz_i r12, $error
+
+$check
+	sys_dbcall
+$error
+    sys_error

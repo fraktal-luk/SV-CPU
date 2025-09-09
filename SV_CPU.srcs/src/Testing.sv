@@ -38,7 +38,7 @@ package Testing;
 
     const string DEFAULT_DBBREAK_HANDLER[$]  = {"jz_r r0, r0, r30", "ja 0", "sys_error"};
 
-    const string DEFAULT_ARITH_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
+    const string DEFAULT_ARITH_HANDLER[$]  = {"add_i r29, r0, 98", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
 
 

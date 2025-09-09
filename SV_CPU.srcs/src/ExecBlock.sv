@@ -299,11 +299,17 @@ module ExecBlock(ref InstructionMap insMap,
             ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);//foundMem.min with (U2M(item.TMP_oid));
             ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);//foundMem.min with (U2M(item.TMP_oid));
 
-                ForwardingElement foundMem[$] = memStages0.find with (item.active && item.status inside {ES_ILLEGAL, ES_REFETCH});
+                ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
+    
+                ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
+                ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
+    
 
-                ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
+            //    ForwardingElement foundMem[$] = memStages0.find with (item.active && item.status inside {ES_ILLEGAL, ES_REFETCH});
+//
+            //    ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
                 
-                assert (oldestMem.size() <= oldestMemIll.size() + oldestMemRef.size()) else $error("Wtf: %p, %p, %p", oldestMem, oldestMemIll, oldestMemRef);
+            //    assert (oldestMem.size() <= oldestMemIll.size() + oldestMemRef.size()) else $error("Wtf: %p, %p, %p", oldestMem, oldestMemIll, oldestMemRef);
                 
             // TODO: verify that oldestMem is empty or .active
 
@@ -315,6 +321,9 @@ module ExecBlock(ref InstructionMap insMap,
                 if (oldestMemIll.size() > 0) nextId = replaceId(nextId, U2M(oldestMemIll[0].TMP_oid));                                    
                 if (oldestMemRef.size() > 0) nextId = replaceId(nextId, U2M(oldestMemRef[0].TMP_oid));                                    
                 nextId = replaceId(nextId, theLq.submod.oldestRefetchEntryP0.mid);
+                
+                if (AbstractCore.CurrentConfig.enArithExc && oldestInv.size() > 0) nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
+                if (AbstractCore.CurrentConfig.enArithExc && oldestOv.size() > 0)  nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));
                 
                 if (shouldFlushId(nextId)) firstEventId_N <= -1;
                 else firstEventId_N <= nextId;
@@ -331,8 +340,11 @@ module ExecBlock(ref InstructionMap insMap,
 
             begin
                 InsId nextId = firstFloatInvId;
-                if (oldestInv.size() > 0) nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));                                    
-                
+                if (oldestInv.size() > 0) begin
+                    nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
+                    if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestInv[0].TMP_oid), PE_ARITH_EXCEPTION);
+                end
+
                 if (shouldFlushId(nextId)) firstFloatInvId <= -1;
                 else if (AbstractCore.lastRetired == nextId) firstFloatInvId <= -1;
                 else firstFloatInvId <= nextId;
@@ -340,8 +352,11 @@ module ExecBlock(ref InstructionMap insMap,
 
             begin
                 InsId nextId = firstFloatOvId;
-                if (oldestOv.size() > 0) nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));                                    
-                
+                if (oldestOv.size() > 0) begin
+                    nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));                                    
+                    if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestOv[0].TMP_oid), PE_ARITH_EXCEPTION);
+                end
+
                 if (shouldFlushId(nextId)) firstFloatOvId <= -1;
                 else if (AbstractCore.lastRetired == nextId) firstFloatOvId <= -1;
                 else firstFloatOvId <= nextId;
