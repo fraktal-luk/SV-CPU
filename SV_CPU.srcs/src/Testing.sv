@@ -27,6 +27,9 @@ package Testing;
 
     const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
+
+    const string MEM_EXC_HANDLER[$]  = {"add_i r1, r0, 58", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
+
     // FETCH_EXC
     
     // MEM_EXC
@@ -34,6 +37,8 @@ package Testing;
     const string DEFAULT_DB_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
 
     const string DEFAULT_DBBREAK_HANDLER[$]  = {"jz_r r0, r0, r30", "ja 0", "sys_error"};
+
+    const string DEFAULT_ARITH_HANDLER[$]  = {"add_i r29, r0, 98", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
 
 
@@ -46,13 +51,17 @@ package Testing;
     const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
 
     const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
-    const Section FAILING_SECTION = processLines(FAILING_HANDLER);
+    //const Section FAILING_SECTION = processLines(FAILING_HANDLER);
 
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
+
+    const Section MEM_EXC_SECTION = processLines(MEM_EXC_HANDLER);
 
     const Section DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
 
     const Section DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
+
+    const Section DEFAULT_ARITH_SECTION = processLines(DEFAULT_ARITH_HANDLER);
 
 
 
@@ -72,8 +81,11 @@ package Testing;
                               input Section callSec,
                               input Section intSec,
                               input Section excSec,
+                              input Section memExcSec,
                               input Section dbSec,
-                              input Section dbBreakSec);
+                              input Section dbBreakSec,
+                              input Section arithSec
+                              );
         mem = '{default: 'x};
 
         //writeProgram(mem, 0, testSec.words);
@@ -83,8 +95,10 @@ package Testing;
         writeProgram(mem, IP_CALL % PAGE_SIZE, callSec.words);
         writeProgram(mem, IP_INT % PAGE_SIZE, intSec.words);
         writeProgram(mem, IP_EXC % PAGE_SIZE, excSec.words);
+        writeProgram(mem, IP_MEM_EXC % PAGE_SIZE, memExcSec.words);
         writeProgram(mem, IP_DB_CALL % PAGE_SIZE, dbSec.words);
         writeProgram(mem, IP_DB_BREAK % PAGE_SIZE, dbBreakSec.words);
+        writeProgram(mem, IP_ARITH_EXC % PAGE_SIZE, arithSec.words);
     endfunction
 
 
@@ -120,7 +134,8 @@ package Testing;
 
     function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
         WordArray mem = new [PAGE_SIZE/4];
-        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION);
+        setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION,
+                                MEM_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION, DEFAULT_ARITH_SECTION);
         return mem;
     endfunction
 

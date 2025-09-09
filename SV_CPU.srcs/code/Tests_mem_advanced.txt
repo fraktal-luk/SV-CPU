@@ -1,4 +1,6 @@
 
+mem_forbidden_read
+
 mem_uncached0
 mem_uncached1
 

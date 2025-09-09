@@ -39,6 +39,10 @@ package UopList;
          UOP_fp_move,
          UOP_fp_or,
          UOP_fp_addi,
+            UOP_fp_muli,
+            UOP_fp_divi,
+            UOP_fp_inv,
+            UOP_fp_ov,
         
          UOP_mem_ldi,
          UOP_mem_sti,
@@ -115,6 +119,10 @@ package UopList;
         "mov_f":      UOP_fp_move,
         "or_f":       UOP_fp_or,
         "addi_f":     UOP_fp_addi,
+        "muli_f":     UOP_fp_muli,
+        "divi_f":     UOP_fp_divi,
+        "inv_f":      UOP_fp_inv,
+        "ov_f":       UOP_fp_ov,
         
         "ldi_i":      UOP_mem_ldi,
         "sti_i":      UOP_mem_sti,
@@ -157,7 +165,12 @@ package UopList;
         return name inside {
              UOP_fp_move,
              UOP_fp_or,
-             UOP_fp_addi };
+             UOP_fp_addi,
+                UOP_fp_muli,
+                UOP_fp_divi,
+                UOP_fp_inv,
+                UOP_fp_ov
+              };
     endfunction    
 
     function automatic logic isControlUop(input UopName name);
@@ -274,7 +287,10 @@ package UopList;
              UOP_fp_move,
              UOP_fp_or,
              UOP_fp_addi,
-            
+                UOP_fp_muli,
+                UOP_fp_divi,
+                UOP_fp_inv,
+                UOP_fp_ov,
              UOP_mem_ldf
         };
     endfunction    

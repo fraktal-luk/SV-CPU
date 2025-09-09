@@ -115,6 +115,7 @@ package InsDefs;
     localparam Mword IP_MEM_EXC   = HANDLER_BASE + 'h00000400;
     localparam Mword IP_DB_CALL   = HANDLER_BASE + 'h00000480;
     localparam Mword IP_DB_BREAK  = HANDLER_BASE + 'h00000500;
+    localparam Mword IP_ARITH_EXC = HANDLER_BASE + 'h00000580;
 
 
 
@@ -144,7 +145,10 @@ package InsDefs;
             rem_s, rem_u,
 
             mov_f,
-            or_f, addi_f,  // -- Float operations
+            or_f, addi_f,  // -- Pseudo float operations
+            muli_f, divi_f, // Pseudo float operations
+            inv_f, ov_f,  // Setting FP exceptions
+
 
             ldi_i, ldi_r, //-- int
             sti_i, sti_r,
@@ -291,6 +295,10 @@ package InsDefs;
 
         T_floatOr     = 32*S_floatArith + 0,
         T_floatAddInt = 32*S_floatArith + 1,
+        T_floatMulInt = 32*S_floatArith + 2,
+        T_floatDivInt = 32*S_floatArith + 3,
+        T_floatGenInv = 32*S_floatArith + 4,
+        T_floatGenOv  = 32*S_floatArith + 5,
 
 
         T_jumpRegZ  = 32*S_jumpReg + 0,
@@ -372,6 +380,11 @@ package InsDefs;
 
         O_floatOr,
         O_floatAddInt,
+        O_floatMulInt,
+        O_floatDivInt,
+        O_floatGenInv,
+        O_floatGenOv,
+        
         
         O_intLoadW, O_intLoadD,
         O_intStoreW, O_intStoreD,
@@ -422,6 +435,11 @@ package InsDefs;
         "mov_f":      '{F_float1R, P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
         "or_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
         "addi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
+        "muli_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatMulInt, O_floatMulInt},  // -- Float operations
+        "divi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatDivInt, O_floatDivInt},  // -- Float operations
+        "inv_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatGenInv, O_floatGenInv},  // -- Float operations
+        "ov_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatGenOv,  O_floatGenOv},  // -- Float operations
+        
         
         "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},//intImm16,
         "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},//intStore16,

@@ -4,15 +4,20 @@ package ControlHandling;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import EmulationDefs::*;
     import Emulation::*;
     import AbstractSim::*;
     import UopList::*;
 
 
-    function automatic EventInfo getLateEvent(input EventInfo info, input Mword adr, input Mword sr2, input Mword sr3);
+    function automatic EventInfo getLateEvent(input EventInfo info, input Mword adr, input Mword sr2, input Mword sr3, input Mword specificTarget);
         EventInfo res = EMPTY_EVENT_INFO;
         
         case (info.cOp)
+            CO_specificException: begin
+                res.target = specificTarget;
+                res.redirect = 1;
+            end
             CO_exception: begin
                 res.target = IP_EXC;
                 res.redirect = 1;
@@ -71,11 +76,18 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception, input logic dbStep);
+    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception, input ProgramEvent evtType, input logic dbStep);
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
-        else if (exception) res.cOp = CO_exception;
+        else if (exception) begin
+            if (evtType == PE_NONE)
+                res.cOp = CO_exception;
+            else begin
+                res.cOp = CO_specificException;
+                res.target = programEvent2trg(evtType);
+            end
+        end
         else begin
             case (uname)
                 UOP_ctrl_error:    res.cOp = CO_error;
@@ -88,7 +100,7 @@ package ControlHandling;
                 UOP_ctrl_refetch:   res.cOp = CO_refetch;
                 //O_halt:     res.cOp = CO_undef;
                 UOP_ctrl_send:     res.cOp = CO_send;
-                default:    res.cOp = dbStep ? CO_break : CO_none;
+                default:    res.cOp = dbStep ? CO_break : CO_none; // TODO: maybe dbstep should override sync, send, refetch because they are not "real" events? See Emulation
             endcase
         end
         return res;

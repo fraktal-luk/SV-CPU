@@ -53,9 +53,12 @@ module AbstractCore
     struct {
         logic enableMmu = 0;
         logic dbStep = 0;
+        logic enArithExc = 0;
     } CurrentConfig;
 
-
+        
+        InsId lastRetired;
+        
 
     Mword insAdr;
     logic fetchEnable;
@@ -462,7 +465,7 @@ module AbstractCore
         else begin
             Mword sr2 = getSysReg(2);
             Mword sr3 = getSysReg(3);
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3);
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
            
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);
             
@@ -503,10 +506,24 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
+                begin
+                    if (theId == theExecBlock.firstFloatInvId) begin
+                        sysUnit.setFpInv();
+                    end
+                    if (theId == theExecBlock.firstFloatOvId) begin
+                        sysUnit.setFpOv();
+                    end
+                    
+                    syncGlobalParamsFromRegs();
+                end
+            
+
+            lastRetired <= theId;
+
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, CurrentConfig.dbStep);
+                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
@@ -538,7 +555,9 @@ module AbstractCore
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
-        assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+        
+        // TODO: incorporate arith exc into ROB output to bring back this check?
+        //assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 
@@ -582,6 +601,12 @@ module AbstractCore
         InstructionInfo insInfo = insMap.get(id);
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+
+            assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
+                                isStaticEventIns(insInfo.basicData.dec)|| (insInfo.eventType == PE_ARITH_EXCEPTION)))
+                else $error("MIsmatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
+                            retInfo.refetch, retInfo.exception);
+
 
         verifyOnCommit(retInfo);
 
@@ -706,9 +731,17 @@ module AbstractCore
         return op;
     endfunction
 
+    
+    function automatic logic shouldFlushId(input InsId id);
+        if (id == -1) return 0;
+    
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
+    endfunction 
+
 
     function automatic logic shouldFlushEvent(input UidT uid);
-        return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
+        //return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
+        return shouldFlushId(U2M(uid));
     endfunction
 
     function automatic logic shouldFlushPoison(input Poison poison);
@@ -794,6 +827,8 @@ module AbstractCore
 
             CurrentConfig.enableMmu <= tmpStatus.enableMmu;
             CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
+            // TODO: en FP exceptions likewise
+            CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
         endfunction
 
 endmodule

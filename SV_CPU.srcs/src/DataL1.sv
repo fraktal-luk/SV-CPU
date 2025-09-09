@@ -327,6 +327,9 @@ module DataL1(
         else if (!tr.desc.cached) begin // Just detected uncached access, tr.desc indicates uncached
             res = '{1, CR_UNCACHED, tr.desc, 'x};
         end
+        else if (!tr.desc.canRead) begin // TEMPORRY, need to discern reads and writes
+            res = '{1, CR_NOT_ALLOWED, tr.desc, 'x};
+        end
         else if (!hit0 && !hit1) begin // data miss
            res = '{1, CR_TAG_MISS, tr.desc, 'x};
         end

@@ -61,6 +61,8 @@ package Insmap;
         logic frontBranch;
         logic exception;
         logic refetch;
+
+        ProgramEvent eventType;
     } InstructionInfo; // FUTURE: rename to MopInfo?
 
 
@@ -71,6 +73,8 @@ package Insmap;
         res.frontBranch = 'x;
         res.exception = 0;
         res.refetch = 0;
+
+        res.eventType = PE_NONE;
 
         return res;
     endfunction
@@ -260,8 +264,9 @@ package Insmap;
         endfunction
         
         
-        function automatic void setException(input InsId id);
+        function automatic void setException(input InsId id, input ProgramEvent evtType);
             insBase.minfos[id].exception = 1;
+            insBase.minfos[id].eventType = evtType;
         endfunction
         
         function automatic void setRefetch(input InsId id);

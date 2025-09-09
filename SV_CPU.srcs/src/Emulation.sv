@@ -249,7 +249,7 @@ package Emulation;
                 O_sysLoad: result = coreState.sysRegs[adr];
                 default: return result;
             endcase
-                        
+
             return result;
         endfunction
 
@@ -293,39 +293,52 @@ package Emulation;
     
         function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);            
             
+            // TODO: control ops clean dbEventPending because synchronous events are prioritized over dbstep.
+            // Exec exceptions have the same effect switch state before dbstep bit is checked.
+            // However what about control ops which are not state-swtching (sync, replay, send)? The should be able to get dbstep event?
+            
             // SR_SET
             case (abs.def.o)
                 O_error: begin
-                    setExecState(PE_SYS_ERROR, adr);            
+                    setExecState(PE_SYS_ERROR, adr);
+                        status.dbEventPending = 0;
                 end
                 O_undef: begin
                     setExecState(PE_SYS_UNDEFINED_INSTRUCTION, adr);
+                        status.dbEventPending = 0;
                 end
                 O_call: begin
                     setExecState(PE_SYS_CALL, adr + 4);
+                        status.dbEventPending = 0;
                 end
                 O_dbcall: begin
                     setExecState(PE_SYS_DBCALL, adr + 4);
+                        status.dbEventPending = 0;
                 end
                 O_retE: begin
                     state.target = cregs.excSavedIP;
                     cregs.currentStatus = cregs.excSavedStatus;
                     syncSysRegsFromCregs();
+                        status.dbEventPending = 0;
                 end
                 O_retI: begin
                     state.target = cregs.intSavedIP;
                     cregs.currentStatus = cregs.intSavedStatus;
                     syncSysRegsFromCregs();
+                        status.dbEventPending = 0;
                 end
                 O_replay: begin
                     state.target = adr;
+                       // status.dbEventPending = 0;
                 end
                 O_sync: begin
                     state.target = adr + 4;
+                       // status.dbEventPending = 0;
                 end
                 O_send: begin
                     state.target = adr + 4;
                     setSending();
+                       // status.dbEventPending = 0;
                 end
                 default: state.target = adr + 4;
             endcase
@@ -411,6 +424,7 @@ package Emulation;
             end
             
             status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            // TODO: clear dbtrap bit if other exception happened
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);
@@ -430,9 +444,40 @@ package Emulation;
 
         local function automatic void performCalculation(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
             Mword result = calculateResult(ins, vals, adr);
+                        
+            if (catchArithException(ins, vals, result)) return;
+            
             if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
+
+        
+        function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result);
+            logic excGenerated = 0;
+                status.arithException = 0; // TMP
+            
+            if (ins.def.o == O_floatGenInv) begin
+                cregs.fpStatus.INV = 1;
+                excGenerated = 1;
+            end
+            else if (ins.def.o == O_floatGenOv) begin
+                cregs.fpStatus.OV = 1;
+                excGenerated = 1;
+            end
+            
+            syncSysRegsFromCregs();
+            
+            // TODO: fire exception if trap is enabled 
+            if (excGenerated && cregs.currentStatus.enArithExc) begin
+                // 
+                setExecState(PE_ARITH_EXCEPTION, ip);
+                syncStatusFromRegs();
+                return 1;
+            end
+                
+            return 0;
+        endfunction
+
 
         local function automatic void performBranch(input AbstractInstruction ins, input Mword ip, input Mword3 vals);
             ExecEvent evt = resolveBranch(ins, ip, vals);
@@ -474,7 +519,7 @@ package Emulation;
                 Translation tr = translateDataAddress(vadr);
                 padr = tr.padr;
                 
-                if (catchMemAccessException(ins, vadr, tr.padr, tr.present)) return 1;
+                if (catchMemAccessException(ins, vadr, tr)) return 1;
             end
             
             begin
@@ -525,7 +570,7 @@ package Emulation;
             return 1;
         endfunction
 
-        local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, input Dword padr, input logic present);
+        local function automatic logic catchMemAccessException(input AbstractInstruction ins, input Mword vadr, Translation tr);
             ProgramEvent evt = PE_NONE;
 
             // PE_MEM_INVALID_ADDRESS = 3*16 + 0,
@@ -533,14 +578,15 @@ package Emulation;
                 evt = PE_MEM_INVALID_ADDRESS;
             
             // PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
-            else if (!present)
+            else if (!tr.present)
                 evt = PE_MEM_UNMAPPED_ADDRESS;     
 
             // PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
-            // TODO
-            
+            else if (!tr.desc.canRead) // TEMPORARY; need to discern reads and writes
+                evt = PE_MEM_DISALLOWED_ACCESS;
+                
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
-            else if (!physicalAddressValid(padr))
+            else if (!physicalAddressValid(tr.padr))
                 evt = PE_MEM_NONEXISTENT_ADDRESS;
 
             if (evt === PE_NONE) return 0;

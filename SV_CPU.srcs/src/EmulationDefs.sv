@@ -37,6 +37,8 @@ package EmulationDefs;
         PE_MEM_CACHE_MISS = 3*16 + 6, // HW
         PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
         
+        PE_ARITH_EXCEPTION = 4*16 + 0,
+        
         PE_SYS_INVALID_ADDRESS = 5*16 + 0,
         PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
         PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
@@ -58,6 +60,9 @@ package EmulationDefs;
                 return IP_FETCH_EXC;
             [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS]:
                 return IP_MEM_EXC;
+            
+            PE_ARITH_EXCEPTION:
+                return IP_ARITH_EXC;
                 
             PE_SYS_INVALID_ADDRESS:
                 return IP_EXC;
@@ -149,6 +154,8 @@ package EmulationDefs;
     };
 
 
+    
+    // TODO: review functions below, their functionality may be implemented in uop defs 
 
     // Not including memory
     function automatic logic isFloatCalcIns(input AbstractInstruction ins);
@@ -177,6 +184,10 @@ package EmulationDefs;
 
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
         return ins.def.o inside {O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
+    endfunction
+
+    function automatic logic isStaticEventIns(input AbstractInstruction ins); // excluding sys load
+        return ins.def.o inside {O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send};
     endfunction
 
     function automatic logic isLoadIns(input AbstractInstruction ins);
@@ -211,7 +222,7 @@ package EmulationDefs;
         return isStoreMemIns(ins) || isStoreSysIns(ins);
     endfunction
 
-
+ 
     function automatic bit hasIntDest(input AbstractInstruction ins);
         return ins.def.o inside {
             O_jump,
@@ -255,6 +266,9 @@ package EmulationDefs;
         return ins.def.o inside {
             O_floatMove,
             O_floatOr, O_floatAddInt,
+            O_floatMulInt, O_floatDivInt,
+            O_floatGenInv, O_floatGenOv,
+            
             O_floatLoadW
         };
     endfunction
@@ -324,6 +338,10 @@ package EmulationDefs;
 
             O_floatOr:   result = vals[0] | vals[1];
             O_floatAddInt: result = vals[0] + vals[1];
+                O_floatMulInt: result = vals[0] * vals[1];
+                O_floatDivInt: result = vals[0] / vals[1];
+                O_floatGenInv: result = 1;
+                O_floatGenOv: result = 1;
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
@@ -370,6 +388,7 @@ package EmulationDefs;
 
         logic send;
         logic dbEventPending;
+        logic arithException;
         
         ProgramEvent eventType;
         

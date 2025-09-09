@@ -1,0 +1,34 @@
+;
+$start
+	add_i r1, r0, 1
+	shl_i r1, r1, 31  ; INV set
+	add_i r2, r0, 3
+	shl_i r2, r2, 30  ; INV | OV set
+
+	addi_f f5, f2, f3
+	
+	; check fpStatus == 0
+	lds    r10, r0, 8
+	jnz_i  r10, $error
+	
+	inv_f  f11, f5, f5
+	
+	; check fpStatus == {INV: 1, default: 0}
+	sys_sync
+	lds   r10, r0, 8
+	sub_r r11, r10, r1
+	jnz_i r11, $error	
+	
+	addi_f f20, f4, f2
+	ov_f   f22, f21, f21
+
+	; check fpStatus == {INV: 1, OV: 1, default: 0}
+	sys_sync
+	lds   r10, r0, 8
+	sub_r r11, r10, r2
+	jnz_i r11, $error
+
+$check
+	sys_dbcall
+$error
+    sys_error

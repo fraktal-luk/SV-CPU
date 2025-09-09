@@ -3,6 +3,7 @@ package ExecDefs;
 
     import Base::*;
     import InsDefs::*;
+    import UopList::*;
     import Asm::*;
     import Emulation::*;
     
@@ -29,7 +30,10 @@ package ExecDefs;
             ES_TLB_MISS,
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
-        ES_ILLEGAL
+        ES_ILLEGAL,
+        
+            ES_FP_INVALID,
+            ES_FP_OVERFLOW
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
@@ -488,5 +492,93 @@ package ExecDefs;
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
+
+
+
+        function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
+            Mword res = 'x;
+            
+            case (name)
+                UOP_int_and:  res = args[0] & args[1];
+                UOP_int_or:   res = args[0] | args[1];
+                UOP_int_xor:  res = args[0] ^ args[1];
+                
+                UOP_int_addc: res = args[0] + args[1];
+                UOP_int_addh: res = args[0] + (args[1] << 16);
+                
+                UOP_int_add:  res = args[0] + args[1];
+                UOP_int_sub:  res = args[0] - args[1];
+                
+                    UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
+                    UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
+                
+                UOP_int_shlc:
+                                if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                                else                       res = $unsigned(args[0]) >> -args[1];
+                UOP_int_shac:
+                                if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                                else                       res = $unsigned(args[0]) >> -args[1];                     
+                UOP_int_rotc:
+                                if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
+                                else                       res = {args[0], args[0]} >> -args[1];
+                
+                // mul/div/rem
+                UOP_int_mul:   res = w2m( multiplyW(args[0], args[1]) );
+                UOP_int_mulhu: res = w2m( multiplyHighUnsignedW(args[0], args[1]) );
+                UOP_int_mulhs: res = w2m( multiplyHighSignedW(args[0], args[1]) );
+                UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
+                UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
+                UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
+                UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
+                
+                UOP_int_link: res = linkAdr;
+                
+                // FP
+                UOP_fp_move:   res = args[0];
+                UOP_fp_or:     res = args[0] | args[1];
+                UOP_fp_addi:   res = args[0] + args[1];
+                    UOP_fp_muli:   res = args[0] * args[1];
+                    UOP_fp_divi:   res = args[0] / args[1];
+                    UOP_fp_inv:   res = 1;
+                    UOP_fp_ov:   res = 1;
+    
+                default: $fatal(2, "Wrong uop");
+            endcase
+            
+            // Handling of cases of division by 0  
+            if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
+    
+            return res;
+        endfunction
+
+
+        function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
+            assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
+            
+            case (uname)
+                UOP_bc_z, UOP_br_z:  return condArg === 0;
+                UOP_bc_nz, UOP_br_nz: return condArg !== 0;
+                UOP_bc_a, UOP_bc_l: return 1;  
+                default: $fatal(2, "Wrong branch uop");
+            endcase            
+        endfunction
+    
+        function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
+            case (uname)
+                UOP_br_z, UOP_br_nz:  return args[1];
+                UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
+                default: $fatal(2, "Wrong branch uop");
+            endcase  
+        endfunction
+    
+        function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
+            if (dir === 0) return bqLink;
+    
+            case (uname)
+                UOP_br_z, UOP_br_nz:  return regValue;
+                UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
+                default: $fatal(2, "Wrong branch uop");
+            endcase 
+        endfunction
 
 endpackage

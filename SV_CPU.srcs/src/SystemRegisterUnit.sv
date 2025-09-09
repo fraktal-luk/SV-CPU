@@ -55,7 +55,7 @@ module SystemRegisterUnit();
 
     function automatic void modifyStateSync(input ControlOp cOp, input Mword adr);
         case (cOp)
-            CO_exception: begin
+            CO_exception, CO_specificException: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 
@@ -104,6 +104,14 @@ module SystemRegisterUnit();
 
         sysRegs[1] |= 16; // FUTURE: handle state register correctly
         sysRegs[1] &= ~('h00100000); // clear dbstep
+    endfunction
+
+    function automatic void setFpInv();
+        sysRegs[8][31] = 1;
+    endfunction
+
+    function automatic void setFpOv();
+        sysRegs[8][30] = 1;
     endfunction
 
 endmodule

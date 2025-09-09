@@ -15,12 +15,6 @@ module ExecBlock(ref InstructionMap insMap,
                 input EventInfo branchEventInfo,
                 input EventInfo lateEventInfo
 );
-//    UopPacket doneRegular0, doneRegular1;
-//    UopPacket doneBranch;
-//    UopPacket doneMem0, doneMem2;
-//    UopPacket doneFloat0,  doneFloat1; 
-    
-//    UopPacket doneStoreData;
 
     UopPacket doneRegular0_E, doneRegular1_E;
     UopPacket doneMultiplier0_E, doneMultiplier1_E;
@@ -245,6 +239,164 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.vecs = floatImagesTr;
 
 
+
+    generate
+        InsId firstEventId = -1, firstEventId_N = -1;
+        InsId firstFloatInvId = -1, firstFloatOvId = -1;
+        
+            OpSlotB staticEventSlot = EMPTY_SLOT_B;
+            UopPacket memEventPacket = EMPTY_UOP_PACKET;
+            UopPacket memRefetchPacket = EMPTY_UOP_PACKET;
+
+            function automatic logic hasStaticEvent(InsId id);
+                AbstractInstruction abs = insMap.get(id).basicData.dec;
+                return isStaticEventIns(abs);
+            endfunction
+            
+            task automatic gatherMemEvents();        
+                ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
+                ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_ILLEGAL);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                
+                if (found.size() == 0) return;
+                assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
+                if (!memEventPacket.active || U2M(oldest[0].TMP_oid) < U2M(memEventPacket.TMP_oid)) memEventPacket <= tickP(oldest[0]);
+            endtask
+     
+     
+             task automatic gatherMemRefetches();        
+                ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
+                ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_REFETCH);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                
+                if (found.size() == 0) return;
+                assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
+                if (!memRefetchPacket.active || U2M(oldest[0].TMP_oid) < U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= tickP(oldest[0]);
+            endtask       
+            
+             task automatic gatherStaticEvents();        
+                OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
+                // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+                if (found.size() == 0) return;       
+                if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];
+            endtask    
+            
+            
+
+            
+            function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
+                ForwardingElement found[$] = elems.find with (item.active && item.status == st);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                return oldest;
+            endfunction
+            
+            
+        task automatic updateFirstEvent();
+            OpSlotB foundRename[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
+        
+            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
+            ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);//foundMem.min with (U2M(item.TMP_oid));
+
+                ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
+    
+                ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
+                ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
+    
+
+            //    ForwardingElement foundMem[$] = memStages0.find with (item.active && item.status inside {ES_ILLEGAL, ES_REFETCH});
+//
+            //    ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
+                
+            //    assert (oldestMem.size() <= oldestMemIll.size() + oldestMemRef.size()) else $error("Wtf: %p, %p, %p", oldestMem, oldestMemIll, oldestMemRef);
+                
+            // TODO: verify that oldestMem is empty or .active
+
+            begin
+                InsId nextId = firstEventId_N;
+                if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);
+                //if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));                                    
+                
+                if (oldestMemIll.size() > 0) nextId = replaceId(nextId, U2M(oldestMemIll[0].TMP_oid));                                    
+                if (oldestMemRef.size() > 0) nextId = replaceId(nextId, U2M(oldestMemRef[0].TMP_oid));                                    
+                nextId = replaceId(nextId, theLq.submod.oldestRefetchEntryP0.mid);
+                
+                if (AbstractCore.CurrentConfig.enArithExc && oldestInv.size() > 0) nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
+                if (AbstractCore.CurrentConfig.enArithExc && oldestOv.size() > 0)  nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));
+                
+                if (shouldFlushId(nextId)) firstEventId_N <= -1;
+                else firstEventId_N <= nextId;
+            end
+
+        endtask
+
+
+        task automatic updateArithBits();        
+            ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
+
+            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
+
+            begin
+                InsId nextId = firstFloatInvId;
+                if (oldestInv.size() > 0) begin
+                    nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
+                    if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestInv[0].TMP_oid), PE_ARITH_EXCEPTION);
+                end
+
+                if (shouldFlushId(nextId)) firstFloatInvId <= -1;
+                else if (AbstractCore.lastRetired == nextId) firstFloatInvId <= -1;
+                else firstFloatInvId <= nextId;
+            end
+
+            begin
+                InsId nextId = firstFloatOvId;
+                if (oldestOv.size() > 0) begin
+                    nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));                                    
+                    if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestOv[0].TMP_oid), PE_ARITH_EXCEPTION);
+                end
+
+                if (shouldFlushId(nextId)) firstFloatOvId <= -1;
+                else if (AbstractCore.lastRetired == nextId) firstFloatOvId <= -1;
+                else firstFloatOvId <= nextId;
+            end
+
+        endtask
+
+
+        function automatic InsId replaceId(input InsId prev, input InsId next);
+            if (prev == -1) return next;
+            else if (next != -1 && prev > next) return next;
+            else return prev;
+        endfunction
+        
+        
+        
+        always @(posedge AbstractCore.clk) begin        
+            updateFirstEvent();
+        
+            updateArithBits();
+        
+                if (lateEventInfo.redirect || branchEventInfo.redirect) staticEventSlot <= EMPTY_SLOT_B;
+                //else memEventPacket <= tickP(memEventPacket);       
+            
+                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memEventPacket.TMP_oid)) memEventPacket <= EMPTY_UOP_PACKET;
+                else memEventPacket <= tickP(memEventPacket);
+    
+                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= EMPTY_UOP_PACKET;
+                else memRefetchPacket <= tickP(memRefetchPacket);
+                
+                gatherMemEvents();
+                gatherMemRefetches();
+                gatherStaticEvents();
+        end
+    
+    endgenerate
+
+
+
+
     function automatic UopPacket performRegularE0(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
         begin
@@ -253,7 +405,7 @@ module ExecBlock(ref InstructionMap insMap,
             return res;
         end
     endfunction
-
+    
     // TOPLEVEL
     function automatic Mword calcRegularOp(input UidT uid);
         Mword3 args = getAndVerifyArgs(uid);
@@ -264,146 +416,6 @@ module ExecBlock(ref InstructionMap insMap,
         return result;
     endfunction
 
-    // TODO: make multicycle pipes for mul/div
-    function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
-        Mword res = 'x;
-        
-        case (name)
-            UOP_int_and:  res = args[0] & args[1];
-            UOP_int_or:   res = args[0] | args[1];
-            UOP_int_xor:  res = args[0] ^ args[1];
-            
-            UOP_int_addc: res = args[0] + args[1];
-            UOP_int_addh: res = args[0] + (args[1] << 16);
-            
-            UOP_int_add:  res = args[0] + args[1];
-            UOP_int_sub:  res = args[0] - args[1];
-            
-                UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
-                UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
-            
-            UOP_int_shlc:
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shac:
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];                     
-            UOP_int_rotc:
-                            if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
-                            else                       res = {args[0], args[0]} >> -args[1];
-            
-            // mul/div/rem
-            UOP_int_mul:   res = //args[0] * args[1];
-                                w2m( multiplyW(args[0], args[1]) );
-            UOP_int_mulhu: res = //(Dword'($unsigned(args[0])) * Dword'($unsigned(args[1]))) >> 32;
-                                w2m( multiplyHighUnsignedW(args[0], args[1]) );
-            UOP_int_mulhs: res = //(Dword'($signed(args[0])) * Dword'($signed(args[1]))) >> 32;
-                                w2m( multiplyHighSignedW(args[0], args[1]) );
-            UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
-            UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
-            UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
-            UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
-            
-            UOP_int_link: res = linkAdr;
-            
-            // FP
-            UOP_fp_move:   res = args[0];
-            UOP_fp_or:     res = args[0] | args[1];
-            UOP_fp_addi:   res = args[0] + args[1];
-
-            default: $fatal(2, "Wrong uop");
-        endcase
-        
-        // Handling of cases of division by 0  
-        if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
-
-        return res;
-    endfunction
-
-
-    // TOPLEVEL
-    function automatic UopPacket performBranchE0(input UopPacket p);
-        if (!p.active) return p;
-        begin
-            UidT uid = p.TMP_oid;
-            Mword3 args = getAndVerifyArgs(uid);
-            p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
-        end
-        return p;
-    endfunction
-
-
-    task automatic runExecBranch(input logic active, input UidT uid);
-        AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
-
-        if (!active) return;
-
-        setBranchInCore(uid);
-        putMilestone(uid, InstructionMap::ExecRedirect);
-    endtask
-
-
-    task automatic setBranchInCore(input UidT uid);
-        UopName uname = decUname(uid);
-        Mword3 args = insMap.getU(uid).argsA;
-        Mword adr = getAdr(U2M(uid));
-        Mword takenTrg = takenTarget(uname, adr, args); // reg or stored in BQ
-        
-        logic predictedDir = insMap.get(U2M(uid)).frontBranch;
-        logic dir = resolveBranchDirection(uname, args[0]);// reg
-        logic redirect = predictedDir ^ dir;
-        
-        Mword expectedTrg = dir ? takenTrg : adr + 4;
-        Mword resolvedTarget = finalTarget(uname, dir, args[1], AbstractCore.theBq.submod.lookupTarget, AbstractCore.theBq.submod.lookupLink);
-        
-        assert (resolvedTarget === expectedTrg) else $error("Branch target wrong!");
-        assert (!$isunknown(predictedDir)) else $fatal(2, "Front branch info not in insMap");
-
-        if (redirect) putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
-
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), CO_none, redirect, adr, resolvedTarget};
-    endtask
-    
-
-    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
-        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
-        
-        case (uname)
-            UOP_bc_z, UOP_br_z:  return condArg === 0;
-            UOP_bc_nz, UOP_br_nz: return condArg !== 0;
-            UOP_bc_a, UOP_bc_l: return 1;  
-            default: $fatal(2, "Wrong branch uop");
-        endcase            
-    endfunction
-
-    function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
-        case (uname)
-            UOP_br_z, UOP_br_nz:  return args[1];
-            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
-            default: $fatal(2, "Wrong branch uop");
-        endcase  
-    endfunction
-
-    function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
-        if (dir === 0) return bqLink;
-
-        case (uname)
-            UOP_br_z, UOP_br_nz:  return regValue;
-            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
-            default: $fatal(2, "Wrong branch uop");
-        endcase 
-    endfunction
-
-    function automatic UopPacket performStoreData(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
-                
-        begin
-            UopPacket res = p;
-            Mword3 args = getAndVerifyArgs(p.TMP_oid);
-            res.result = args[2];
-            return res;
-        end
-    endfunction
 
         // FUTURE: Introduce forwarding of FP args
         // FUTURE: 1c longer load pipe on FP side? 
