@@ -1,0 +1,21 @@
+;
+$start
+	add_i r1, r0, 1
+	sti_i r1, r0, 16
+	ldf_i f1, r0, 16
+	mov_f f2, f1
+	
+	mov_f f4, f1
+	mov_f f5, f1
+	mov_f f8, f1
+	mov_f f9, f1
+
+	addi_f f5, f2, f3
+	addi_f f7, f2, f3
+	divi_f f10, f8, f9
+	muli_f f3, f1, f4
+
+$check
+	sys_dbcall
+$error
+    sys_error

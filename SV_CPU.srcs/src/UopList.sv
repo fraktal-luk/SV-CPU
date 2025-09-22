@@ -213,6 +213,10 @@ package UopList;
         return name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu};
     endfunction
 
+    function automatic logic isFloatDividerUop(input UopName name);
+        return name inside { UOP_fp_divi }; // TODO: create actual FP division ops
+    endfunction
+
     function automatic logic isMemUop(input UopName name);
         return isLoadMemUop(name) || isStoreMemUop(name);
     endfunction

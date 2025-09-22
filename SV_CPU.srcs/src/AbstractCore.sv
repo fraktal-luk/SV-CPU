@@ -184,6 +184,7 @@ module AbstractCore
 
         writeResult(theExecBlock.doneFloat0_E);
         writeResult(theExecBlock.doneFloat1_E);
+        writeResult(theExecBlock.doneFloatDiv_E);
 
         writeResult(theExecBlock.doneMem0_E);
         writeResult(theExecBlock.doneMem2_E);

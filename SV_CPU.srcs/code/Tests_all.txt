@@ -29,3 +29,4 @@ div
 fp_tmp
 fp_tmp_2
 fp_tmp_3
+fp_tmp_ops

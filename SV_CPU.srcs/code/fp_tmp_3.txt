@@ -12,7 +12,7 @@ $start
 
 	sys_sync
 	addi_f f5, f2, f3
-	
+
 	; check fpStatus == 0
 	;lds    r10, r0, 8
 	;jnz_i  r10, $error

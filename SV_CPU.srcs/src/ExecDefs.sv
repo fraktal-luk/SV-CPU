@@ -94,8 +94,9 @@ package ExecDefs;
         TMP_Uop regular[RENAME_WIDTH];
         TMP_Uop multiply[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
-        TMP_Uop divider[RENAME_WIDTH];
+        TMP_Uop idivider[RENAME_WIDTH];
         TMP_Uop float[RENAME_WIDTH];
+        TMP_Uop fdivider[RENAME_WIDTH];
         TMP_Uop mem[RENAME_WIDTH];
         TMP_Uop storeData[RENAME_WIDTH];
     } RoutedUops;
@@ -104,8 +105,9 @@ package ExecDefs;
         regular: '{default: TMP_UOP_NONE},
         multiply: '{default: TMP_UOP_NONE},
         branch: '{default: TMP_UOP_NONE},
-        divider: '{default: TMP_UOP_NONE},
+        idivider: '{default: TMP_UOP_NONE},
         float: '{default: TMP_UOP_NONE},
+        fdivider: '{default: TMP_UOP_NONE},
         mem: '{default: TMP_UOP_NONE},
         storeData: '{default: TMP_UOP_NONE}
     };

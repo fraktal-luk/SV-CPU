@@ -21,6 +21,7 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneBranch_E, doneDivider_E;
     UopPacket doneMem0_E, doneMem2_E;
     UopPacket doneFloat0_E, doneFloat1_E; 
+    UopPacket doneFloatDiv_E;
 
     UopPacket doneStoreData_E;
 
@@ -154,6 +155,13 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedFloatP[1]
     );
 
+        FloatSubpipe fdiv(
+            insMap,
+            branchEventInfo,
+            lateEventInfo,
+            theIssueQueues.issuedFdivP[0]
+        );
+
 
     StoreDataSubpipe storeData0(
         insMap,
@@ -187,6 +195,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
+    assign doneFloatDiv_E = fdiv.stage0_E;
     assign doneStoreData_E = storeData0.stage0_E;
 
     assign storeDataE0_E = storeData0.stage0_E;
