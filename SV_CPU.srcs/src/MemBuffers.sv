@@ -429,9 +429,9 @@ module TmpSubSq();
         };
     endfunction
 
-    assign storeDataD0_E = effP(storeDataD0); 
-    assign storeDataD1_E = effP(storeDataD1); 
-    assign storeDataD2_E = effP(storeDataD2); 
+    always_comb storeDataD0_E = effP(storeDataD0); 
+    always_comb storeDataD1_E = effP(storeDataD1); 
+    always_comb storeDataD2_E = effP(storeDataD2); 
 
 endmodule
 

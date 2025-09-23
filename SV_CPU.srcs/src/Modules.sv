@@ -32,10 +32,10 @@ module RegularSubpipe(
         pD1 <= tickP(pD0);
     end
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pD0_E = effP(pD0);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
+    always_comb pE0_E = effP(pE0);
+    always_comb pD0_E = effP(pD0);
 
     ForwardingElement image_E[-3:1];
     
@@ -76,12 +76,12 @@ module MultiplierSubpipe(
         pD1 <= tickP(pD0);
     end
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pE1_E = effP(pE1);
-    assign pE2_E = effP(pE2);
-    assign pD0_E = effP(pD0);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
+    always_comb pE0_E = effP(pE0);
+    always_comb pE1_E = effP(pE1);
+    always_comb pE2_E = effP(pE2);
+    always_comb pD0_E = effP(pD0);
 
     ForwardingElement image_E[-3:1];
     
@@ -122,13 +122,13 @@ module FloatSubpipe(
         pD1 <= tickP(pD0);
     end
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pE1_E = effP(pE1);
-    assign pE2_E = effP(pE2);
-    assign pE3_E = effP(pE3);
-    assign pD0_E = effP(pD0);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
+    always_comb pE0_E = effP(pE0);
+    always_comb pE1_E = effP(pE1);
+    always_comb pE2_E = effP(pE2);
+    always_comb pE3_E = effP(pE3);
+    always_comb pD0_E = effP(pD0);
 
     ForwardingElement image_E[-3:1];
     
@@ -183,10 +183,10 @@ module BranchSubpipe(
 
     end
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pD0_E = effP(pD0);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
+    always_comb pE0_E = effP(pE0);
+    always_comb pD0_E = effP(pD0);
 
     ForwardingElement image_E[-3:1];
     
@@ -355,30 +355,30 @@ module DividerSubpipe#(
     assign allowIssue = !lock;
     
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
     
-        assign pE0_E = effP(pE0);
-        assign pE1_E = effP(pE1);
-        assign pE2_E = effP(pE2);
-        assign pE3_E = effP(pE3);
-        assign pE4_E = effP(pE4);
-        assign pE5_E = effP(pE5);
-        assign pE6_E = effP(pE6);
-        assign pE7_E = effP(pE7);
-        assign pE8_E = effP(pE8);
+        always_comb pE0_E = effP(pE0);
+        always_comb pE1_E = effP(pE1);
+        always_comb pE2_E = effP(pE2);
+        always_comb pE3_E = effP(pE3);
+        always_comb pE4_E = effP(pE4);
+        always_comb pE5_E = effP(pE5);
+        always_comb pE6_E = effP(pE6);
+        always_comb pE7_E = effP(pE7);
+        always_comb pE8_E = effP(pE8);
     
-        assign pE9_E = effP(pE9);
-        assign pE10_E = effP(pE10);
-        assign pE11_E = effP(pE11);
+        always_comb pE9_E = effP(pE9);
+        always_comb pE10_E = effP(pE10);
+        always_comb pE11_E = effP(pE11);
 
     always_comb mainStage_E = effP(mainStage);
 
-    assign outputStage0_E = effP(outputStage0);
-    assign outputStage1_E = effP(outputStage1);
-    assign outputStage2_E = effP(outputStage2);
+    always_comb outputStage0_E = effP(outputStage0);
+    always_comb outputStage1_E = effP(outputStage1);
+    always_comb outputStage2_E = effP(outputStage2);
     
-    assign pD0_E = effP(pD0);
+    always_comb pD0_E = effP(pD0);
 
     ForwardingElement image_E[-3:1];
 
@@ -430,10 +430,10 @@ module StoreDataSubpipe(
         pD1 <= tickP(pD0);
     end
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pD0_E = effP(pD0);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
+    always_comb pE0_E = effP(pE0);
+    always_comb pD0_E = effP(pD0);
 
     ForwardingElement image_E[-3:1];
     
