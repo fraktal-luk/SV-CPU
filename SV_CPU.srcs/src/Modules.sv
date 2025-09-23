@@ -260,12 +260,12 @@ module DividerSubpipe#(
     localparam integer CONST_CYCLES = 9;
 
     UopPacket p0, p1 = EMPTY_UOP_PACKET,
-                pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET,
-                pE4 = EMPTY_UOP_PACKET, pE5 = EMPTY_UOP_PACKET, pE6 = EMPTY_UOP_PACKET, pE7 = EMPTY_UOP_PACKET, 
-                pE8 = EMPTY_UOP_PACKET, pE9 = EMPTY_UOP_PACKET, pE10 = EMPTY_UOP_PACKET, pE11 = EMPTY_UOP_PACKET, 
+//                pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET,
+//                pE4 = EMPTY_UOP_PACKET, pE5 = EMPTY_UOP_PACKET, pE6 = EMPTY_UOP_PACKET, pE7 = EMPTY_UOP_PACKET, 
+//                pE8 = EMPTY_UOP_PACKET, pE9 = EMPTY_UOP_PACKET, pE10 = EMPTY_UOP_PACKET, pE11 = EMPTY_UOP_PACKET, 
               pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E,
-                pE0_E, pE1_E, pE2_E, pE3_E, pE4_E, pE5_E, pE6_E, pE7_E, pE8_E, pE9_E, pE10_E, pE11_E,
+               // pE0_E, pE1_E, pE2_E, pE3_E, pE4_E, pE5_E, pE6_E, pE7_E, pE8_E, pE9_E, pE10_E, pE11_E,
                 pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
@@ -285,19 +285,19 @@ module DividerSubpipe#(
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
-        pE0 <= performRegularE0(tickP(p1));
-            pE1 <= (tickP(pE0));
-            pE2 <= (tickP(pE1));
-            pE3 <= (tickP(pE2));
-            pE4 <= (tickP(pE3));
-            pE5 <= (tickP(pE4));
-            pE6 <= (tickP(pE5));
-            pE7 <= (tickP(pE6));
-            pE8 <= (tickP(pE7));
+//        pE0 <= performRegularE0(tickP(p1));
+//            pE1 <= (tickP(pE0));
+//            pE2 <= (tickP(pE1));
+//            pE3 <= (tickP(pE2));
+//            pE4 <= (tickP(pE3));
+//            pE5 <= (tickP(pE4));
+//            pE6 <= (tickP(pE5));
+//            pE7 <= (tickP(pE6));
+//            pE8 <= (tickP(pE7));
             
-            pE9 <= (tickP(pE8));
-            pE10 <= (tickP(pE9));
-            pE11 <= (tickP(pE10));        
+//            pE9 <= (tickP(pE8));
+//            pE10 <= (tickP(pE9));
+//            pE11 <= (tickP(pE10));        
         pD0 <= tickP(//pE11);
                      outputStage2);
         pD1 <= tickP(pD0);
@@ -338,10 +338,10 @@ module DividerSubpipe#(
 
     assign opSelected = IS_FP ? theIssueQueues.fdivQueue.anySelected && theIssueQueues.fdivQueue.allow : theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow;
 
-    assign empty = !(p0.active || p1.active || mainStage.active || outputStage0.active || outputStage1.active || outputStage2.active ||
-                        pE0.active ||  pE1.active ||  pE2.active ||  pE3.active ||
-                        pE4.active ||  pE5.active ||  pE6.active ||  pE7.active ||
-                        pE8.active ||  pE9.active ||  pE10.active ||  pE11.active
+    assign empty = !(p0.active || p1.active || mainStage.active || outputStage0.active || outputStage1.active || outputStage2.active //||
+//                        pE0.active ||  pE1.active ||  pE2.active ||  pE3.active ||
+//                        pE4.active ||  pE5.active ||  pE6.active ||  pE7.active ||
+//                        pE8.active ||  pE9.active ||  pE10.active ||  pE11.active
                     );
 
     // allow signal for divider IQ
@@ -358,19 +358,19 @@ module DividerSubpipe#(
     always_comb p0_E = effP(p0);
     always_comb p1_E = effP(p1);
     
-        always_comb pE0_E = effP(pE0);
-        always_comb pE1_E = effP(pE1);
-        always_comb pE2_E = effP(pE2);
-        always_comb pE3_E = effP(pE3);
-        always_comb pE4_E = effP(pE4);
-        always_comb pE5_E = effP(pE5);
-        always_comb pE6_E = effP(pE6);
-        always_comb pE7_E = effP(pE7);
-        always_comb pE8_E = effP(pE8);
+//        always_comb pE0_E = effP(pE0);
+//        always_comb pE1_E = effP(pE1);
+//        always_comb pE2_E = effP(pE2);
+//        always_comb pE3_E = effP(pE3);
+//        always_comb pE4_E = effP(pE4);
+//        always_comb pE5_E = effP(pE5);
+//        always_comb pE6_E = effP(pE6);
+//        always_comb pE7_E = effP(pE7);
+//        always_comb pE8_E = effP(pE8);
     
-        always_comb pE9_E = effP(pE9);
-        always_comb pE10_E = effP(pE10);
-        always_comb pE11_E = effP(pE11);
+//        always_comb pE9_E = effP(pE9);
+//        always_comb pE10_E = effP(pE10);
+//        always_comb pE11_E = effP(pE11);
 
     always_comb mainStage_E = effP(mainStage);
 
