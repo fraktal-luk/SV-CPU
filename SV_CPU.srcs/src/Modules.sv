@@ -247,7 +247,10 @@ endmodule
 
 
 
-module DividerSubpipe(
+module DividerSubpipe#(
+    parameter logic IS_FP = 0
+)
+(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
@@ -287,7 +290,9 @@ module DividerSubpipe(
     end
 
     logic lock = 0;
-    logic empty, allowIssue;
+    logic empty, allowIssue, opSelected;
+
+    assign opSelected = IS_FP ? theIssueQueues.fdivQueue.anySelected && theIssueQueues.fdivQueue.allow : theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow;
 
     assign empty = !(p0.active || p1.active ||  
                     pE0.active ||  pE1.active ||  pE2.active ||  pE3.active ||
@@ -296,8 +301,8 @@ module DividerSubpipe(
 
     // allow signal for divider IQ
     always @(posedge AbstractCore.clk) begin
-        //
-        if (theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow) lock <= 1;
+        
+        if (opSelected) lock <= 1;
         else if (empty) lock <= 0;
         
     end
