@@ -145,6 +145,7 @@ package InsDefs;
             rem_s, rem_u,
 
             mov_f,
+            xor_f, and_f,  // Pseudo float operations
             or_f, addi_f,  // -- Pseudo float operations
             muli_f, divi_f, // Pseudo float operations
             inv_f, ov_f,  // Setting FP exceptions
@@ -299,6 +300,8 @@ package InsDefs;
         T_floatDivInt = 32*S_floatArith + 3,
         T_floatGenInv = 32*S_floatArith + 4,
         T_floatGenOv  = 32*S_floatArith + 5,
+        T_floatXor    = 32*S_floatArith + 6,
+        T_floatAnd    = 32*S_floatArith + 7,
 
 
         T_jumpRegZ  = 32*S_jumpReg + 0,
@@ -378,6 +381,8 @@ package InsDefs;
         
         O_floatMove,
 
+        O_floatXor,
+        O_floatAnd,
         O_floatOr,
         O_floatAddInt,
         O_floatMulInt,
@@ -433,6 +438,8 @@ package InsDefs;
         "rem_u":      '{F_int2R, P_intAlu, S_intMul, T_intRemU, O_intRemU},//int2R, 
         
         "mov_f":      '{F_float1R, P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
+        "xor_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatXor, O_floatXor},  // -- Float operations
+        "and_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatAnd, O_floatAnd},  // -- Float operations
         "or_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
         "addi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
         "muli_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatMulInt, O_floatMulInt},  // -- Float operations

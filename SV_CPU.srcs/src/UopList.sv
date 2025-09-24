@@ -37,6 +37,8 @@ package UopList;
          UOP_int_remu,
         
          UOP_fp_move,
+         UOP_fp_xor,
+         UOP_fp_and,
          UOP_fp_or,
          UOP_fp_addi,
             UOP_fp_muli,
@@ -117,6 +119,8 @@ package UopList;
         "rem_u":      UOP_int_remu,
         
         "mov_f":      UOP_fp_move,
+        "xor_f":      UOP_fp_xor,
+        "and_f":      UOP_fp_and,
         "or_f":       UOP_fp_or,
         "addi_f":     UOP_fp_addi,
         "muli_f":     UOP_fp_muli,
@@ -164,6 +168,8 @@ package UopList;
     function automatic logic isFloatCalcUop(input UopName name);
         return name inside {
              UOP_fp_move,
+             UOP_fp_xor,
+             UOP_fp_and,
              UOP_fp_or,
              UOP_fp_addi,
                 UOP_fp_muli,
@@ -289,6 +295,8 @@ package UopList;
     function automatic logic uopHasFloatDest(input UopName name);
         return name inside {
              UOP_fp_move,
+             UOP_fp_xor,
+             UOP_fp_and,
              UOP_fp_or,
              UOP_fp_addi,
                 UOP_fp_muli,

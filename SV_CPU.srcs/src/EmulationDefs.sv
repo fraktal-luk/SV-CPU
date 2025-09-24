@@ -336,6 +336,8 @@ package EmulationDefs;
             
             O_floatMove: result = vals[0];
 
+            O_floatXor:   result = vals[0] ^ vals[1];
+            O_floatAnd:   result = vals[0] & vals[1];
             O_floatOr:   result = vals[0] | vals[1];
             O_floatAddInt: result = vals[0] + vals[1];
                 O_floatMulInt: result = vals[0] * vals[1];
