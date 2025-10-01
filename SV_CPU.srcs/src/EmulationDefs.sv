@@ -268,7 +268,9 @@ package EmulationDefs;
             O_floatOr, O_floatAddInt,
             O_floatMulInt, O_floatDivInt,
             O_floatGenInv, O_floatGenOv,
-            
+                O_floatAdd32, O_floatSub32, O_floatMul32, O_floatDiv32, O_floatCmpEq32,O_floatCmpGe32, O_floatCmpGt32,
+                O_floatAdd64, O_floatSub64, O_floatMul64, O_floatDiv64, O_floatCmpEq64,O_floatCmpGe64, O_floatCmpGt64,
+                
             O_floatLoadW
         };
     endfunction
@@ -344,6 +346,13 @@ package EmulationDefs;
                 O_floatDivInt: result = vals[0] / vals[1];
                 O_floatGenInv: result = 1;
                 O_floatGenOv: result = 1;
+                    O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
+                    O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
+                    O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
+                    O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
+                    O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
+                    O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
+                    O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase

@@ -45,7 +45,15 @@ package UopList;
             UOP_fp_divi,
             UOP_fp_inv,
             UOP_fp_ov,
-        
+            
+            UOP_fp_add32,
+            UOP_fp_sub32,
+            UOP_fp_mul32,
+            UOP_fp_div32,
+            UOP_fp_cmpeq32,
+            UOP_fp_cmpge32,
+            UOP_fp_cmpgt32,
+            
          UOP_mem_ldi,
          UOP_mem_sti,
         
@@ -127,6 +135,13 @@ package UopList;
         "divi_f":     UOP_fp_divi,
         "inv_f":      UOP_fp_inv,
         "ov_f":       UOP_fp_ov,
+            "addf32":       UOP_fp_add32,
+            "subf32":       UOP_fp_sub32,
+            "mulf32":       UOP_fp_mul32,
+            "divf32":       UOP_fp_div32,
+            "cmpeqf32":     UOP_fp_cmpeq32,
+            "cmpgef32":     UOP_fp_cmpge32,
+            "cmpgtf32":     UOP_fp_cmpgt32,
         
         "ldi_i":      UOP_mem_ldi,
         "sti_i":      UOP_mem_sti,
@@ -175,7 +190,16 @@ package UopList;
                 UOP_fp_muli,
                 UOP_fp_divi,
                 UOP_fp_inv,
-                UOP_fp_ov
+                UOP_fp_ov,
+                
+                UOP_fp_add32,
+                UOP_fp_sub32,
+                UOP_fp_mul32,
+                UOP_fp_div32,
+                
+                UOP_fp_cmpeq32,
+                UOP_fp_cmpge32,
+                UOP_fp_cmpgt32
               };
     endfunction    
 
@@ -220,7 +244,7 @@ package UopList;
     endfunction
 
     function automatic logic isFloatDividerUop(input UopName name);
-        return name inside { UOP_fp_divi }; // TODO: create actual FP division ops
+        return name inside { UOP_fp_divi, UOP_fp_div32 };
     endfunction
 
     function automatic logic isMemUop(input UopName name);
@@ -303,6 +327,16 @@ package UopList;
                 UOP_fp_divi,
                 UOP_fp_inv,
                 UOP_fp_ov,
+                
+                UOP_fp_add32,
+                UOP_fp_sub32,
+                UOP_fp_mul32,
+                UOP_fp_div32,
+                
+                UOP_fp_cmpeq32,
+                UOP_fp_cmpge32,
+                UOP_fp_cmpgt32,
+                
              UOP_mem_ldf
         };
     endfunction    

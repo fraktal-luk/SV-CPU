@@ -545,7 +545,15 @@ package ExecDefs;
                     UOP_fp_divi:   res = args[0] / args[1];
                     UOP_fp_inv:   res = 1;
                     UOP_fp_ov:   res = 1;
-    
+
+                    UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
+                    UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
+                    UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
+                    UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+                    UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
+                    UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
+                    UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+
                 default: $fatal(2, "Wrong uop");
             endcase
             
