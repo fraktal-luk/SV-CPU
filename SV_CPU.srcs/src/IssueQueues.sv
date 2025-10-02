@@ -556,9 +556,10 @@ module IssueQueueComplex(
                 if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
                 else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
-                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
-                else if (isIntDividerUop(uname)) res.divider[i] = '{1, uid};
+                else if (isIntDividerUop(uname)) res.idivider[i] = '{1, uid};
                 else if (isIntMultiplierUop(uname)) res.multiply[i] = '{1, uid};
+                else if (isFloatDividerUop(uname)) res.fdivider[i] = '{1, uid};
+                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
                 else res.regular[i] = '{1, uid};
             end
         end
@@ -574,6 +575,7 @@ module IssueQueueComplex(
     UopPacket issuedDividerP[1];
     UopPacket issuedBranchP[1];
     UopPacket issuedFloatP[2];
+    UopPacket issuedFdivP[1];
     UopPacket issuedMemP[1];
     UopPacket issuedStoreDataP[1];
 
@@ -583,12 +585,12 @@ module IssueQueueComplex(
 
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
                                             issuedRegularP);                                            
-                                            
+
     IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,
                                             issuedBranchP);
 
 
-    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.divider, theExecBlock.divider.allowIssue,
+    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.idivider, theExecBlock.divider.allowIssue,
                                             issuedDividerP);
 
     IssueQueue#(.OUT_WIDTH(2)) multiplierQueue(insMap, branchEventInfo, lateEventInfo, routedUops.multiply, '1,
@@ -597,6 +599,9 @@ module IssueQueueComplex(
 
     IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, routedUops.float, '1,
                                             issuedFloatP);
+    IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, routedUops.fdivider, theExecBlock.fdiv.allowIssue,
+                                            issuedFdivP);                                           
+
     IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,

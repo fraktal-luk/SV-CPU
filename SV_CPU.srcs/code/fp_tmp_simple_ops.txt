@@ -1,0 +1,16 @@
+;
+$start
+	add_i r1, r0, 1
+	sti_i r1, r0, 16
+	ldf_i f1, r0, 16
+	mov_f f2, f1
+	
+	xor_f f10, f10, f10
+	xor_f f11, f11, f11
+	xor_f f12, f12, f12
+	or_f  f13, f12, f11
+
+$check
+	sys_dbcall
+$error
+    sys_error

@@ -37,13 +37,23 @@ package UopList;
          UOP_int_remu,
         
          UOP_fp_move,
+         UOP_fp_xor,
+         UOP_fp_and,
          UOP_fp_or,
          UOP_fp_addi,
             UOP_fp_muli,
             UOP_fp_divi,
             UOP_fp_inv,
             UOP_fp_ov,
-        
+            
+            UOP_fp_add32,
+            UOP_fp_sub32,
+            UOP_fp_mul32,
+            UOP_fp_div32,
+            UOP_fp_cmpeq32,
+            UOP_fp_cmpge32,
+            UOP_fp_cmpgt32,
+            
          UOP_mem_ldi,
          UOP_mem_sti,
         
@@ -117,12 +127,21 @@ package UopList;
         "rem_u":      UOP_int_remu,
         
         "mov_f":      UOP_fp_move,
+        "xor_f":      UOP_fp_xor,
+        "and_f":      UOP_fp_and,
         "or_f":       UOP_fp_or,
         "addi_f":     UOP_fp_addi,
         "muli_f":     UOP_fp_muli,
         "divi_f":     UOP_fp_divi,
         "inv_f":      UOP_fp_inv,
         "ov_f":       UOP_fp_ov,
+            "addf32":       UOP_fp_add32,
+            "subf32":       UOP_fp_sub32,
+            "mulf32":       UOP_fp_mul32,
+            "divf32":       UOP_fp_div32,
+            "cmpeqf32":     UOP_fp_cmpeq32,
+            "cmpgef32":     UOP_fp_cmpge32,
+            "cmpgtf32":     UOP_fp_cmpgt32,
         
         "ldi_i":      UOP_mem_ldi,
         "sti_i":      UOP_mem_sti,
@@ -164,12 +183,23 @@ package UopList;
     function automatic logic isFloatCalcUop(input UopName name);
         return name inside {
              UOP_fp_move,
+             UOP_fp_xor,
+             UOP_fp_and,
              UOP_fp_or,
              UOP_fp_addi,
                 UOP_fp_muli,
                 UOP_fp_divi,
                 UOP_fp_inv,
-                UOP_fp_ov
+                UOP_fp_ov,
+                
+                UOP_fp_add32,
+                UOP_fp_sub32,
+                UOP_fp_mul32,
+                UOP_fp_div32,
+                
+                UOP_fp_cmpeq32,
+                UOP_fp_cmpge32,
+                UOP_fp_cmpgt32
               };
     endfunction    
 
@@ -211,6 +241,10 @@ package UopList;
   
     function automatic logic isIntDividerUop(input UopName name);
         return name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu};
+    endfunction
+
+    function automatic logic isFloatDividerUop(input UopName name);
+        return name inside { UOP_fp_divi, UOP_fp_div32 };
     endfunction
 
     function automatic logic isMemUop(input UopName name);
@@ -285,12 +319,24 @@ package UopList;
     function automatic logic uopHasFloatDest(input UopName name);
         return name inside {
              UOP_fp_move,
+             UOP_fp_xor,
+             UOP_fp_and,
              UOP_fp_or,
              UOP_fp_addi,
                 UOP_fp_muli,
                 UOP_fp_divi,
                 UOP_fp_inv,
                 UOP_fp_ov,
+                
+                UOP_fp_add32,
+                UOP_fp_sub32,
+                UOP_fp_mul32,
+                UOP_fp_div32,
+                
+                UOP_fp_cmpeq32,
+                UOP_fp_cmpge32,
+                UOP_fp_cmpgt32,
+                
              UOP_mem_ldf
         };
     endfunction    

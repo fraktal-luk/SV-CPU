@@ -57,7 +57,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
     localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, 'x, 'x, EMPTY_STAGE};
 
-
+    
+    // TODO: encapsulate uncached fetching engine; implement a queue to buffer generated fetch addresses; ensure that conditional branches are always predicted not taken when in uncached mode;
+    //       implement mechanism to stop fetching when end of 4kB area (mem attr granularity) is reached - to prevent accidental fetching from an area with side effects, and resume fetching
+    //       when a instruciton stream is redirected or core pipeline becomes empty (so it is known architecturally that we intend to move forward with sequential fetching)
     FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
                stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
                stageFetchUnc2 = DEFAULT_FRONT_STAGE, stageFetchUnc3 = DEFAULT_FRONT_STAGE, stageFetchUnc4 = DEFAULT_FRONT_STAGE;

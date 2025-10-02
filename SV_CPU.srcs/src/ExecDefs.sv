@@ -94,8 +94,9 @@ package ExecDefs;
         TMP_Uop regular[RENAME_WIDTH];
         TMP_Uop multiply[RENAME_WIDTH];
         TMP_Uop branch[RENAME_WIDTH];
-        TMP_Uop divider[RENAME_WIDTH];
+        TMP_Uop idivider[RENAME_WIDTH];
         TMP_Uop float[RENAME_WIDTH];
+        TMP_Uop fdivider[RENAME_WIDTH];
         TMP_Uop mem[RENAME_WIDTH];
         TMP_Uop storeData[RENAME_WIDTH];
     } RoutedUops;
@@ -104,8 +105,9 @@ package ExecDefs;
         regular: '{default: TMP_UOP_NONE},
         multiply: '{default: TMP_UOP_NONE},
         branch: '{default: TMP_UOP_NONE},
-        divider: '{default: TMP_UOP_NONE},
+        idivider: '{default: TMP_UOP_NONE},
         float: '{default: TMP_UOP_NONE},
+        fdivider: '{default: TMP_UOP_NONE},
         mem: '{default: TMP_UOP_NONE},
         storeData: '{default: TMP_UOP_NONE}
     };
@@ -535,13 +537,23 @@ package ExecDefs;
                 
                 // FP
                 UOP_fp_move:   res = args[0];
+                UOP_fp_xor:     res = args[0] ^ args[1];
+                UOP_fp_and:     res = args[0] & args[1];
                 UOP_fp_or:     res = args[0] | args[1];
                 UOP_fp_addi:   res = args[0] + args[1];
                     UOP_fp_muli:   res = args[0] * args[1];
                     UOP_fp_divi:   res = args[0] / args[1];
                     UOP_fp_inv:   res = 1;
                     UOP_fp_ov:   res = 1;
-    
+
+                    UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
+                    UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
+                    UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
+                    UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+                    UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
+                    UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
+                    UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+
                 default: $fatal(2, "Wrong uop");
             endcase
             

@@ -40,7 +40,7 @@ module MemSubpipe#(
 
     assign accessDescOut = accessDescE0;
 
-    assign stage0_E = pE2_E;
+    always_comb stage0_E = pE2_E;
     assign p0 = TMP_toMemPacket(opP);
 
     assign trE0 = cacheTranslation;
@@ -64,13 +64,13 @@ module MemSubpipe#(
     end
 
 
-    assign p0_E = effP(p0);
-    assign p1_E = effP(p1);
-    assign pE0_E = effP(pE0);
-    assign pE1_E = effP(pE1);
-    assign pE2_E = effP(pE2);
-    assign pD0_E = effP(pD0);
-    assign pD1_E = effP(pD1);
+    always_comb p0_E = effP(p0);
+    always_comb p1_E = effP(p1);
+    always_comb pE0_E = effP(pE0);
+    always_comb pE1_E = effP(pE1);
+    always_comb pE2_E = effP(pE2);
+    always_comb pD0_E = effP(pD0);
+    always_comb pD1_E = effP(pD1);
 
 
         assign p0_Emp = TMP_mp(p0_E);

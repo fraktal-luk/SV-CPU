@@ -145,8 +145,15 @@ package InsDefs;
             rem_s, rem_u,
 
             mov_f,
+            xor_f, and_f,  // Pseudo float operations
             or_f, addi_f,  // -- Pseudo float operations
             muli_f, divi_f, // Pseudo float operations
+            
+                addf32, subf32, mulf32, divf32,
+                    cmpeqf32, cmpgef32, cmpgtf32,
+                addf64, subf64, mulf64, divf64,
+                    cmpeqf64, cmpgef64, cmpgtf64,
+            
             inv_f, ov_f,  // Setting FP exceptions
 
 
@@ -210,10 +217,10 @@ package InsDefs;
         P_jl = 9,
         P_jz = 10,
         P_jnz = 11,
- 
+
         P_addI = 16,
         P_addH = 17, 
-        
+   
         P_intLoadW16 = 20,
         P_intStoreW16 = 21,
         P_floatLoadW16 = 22,
@@ -299,7 +306,23 @@ package InsDefs;
         T_floatDivInt = 32*S_floatArith + 3,
         T_floatGenInv = 32*S_floatArith + 4,
         T_floatGenOv  = 32*S_floatArith + 5,
+        T_floatXor    = 32*S_floatArith + 6,
+        T_floatAnd    = 32*S_floatArith + 7,
+            T_floatAdd32 = 32*S_floatArith + 8,
+            T_floatSub32 = 32*S_floatArith + 9,
+            T_floatMul32 = 32*S_floatArith + 10,
+            T_floatDiv32 = 32*S_floatArith + 11,
+            T_floatCmpEq32 = 32*S_floatArith + 12,
+            T_floatCmpGe32 = 32*S_floatArith + 13,
+            T_floatCmpGt32 = 32*S_floatArith + 14,
 
+            T_floatAdd64 = 32*S_floatArith + 16,
+            T_floatSub64 = 32*S_floatArith + 17,
+            T_floatMul64 = 32*S_floatArith + 18,
+            T_floatDiv64 = 32*S_floatArith + 19,
+            T_floatCmpEq64 = 32*S_floatArith + 20,
+            T_floatCmpGe64 = 32*S_floatArith + 21,
+            T_floatCmpGt64 = 32*S_floatArith + 22,
 
         T_jumpRegZ  = 32*S_jumpReg + 0,
         T_jumpRegNZ = 32*S_jumpReg + 1,
@@ -378,14 +401,30 @@ package InsDefs;
         
         O_floatMove,
 
+        O_floatXor,
+        O_floatAnd,
         O_floatOr,
         O_floatAddInt,
         O_floatMulInt,
         O_floatDivInt,
         O_floatGenInv,
         O_floatGenOv,
-        
-        
+            O_floatAdd32,
+            O_floatSub32,
+            O_floatMul32,
+            O_floatDiv32,
+            O_floatCmpEq32,
+            O_floatCmpGe32,
+            O_floatCmpGt32,
+
+            O_floatAdd64,
+            O_floatSub64,
+            O_floatMul64,
+            O_floatDiv64,
+            O_floatCmpEq64,
+            O_floatCmpGe64,
+            O_floatCmpGt64,
+
         O_intLoadW, O_intLoadD,
         O_intStoreW, O_intStoreD,
         O_floatLoadW, O_floatStoreW,
@@ -433,13 +472,30 @@ package InsDefs;
         "rem_u":      '{F_int2R, P_intAlu, S_intMul, T_intRemU, O_intRemU},//int2R, 
         
         "mov_f":      '{F_float1R, P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
+        "xor_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatXor, O_floatXor},  // -- Float operations
+        "and_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatAnd, O_floatAnd},  // -- Float operations
         "or_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
         "addi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
         "muli_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatMulInt, O_floatMulInt},  // -- Float operations
         "divi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatDivInt, O_floatDivInt},  // -- Float operations
         "inv_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatGenInv, O_floatGenInv},  // -- Float operations
         "ov_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatGenOv,  O_floatGenOv},  // -- Float operations
-        
+            "addf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatAdd32, O_floatAdd32},
+            "subf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatSub32, O_floatSub32},
+            "mulf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatMul32, O_floatMul32},
+            "divf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatDiv32, O_floatDiv32},
+            "cmpeqf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpEq32, O_floatCmpEq32},
+            "cmpgef32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe32, O_floatCmpGe32},
+            "cmpgtf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt32, O_floatCmpGt32},
+
+            "addf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatAdd64, O_floatAdd64},
+            "subf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatSub64, O_floatSub64},
+            "mulf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatMul64, O_floatMul64},
+            "divf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatDiv64, O_floatDiv64},
+            "cmpeqf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpEq64, O_floatCmpEq64},
+            "cmpgef64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe64, O_floatCmpGe64},
+            "cmpgtf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt64, O_floatCmpGt64},
+            
         
         "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},//intImm16,
         "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},//intStore16,
