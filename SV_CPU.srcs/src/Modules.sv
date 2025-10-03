@@ -315,8 +315,7 @@ module DividerSubpipe#(
 
     assign opSelected = IS_FP ? theIssueQueues.fdivQueue.anySelected && theIssueQueues.fdivQueue.allow : theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow;
 
-    // TODO: exclude outputStages from this because they don't need to be empty when mainStage gets another op
-    assign empty = !(p0.active || p1.active || mainStage.active       || outputStage0.active || outputStage1.active || outputStage2.active
+    assign empty = !(p0.active || p1.active || mainStage.active //      || outputStage0.active || outputStage1.active || outputStage2.active
                     );
 
     // allow signal for divider IQ

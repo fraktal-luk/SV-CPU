@@ -37,7 +37,7 @@ module ExecBlock(ref InstructionMap insMap,
     DataCacheOutput dcacheOuts[N_MEM_PORTS];
     DataCacheOutput sysOuts[N_MEM_PORTS];
     
-    logic TMP_memAllow;
+    logic memIssueAllow;
     
     UopMemPacket issuedReplayQueue;
     
@@ -181,8 +181,7 @@ module ExecBlock(ref InstructionMap insMap,
         issuedReplayQueue
     );
     
-    // TODO: apply for Issue
-    assign TMP_memAllow = replayQueue.accept;
+    assign memIssueAllow = replayQueue.accept;
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
@@ -308,19 +307,10 @@ module ExecBlock(ref InstructionMap insMap,
             ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);//foundMem.min with (U2M(item.TMP_oid));
             ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);//foundMem.min with (U2M(item.TMP_oid));
 
-                ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
-    
-                ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
-                ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
-    
+            ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
 
-            //    ForwardingElement foundMem[$] = memStages0.find with (item.active && item.status inside {ES_ILLEGAL, ES_REFETCH});
-//
-            //    ForwardingElement oldestMem[$] = foundMem.min with (U2M(item.TMP_oid));
-                
-            //    assert (oldestMem.size() <= oldestMemIll.size() + oldestMemRef.size()) else $error("Wtf: %p, %p, %p", oldestMem, oldestMemIll, oldestMemRef);
-                
-            // TODO: verify that oldestMem is empty or .active
+            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
 
             begin
                 InsId nextId = firstEventId_N;

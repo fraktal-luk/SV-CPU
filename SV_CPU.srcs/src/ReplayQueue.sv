@@ -233,7 +233,7 @@ module ReplayQueue(
 
 
 
-    assign accept = numUsed < SIZE - 5;
+    assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
     assign outPacket = effP(issued0);
 
 endmodule

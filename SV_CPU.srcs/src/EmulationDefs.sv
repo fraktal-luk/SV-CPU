@@ -154,13 +154,11 @@ package EmulationDefs;
     };
 
 
-    
-    // TODO: review functions below, their functionality may be implemented in uop defs 
 
     // Not including memory
-    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
-        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
-    endfunction    
+//    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
+//        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
+//    endfunction    
 
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
@@ -202,17 +200,17 @@ package EmulationDefs;
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
     endfunction
 
-    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_floatLoadW});
-    endfunction
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
 
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
     endfunction
 
-    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_floatStoreW};
-    endfunction
+//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
+//        return ins.def.o inside {O_floatStoreW};
+//    endfunction
 
     function automatic logic isStoreSysIns(input AbstractInstruction ins);
         return ins.def.o inside {O_sysStore};
@@ -396,14 +394,11 @@ package EmulationDefs;
 
 
     typedef struct {
-
         logic send;
         logic dbEventPending;
         logic arithException;
         
-        ProgramEvent eventType;
-        
-        //Mword memControl; // TODO: remove, use cregs as the struct used to initialize state in tests 
+        ProgramEvent eventType;        
     } CoreStatus;
 
     localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};

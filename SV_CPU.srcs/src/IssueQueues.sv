@@ -33,7 +33,7 @@ module IssueQueue
 
     typedef UopPacket OutGroupP[OUT_WIDTH];
  
-    typedef IqEntry InputArray[RENAME_WIDTH]; // TODO: change to dynamic arr
+    typedef IqEntry InputArray[RENAME_WIDTH];
     
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY}, arrayReg[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
     InputArray inputArray = '{default: EMPTY_ENTRY};
@@ -62,7 +62,7 @@ module IssueQueue
         //assign anySelected = (selectedUops.size() > 0 && selectedUops[0] != UIDT_NONE);
         always_comb anySelected = anyReady();//(selectedUops[0] != UIDT_NONE);
 
-    assign outPackets = effA(pIssued0);
+        assign outPackets = effA(pIssued0);
 
     always_comb inputArray = makeInputArray(inGroupU); 
 
@@ -602,7 +602,7 @@ module IssueQueueComplex(
     IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, routedUops.fdivider, theExecBlock.fdiv.allowIssue,
                                             issuedFdivP);                                           
 
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, theExecBlock.memIssueAllow,
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
                                             issuedStoreDataP);
