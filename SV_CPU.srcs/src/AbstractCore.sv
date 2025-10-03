@@ -798,8 +798,8 @@ module AbstractCore
 
     task automatic preloadForTest();
 
-        retiredEmul.initStatus(globalParams.initialCoreStatus);
-        renamedEmul.initStatus(globalParams.initialCoreStatus);
+        retiredEmul.initStatus(globalParams.initialCregs);
+        renamedEmul.initStatus(globalParams.initialCregs);
 
         syncRegsFromRetiredCregs();
         syncGlobalParamsFromRegs();

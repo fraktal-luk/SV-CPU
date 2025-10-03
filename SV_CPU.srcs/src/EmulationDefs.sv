@@ -403,9 +403,7 @@ package EmulationDefs;
         
         ProgramEvent eventType;
         
-        //logic enable_Mmu;
-        Mword memControl;
-
+        //Mword memControl; // TODO: remove, use cregs as the struct used to initialize state in tests 
     } CoreStatus;
 
     localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};

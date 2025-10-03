@@ -4,6 +4,7 @@ package Testing;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+    import ControlRegisters::*;
     import EmulationDefs::*;
     import EmulationMemories::*;
     import Emulation::*;
@@ -142,7 +143,8 @@ package Testing;
 
     typedef struct {
         CoreStatus initialCoreStatus;
-        
+        CpuControlRegisters initialCregs;
+
         Translation preloadedInsTlbL1[$] = '{};
         Translation preloadedInsTlbL2[$] = '{};
         
