@@ -339,8 +339,7 @@ module ArchDesc0();
         GlobalParams gp;
         gp.initialCoreStatus = DEFAULT_CORE_STATUS;
         // TODO: bring in line with DB_enableMmu - API to work on status indepedently of Emulator object? 
-        gp.initialCoreStatus.enableMmu = 1;
-        gp.initialCoreStatus.memControl = 7;
+            gp.initialCoreStatus.memControl = 7;
         
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);

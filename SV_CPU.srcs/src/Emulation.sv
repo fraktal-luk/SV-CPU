@@ -77,7 +77,7 @@ package Emulation;
 
             // mem control
             sysRegs['ha] = status.memControl;
-                assert (status.memControl[0] === status.enableMmu) else $fatal(2, "Difference in mmu ctrl %p", status);
+            //    assert (status.memControl[0] === status.enable_Mmu) else $fatal(2, "Difference in mmu ctrl %p", status);
             
         endfunction
 
@@ -89,7 +89,7 @@ package Emulation;
 
             // mem control
             status.memControl = sysRegs['ha];
-                status.enableMmu = status.memControl[0];
+            //    status.enable_Mmu = status.memControl[0];
         endfunction
 
 
@@ -148,7 +148,6 @@ package Emulation;
             this.coreState = initialState(IP_RESET);
                     
             syncRegsFromStatus();
-
             syncCregsFromSysRegs();
 
             this.programMappings.delete();
@@ -665,13 +664,16 @@ package Emulation;
         
         
         function automatic void DB_enableMmu();
-            status.enableMmu = 1;
             status.memControl = 7;
+            
+            syncRegsFromStatus();
+            syncCregsFromSysRegs();
         endfunction
         
         
         function automatic void initStatus(input CoreStatus cs);
             status = cs;
+            
             syncRegsFromStatus();
             syncCregsFromSysRegs();
         endfunction

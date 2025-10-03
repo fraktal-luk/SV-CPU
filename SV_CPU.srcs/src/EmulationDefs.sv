@@ -403,7 +403,7 @@ package EmulationDefs;
         
         ProgramEvent eventType;
         
-        logic enableMmu;
+        //logic enable_Mmu;
         Mword memControl;
 
     } CoreStatus;

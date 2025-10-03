@@ -127,8 +127,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
             
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -147,8 +147,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("lds r0, r0, 99")});
@@ -166,8 +166,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("undef")});
@@ -184,8 +184,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("sys_error")});
@@ -202,8 +202,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("sys_call")});
@@ -222,8 +222,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -240,7 +240,7 @@ module EmulTest();
     task automatic test_FETCH_INVALID_ADDRESS();
         emul.resetCoreAndMappings();
 
-            emul.status.memControl = 0;     
+        //    emul.status.memControl = 0;     
         emul.coreState.target = 'x;
             
         emul.executeStep();
@@ -263,8 +263,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
             
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -280,8 +280,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -299,8 +299,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
               
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ja 0")});
@@ -318,8 +318,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
      
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("add_i r30, r0, -1"),
@@ -342,8 +342,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
 
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
@@ -360,8 +360,8 @@ module EmulTest();
         emul.resetCoreAndMappings();
 
         emul.DB_enableMmu();
-        emul.syncRegsFromStatus();
-        emul.syncCregsFromSysRegs();
+//        emul.syncRegsFromStatus();
+//        emul.syncCregsFromSysRegs();
            
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});

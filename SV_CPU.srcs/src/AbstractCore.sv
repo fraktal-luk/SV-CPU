@@ -741,7 +741,6 @@ module AbstractCore
 
 
     function automatic logic shouldFlushEvent(input UidT uid);
-        //return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
         return shouldFlushId(U2M(uid));
     endfunction
 
@@ -786,7 +785,7 @@ module AbstractCore
         
         sysUnit.reset();
         
-        syncRegsFromStatus();
+        syncRegsFromRetiredCregs();
         syncGlobalParamsFromRegs();
         
         retiredTarget <= IP_RESET;
@@ -802,7 +801,7 @@ module AbstractCore
         retiredEmul.initStatus(globalParams.initialCoreStatus);
         renamedEmul.initStatus(globalParams.initialCoreStatus);
 
-        syncRegsFromStatus();
+        syncRegsFromRetiredCregs();
         syncGlobalParamsFromRegs();
 
         renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
@@ -816,19 +815,14 @@ module AbstractCore
     endtask
 
 
-        function automatic void syncRegsFromStatus();
+        function automatic void syncRegsFromRetiredCregs();
             syncArrayFromCregs(sysUnit.sysRegs, retiredEmul.cregs);
         endfunction
 
-
         // Call every time sys regs are set
         function automatic void syncGlobalParamsFromRegs();
-            CoreStatus tmpStatus;
-            setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
-
-            CurrentConfig.enableMmu <= tmpStatus.enableMmu;
+            CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
             CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-            // TODO: en FP exceptions likewise
             CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
         endfunction
 
