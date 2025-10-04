@@ -10,8 +10,8 @@ package AbstractSim;
 
 
     // Uarch specific
-    localparam int FETCH_QUEUE_SIZE = 8;
-    localparam int BC_QUEUE_SIZE = 64;
+    localparam int FETCH_QUEUE_SIZE = 16;
+    localparam int BC_QUEUE_SIZE = 128;
 
     localparam int N_REGS_INT = 128;
     localparam int N_REGS_FLOAT = 128;

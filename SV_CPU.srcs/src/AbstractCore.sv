@@ -271,11 +271,11 @@ module AbstractCore
     // Helper (inline it?)
     function logic fetchQueueAccepts(input int k);
         // TODO: careful about numbers accounting for pipe lengths! 
-        return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
+        return k <= FETCH_QUEUE_SIZE - 5; // 2 stages between IP stage and FQ
     endfunction
 
     function logic bcQueueAccepts(input int k);
-        return k <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+        return k <= BC_QUEUE_SIZE - 5*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
 

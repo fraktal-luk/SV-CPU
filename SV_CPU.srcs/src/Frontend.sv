@@ -176,7 +176,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         performF2();
 
-        if (stageFetch2.active) fetchQueue.push_back(stageFetch2.arr);
+        if (stageFetch2.active) begin
+            assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
+            fetchQueue.push_back(stageFetch2.arr);
+        end
+
+        
 
         stageRename0 <= readFromFQ();
     endtask

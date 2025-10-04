@@ -95,6 +95,8 @@ module ReplayQueue(
             
             if (!inPackets[i].active) continue;
             
+            assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
+            
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
