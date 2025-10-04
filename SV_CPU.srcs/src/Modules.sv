@@ -22,7 +22,7 @@ module RegularSubpipe(
 
     assign stage0_E = pE0_E;
 
-    assign p0 = opP;
+    always_comb p0 = opP;
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);

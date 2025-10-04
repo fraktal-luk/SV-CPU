@@ -62,12 +62,20 @@ module IssueQueue
         //assign anySelected = (selectedUops.size() > 0 && selectedUops[0] != UIDT_NONE);
         always_comb anySelected = anyReady();//(selectedUops[0] != UIDT_NONE);
 
-        assign outPackets = effA(pIssued0);
+        // TODO: always_comb (check why problems)
+        //assign 
+          always_comb  outPackets = effA(pIssued0);
+        //assign outPackets = pIssued0;
 
     always_comb inputArray = makeInputArray(inGroupU); 
 
-    always_comb wMatrix = getForwardsD(arrayReg);
-    always_comb wiMatrix = getForwardsD(inputArray);
+//    always_comb wMatrix = getForwardsD(arrayReg);
+//    always_comb wiMatrix = getForwardsD(inputArray);
+
+        always @(negedge AbstractCore.clk) begin
+            wMatrix = getForwardsD(arrayReg);
+             wiMatrix = getForwardsD(inputArray);
+        end
 
     always_comb readiness = getReadinessArr();
     always_comb readinessInput = getReadinessInputArr();

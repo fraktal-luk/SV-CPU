@@ -422,11 +422,11 @@ package ExecDefs;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
-            else if (found.size() > 1) $error("Repeated op id in same subpipe");
+            else if (found.size() > 1) $error("Repeated op id in same subpipe %d (%d):\n%p", p, found, fea[p]);
             else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
-                
+
             res.producer = producer;
             res.group = PG_INT;
             res.port = p;
