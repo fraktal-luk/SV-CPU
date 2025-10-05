@@ -21,7 +21,7 @@ package Asm;
         Word4 vals;
         Word res;
 
-        if ( checkArgs(args[0:3], parsingMap[fmt]) != 1) $fatal(2, "Incorrect args");
+        if ( checkArgs(args[0:3], parsingMap[fmt]) != 1) $fatal(2, "Incorrect args\n%p", args);
                     
         vals = parseArgs(args[0:3]);
        

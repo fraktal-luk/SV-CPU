@@ -238,7 +238,7 @@ package Emulation;
                 cregs.excSyndrome = evType; // TODO: temporary
 
             syncSysRegsFromCregs();
-                     
+
             coreState.target = trg;
         endfunction
 
@@ -392,7 +392,11 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
-            status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            // TODO: don't set if exception happened
+             status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
+            //status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
+            
+            status.exceptionRaised = 0;
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);
@@ -438,6 +442,7 @@ package Emulation;
             if (excGenerated && cregs.currentStatus.enArithExc) begin
                 setExecState(PE_ARITH_EXCEPTION, ip);
                 syncStatusFromRegs();
+                status.exceptionRaised = 1;
                 return 1;
             end
                 
@@ -532,6 +537,7 @@ package Emulation;
 
             setExecState(evt, ip);
             syncStatusFromRegs();
+            status.exceptionRaised = 1;
             
             return 1;
         endfunction
@@ -559,6 +565,7 @@ package Emulation;
             
             setExecState(evt, ip);
             syncStatusFromRegs();
+            status.exceptionRaised = 1;
 
             return 1;
         endfunction

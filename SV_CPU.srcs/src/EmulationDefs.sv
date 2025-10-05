@@ -395,6 +395,7 @@ package EmulationDefs;
 
     typedef struct {
         logic send;
+        logic exceptionRaised;
         logic dbEventPending;
         logic arithException;
         

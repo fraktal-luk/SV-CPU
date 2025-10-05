@@ -67,7 +67,7 @@ $stephandler
 
 $setdbstep
 	lds r5, r0, 5
-	add_h r5, r5, 0x16
+	add_h r5, r5, 0x10
 	sts r5, r0, 5
 $return
 	sys_reti
