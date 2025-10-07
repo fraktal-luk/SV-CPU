@@ -96,7 +96,8 @@ package ControlHandling;
                 UOP_ctrl_dbcall:     res.cOp = CO_dbcall;
                 UOP_ctrl_rete:     res.cOp = CO_retE;
                 UOP_ctrl_reti:     res.cOp = CO_retI;
-                UOP_ctrl_sync:     res.cOp = CO_sync;
+                
+                UOP_ctrl_sync:     res.cOp = dbStep ? CO_break : CO_sync;
                 UOP_ctrl_refetch:   res.cOp = CO_refetch;
                 //O_halt:     res.cOp = CO_undef;
                 UOP_ctrl_send:     res.cOp = CO_send;
@@ -113,7 +114,9 @@ package ControlHandling;
     // core logic
     function automatic Mword getCommitTarget(input UopName uname, input logic taken, input Mword prev, input Mword executed, input logic refetch, input logic exception);
         if (isBranchUop(uname) && taken) return executed;
-        else if (isControlUop(uname) || exception) return 'x;
+        else if (exception) return 'x;
+        else if (uname == UOP_ctrl_sync) return prev + 4;
+        else if (isControlUop(uname)) return 'x;
         else if (refetch) return prev;
         else return prev + 4;
     endfunction;
