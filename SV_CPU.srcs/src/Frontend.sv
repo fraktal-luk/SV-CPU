@@ -29,7 +29,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     logic fetchEnable, fetchEnableUncached, fetchEnableCached;
     Mword fetchAdr, fetchAdrUncached, fetchAdrCached;
-    InstructionCacheOutput cacheOut, uncachedOut;
+    InstructionCacheOutput cacheOut, uncachedOut, uncachedOut__;
 
     assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
     assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.vadr) : fetchLineBase(stage_IP.vadr);
@@ -79,7 +79,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     logic frontRed, frontRedOnMiss, adrMismatchF2, blockMismatchF2, wordMismatchF2;
 
 
-    InstructionL1 instructionCache(clk, fetchEnableCached, fetchAdrCached, cacheOut,    fetchEnableUncached, fetchAdrUncached, uncachedOut);
+    InstructionL1 instructionCache(clk, fetchEnableCached, fetchAdrCached, cacheOut);
+    InstructionUncached instructionUncached(clk, fetchEnableUncached, fetchAdrUncached, uncachedOut);
 
 
 //      How to handle:
@@ -352,20 +353,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     function automatic FetchStage TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
-        FetchStage res = fs.arr;
+        //FetchStage res = fs.arr;
 
-        if (!fs.active) return res;
+        if (!fs.active) return fs.arr;
 
-        res = clearBeforeStart(res, expectedTarget);        
+        return clearBeforeStart(fs.arr, expectedTarget);        
 
-        return res;
+        //return res;
     endfunction
 
 
     function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
         FetchStage arrayF2 = TMP_getStageF2(fs, expectedTarget);
         int brSlot = scanBranches(arrayF2);
-        logic active = fs.active; // && !(fs.status inside '{CR_TLB_MISS, CR_TAG_MISS});
         
         arrayF2 = clearAfterBranch(arrayF2, brSlot);
         
@@ -374,7 +374,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             arrayF2[brSlot].takenBranch = 1;
         end
        
-        return '{active, fs.status, fs.vadr, 'x, arrayF2};
+        return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
     endfunction
    
     
@@ -437,31 +437,31 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-    function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
-        FetchStage res = s, res_N = EMPTY_STAGE;
-
-        foreach (res[i]) begin
-            if (res[i].active) begin
-                Word bits = AbstractCore.programMem.fetch(res[i].adr);
-
-                assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
-                
-                res_N[0] = res[i];
-                res_N[0].bits = uncachedOut.words[0];
-                break;
+        function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
+            FetchStage res = s, res_N = EMPTY_STAGE;
+    
+            foreach (res[i]) begin
+                if (res[i].active) begin
+                    Word bits = AbstractCore.programMem.fetch(res[i].adr);
+    
+                    assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
+                    
+                    res_N[0] = res[i];
+                    res_N[0].bits = uncachedOut.words[0];
+                    break;
+                end
             end
-        end
+            
+            return res_N;
+        endfunction
         
-        return res_N;
-    endfunction
     
-
-    
-    function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
-        FrontStage res;
         
-        return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
-    endfunction
+        function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
+            FrontStage res;
+            
+            return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
+        endfunction
    
 
     function automatic FrontStage makeStage_IP(input Mword target, input logic on, input logic SINGLE);
