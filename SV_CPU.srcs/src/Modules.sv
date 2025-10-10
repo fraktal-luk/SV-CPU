@@ -146,6 +146,8 @@ module FloatSubpipe(
         if (decUname(p.TMP_oid) == UOP_fp_inv) res.status = ES_FP_INVALID;
         else if (decUname(p.TMP_oid) == UOP_fp_ov) res.status = ES_FP_OVERFLOW;
         
+        if (res.status inside {ES_FP_INVALID, ES_FP_OVERFLOW} && AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(p.TMP_oid), PE_ARITH_EXCEPTION);
+        
         return res;
     endfunction
 

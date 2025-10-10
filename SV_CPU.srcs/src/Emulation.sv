@@ -262,9 +262,7 @@ package Emulation;
 
     
         function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
-            // TODO: control ops clean dbEventPending because synchronous events are prioritized over dbstep.
-            // Exec exceptions have the same effect switch state before dbstep bit is checked.
-            // However what about control ops which are not state-swtching (sync, replay, send)? The should be able to get dbstep event?
+            // Control events clear dbEventPending because they have higher priority. Sync and send don't prevent db event.
             
             // SR_SET
             case (abs.def.o)
@@ -392,9 +390,8 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
-            // TODO: don't set if exception happened
+            // Don't set if exception happened
              status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
-            //status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
             
             status.exceptionRaised = 0;
             

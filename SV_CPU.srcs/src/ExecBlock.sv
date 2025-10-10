@@ -341,7 +341,7 @@ module ExecBlock(ref InstructionMap insMap,
                 InsId nextId = firstFloatInvId;
                 if (oldestInv.size() > 0) begin
                     nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
-                    if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestInv[0].TMP_oid), PE_ARITH_EXCEPTION);
+                    //if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestInv[0].TMP_oid), PE_ARITH_EXCEPTION);
                 end
 
                 if (shouldFlushId(nextId)) firstFloatInvId <= -1;

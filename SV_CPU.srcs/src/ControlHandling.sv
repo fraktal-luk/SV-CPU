@@ -93,15 +93,14 @@ package ControlHandling;
                 UOP_ctrl_error:    res.cOp = CO_error;
                 UOP_ctrl_undef:    res.cOp = CO_undef;
                 UOP_ctrl_call:     res.cOp = CO_call;
-                UOP_ctrl_dbcall:     res.cOp = CO_dbcall;
+                UOP_ctrl_dbcall:   res.cOp = CO_dbcall;
                 UOP_ctrl_rete:     res.cOp = CO_retE;
                 UOP_ctrl_reti:     res.cOp = CO_retI;
-                
+
+                UOP_ctrl_refetch:  res.cOp = CO_refetch;
                 UOP_ctrl_sync:     res.cOp = dbStep ? CO_break : CO_sync;
-                UOP_ctrl_refetch:   res.cOp = CO_refetch;
-                //O_halt:     res.cOp = CO_undef;
-                UOP_ctrl_send:     res.cOp = CO_send;
-                default:    res.cOp = dbStep ? CO_break : CO_none; // TODO: maybe dbstep should override sync, send, refetch because they are not "real" events? See Emulation
+                UOP_ctrl_send:     res.cOp = CO_send; // TODO: implement CO_send_break which will work like CO_break but also sends signal
+                default:           res.cOp = dbStep ? CO_break : CO_none;
             endcase
         end
         return res;
