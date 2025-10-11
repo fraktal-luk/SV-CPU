@@ -35,20 +35,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     logic FETCH_UNC;
 
-    logic fetchEnable, fetchEnableUncached, fetchEnableCached;
-    Mword fetchAdr, fetchAdrCached,
-                                fetchAdrUncached;
-    InstructionCacheOutput cacheOut,
-                                uncachedOut;
 
-    // TODO: encapsulate uncached fetching engine; implement a queue to buffer generated fetch addresses; ensure that conditional branches are always predicted not taken when in uncached mode;
-    //       implement mechanism to stop fetching when end of 4kB area (mem attr granularity) is reached - to prevent accidental fetching from an area with side effects, and resume fetching
-    //       when a instruciton stream is redirected or core pipeline becomes empty (so it is known architecturally that we intend to move forward with sequential fetching)
-    FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
-               stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
-               stageFetchUnc2 = DEFAULT_FRONT_STAGE, stageFetchUnc3 = DEFAULT_FRONT_STAGE, stageFetchUnc4 = DEFAULT_FRONT_STAGE;
+    logic fetchEnable;//, fetchEnableCached;
+    Mword fetchAdr;//, fetchAdrCached;
+    InstructionCacheOutput cacheOut;
+    
     FrontStage stage_IP = DEFAULT_FRONT_STAGE,
                stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE, stageFetch2 = DEFAULT_FRONT_STAGE;
+
     
     FrontStage stageFetchSelected1;
 
@@ -58,30 +52,42 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
-    logic frontRed, frontRedOnMiss, adrMismatchF2, blockMismatchF2, wordMismatchF2;
+    logic frontRed,
+          frontRedCa, frontRedOnMiss, blockMismatchF2;
 
-
-
-    InstructionL1 instructionCache(clk, fetchEnableCached, fetchAdrCached, cacheOut);
-    InstructionUncached instructionUncached(clk, fetchEnableUncached, fetchAdrUncached, uncachedOut);
-
-
+    InstructionL1 instructionCache(clk, stage_IP.active, fetchLineBase(stage_IP.vadr), cacheOut);
+    
 
     assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
 
 
-    assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
-    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.vadr) : fetchLineBase(stage_IP.vadr);
+
+    ///////////////
+    // UNCACHED
+
+    // TODO: encapsulate uncached fetching engine; implement a queue to buffer generated fetch addresses; ensure that conditional branches are always predicted not taken when in uncached mode;
+    //       implement mechanism to stop fetching when end of 4kB area (mem attr granularity) is reached - to prevent accidental fetching from an area with side effects, and resume fetching
+    //       when a instruciton stream is redirected or core pipeline becomes empty (so it is known architecturally that we intend to move forward with sequential fetching)
+
+    InstructionCacheOutput uncachedOut;
+    logic frontRedUnc, wordMismatchF2;
+
+    FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
+               stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
+               stageFetchUnc2 = DEFAULT_FRONT_STAGE, stageFetchUnc3 = DEFAULT_FRONT_STAGE, stageFetchUnc4 = DEFAULT_FRONT_STAGE;
+
+    InstructionUncached instructionUncached(clk, stageUnc_IP.active, stageUnc_IP.vadr, uncachedOut);
 
 
-
-    assign fetchEnableCached = stage_IP.active;
-    assign fetchAdrCached = fetchLineBase(stage_IP.vadr);
-
-    assign fetchEnableUncached = stageUnc_IP.active;
-    assign fetchAdrUncached = (stageUnc_IP.vadr);
+    assign frontRedUnc = stageFetchUnc4.active && wordMismatchF2;
+    assign wordMismatchF2 = (stageFetchUnc4.vadr !== expectedTargetF2);    
 
 
+    always @(posedge AbstractCore.clk) begin
+        runUncached();
+    end
+
+    //////////
 
 //      How to handle:
 //        CR_INVALID,    continue in pipeline, cause exception
@@ -95,12 +101,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     assign stageFetchSelected1 = FETCH_UNC ? stageFetchUnc4 : stageFetch1;
+    assign frontRed = FETCH_UNC ? frontRedUnc : frontRedCa;
 
-    assign blockMismatchF2 = (fetchLineBase(stageFetchSelected1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
-    assign wordMismatchF2 = (stageFetchSelected1.vadr !== expectedTargetF2);
-    always_comb adrMismatchF2 = FETCH_UNC ? wordMismatchF2 : blockMismatchF2;
-    assign frontRed = stageFetchSelected1.active && adrMismatchF2;
-    assign frontRedOnMiss = (stageFetchSelected1.active && stageFetchSelected1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRed;
+    assign blockMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
+    assign frontRedCa = stageFetch1.active && blockMismatchF2;
+    assign frontRedOnMiss = (stageFetch1.active && stageFetch1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
         // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
 
 
@@ -116,24 +121,24 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         runCached();
     end
 
-    always @(posedge AbstractCore.clk) begin
-        runUncached();
-
-    end
 
     always @(posedge AbstractCore.clk) begin
         runDownstream();
-
     end
 
 
+    assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
+    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.vadr) : fetchLineBase(stage_IP.vadr);
+
+
+
+
     task automatic runCached();
-        // CACHED
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             flushFrontendBeforeF2();
             stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC, FETCH_SINGLE);
         end
-        else if (frontRed || frontRedOnMiss) begin
+        else if (frontRedCa || frontRedOnMiss) begin
             flushFrontendBeforeF2();
             stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC && !frontRedOnMiss, FETCH_SINGLE);
         end
@@ -378,12 +383,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
    //////////////////////////
 
         task automatic runUncached();
-            // UNC
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStage_IP(redirectedTarget(), FETCH_UNC, 1);
             end
-            else if (frontRed /* || frontRedOnMiss*/) begin
+            else if (frontRedUnc) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStage_IP(expectedTargetF2, FETCH_UNC, 1);
             end
