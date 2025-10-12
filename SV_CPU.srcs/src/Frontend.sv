@@ -71,7 +71,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     //       when a instruciton stream is redirected or core pipeline becomes empty (so it is known architecturally that we intend to move forward with sequential fetching)
 
     InstructionCacheOutput uncachedOut;
-    logic frontRedUnc, wordMismatchF2,  frontUncBr;
+    logic frontRedUnc,// wordMismatchF2,  
+            frontUncBr;
 
     FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
                stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
@@ -82,10 +83,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         assign frontUncBr = stageFetch2_U.active && stageFetch2_U.arr[0].takenBranch;
 
-            assign chk = frontUncBr ^ frontRedUnc;
+            assign chk = stageFetch2_U.active ^ stageFetch2.active;
+             assign chk_2 =       shiftTo0(stageFetch2) === stageFetch2_U;
 
-    assign frontRedUnc = stageFetchUnc4.active && wordMismatchF2;
-    assign wordMismatchF2 = (stageFetchUnc4.vadr !== expectedTargetF2);    
+   assign frontRedUnc = //stageFetchUnc4.active && wordMismatchF2;
+                        frontUncBr;
+   // assign wordMismatchF2 = (stageFetchUnc4.vadr !== expectedTargetF2);    
 
 
     always @(posedge AbstractCore.clk) begin
@@ -105,7 +108,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 //
 
 
-    assign stageFetchSelected1 = FETCH_UNC ? stageFetchUnc4 : stageFetch1;
+    assign stageFetchSelected1 = //FETCH_UNC ? stageFetchUnc4 : 
+                                    stageFetch1;
     assign frontRed = FETCH_UNC ? frontRedUnc : frontRedCa;
 
     assign blockMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
@@ -203,15 +207,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         end
         
         if (stageFetchUnc4.active) begin
-            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUnc4, expectedTargetF2_U);
+            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUnc4);//, expectedTargetF2_U);
         end
     endtask
 
 
     task automatic performPostF2();
-        if (stageFetch2.active) begin
+        if (stageFetch2.active && !FETCH_UNC) begin
             assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
             fetchQueue.push_back(stageFetch2.arr);
+        end
+        else if (stageFetch2_U.active && FETCH_UNC) begin
+            assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
+            fetchQueue.push_back(stageFetch2_U.arr);
         end
 
         stageRename0 <= readFromFQ();
@@ -223,6 +231,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         markKilledFrontStage(stageRename0);
 
         expectedTargetF2 <= 'x;
+            expectedTargetF2_U <= 'x;
 
         stageFetch2 <= DEFAULT_FRONT_STAGE;
             stageFetch2_U <= DEFAULT_FRONT_STAGE;
@@ -364,6 +373,23 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
     endfunction
 
+        
+        function automatic FrontStage shiftTo0(input FrontStage fs);
+            FetchStage arrayF2 = //TMP_getStageF2(fs, expectedTarget);
+                                 fs.arr;
+            FetchStage arrNew = '{default: EMPTY_SLOT_F};
+            
+           
+            // TMP: shift to slot 0
+            foreach (arrayF2[i])
+                if (arrayF2[i].active) begin
+                    arrNew[0] = arrayF2[i];
+                    break;
+                end 
+           
+            return '{fs.active, fs.status, fs.vadr, 'x, arrNew};
+        endfunction
+
 
         function automatic FrontStage getFrontStageF2_U(input FrontStage fs);//, input Mword expectedTarget);
             FetchStage arrayF2 = //TMP_getStageF2(fs, expectedTarget);
@@ -413,7 +439,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return adr;
     endfunction
 
-    function automatic Mword getNextTargetF2_U(input FrontStage fs, input Mword expectedTarget);
+    function automatic Mword getNextTargetF2_U(input FrontStage fs);//, input Mword expectedTarget);
         // If no taken branches, increment base adr. Otherwise get taken target
         FetchStage res = fs.arr;//TMP_getStageF2(fs, expectedTarget);
         Mword adr = res[FETCH_WIDTH-1].adr + 4;
