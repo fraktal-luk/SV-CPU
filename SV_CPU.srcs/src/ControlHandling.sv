@@ -22,15 +22,17 @@ package ControlHandling;
                 res.target = IP_EXC;
                 res.redirect = 1;
             end
+            CO_fetchError: begin
+                res.target = IP_FETCH_EXC;
+                res.redirect = 1;
+            end
             CO_error: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
-                //res.sigWrong = 1;
             end
             CO_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
-                //res.sigWrong = 1;
             end
             CO_call: begin
                 res.target = IP_CALL;
@@ -59,7 +61,6 @@ package ControlHandling;
             CO_send: begin
                 res.target = adr + 4;
                 res.redirect = 1;
-                //res.sigOk = 1;
             end
             CO_break: begin
                 res.target = IP_DB_BREAK;
@@ -90,6 +91,7 @@ package ControlHandling;
         end
         else begin
             case (uname)
+                UOP_ctrl_fetchError: res.cOp = CO_fetchError;
                 UOP_ctrl_error:    res.cOp = CO_error;
                 UOP_ctrl_undef:    res.cOp = CO_undef;
                 UOP_ctrl_call:     res.cOp = CO_call;

@@ -286,13 +286,11 @@ module ExecBlock(ref InstructionMap insMap,
                 OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
                 // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
-                if (found.size() == 0) return;       
+                if (found.size() == 0) return;
                 if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];
-            endtask    
-            
-            
+            endtask
 
-            
+
             function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
                 ForwardingElement found[$] = elems.find with (item.active && item.status == st);
                 ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));

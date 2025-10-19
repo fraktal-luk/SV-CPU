@@ -513,10 +513,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
             foreach (res[i]) begin
                 if (res[i].active) begin
-                    Word bits = AbstractCore.programMem.fetch(res[i].adr);
-    
-                    assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
-                    
+                    if (uncachedOut.status == CR_HIT) begin
+                        Word bits = AbstractCore.programMem.fetch(res[i].adr);
+                        assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
+                    end
                     res_N[0] = res[i];
                     res_N[0].bits = uncachedOut.words[0];
                     break;

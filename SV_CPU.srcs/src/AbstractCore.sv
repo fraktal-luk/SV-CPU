@@ -360,13 +360,25 @@ module AbstractCore
 
 
     function automatic UopName decodeUop(input AbstractInstruction ins);
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
+        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
+
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
         return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 
 
+    function automatic AbstractInstruction decodeWithAddress(input Word bits, input Mword adr);
+        AbstractInstruction ins = DEFAULT_ABS_INS;
+    
+        if (!physicalAddressValid(adr) || (adr % 4 != 0)) ins.def.o = O_fetchError;
+        else ins = decodeAbstract(bits);
+        
+        return ins;
+    endfunction
+    
+
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg /*UNUSED so far*/);
-        AbstractInstruction ins = decodeAbstract(bits);
+        AbstractInstruction ins = decodeWithAddress(bits, adr);
         UopInfo mainUinfo;
         UopInfo uInfos[$];
         Mword target;
@@ -605,7 +617,7 @@ module AbstractCore
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
             assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
-                                isStaticEventIns(insInfo.basicData.dec)|| (insInfo.eventType == PE_ARITH_EXCEPTION)))
+                                isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
                 else $error("MIsmatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
                             retInfo.refetch, retInfo.exception);
 

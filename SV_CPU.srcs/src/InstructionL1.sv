@@ -322,20 +322,25 @@ module InstructionUncached(
         readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
     end
 
-
+    // TODO: make more general memory read definitions, no to use InstructionCacheOutput for uncached
     function automatic InstructionCacheOutput readUncached(input logic readEnable, input Dword adr);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
 
         if (!readEnable) return res;
         
-        assert (physicalAddressValid(adr)) else $fatal(2, "Wrong fetch");
+       // assert (physicalAddressValid(adr)) else $fatal(2, "Wrong fetch");
         
         // TODO: catch invalid adr or nonexistent mem exception
-        res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend 
+        if (!physicalAddressValid(adr) || (adr % 4 != 0)) begin
+            res.status = CR_INVALID;
+        end
+        else begin
+            res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend
+            res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
+        end
 
         res.active = 1;
         res.desc = '{1, 1, 1, 1, 0};
-        res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
 
         return res;
     endfunction

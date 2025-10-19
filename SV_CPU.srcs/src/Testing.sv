@@ -28,12 +28,10 @@ package Testing;
 
     const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
-
     const string MEM_EXC_HANDLER[$]  = {"add_i r1, r0, 58", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
-    // FETCH_EXC
-    
-    // MEM_EXC
+    const string FETCH_EXC_HANDLER[$]  = {"add_i r1, r0, 88", /*"lds r20, r0, 2",*/ "add_i r21, r0, 16", "sts r21, r0, 2", "sys_rete", "ja 0"};
+
 
     const string DEFAULT_DB_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
 
@@ -57,6 +55,8 @@ package Testing;
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
     const Section MEM_EXC_SECTION = processLines(MEM_EXC_HANDLER);
+
+    const Section FETCH_EXC_SECTION = processLines(FETCH_EXC_HANDLER);
 
     const Section DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
 
@@ -82,6 +82,7 @@ package Testing;
                               input Section callSec,
                               input Section intSec,
                               input Section excSec,
+                              input Section fetchExcSec,
                               input Section memExcSec,
                               input Section dbSec,
                               input Section dbBreakSec,
@@ -96,6 +97,7 @@ package Testing;
         writeProgram(mem, IP_CALL % PAGE_SIZE, callSec.words);
         writeProgram(mem, IP_INT % PAGE_SIZE, intSec.words);
         writeProgram(mem, IP_EXC % PAGE_SIZE, excSec.words);
+        writeProgram(mem, IP_FETCH_EXC % PAGE_SIZE, fetchExcSec.words);
         writeProgram(mem, IP_MEM_EXC % PAGE_SIZE, memExcSec.words);
         writeProgram(mem, IP_DB_CALL % PAGE_SIZE, dbSec.words);
         writeProgram(mem, IP_DB_BREAK % PAGE_SIZE, dbBreakSec.words);
@@ -136,7 +138,7 @@ package Testing;
     function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
         WordArray mem = new [PAGE_SIZE/4];
         setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION,
-                                MEM_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION, DEFAULT_ARITH_SECTION);
+                                FETCH_EXC_SECTION, MEM_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION, DEFAULT_ARITH_SECTION);
         return mem;
     endfunction
 

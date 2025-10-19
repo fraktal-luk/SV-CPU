@@ -344,9 +344,16 @@ package Emulation;
 
 
 
-        function automatic TMP_runInstruction(input Mword adr, input Word bits);
-            AbstractInstruction ins = decodeAbstract(bits);
-            processInstruction(adr, ins);
+        function automatic void TMP_runInstruction(input Mword adr, input Word bits);
+            Mword vadr = adr;
+            Translation tr = translateProgramAddress(vadr);
+
+            //if (catchFetchException(vadr, tr)) return;
+            
+            begin
+                AbstractInstruction ins = decodeAbstract(bits);
+                processInstruction(adr, ins);
+            end
         endfunction
 
 

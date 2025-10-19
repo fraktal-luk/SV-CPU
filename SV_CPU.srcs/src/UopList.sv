@@ -10,7 +10,8 @@ package UopList;
          UOP_none,
          
          UOP_ctrl_undef,
-               
+            UOP_ctrl_fetchError,
+         
          UOP_int_and,
          UOP_int_or,
          UOP_int_xor,
@@ -206,6 +207,8 @@ package UopList;
     function automatic logic isControlUop(input UopName name);
         return name inside {
             UOP_ctrl_undef,
+                UOP_ctrl_fetchError,
+            
             UOP_ctrl_rete,
             UOP_ctrl_reti,
             UOP_ctrl_halt,

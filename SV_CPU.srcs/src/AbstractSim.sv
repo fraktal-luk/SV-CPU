@@ -99,14 +99,14 @@ package AbstractSim;
         logic takenBranch;
         Mword predictedTarget;
     } OpSlotF;
-        
-        // Maybe redundant (OpSlotF has it all)
-        typedef struct {
-            logic active;
-            InsId mid;
-            Mword adr;  // hardly used
-            Word bits;  // hardly used
-        } OpSlotB;
+
+    // Maybe redundant (OpSlotF has it all)
+    typedef struct {
+        logic active;
+        InsId mid;
+        Mword adr;  // hardly used
+        Word bits;  // hardly used
+    } OpSlotB;
 
 
     typedef struct {
@@ -136,7 +136,9 @@ package AbstractSim;
         
         CO_reset,
         CO_int,
-        
+
+        CO_fetchError,
+
         CO_undef,
         
         CO_error,

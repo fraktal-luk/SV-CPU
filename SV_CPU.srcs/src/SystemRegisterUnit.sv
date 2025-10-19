@@ -62,6 +62,13 @@ module SystemRegisterUnit();
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
             end
+            CO_fetchError: begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[2] = adr;// + 4;
+                
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                sysRegs[1] &= ~('h00100000); // clear dbstep
+            end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;// + 4;
@@ -92,7 +99,7 @@ module SystemRegisterUnit();
             
             CO_refetch, CO_sync, CO_send: ;
             
-            default: $error("Incorrent control op %p", cOp);
+            default: $error("Incorrect control op %p", cOp);
         endcase
     endfunction
     
