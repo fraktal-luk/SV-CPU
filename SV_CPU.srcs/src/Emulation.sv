@@ -331,10 +331,12 @@ package Emulation;
                 evt = PE_FETCH_DISALLOWED_ACCESS;
             else if (!physicalAddressValid(tr.padr))
                 evt = PE_FETCH_NONEXISTENT_ADDRESS;
-            else if (!progMem.addressValid(tr.padr))
-                evt = PE_FETCH_NONEXISTENT_ADDRESS;
+//            else if (!progMem.addressValid(tr.padr))
+//                evt = PE_FETCH_NONEXISTENT_ADDRESS;
 
             if (evt === PE_NONE) return 0;
+            
+              //  $error("we hve f err: %p, %p %p", vadr, tr, evt);
             
             setExecState(evt, ip);
             syncStatusFromRegs();
@@ -347,8 +349,9 @@ package Emulation;
         function automatic void TMP_runInstruction(input Mword adr, input Word bits);
             Mword vadr = adr;
             Translation tr = translateProgramAddress(vadr);
-
-            //if (catchFetchException(vadr, tr)) return;
+                
+                this.ip = vadr;
+                if (catchFetchException(vadr, tr)) return;
             
             begin
                 AbstractInstruction ins = decodeAbstract(bits);
