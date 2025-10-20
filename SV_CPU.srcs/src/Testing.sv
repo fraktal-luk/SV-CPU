@@ -105,6 +105,8 @@ package Testing;
         writeProgram(mem, IP_DB_BREAK % PAGE_SIZE, dbBreakSec.words);
         writeProgram(mem, IP_ARITH_EXC % PAGE_SIZE, arithSec.words);
         
+        // This is for testing against fetch speculation across pages in uncached mode
+        // After the nop section is the beginning of page with copy of test code
         writeProgram(mem, PAGE_SIZE - 16, nopSec.words);
     endfunction
 

@@ -461,20 +461,27 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic runUncached();
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
-                stageUnc_IP <= makeStage_IP(redirectedTarget(), FETCH_UNC, 1);
+                stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), FETCH_UNC, stageUnc_IP.vadr, 0);
             end
             else if (frontUncBr) begin
                 flushUncachedPipe();
-                stageUnc_IP <= makeStage_IP(expectedTargetF2_U, FETCH_UNC, 1);
+                stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, FETCH_UNC, stageUnc_IP.vadr, 1);
             end
             else begin
                 fetchNormalUncached();
+            end
+            
+            // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
+            if (AbstractCore.theRob.isEmpty) begin
+                //if (FETCH_UNC && !stageUnc_IP.active) $error("Restart unc");
+                
+                if (FETCH_UNC) stageUnc_IP.active <= 1; // Resume fetching after miss
             end
         endtask
 
         task automatic fetchNormalUncached();
             if (AbstractCore.fetchAllow && stageUnc_IP.active) begin
-                stageUnc_IP <= makeStage_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, 1);
+                stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageFetchUnc0 <= stageUnc_IP;
             end
             else
@@ -527,7 +534,32 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             
             return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
         endfunction
-   
+
+        function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
+            FrontStage res = DEFAULT_FRONT_STAGE;
+            Mword baseAdr = fetchLineBase(target);
+            logic already = 0;
+    
+            logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
+                    
+               //  if (pageCross && guardPageCross) $error("Cossing pages: %x -> %x (%d -> %d)", prevAdr, target, prevAdr, target);
+
+            res.active = on && !(guardPageCross && pageCross);
+            res.status = CR_HIT;
+            res.vadr = target;
+    
+            for (int i = 0; i < FETCH_WIDTH; i++) begin
+                Mword adr = baseAdr + 4*i;
+                logic elemActive = !$isunknown(target) && (adr >= target) && !already;
+                
+                if (elemActive) already = 1; 
+                
+                res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+            end
+            
+            return res;
+        endfunction
+
    //////////////////////////
    //////////////////////////
 
