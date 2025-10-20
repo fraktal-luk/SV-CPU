@@ -327,10 +327,7 @@ module InstructionUncached(
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
 
         if (!readEnable) return res;
-        
-       // assert (physicalAddressValid(adr)) else $fatal(2, "Wrong fetch");
-        
-        // TODO: catch invalid adr or nonexistent mem exception
+
         if (!physicalAddressValid(adr) || (adr % 4 != 0)) begin
             res.status = CR_INVALID;
         end

@@ -39,7 +39,9 @@ package Testing;
 
     const string DEFAULT_ARITH_HANDLER[$]  = {"add_i r29, r0, 98", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
 
-
+    
+    const string NOP_PADDING[$] = {"and_r r0, r0, r0", "and_r r0, r0, r0", "and_r r0, r0, r0", "and_r r0, r0, r0"};
+    
 
 
     const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
@@ -88,9 +90,9 @@ package Testing;
                               input Section dbBreakSec,
                               input Section arithSec
                               );
-        mem = '{default: 'x};
+        Section nopSec = processLines(NOP_PADDING);
 
-        //writeProgram(mem, 0, testSec.words);
+        mem = '{default: 'x};
 
         writeProgram(mem, IP_RESET % PAGE_SIZE, resetSec.words);
         writeProgram(mem, IP_ERROR % PAGE_SIZE, errorSec.words);
@@ -102,6 +104,8 @@ package Testing;
         writeProgram(mem, IP_DB_CALL % PAGE_SIZE, dbSec.words);
         writeProgram(mem, IP_DB_BREAK % PAGE_SIZE, dbBreakSec.words);
         writeProgram(mem, IP_ARITH_EXC % PAGE_SIZE, arithSec.words);
+        
+        writeProgram(mem, PAGE_SIZE - 16, nopSec.words);
     endfunction
 
 

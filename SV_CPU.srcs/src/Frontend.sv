@@ -375,10 +375,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         
         function automatic FrontStage shiftTo0(input FrontStage fs);
-            FetchStage arrayF2 = //TMP_getStageF2(fs, expectedTarget);
-                                 fs.arr;
+            FetchStage arrayF2 = fs.arr;
             FetchStage arrNew = '{default: EMPTY_SLOT_F};
-            
            
             // TMP: shift to slot 0
             foreach (arrayF2[i])
@@ -391,15 +389,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endfunction
 
 
-        function automatic FrontStage getFrontStageF2_U(input FrontStage fs);//, input Mword expectedTarget);
-            FetchStage arrayF2 = //TMP_getStageF2(fs, expectedTarget);
-                                 fs.arr;
+        function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
+            FetchStage arrayF2 = fs.arr;
             FetchStage arrNew = '{default: EMPTY_SLOT_F};
             
             int brSlot = scanBranches(arrayF2);
-            
-               // arrayF2 = clearAfterBranch(arrayF2, brSlot);
-            
+                        
             // Set prediction info
             if (brSlot != -1) begin
                 arrayF2[brSlot].takenBranch = 1;
@@ -440,15 +435,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
     function automatic Mword getNextTargetF2_U(input FrontStage fs);//, input Mword expectedTarget);
-        // If no taken branches, increment base adr. Otherwise get taken target
-        FetchStage res = fs.arr;//TMP_getStageF2(fs, expectedTarget);
+        FetchStage res = fs.arr;
         Mword adr = res[FETCH_WIDTH-1].adr + 4;
         
         foreach (res[i]) 
             if (res[i].active) begin
                 AbstractInstruction ins = decodeAbstract(res[i].bits);
                 
-                adr = res[i].adr + 4;   // Last active
+                adr = res[i].adr + 4; // Last active
                 
                 if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
                     if (isBranchAlwaysIns(ins)) begin
@@ -469,9 +463,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 flushUncachedPipe();
                 stageUnc_IP <= makeStage_IP(redirectedTarget(), FETCH_UNC, 1);
             end
-            else if (/*frontRedUnc*/ frontUncBr) begin
+            else if (frontUncBr) begin
                 flushUncachedPipe();
-                stageUnc_IP <= makeStage_IP(/*expectedTargetF2*/ expectedTargetF2_U, FETCH_UNC, 1);
+                stageUnc_IP <= makeStage_IP(expectedTargetF2_U, FETCH_UNC, 1);
             end
             else begin
                 fetchNormalUncached();
