@@ -472,10 +472,16 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             end
             
             // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
-            if (AbstractCore.theRob.isEmpty) begin
-                //if (FETCH_UNC && !stageUnc_IP.active) $error("Restart unc");
-                
-                if (FETCH_UNC) stageUnc_IP.active <= 1; // Resume fetching after miss
+            if (FETCH_UNC && !stageUnc_IP.active && AbstractCore.theRob.isEmpty && stageEmptyAB(AbstractCore.stageRename1) 
+                && stageEmptyAF(stageRename0) && fqSize == 0
+                && !stageFetch2_U.active
+                && !stageFetchUnc4.active
+                && !stageFetchUnc3.active
+                && !stageFetchUnc2.active
+                && !stageFetchUnc1.active
+                && !stageFetchUnc0.active
+            ) begin
+                stageUnc_IP.active <= 1; // Resume fetching after miss
             end
         endtask
 
@@ -542,7 +548,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
             logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
                     
-               //  if (pageCross && guardPageCross) $error("Cossing pages: %x -> %x (%d -> %d)", prevAdr, target, prevAdr, target);
+                // if (pageCross && guardPageCross) $error("Crossing pages: %x -> %x (%d -> %d)", prevAdr, target, prevAdr, target);
 
             res.active = on && !(guardPageCross && pageCross);
             res.status = CR_HIT;

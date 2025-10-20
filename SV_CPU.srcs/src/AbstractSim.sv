@@ -131,6 +131,21 @@ package AbstractSim;
     typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
 
 
+    function automatic logic stageEmptyAF(input OpSlotAF stage);
+        foreach (stage[i])
+            if (stage[i].active) return 0;
+        
+        return 1; 
+    endfunction 
+    
+    function automatic logic stageEmptyAB(input OpSlotAB stage);
+        foreach (stage[i])
+            if (stage[i].active) return 0;
+        
+        return 1; 
+    endfunction 
+
+
     typedef enum {
         CO_none,
         
