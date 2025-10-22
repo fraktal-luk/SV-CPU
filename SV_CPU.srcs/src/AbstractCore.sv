@@ -618,7 +618,7 @@ module AbstractCore
 
             assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
                                 isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-                else $error("MIsmatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
+                else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
                             retInfo.refetch, retInfo.exception);
 
 

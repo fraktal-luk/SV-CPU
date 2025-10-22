@@ -81,8 +81,6 @@ module DataL1(
         case (pageBase)
             0:              initBlocksWay(blocksWay0, 0);
             PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-//            2*PAGE_SIZE:    initBlocksWay(blocksWay2, 2*PAGE_SIZE);
-//            3*PAGE_SIZE:    initBlocksWay(blocksWay3, 3*PAGE_SIZE);
             default: $error("Incorrect page to init cache: %x", pageBase);
         endcase
     endfunction
@@ -128,10 +126,7 @@ module DataL1(
         TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;
         TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;
         DB_fillTranslations();
-
-        //foreach (AbstractCore.globalParams.copiedDataPages[i])
-        //    copyPageToContent(AbstractCore.globalParams.copiedDataPages[i]);
-        
+ 
         foreach (AbstractCore.globalParams.preloadedDataWays[i])
             copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
     endfunction
@@ -267,7 +262,6 @@ module DataL1(
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
         if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        //if (!AbstractCore.globalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
         if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
         assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
@@ -318,7 +312,15 @@ module DataL1(
         
         if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read
-            res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
+            // TODO: consider tr.desc
+            
+            if (uncachedSubsystem.readResult.status == CR_HIT) res = '{1, CR_HIT, tr.desc, uncachedSubsystem.uncachedOutput};
+            else if (uncachedSubsystem.readResult.status == CR_INVALID) res = '{1, CR_INVALID, tr.desc, 0};
+            else $error("Wrong status returned by uncached");
+            
+        end
+        else if (aDesc.uncachedStore) begin
+            res = '{1, CR_HIT, tr.desc, 'x};
         end
         else if (aDesc.sys) begin end
         else if (!tr.present) begin // TLB miss

@@ -185,7 +185,15 @@ module MemSubpipe#(
             end
 
             ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                res.status = ES_OK; // Go on to handle mem result
+                if (cacheResp.status == CR_HIT)
+                    res.status = ES_OK; // Go on to handle mem result
+                else if (cacheResp.status == CR_INVALID) begin
+                    res.status = ES_ILLEGAL;
+                    insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
+                    return res;
+                end
+                else
+                    $fatal(2, "Wrong status %p", cacheResp.status);
                 // Continue processing
             end 
 

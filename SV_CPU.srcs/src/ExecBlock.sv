@@ -310,6 +310,8 @@ module ExecBlock(ref InstructionMap insMap,
             ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
             ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
 
+               // if (oldestMemIll.size() > 0) $error("...... YES");
+
             begin
                 InsId nextId = firstEventId_N;
                 if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);

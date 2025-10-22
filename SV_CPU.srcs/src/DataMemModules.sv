@@ -107,6 +107,7 @@ module UncachedSubsystem(
     int uncachedCounter = -1;
     logic uncachedBusy = 0;
     Mword uncachedOutput = 'x;
+    DataCacheOutput readResult = EMPTY_DATA_CACHE_OUTPUT;
 
     localparam Mword UNCACHED_BASE = 'h0000000040000000;
     Mbyte uncachedArea[PAGE_SIZE];
@@ -115,7 +116,8 @@ module UncachedSubsystem(
     task automatic UNC_reset();
         uncachedCounter = -1;
         uncachedBusy <= 0;
-        uncachedOutput = 'x;
+        uncachedOutput <= 'x;
+        readResult <= EMPTY_DATA_CACHE_OUTPUT;
         
         uncachedArea = '{default: 0};
     endtask
@@ -132,6 +134,7 @@ module UncachedSubsystem(
         uncachedReads[0].ready = 0;
         uncachedReads[0].adr = 'x;
         uncachedOutput <= 'x;
+        readResult <= EMPTY_DATA_CACHE_OUTPUT;
     endfunction
 
 
@@ -141,6 +144,31 @@ module UncachedSubsystem(
         else $error("Wrong access size");
 
         return 'x;
+    endfunction
+
+    function automatic DataCacheOutput readFromUncachedRange_RR(input Mword adr, input AccessSize size);
+        Mword value = 'x;
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
+        
+          //  $error("unc reading: %x, valid? %d", adr, physicalAddressValid(adr));
+        
+        // TODO: catch other errors like illegal access (R/W permissions from TLB, invalid vadr,...)
+        if (!physicalAddressValid(adr)) begin
+            res.active = 1;
+            res.status = CR_INVALID;
+            res.data = 0;
+            return res;
+        end
+
+        if (size == SIZE_1) value = readByteUncached(adr);
+        else if (size == SIZE_4) value = readWordUncached(adr);
+        else $error("Wrong access size");
+        
+        res.active = 1;
+        res.status = CR_HIT;
+        res.data = value;
+
+        return res;
     endfunction
     
         function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
@@ -181,6 +209,7 @@ module UncachedSubsystem(
                     uncachedReads[0].ongoing = 0;
                     uncachedReads[0].ready = 1;
                     uncachedOutput <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
+                    readResult <= readFromUncachedRange_RR(uncachedReads[0].adr, uncachedReads[0].size);
                 end
             end
 
