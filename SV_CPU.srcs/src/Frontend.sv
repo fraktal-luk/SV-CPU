@@ -68,7 +68,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     //       when a instruction stream is redirected or core pipeline becomes empty (so it is known architecturally that we intend to move forward with sequential fetching)
 
     InstructionCacheOutput uncachedOut;
-    logic frontRedUnc;//, frontUncBr;
+    logic frontRedUnc;
 
     FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
                stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
@@ -81,8 +81,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
            // assign chk = stageFetch2_U.active ^ stageFetch2.active;
            //  assign chk_2 =       shiftTo0(stageFetch2) === stageFetch2_U;
-
-    //assign frontRedUnc = frontUncBr;
 
 
     always @(posedge AbstractCore.clk) begin
@@ -109,7 +107,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign frontRedOnMiss = (stageFetch1.active && stageFetch1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
         // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
 
-
        //assign chk = 0;
        //assign chk_2 = stageFetch1.active;
        //assign chk_3 = chk ^ chk_2;
@@ -130,8 +127,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
     assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.vadr) : fetchLineBase(stage_IP.vadr);
-
-
 
 
     task automatic runCached();
@@ -269,8 +264,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);
-        FrontStage res;
+        //FrontStage res;
         
+        // TODO: set padr
         return '{stage.active, cachedOut.status, stage.vadr, 'x, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
     endfunction
 
@@ -355,38 +351,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         int brSlot = scanBranches(arrayF2);
         
         arrayF2 = clearAfterBranch(arrayF2, brSlot);
-        
+
         // Set prediction info
-        if (brSlot != -1) begin
-            arrayF2[brSlot].takenBranch = 1;
-        end
+        if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
        
         return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
     endfunction
-
-
-        function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
-            FetchStage arrayF2 = fs.arr;
-            FetchStage arrNew = '{default: EMPTY_SLOT_F};
-            
-            int brSlot = scanBranches(arrayF2);
-                        
-            // Set prediction info
-            if (brSlot != -1) begin
-                arrayF2[brSlot].takenBranch = 1;
-            end
-           
-            // TMP: shift to slot 0
-            foreach (arrayF2[i])
-                if (arrayF2[i].active) begin
-                    arrNew[0] = arrayF2[i];
-                    break;
-                end 
-           
-            return '{fs.active, fs.status, fs.vadr, 'x, arrNew};
-        endfunction
-
- 
+        
     
     function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
         // If no taken branches, increment base adr. Otherwise get taken target
@@ -410,29 +381,38 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return adr;
     endfunction
 
-    function automatic Mword getNextTargetF2_U(input FrontStage fs);//, input Mword expectedTarget);
-        FetchStage res = fs.arr;
-        Mword adr = res[FETCH_WIDTH-1].adr + 4;
-        
-        foreach (res[i]) 
-            if (res[i].active) begin
-                AbstractInstruction ins = decodeAbstract(res[i].bits);
-                
-                adr = res[i].adr + 4; // Last active
-                
-                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                    if (isBranchAlwaysIns(ins)) begin
-                        adr = res[i].adr + Mword'(ins.sources[1]);
-                        break;
-                    end
-                end
-            end
-        
-        return adr;
-    endfunction
 
    //////////////////////////
    //////////////////////////
+   
+        function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
+            FetchStage arrayF2 = fs.arr;
+            
+            int brSlot = scanBranches(arrayF2);
+                        
+            // Set prediction info
+            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+    
+            return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
+        endfunction
+
+        function automatic Mword getNextTargetF2_U(input FrontStage fs);
+            FetchStage res = fs.arr;
+            Mword adr = res[0].adr + 4;
+    
+            if (res[0].active) begin
+                AbstractInstruction ins = decodeAbstract(res[0].bits);
+                
+                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                    if (isBranchAlwaysIns(ins)) begin
+                        adr = res[0].adr + Mword'(ins.sources[1]);
+                    end
+                end
+            end
+    
+            return adr;
+        endfunction
+
 
         task automatic runUncached();
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
@@ -494,69 +474,38 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         // ONE USE
         function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
-            FetchStage res = s, res_N = EMPTY_STAGE;
-    
-            foreach (res[i]) begin
-                if (res[i].active) begin
-                    if (uncachedOut.status == CR_HIT) begin
-                        Word bits = AbstractCore.programMem.fetch(res[i].adr);
-                        assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
-                    end
-                    res_N[0] = res[i];
-                    res_N[0].bits = uncachedOut.words[0];
-                    break;
-                end
+            FetchStage res = EMPTY_STAGE;
+            if (!s[0].active) return EMPTY_STAGE; 
+
+            if (uncachedOut.status == CR_HIT) begin
+                Word bits = AbstractCore.programMem.fetch(s[0].adr);
+                assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
             end
+            res[0] = s[0];
+            res[0].bits = uncachedOut.words[0];
             
-            return res_N;
+            return res;
         endfunction
 
-        function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
-            FrontStage res;
-            
+        function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);            
             return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
         endfunction
 
         function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
             FrontStage res = DEFAULT_FRONT_STAGE;
-            Mword baseAdr = fetchLineBase(target);
-            logic already = 0;
-    
+
             logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
-                    
-                // if (pageCross && guardPageCross) $error("Crossing pages: %x -> %x (%d -> %d)", prevAdr, target, prevAdr, target);
 
             res.active = on && !(guardPageCross && pageCross);
             res.status = CR_HIT;
             res.vadr = target;
+            res.padr = target;
 
-            for (int i = 0; i < FETCH_WIDTH; i++) begin
-                Mword adr = baseAdr + 4*i;
-                logic elemActive = !$isunknown(target) && (adr >= target) && !already;
-                
-                if (elemActive) already = 1; 
-                
-                //res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
-            end
             res.arr[0] = '{1, -1, target, 'x, 0, 'x};
             
-            return shiftTo0(res);
+            return res;
         endfunction
 
-        // ONE USE
-        function automatic FrontStage shiftTo0(input FrontStage fs);
-            FetchStage arrayF2 = fs.arr;
-            FetchStage arrNew = '{default: EMPTY_SLOT_F};
-           
-            // TMP: shift to slot 0
-            foreach (arrayF2[i])
-                if (arrayF2[i].active) begin
-                    arrNew[0] = arrayF2[i];
-                    break;
-                end 
-           
-            return '{fs.active, fs.status, fs.vadr, 'x, arrNew};
-        endfunction
 
    //////////////////////////
    //////////////////////////
