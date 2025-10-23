@@ -12,6 +12,7 @@ package CacheDefs;
     import Insmap::*;
 
 
+
     typedef Word FetchGroup_N[FETCH_WIDTH];
 
     typedef enum {
@@ -119,7 +120,8 @@ package CacheDefs;
     
     localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
     
-    
+    typedef Mbyte DataBlock[BLOCK_SIZE];
+
     
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
 
@@ -170,17 +172,6 @@ package CacheDefs;
         pageCross: 'x 
     };
 
-
-
-      // Mem uop packet:
-      //  general - id, poison, status?
-      //    transaction description:
-      //      - basic part: static type of transfer (load/store, 'system', aq-rel, nontemporal?), size, vadr 
-      //      - translation (and adr check?): page present, page desc (includes access rights and 'cached'), padr
-      //       - status considerations: unaligned, block cross, page cross, error(kind?)/refetch  -- most can be derived from 'basic part'
-      //      - data: present or not (or multiple hit?), value 
-     
-
      // basic info
      typedef struct {
         logic active;
@@ -190,6 +181,8 @@ package CacheDefs;
         logic uncachedReq;
         logic uncachedCollect;
         logic uncachedStore;
+            
+            // whats missing: block[Index], blockOffset 
         
          // FUTURE: access rights of this uop?
         AccessSize size;
@@ -212,7 +205,7 @@ package CacheDefs;
         int blockOffset = aLow % BLOCK_SIZE;
         
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-      
+
         res.adr = adr;
         res.size = accessSize;
         

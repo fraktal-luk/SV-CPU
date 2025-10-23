@@ -64,8 +64,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     // UNCACHED
 
     // TODO: encapsulate uncached fetching engine; implement a queue to buffer generated fetch addresses; ensure that conditional branches are always predicted not taken when in uncached mode;
-    //       implement mechanism to stop fetching when end of 4kB area (mem attr granularity) is reached - to prevent accidental fetching from an area with side effects, and resume fetching
-    //       when a instruction stream is redirected or core pipeline becomes empty (so it is known architecturally that we intend to move forward with sequential fetching)
 
     InstructionCacheOutput uncachedOut;
     logic frontRedUnc;
@@ -88,16 +86,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     end
 
     //////////
-
-//      How to handle:
-//        CR_INVALID,    continue in pipeline, cause exception
-//            CR_NOT_MAPPED, // continue, exception
-//        CR_TLB_MISS
-//        CR_TAG_MISS,       treat as empty?  >> if so, must ensure that later fetch outputs are also ignored: otherwise we can omit a group and accept subsequent ones :((
-//                          better answer: cause redirect to missed address; maybe deactivate fetch block until line is filled?
-//        CR_HIT,        continue in pipeline; if desc says not executable then cause exception
-//        CR_MULTIPLE    cause (async?) error
-//
 
 
     assign frontRed = FETCH_UNC ? frontRedUnc : frontRedCa;
@@ -170,6 +158,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         end
         else begin
             performF2();
+            performF2_Unc();
             performPostF2();
         end
 
@@ -178,23 +167,32 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     task automatic performF2();
-        if (frontRed || frontRedOnMiss) begin
+        if (frontRedCa || frontRedOnMiss) begin
             stageFetch2 <= DEFAULT_FRONT_STAGE;
-                stageFetch2_U <= DEFAULT_FRONT_STAGE;
             return;
         end
 
         stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
-            stageFetch2_U <= getFrontStageF2_U(stageFetchUnc4);
 
         if (stageFetch1.active) begin
             assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
             expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
         end
-        
-        if (stageFetchUnc4.active) begin
-            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUnc4);
+        // If previous stage is empty, expectedTargetF2 stays unchanged 
+    endtask
+
+    task automatic performF2_Unc();
+        if (frontRedUnc) begin
+            stageFetch2_U <= DEFAULT_FRONT_STAGE;
+            return;
         end
+
+        stageFetch2_U <= getFrontStageF2_U(stageFetchUnc4);
+
+        if (stageFetchUnc4.active)
+            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUnc4);
+        else
+           expectedTargetF2_U <= 'x;
     endtask
 
 
@@ -202,7 +200,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         if (stageFetch2.active && !FETCH_UNC) begin
             assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
             fetchQueue.push_back(stageFetch2.arr);
-        end
+        end 
         else if (stageFetch2_U.active && FETCH_UNC) begin
             assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
             fetchQueue.push_back(stageFetch2_U.arr);
@@ -213,19 +211,21 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     task automatic flushFrontendFromF2();
         markKilledFrontStage(stageFetch2.arr);
-            markKilledFrontStage(stageFetch2_U.arr);
-        markKilledFrontStage(stageRename0);
-
         expectedTargetF2 <= 'x;
-            expectedTargetF2_U <= 'x;
-
         stageFetch2 <= DEFAULT_FRONT_STAGE;
-            stageFetch2_U <= DEFAULT_FRONT_STAGE;
+
+        // Unc
+        markKilledFrontStage(stageFetch2_U.arr);
+        expectedTargetF2_U <= 'x;
+        stageFetch2_U <= DEFAULT_FRONT_STAGE;
+        //
 
         foreach (fetchQueue[i])
             markKilledFrontStage(fetchQueue[i]);
 
         fetchQueue.delete();
+
+        markKilledFrontStage(stageRename0);
 
         stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
@@ -263,9 +263,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-    function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);
-        //FrontStage res;
-        
+    function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);        
         // TODO: set padr
         return '{stage.active, cachedOut.status, stage.vadr, 'x, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
     endfunction

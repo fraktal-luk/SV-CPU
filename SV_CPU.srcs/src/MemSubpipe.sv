@@ -194,7 +194,6 @@ module MemSubpipe#(
                 end
                 else
                     $fatal(2, "Wrong status %p", cacheResp.status);
-                // Continue processing
             end 
 
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin

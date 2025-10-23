@@ -20,7 +20,9 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
     input logic clk,
     
         input logic enable[N_MEM_PORTS],
-        input Key dataIn[N_MEM_PORTS]
+        input Key dataIn[N_MEM_PORTS] //,
+        //Translation translations[N_MEM_PORTS],
+        //input DataCacheOutput reads[N_MEM_PORTS]
 );
     // Fill logic
     logic notifyFill = 0;
@@ -82,6 +84,61 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
         scheduleBlockFills();
     end
 
+
+
+    
+//    /////////////////////////////////////
+//    LogicA dataFillEnA, tlbFillEnA;
+//    DwordA dataFillPhysA;
+//    MwordA tlbFillVirtA;
+
+//    always_comb dataFillEnA = dataFillEnables();
+//    always_comb dataFillPhysA = dataFillPhysical();
+//    always_comb tlbFillEnA = tlbFillEnables();
+//    always_comb tlbFillVirtA = tlbFillVirtual();
+
+
+//    ////////////////////////////////////
+//        function automatic LogicA dataFillEnables();
+//            LogicA res = '{default: 0};
+//            foreach (reads[p]) begin
+//                if (reads[p].status == CR_TAG_MISS) begin
+//                    res[p] = 1;
+//                end
+//            end
+//            return res;
+//        endfunction
+
+//        function automatic DwordA dataFillPhysical();
+//            DwordA res = '{default: 'x};
+//            foreach (reads[p]) begin
+//                res[p] = getBlockBaseD(translations[p].padr);
+//            end
+//            return res;
+//        endfunction
+    
+    
+//        function automatic LogicA tlbFillEnables();
+//            LogicA res = '{default: 0};
+//            foreach (reads[p]) begin
+//                if (reads[p].status == CR_TLB_MISS) begin
+//                    res[p] = 1;
+//                end
+//            end
+//            return res;
+//        endfunction
+    
+//        function automatic MwordA tlbFillVirtual();
+//            MwordA res = '{default: 'x};
+//            foreach (reads[p]) begin
+//                res[p] = getPageBaseM(translations[p].vadr);
+                
+//            end
+//            return res;
+//        endfunction
+
+
+
 endmodule
 
 
@@ -94,11 +151,9 @@ module UncachedSubsystem(
 
     typedef struct {
         logic ready = 0;
-    
         logic ongoing = 0;
         Mword adr = 'x;
         AccessSize size = SIZE_NONE;
-
         int counter = -1;
     } UncachedRead;
 
@@ -106,7 +161,6 @@ module UncachedSubsystem(
 
     int uncachedCounter = -1;
     logic uncachedBusy = 0;
-    Mword uncachedOutput = 'x;
     DataCacheOutput readResult = EMPTY_DATA_CACHE_OUTPUT;
 
     localparam Mword UNCACHED_BASE = 'h0000000040000000;
@@ -116,7 +170,6 @@ module UncachedSubsystem(
     task automatic UNC_reset();
         uncachedCounter = -1;
         uncachedBusy <= 0;
-        uncachedOutput <= 'x;
         readResult <= EMPTY_DATA_CACHE_OUTPUT;
         
         uncachedArea = '{default: 0};
@@ -133,26 +186,13 @@ module UncachedSubsystem(
     function automatic void UNC_clearUncachedRead();
         uncachedReads[0].ready = 0;
         uncachedReads[0].adr = 'x;
-        uncachedOutput <= 'x;
         readResult <= EMPTY_DATA_CACHE_OUTPUT;
-    endfunction
-
-
-    function automatic Mword readFromUncachedRange(input Mword adr, input AccessSize size);
-        if (size == SIZE_1) return readByteUncached(adr);
-        else if (size == SIZE_4) return readWordUncached(adr);
-        else $error("Wrong access size");
-
-        return 'x;
     endfunction
 
     function automatic DataCacheOutput readFromUncachedRange_RR(input Mword adr, input AccessSize size);
         Mword value = 'x;
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
         
-          //  $error("unc reading: %x, valid? %d", adr, physicalAddressValid(adr));
-        
-        // TODO: catch other errors like illegal access (R/W permissions from TLB, invalid vadr,...)
         if (!physicalAddressValid(adr)) begin
             res.active = 1;
             res.status = CR_INVALID;
@@ -171,6 +211,7 @@ module UncachedSubsystem(
         return res;
     endfunction
     
+    /////////////////
         function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
             PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
         endfunction
@@ -186,16 +227,17 @@ module UncachedSubsystem(
         function automatic Mword readByteUncached(input Mword adr);
             return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
         endfunction
-    
+    //////////////////////
+
         task automatic UNC_write(input MemWriteInfo wrInfo);
-            Mword adr = wrInfo.adr;
             Dword padr = wrInfo.padr;
             Mword val = wrInfo.value;
-            
+
             uncachedCounter = 15;
             uncachedBusy <= 1;
-            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(adr, val);
-            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(adr, val);
+
+            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(padr, val);
+            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(padr, val);
         endtask
     
 
@@ -208,17 +250,15 @@ module UncachedSubsystem(
                 if (--uncachedReads[0].counter == 0) begin
                     uncachedReads[0].ongoing = 0;
                     uncachedReads[0].ready = 1;
-                    uncachedOutput <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
                     readResult <= readFromUncachedRange_RR(uncachedReads[0].adr, uncachedReads[0].size);
                 end
             end
 
             foreach (theExecBlock.accessDescs[p]) begin
                 AccessDesc aDesc = theExecBlock.accessDescs[p];
-                Mword vadr = aDesc.vadr;
-                if (!aDesc.active || $isunknown(vadr)) continue;
+                if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
                 else begin
-                    AccessInfo acc = analyzeAccess(vadr, aDesc.size);
+                    AccessInfo acc = analyzeAccess(aDesc.vadr, aDesc.size);
                     if (theExecBlock.accessDescs[p].uncachedReq) UNC_scheduleUncachedRead(acc); // request for uncached read
                     else if (theExecBlock.accessDescs[p].uncachedCollect) UNC_clearUncachedRead();
                 end

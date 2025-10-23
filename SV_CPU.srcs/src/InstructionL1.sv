@@ -64,7 +64,7 @@ module InstructionL1(
     end
 
 
-
+    // Near duplicate of DataL1?
     function automatic Translation translate(input Mword adr);
         Translation res = DEFAULT_TRANSLATION;
 
@@ -105,6 +105,31 @@ module InstructionL1(
     endtask
 
 
+    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input Translation tr);
+        InstructionCacheBlock block = way[aInfo.block];
+        Dword accessPbase = getBlockBaseD(tr.padr);
+
+        if (block == null) return '{0, '{default: 'x}};
+
+        begin
+            logic hit0 = (accessPbase === block.pbase);
+            FetchLine val0 = block.readLine(aInfo.blockOffset);                    
+
+            if (aInfo.blockCross) begin
+                $error("Read crossing block at %x", aInfo.adr);
+            end
+
+            return '{hit0, val0};
+        end
+    endfunction
+
+    function automatic ReadResult selectWay(input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
+        if (res0.valid === 1) return res0; 
+        if (res1.valid === 1) return res1; 
+        if (res2.valid === 1) return res2; 
+        return res3;
+    endfunction 
+
 
     function automatic InstructionCacheOutput readCache(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
@@ -125,33 +150,6 @@ module InstructionL1(
         
         return res;
     endfunction
-
-
-    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input Translation tr);
-        InstructionCacheBlock block = way[aInfo.block];
-        Dword accessPbase = getBlockBaseD(tr.padr);
-
-        if (block == null) return '{0, '{default: 'x}};
-
-        begin
-            logic hit0 = (accessPbase === block.pbase);
-            FetchLine val0 = block.readLine(aInfo.blockOffset);                    
-
-            if (aInfo.blockCross) begin
-                $error("Read crossing block at %x", aInfo.adr);
-            end
-
-            return '{hit0, val0};
-        end
-    endfunction
-
-  
-    function automatic ReadResult selectWay(input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
-        if (res0.valid === 1) return res0; 
-        if (res1.valid === 1) return res1; 
-        if (res2.valid === 1) return res2; 
-        return res3;
-    endfunction 
 
 
     /////////////////////////
@@ -278,7 +276,7 @@ module InstructionL1(
 
         function automatic LogicA dataMakeEnables();
             LogicA res = '{default: 0};
-            if (readOutCached.status == CR_TAG_MISS) res[0] = 1;
+            res[0] = (readOutCached.status == CR_TAG_MISS);
             return res;
         endfunction
     
@@ -291,7 +289,7 @@ module InstructionL1(
 
         function automatic LogicA tlbMakeEnables();
             LogicA res = '{default: 0};
-            if (readOutCached.status == CR_TLB_MISS) res[0] = 1;
+            res[0] = (readOutCached.status == CR_TLB_MISS);
             return res;
         endfunction
     

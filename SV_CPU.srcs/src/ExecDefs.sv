@@ -19,7 +19,11 @@ package ExecDefs;
     localparam int N_VEC_PORTS = 4;
 
 
-
+        // TODO: this is temporary
+        typedef logic LogicA[N_MEM_PORTS];
+        typedef Mword MwordA[N_MEM_PORTS];
+        typedef Dword DwordA[N_MEM_PORTS];
+    
     typedef enum {
         ES_OK,
         ES_UNALIGNED,
