@@ -141,12 +141,14 @@ module DataL1(
         else if (aDesc.sys) begin end
         
         // Otherwise check translation
-        else if (0) begin end // TODO: check for validity of vadr
+        else if (!virtualAddressValid(aDesc.vadr))
+            res = '{1, CR_INVALID, tr.desc, 'x}; // Invalid virtual adr
         else if (!tr.present)
             res = '{1, CR_TLB_MISS, tr.desc, 'x}; // TLB miss
         else if (!tr.desc.canRead)
-            res = '{1, CR_NOT_ALLOWED, tr.desc, 'x}; // TEMPORRY, need to discern reads and writes
-        else if (0) begin end // TODO: store ins and store not allowed
+            res = '{1, CR_NOT_ALLOWED, tr.desc, 'x};
+        else if (!tr.desc.canWrite) // TODO: condition should be for stores only
+            res = '{1, CR_INVALID, tr.desc, 'x};
         else if (!tr.desc.cached)
             res = '{1, CR_UNCACHED, tr.desc, 'x}; // Just detected uncached access, tr.desc indicates uncached
         

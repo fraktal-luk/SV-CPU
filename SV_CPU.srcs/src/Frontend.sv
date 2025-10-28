@@ -35,9 +35,18 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     logic FETCH_UNC;
 
+    logic fetchAllow;
 
     logic fetchEnable;
     Mword fetchAdr;
+
+    // Helper (inline it?)
+    function logic fetchQueueAccepts(input int k);
+        // TODO: careful about numbers accounting for pipe lengths! 
+        return k <= FETCH_QUEUE_SIZE - 5; // stages between IP stage and FQ?
+    endfunction
+    
+    assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize);
 
 
     InstructionCacheOutput cacheOut;
@@ -66,8 +75,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     ///////////////
     // UNCACHED
-
-    // TODO: encapsulate uncached fetching engine; implement a queue to buffer generated fetch addresses; ensure that conditional branches are always predicted not taken when in uncached mode;
 
     InstructionCacheOutput uncachedOut;
     logic frontRedUnc;
@@ -143,7 +150,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     task automatic fetchNormalCached();
         Mword nextTrg = FETCH_SINGLE ? stage_IP.vadr + 4 : fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
 
-        if (AbstractCore.fetchAllow && stage_IP.active) begin
+        if (fetchAllow && stage_IP.active) begin
             stage_IP <= makeStage_IP(nextTrg, stage_IP.active, FETCH_SINGLE);
             stageFetch0 <= stage_IP;
         end
@@ -206,18 +213,15 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
             fetchQueue.push_back(stageFetch2.arr);
         end
-        else if (FETCH_UNC) begin // TODO: stageFetch2_U -> UFQ, UFQ -> FQ
-        
-                if (1 && stageFetch2_U.active) begin
-                    assert (uncachedFetchQueue.size() < UFQ_SIZE) else $fatal(2, "Writing to full UncachedFetchQueue");
-                    uncachedFetchQueue.push_back(stageFetch2_U.arr);
-                end
+        else if (FETCH_UNC) begin
+            if (stageFetch2_U.active) begin
+                assert (uncachedFetchQueue.size() < UFQ_SIZE) else $fatal(2, "Writing to full UncachedFetchQueue");
+                uncachedFetchQueue.push_back(stageFetch2_U.arr);
+            end
 
-            //if (stageFetch2_U.active) begin
-              if (ufqSize > 0 && FETCH_UNC && AbstractCore.fetchAllow) begin // Must check fetchAllow because 
+            if (ufqSize > 0 && FETCH_UNC && fetchAllow) begin // Must check fetchAllow because 
                 assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
-                //fetchQueue.push_back(stageFetch2_U.arr);
-                   fetchQueue.push_back(readFromUFQ());
+                fetchQueue.push_back(readFromUFQ());
             end
         end
 
@@ -463,8 +467,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
         task automatic fetchNormalUncached();
-            if (//AbstractCore.fetchAllow && 
-                    stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: slack number matched with memory fetch delay 
+            if (stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: slack number matched with memory fetch delay 
                 stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageFetchUnc0 <= stageUnc_IP;
             end
@@ -575,11 +578,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
     function automatic OpSlotAF readFromUFQ();
-        // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
-        if (ufqSize > 0)// && AbstractCore.fetchAllow)
-            return uncachedFetchQueue.pop_front();
-        else
-            return '{default: EMPTY_SLOT_F};
+        assert (ufqSize > 0) else $fatal(2, "Reading from UFQ: empty!");
+        return uncachedFetchQueue.pop_front();
     endfunction
 
 

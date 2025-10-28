@@ -67,7 +67,7 @@ module AbstractCore
     DataCacheOutput sysReadOuts[N_MEM_PORTS];
 
     // Overall
-    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
+    logic renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
     IqLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
@@ -259,9 +259,7 @@ module AbstractCore
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
 
-    // TODO: FQ is in frontend, so move it there
-    assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
+    assign renameAllow = bcQueueAccepts(bcqSize) && iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
 
 
     // Helper (inline it?)
@@ -269,14 +267,10 @@ module AbstractCore
         return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
     endfunction
 
-    // Helper (inline it?)
-    function logic fetchQueueAccepts(input int k);
-        // TODO: careful about numbers accounting for pipe lengths! 
-        return k <= FETCH_QUEUE_SIZE - 5; // 2 stages between IP stage and FQ
-    endfunction
+
 
     function logic bcQueueAccepts(input int k);
-        return k <= BC_QUEUE_SIZE - 5*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH;// - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
 
