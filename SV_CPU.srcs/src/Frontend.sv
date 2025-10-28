@@ -212,7 +212,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     assert (uncachedFetchQueue.size() < UFQ_SIZE) else $fatal(2, "Writing to full UncachedFetchQueue");
                     uncachedFetchQueue.push_back(stageFetch2_U.arr);
                 end
-        
+
             //if (stageFetch2_U.active) begin
               if (ufqSize > 0 && FETCH_UNC && AbstractCore.fetchAllow) begin // Must check fetchAllow because 
                 assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
@@ -463,8 +463,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
         task automatic fetchNormalUncached();
-            if (AbstractCore.fetchAllow && 
-                    stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: include condition for UFQ size slack
+            if (//AbstractCore.fetchAllow && 
+                    stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: slack number matched with memory fetch delay 
                 stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageFetchUnc0 <= stageUnc_IP;
             end
