@@ -28,8 +28,8 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket storeDataE0, storeDataE0_E;
 
 
-    AccessDesc accessDescs[N_MEM_PORTS];
-    Translation dcacheTranslations[N_MEM_PORTS];
+    AccessDesc accessDescs_E0[N_MEM_PORTS];
+    Translation dcacheTranslations_EE0[N_MEM_PORTS];
     
         AccessDesc accessDescs_E2[N_MEM_PORTS];
         Translation dcacheTranslations_E2[N_MEM_PORTS];
@@ -110,14 +110,14 @@ module ExecBlock(ref InstructionMap insMap,
 
     
     // Mem 0
-    MemSubpipe#(.HANDLE_UNALIGNED(1))
+    MemSubpipe#()
     mem0(
         insMap,
         branchEventInfo,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
-        accessDescs[0],
-        dcacheTranslations[0],
+        accessDescs_E0[0],
+        dcacheTranslations_EE0[0],
         dcacheOuts[0],
         sysOuts[0],
         fromSq[0],
@@ -125,14 +125,14 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
     // Mem 2 - for ReplayQueue only!
-    MemSubpipe#(.HANDLE_UNALIGNED(1))
+    MemSubpipe#()
     mem2(
         insMap,
         branchEventInfo,
         lateEventInfo,
         issuedReplayQueue,
-        accessDescs[2],
-        dcacheTranslations[2],
+        accessDescs_E0[2],
+        dcacheTranslations_EE0[2],
         dcacheOuts[2],
         sysOuts[2],
         fromSq[2],

@@ -233,8 +233,8 @@ module TmpSubSq();
     task automatic readImpl();
         foreach (theExecBlock.toLqE0[p]) begin
             UopMemPacket loadOp = theExecBlock.toLqE0[p];
-            AccessDesc ad = theExecBlock.accessDescs[p];
-            Translation tr = theExecBlock.dcacheTranslations[p];
+            AccessDesc ad = theExecBlock.accessDescs_E0[p];
+            Translation tr = theExecBlock.dcacheTranslations_EE0[p];
             UopPacket resb;
 
             theExecBlock.fromSq[p] <= EMPTY_UOP_PACKET;
@@ -324,7 +324,7 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
+               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations_EE0[p], theExecBlock.accessDescs_E0[p]);
                 
                putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
             end
@@ -491,7 +491,7 @@ module TmpSubLq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations[p], theExecBlock.accessDescs[p]);
+               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations_EE0[p], theExecBlock.accessDescs_E0[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
             end
         end

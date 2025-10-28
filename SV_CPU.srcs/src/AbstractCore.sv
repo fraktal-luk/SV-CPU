@@ -99,7 +99,7 @@ module AbstractCore
 
     ///////////////////////////
 
-    DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
+    DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations_EE0, dcacheOuts);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
@@ -244,7 +244,7 @@ module AbstractCore
 
     task automatic readSysReg();
         foreach (sysReadOuts[p])
-            sysReadOuts[p] <= sysUnit.getSysReadResponse(theExecBlock.accessDescs[p]);
+            sysReadOuts[p] <= sysUnit.getSysReadResponse(theExecBlock.accessDescs_E0[p]);
     endtask
 
 

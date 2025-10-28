@@ -254,13 +254,13 @@ module UncachedSubsystem(
                 end
             end
 
-            foreach (theExecBlock.accessDescs[p]) begin
-                AccessDesc aDesc = theExecBlock.accessDescs[p];
+            foreach (theExecBlock.accessDescs_E0[p]) begin
+                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
                 if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
                 else begin
                     AccessInfo acc = analyzeAccess(aDesc.vadr, aDesc.size);
-                    if (theExecBlock.accessDescs[p].uncachedReq) UNC_scheduleUncachedRead(acc); // request for uncached read
-                    else if (theExecBlock.accessDescs[p].uncachedCollect) UNC_clearUncachedRead();
+                    if (theExecBlock.accessDescs_E0[p].uncachedReq) UNC_scheduleUncachedRead(acc); // request for uncached read
+                    else if (theExecBlock.accessDescs_E0[p].uncachedCollect) UNC_clearUncachedRead();
                 end
             end
         endtask

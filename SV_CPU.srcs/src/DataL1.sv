@@ -110,8 +110,8 @@ module DataL1(
     function automatic TranslationA getTranslations();
         TranslationA res = '{default: DEFAULT_TRANSLATION};
 
-        foreach (theExecBlock.accessDescs[p]) begin
-            AccessDesc aDesc = theExecBlock.accessDescs[p];
+        foreach (theExecBlock.accessDescs_E0[p]) begin
+            AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
             if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
             res[p] = translateAddress(aDesc.vadr);
         end
@@ -182,7 +182,7 @@ module DataL1(
 
 
     task automatic handleSingleRead(input int p);
-        AccessDesc aDesc = theExecBlock.accessDescs[p];
+        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
 
         accessDescs_Reg[p] <= DEFAULT_ACCESS_DESC;
         translations_Reg[p] <= DEFAULT_TRANSLATION;
@@ -209,7 +209,7 @@ module DataL1(
 
     // FUTURE: support for block crossing and page crossing accesses
     task automatic handleReads();
-        foreach (theExecBlock.accessDescs[p]) handleSingleRead(p);
+        foreach (theExecBlock.accessDescs_E0[p]) handleSingleRead(p);
     endtask
 
 

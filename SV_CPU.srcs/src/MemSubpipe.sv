@@ -10,9 +10,7 @@ import Insmap::*;
 import ExecDefs::*;
 
 
-module MemSubpipe#(
-    parameter logic HANDLE_UNALIGNED = 0
-)
+module MemSubpipe#()
 (
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
