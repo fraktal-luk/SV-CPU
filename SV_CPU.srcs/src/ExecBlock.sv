@@ -55,7 +55,7 @@ module ExecBlock(ref InstructionMap insMap,
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
     UopMemPacket fromSq[N_MEM_PORTS];
-    UopMemPacket fromLq[N_MEM_PORTS];
+    UopMemPacket fromLq[N_MEM_PORTS]; // TODO: prob. unused
     UopMemPacket fromBq[N_MEM_PORTS];
     
 

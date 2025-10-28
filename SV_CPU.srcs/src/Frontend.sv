@@ -47,7 +47,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     Mword expectedTargetF2 = 'x, expectedTargetF2_U = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
-    int fqSize = 0;
+    
+        localparam int UFQ_SIZE = 80;
+        FetchStage uncachedFetchQueue[$:UFQ_SIZE];
+    int fqSize = 0,
+        ufqSize = 0;
 
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
@@ -163,6 +167,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         end
 
         fqSize <= fetchQueue.size();
+            ufqSize <= uncachedFetchQueue.size();
     endtask
 
 
@@ -200,10 +205,20 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         if (stageFetch2.active && !FETCH_UNC) begin
             assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
             fetchQueue.push_back(stageFetch2.arr);
-        end 
-        else if (stageFetch2_U.active && FETCH_UNC) begin
-            assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
-            fetchQueue.push_back(stageFetch2_U.arr);
+        end
+        else if (FETCH_UNC) begin // TODO: stageFetch2_U -> UFQ, UFQ -> FQ
+        
+                if (1 && stageFetch2_U.active) begin
+                    assert (uncachedFetchQueue.size() < UFQ_SIZE) else $fatal(2, "Writing to full UncachedFetchQueue");
+                    uncachedFetchQueue.push_back(stageFetch2_U.arr);
+                end
+        
+            //if (stageFetch2_U.active) begin
+              if (ufqSize > 0 && FETCH_UNC && AbstractCore.fetchAllow) begin // Must check fetchAllow because 
+                assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
+                //fetchQueue.push_back(stageFetch2_U.arr);
+                   fetchQueue.push_back(readFromUFQ());
+            end
         end
 
         stageRename0 <= readFromFQ();
@@ -224,6 +239,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             markKilledFrontStage(fetchQueue[i]);
 
         fetchQueue.delete();
+
+        // Unc
+        foreach (uncachedFetchQueue[i])
+            markKilledFrontStage(uncachedFetchQueue[i]);
+
+        uncachedFetchQueue.delete();
+        // 
+
 
         markKilledFrontStage(stageRename0);
 
@@ -427,7 +450,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             
             // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
             if (FETCH_UNC && !stageUnc_IP.active && AbstractCore.theRob.isEmpty && stageEmptyAB(AbstractCore.stageRename1) && !AbstractCore.lateEventInfoWaiting.active
-                && stageEmptyAF(stageRename0) && fqSize == 0
+                && stageEmptyAF(stageRename0) && ufqSize == 0 && fqSize == 0
                 && !stageFetch2_U.active
                 && !stageFetchUnc4.active
                 && !stageFetchUnc3.active
@@ -440,7 +463,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
         task automatic fetchNormalUncached();
-            if (AbstractCore.fetchAllow && stageUnc_IP.active) begin
+            if (AbstractCore.fetchAllow && 
+                    stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: include condition for UFQ size slack
                 stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageFetchUnc0 <= stageUnc_IP;
             end
@@ -549,5 +573,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         else
             return '{default: EMPTY_SLOT_F};
     endfunction
+
+    function automatic OpSlotAF readFromUFQ();
+        // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
+        if (ufqSize > 0)// && AbstractCore.fetchAllow)
+            return uncachedFetchQueue.pop_front();
+        else
+            return '{default: EMPTY_SLOT_F};
+    endfunction
+
 
 endmodule
