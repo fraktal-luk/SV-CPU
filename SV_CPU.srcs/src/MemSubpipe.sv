@@ -22,8 +22,8 @@ module MemSubpipe#()
     input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
     input DataCacheOutput sysRegResp,
-    input UopPacket sqResp,
-    input UopPacket lqResp
+    input UopPacket sqResp //,
+   // input UopPacket lqResp
 );
 
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
@@ -107,7 +107,7 @@ module MemSubpipe#()
         res.active = 1;
 
         res.size = getTransactionSize(uname);
-        
+
         res.store = isStoreUop(uname);
         res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);
         res.uncachedReq = (p.status == ES_UNCACHED_1) && !res.store;
@@ -115,6 +115,9 @@ module MemSubpipe#()
         res.uncachedStore = (p.status == ES_UNCACHED_2) && res.store;
         
         res.vadr = adr;
+        
+        res.blockIndex = aInfo.block;
+        res.blockOffset = aInfo.blockOffset;
 
         res.unaligned = aInfo.unaligned;
         res.blockCross = aInfo.blockCross;
@@ -142,7 +145,7 @@ module MemSubpipe#()
     
     task automatic performE2();    
         UopMemPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp, lqResp);
+        stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp);//, lqResp);
         pE2 <= stateE2;
     endtask
 
@@ -166,7 +169,7 @@ module MemSubpipe#()
     endfunction
 
 
-    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp);//, input UopPacket lqResp);
         UopMemPacket res = p;
         UidT uid = p.TMP_oid;
 
@@ -209,7 +212,7 @@ module MemSubpipe#()
                     return res;
                 end
 
-                if (!cacheResp.desc.cached || cacheResp.status == CR_UNCACHED) begin
+                if (/*!cacheResp.desc.cached ||*/ cacheResp.status == CR_UNCACHED) begin
                     res.status = ES_UNCACHED_1;  
                     return res; // go to RQ
                 end
@@ -218,7 +221,7 @@ module MemSubpipe#()
             default: $fatal(2, "Wrong status of memory op");
         endcase
         
-        return updateE2_Regular(p, cacheResp, sqResp, lqResp);
+        return updateE2_Regular(p, cacheResp, sqResp);//, lqResp);
     endfunction
 
 
@@ -244,7 +247,7 @@ module MemSubpipe#()
     endfunction
     
     // NOTE: lqResp is UNUSED, may be removed from design? 
-    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp, input UopPacket lqResp);
+    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp);//, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 

@@ -176,11 +176,11 @@ module UncachedSubsystem(
     endtask
 
 
-    function automatic void UNC_scheduleUncachedRead(input AccessInfo aInfo);
+    function automatic void UNC_scheduleUncachedRead(input AccessDesc aDesc);
         uncachedReads[0].ongoing = 1;
         uncachedReads[0].counter = 8;
-        uncachedReads[0].adr = aInfo.adr;
-        uncachedReads[0].size = aInfo.size;
+        uncachedReads[0].adr = aDesc.vadr;
+        uncachedReads[0].size = aDesc.size;
     endfunction
     
     function automatic void UNC_clearUncachedRead();
@@ -189,7 +189,7 @@ module UncachedSubsystem(
         readResult <= EMPTY_DATA_CACHE_OUTPUT;
     endfunction
 
-    function automatic DataCacheOutput readFromUncachedRange_RR(input Mword adr, input AccessSize size);
+    function automatic DataCacheOutput readFromUncachedRange(input Mword adr, input AccessSize size);
         Mword value = 'x;
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
         
@@ -239,29 +239,26 @@ module UncachedSubsystem(
             if (wrInfo.size == SIZE_1) writeToUncachedRangeB(padr, val);
             if (wrInfo.size == SIZE_4) writeToUncachedRangeW(padr, val);
         endtask
-    
+
 
         // uncached read pipe
         task automatic UNC_handleUncachedData();
             if (uncachedCounter == 0) uncachedBusy <= 0;
             if (uncachedCounter >= 0) uncachedCounter--;
-            
+
             if (uncachedReads[0].ongoing) begin
                 if (--uncachedReads[0].counter == 0) begin
                     uncachedReads[0].ongoing = 0;
                     uncachedReads[0].ready = 1;
-                    readResult <= readFromUncachedRange_RR(uncachedReads[0].adr, uncachedReads[0].size);
+                    readResult <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
                 end
             end
 
             foreach (theExecBlock.accessDescs_E0[p]) begin
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
                 if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
-                else begin
-                    AccessInfo acc = analyzeAccess(aDesc.vadr, aDesc.size);
-                    if (theExecBlock.accessDescs_E0[p].uncachedReq) UNC_scheduleUncachedRead(acc); // request for uncached read
-                    else if (theExecBlock.accessDescs_E0[p].uncachedCollect) UNC_clearUncachedRead();
-                end
+                else if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aDesc); // request for uncached read
+                else if (aDesc.uncachedCollect) UNC_clearUncachedRead();
             end
         endtask
 

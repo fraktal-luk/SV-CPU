@@ -1,5 +1,4 @@
 
-
 package CacheDefs;
 
     import Base::*;
@@ -10,7 +9,6 @@ package CacheDefs;
     
     import AbstractSim::*;
     import Insmap::*;
-
 
 
     typedef Word FetchGroup_N[FETCH_WIDTH];
@@ -29,7 +27,6 @@ package CacheDefs;
     typedef struct {
         logic allowed;
     } InstructionLineDesc;
-
 
 
 
@@ -71,7 +68,7 @@ package CacheDefs;
             Mbyte wval[ESIZE] = {>>{val}};
             arr[(adr - BASE) +: ESIZE] = wval;
         endfunction
-        
+
         static
         function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
             Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
@@ -80,21 +77,6 @@ package CacheDefs;
         endfunction
     endclass
 
-
-
-    typedef struct {
-        logic req;
-        Mword adr;
-        Dword padr;
-        Mword value;
-        AccessSize size;
-        logic uncached;
-    } MemWriteInfo;
-    
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
-
-
-   
 //////////////////
 // Cache specific
 
@@ -162,15 +144,6 @@ package CacheDefs;
         logic pageCross;
     } AccessInfo;
 
-    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-        adr: 'x,
-        size: SIZE_NONE,
-        block: -1,
-        blockOffset: -1,
-        unaligned: 'x,
-        blockCross: 'x,
-        pageCross: 'x 
-    };
 
      // basic info
      typedef struct {
@@ -181,19 +154,37 @@ package CacheDefs;
         logic uncachedReq;
         logic uncachedCollect;
         logic uncachedStore;
-            
-            // whats missing: block[Index], blockOffset 
-        
-         // FUTURE: access rights of this uop?
+
         AccessSize size;
         Mword vadr;
+        int blockIndex;
+        int blockOffset;
         logic unaligned;
         logic blockCross;
         logic pageCross;
      } AccessDesc;
 
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, 'z, 'z, 'z};
+    typedef struct {
+        logic req;
+        Mword adr;
+        Dword padr;
+        Mword value;
+        AccessSize size;
+        logic uncached;
+    } MemWriteInfo;
 
+
+    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
+        adr: 'x,
+        size: SIZE_NONE,
+        block: -1,
+        blockOffset: -1,
+        unaligned: 'x,
+        blockCross: 'x,
+        pageCross: 'x 
+    };
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
 
@@ -233,14 +224,12 @@ package CacheDefs;
                 Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
                 Word wval;
 
-                // Read byte by byte                
                 foreach (chosenWord[i]) begin
                     if (offset + i >= BLOCK_SIZE) break;
                     chosenWord[i] = array[offset + i];
                 end 
                 
                 wval = {>>{chosenWord}};
-                  //  $error("extArray read %x", wval);
                 return (wval);
             end
             begin
@@ -257,14 +246,12 @@ package CacheDefs;
                 Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
                 Mbyte wval;
 
-                // Read byte by byte                
                 foreach (chosenWord[i]) begin
                     if (offset + i >= BLOCK_SIZE) break;
                     chosenWord[i] = array[offset + i];
                 end 
                 
                 wval = {>>{chosenWord}};
-                  //  $error("extArray read %x", wval);
                 return (wval);
             end
             begin
@@ -278,7 +265,6 @@ package CacheDefs;
             localparam int ACCESS_SIZE = 4;
             
             if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                // Write byte by byte
                 Mbyte wval[ACCESS_SIZE] = {>>{value}};
                 
                 foreach (wval[i]) begin
@@ -296,7 +282,6 @@ package CacheDefs;
             localparam int ACCESS_SIZE = 1;
             
             if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                // Write byte by byte
                 Mbyte wval[ACCESS_SIZE] = {>>{value}};
                 
                 foreach (wval[i]) begin
@@ -325,23 +310,28 @@ package CacheDefs;
         Mword vbase;
         Dword pbase;
         Word array[BLOCK_SIZE/4];
-    
-       
+
         function automatic Word readWord(input int offset);            
             assert (offset % 4 == 0) else $error("Trying to read unaligned icache: %x", offset);
-            
             return array[offset/4];
-        endfunction        
-
+        endfunction
 
         function automatic FetchLine readLine(input int offset);            
             assert (offset % (FETCH_WIDTH*4) == 0) else $error("Trying to read unaligned icache: %x", offset);
-            
             return array[(offset/4) +: FETCH_WIDTH];
         endfunction
-   
     endclass
 
+    function automatic Mword readSized(input Mword val, input AccessSize size);
+        if (size == SIZE_1) begin
+            Mbyte byteVal = val;
+            return Mword'(byteVal);
+        end
+        else if (size == SIZE_4) return val;
+        else $error("Wrong access size");
+
+        return 'x;
+    endfunction
 
 
 endpackage

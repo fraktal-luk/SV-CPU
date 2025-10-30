@@ -83,7 +83,7 @@ module InstructionL1(
         res = found[0];
 
         res.vadr = adr;
-        res.padr = adr + res.padr - getPageBaseM(adr);
+        res.padr = adr + (res.padr - getPageBaseM(adr));
 
         return res;
     endfunction
@@ -93,11 +93,11 @@ module InstructionL1(
     task automatic doCacheAccess();
         AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_INS_LINE);
         Translation tr = translate(readAddress);
-        
-        ReadResult result0 = readWay(blocksWay0, acc, tr);
-        ReadResult result1 = readWay(blocksWay1, acc, tr);
-        ReadResult result2 = readWay(blocksWay2, acc, tr);
-        ReadResult result3 = readWay(blocksWay3, acc, tr);
+
+        ReadResult result0 = readWay(blocksWay0, acc, DEFAULT_ACCESS_DESC, tr);
+        ReadResult result1 = readWay(blocksWay1, acc, DEFAULT_ACCESS_DESC, tr);
+        ReadResult result2 = readWay(blocksWay2, acc, DEFAULT_ACCESS_DESC, tr);
+        ReadResult result3 = readWay(blocksWay3, acc, DEFAULT_ACCESS_DESC, tr);
 
         translationSig <= tr;
 
@@ -105,7 +105,12 @@ module InstructionL1(
     endtask
 
 
-    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input Translation tr);
+
+
+    // TODO: use aDesc, get rid of aInfo 
+    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input AccessDesc aDesc, input Translation tr);
+        //AccessInfo aInfo = analyzeAccess(adr, ...);
+
         InstructionCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(tr.padr);
 

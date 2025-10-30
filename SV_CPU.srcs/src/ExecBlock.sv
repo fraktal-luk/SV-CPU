@@ -20,23 +20,12 @@ module ExecBlock(ref InstructionMap insMap,
     UopPacket doneMultiplier0_E, doneMultiplier1_E;
     UopPacket doneBranch_E, doneDivider_E;
     UopPacket doneMem0_E, doneMem2_E;
-    UopPacket doneFloat0_E, doneFloat1_E; 
-    UopPacket doneFloatDiv_E;
-
+    UopPacket doneFloat0_E, doneFloat1_E, doneFloatDiv_E;
     UopPacket doneStoreData_E;
 
     UopPacket storeDataE0, storeDataE0_E;
 
 
-    AccessDesc accessDescs_E0[N_MEM_PORTS];
-    Translation dcacheTranslations_EE0[N_MEM_PORTS];
-    
-        AccessDesc accessDescs_E2[N_MEM_PORTS];
-        Translation dcacheTranslations_E2[N_MEM_PORTS];
-    
-    DataCacheOutput dcacheOuts[N_MEM_PORTS];
-    DataCacheOutput sysOuts[N_MEM_PORTS];
-    
     logic memIssueAllow;
     
     UopMemPacket issuedReplayQueue;
@@ -44,19 +33,28 @@ module ExecBlock(ref InstructionMap insMap,
     UopMemPacket toReplayQueue0, toReplayQueue2;
     UopMemPacket toReplayQueue[N_MEM_PORTS];
 
+    
     UopMemPacket toLqE0[N_MEM_PORTS];
-        UopMemPacket toLqE0_tr[N_MEM_PORTS]; // TMP. transalted
     UopMemPacket toLqE1[N_MEM_PORTS];
     UopMemPacket toLqE2[N_MEM_PORTS];
-    UopMemPacket toSqE0[N_MEM_PORTS];
-        UopMemPacket toSqE0_tr[N_MEM_PORTS]; // TMP. transalted
-    UopMemPacket toSqE1[N_MEM_PORTS];
-    UopMemPacket toSqE2[N_MEM_PORTS];
+
+    AccessDesc accessDescs_E0[N_MEM_PORTS];
+    AccessDesc accessDescs_E2[N_MEM_PORTS];
+
+    Translation dcacheTranslations_EE0[N_MEM_PORTS]; // source: DataL1
+    Translation dcacheTranslations_E2[N_MEM_PORTS];
+    
+
+    DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
+    DataCacheOutput sysOuts_E1[N_MEM_PORTS];
+    
+    UopMemPacket sqResponse_E1[N_MEM_PORTS];
+
+
+
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
-    UopMemPacket fromSq[N_MEM_PORTS];
-    UopMemPacket fromLq[N_MEM_PORTS];
-    UopMemPacket fromBq[N_MEM_PORTS];
+
     
 
     // Int 0
@@ -118,10 +116,9 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedMemP[0],
         accessDescs_E0[0],
         dcacheTranslations_EE0[0],
-        dcacheOuts[0],
-        sysOuts[0],
-        fromSq[0],
-        fromLq[0]
+        dcacheOuts_E1[0],
+        sysOuts_E1[0],
+        sqResponse_E1[0]
     );
 
     // Mem 2 - for ReplayQueue only!
@@ -133,10 +130,9 @@ module ExecBlock(ref InstructionMap insMap,
         issuedReplayQueue,
         accessDescs_E0[2],
         dcacheTranslations_EE0[2],
-        dcacheOuts[2],
-        sysOuts[2],
-        fromSq[2],
-        fromLq[2]
+        dcacheOuts_E1[2],
+        sysOuts_E1[2],
+        sqResponse_E1[2]
     );
 
     // Vec 0
@@ -207,19 +203,11 @@ module ExecBlock(ref InstructionMap insMap,
     
     assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
     
-    
-    
+
     assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
-    assign toSqE0 = toLqE0;
-
-        assign toLqE0_tr = toLqE0;
-        assign toSqE0_tr = toSqE0;
-
     assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
-    assign toSqE1 = toLqE1;
-
     assign toLqE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
-    assign toSqE2 = toLqE2;
+
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
@@ -238,9 +226,9 @@ module ExecBlock(ref InstructionMap insMap,
     assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
 
-    assign intImagesTr = trsInt(intImages);
-    assign memImagesTr = trsMem(memImages);
-    assign floatImagesTr = trsVec(floatImages);
+    always_comb intImagesTr = trsInt(intImages);
+    always_comb memImagesTr = trsMem(memImages);
+    always_comb floatImagesTr = trsVec(floatImages);
 
     assign allByStage.ints = intImagesTr;
     assign allByStage.mems = memImagesTr;
@@ -302,20 +290,18 @@ module ExecBlock(ref InstructionMap insMap,
             OpSlotB foundRename[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
         
             ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);//foundMem.min with (U2M(item.TMP_oid));
-            ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);
+            ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);
 
             ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
 
-            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
-            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);
+            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);
 
-               // if (oldestMemIll.size() > 0) $error("...... YES");
 
             begin
                 InsId nextId = firstEventId_N;
                 if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);
-                //if (oldestMem.size() > 0) nextId = replaceId(nextId, U2M(oldestMem[0].TMP_oid));                                    
                 
                 if (oldestMemIll.size() > 0) nextId = replaceId(nextId, U2M(oldestMemIll[0].TMP_oid));                                    
                 if (oldestMemRef.size() > 0) nextId = replaceId(nextId, U2M(oldestMemRef[0].TMP_oid));                                    
@@ -334,14 +320,13 @@ module ExecBlock(ref InstructionMap insMap,
         task automatic updateArithBits();        
             ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
 
-            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);//foundMem.min with (U2M(item.TMP_oid));
-            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);//foundMem.min with (U2M(item.TMP_oid));
+            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);
+            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);
 
             begin
                 InsId nextId = firstFloatInvId;
                 if (oldestInv.size() > 0) begin
                     nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
-                    //if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestInv[0].TMP_oid), PE_ARITH_EXCEPTION);
                 end
 
                 if (shouldFlushId(nextId)) firstFloatInvId <= -1;
@@ -378,7 +363,6 @@ module ExecBlock(ref InstructionMap insMap,
             updateArithBits();
         
                 if (lateEventInfo.redirect || branchEventInfo.redirect) staticEventSlot <= EMPTY_SLOT_B;
-                //else memEventPacket <= tickP(memEventPacket);       
             
                 if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memEventPacket.TMP_oid)) memEventPacket <= EMPTY_UOP_PACKET;
                 else memEventPacket <= tickP(memEventPacket);

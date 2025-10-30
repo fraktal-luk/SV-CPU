@@ -14,7 +14,7 @@ import CacheDefs::*;
 
 module DataL1(
             input logic clk,
-            input MemWriteInfo TMP_writeReqs[2],
+            input MemWriteInfo writeReqs[2],
             output Translation translationsOut[N_MEM_PORTS],
             output DataCacheOutput readOut[N_MEM_PORTS]
 );
@@ -27,8 +27,7 @@ module DataL1(
     typedef Translation TranslationA[N_MEM_PORTS];
 
     Translation translations_T[N_MEM_PORTS];
-    Translation translations_Reg[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION};
-    AccessDesc accessDescs_Reg[N_MEM_PORTS] = '{default: DEFAULT_ACCESS_DESC};
+    Translation translations_Reg[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION}; // Only for fill requests
 
 
     typedef struct {
@@ -41,9 +40,9 @@ module DataL1(
     DwordA dataFillPhysA;
     MwordA tlbFillVirtA;
 
-    UncachedSubsystem uncachedSubsystem(clk, TMP_writeReqs);
-    DataFillEngine dataFillEngine(clk, dataFillEnA, dataFillPhysA);//, translations_Reg, readOut);
-    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);//, translations_Reg, readOut);
+    UncachedSubsystem uncachedSubsystem(clk, writeReqs);
+    DataFillEngine dataFillEngine(clk, dataFillEnA, dataFillPhysA);
+    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
@@ -59,19 +58,6 @@ module DataL1(
     Translation translationTableL1[DATA_TLB_SIZE]; // DB
 
 
-
-    function automatic Mword readSized(input Mword val, input AccessSize size);
-        if (size == SIZE_1) begin
-            Mbyte byteVal = val;
-            return Mword'(byteVal);
-        end
-        else if (size == SIZE_4) return val;
-        else $error("Wrong access size");
-
-        return 'x;
-    endfunction
-
-
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         if (!wrInfo.req || wrInfo.uncached) return;
 
@@ -79,13 +65,11 @@ module DataL1(
         void'(tryWriteWay(blocksWay1, wrInfo));
     endtask
 
-
     ////////////////////
     // translation
     
     function automatic Translation translateAddress(input Mword adr);    
         Translation res = DEFAULT_TRANSLATION;
-
         Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
 
         if ($isunknown(adr)) return DEFAULT_TRANSLATION;
@@ -96,12 +80,12 @@ module DataL1(
         if (found.size() == 0) begin
             res.vadr = adr; // It's needed because TLB fill is based on this adr
             return res;
-        end 
+        end
 
         res = found[0];
 
         res.vadr = adr;
-        res.padr = res.padr + adr - getPageBaseM(adr);
+        res.padr = res.padr + (adr - getPageBaseM(adr));
 
         return res;
     endfunction
@@ -110,7 +94,7 @@ module DataL1(
     function automatic TranslationA getTranslations();
         TranslationA res = '{default: DEFAULT_TRANSLATION};
 
-        foreach (theExecBlock.accessDescs_E0[p]) begin
+        foreach (res[p]) begin
             AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
             if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
             res[p] = translateAddress(aDesc.vadr);
@@ -126,11 +110,13 @@ module DataL1(
 
 
     // Main dispatch
-    function automatic DataCacheOutput doReadAccess(/*input AccessInfo aInfo,*/ input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
+    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
         DataCacheOutput res;        
-        
-        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB)
-        if (aDesc.uncachedReq) begin end
+
+        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
+        if (0) begin end
+        else if (aDesc.sys) begin end
+        else if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read              
             if (uncachedSubsystem.readResult.status == CR_HIT) res = '{1, CR_HIT, tr.desc, uncachedSubsystem.readResult.data};
             else if (uncachedSubsystem.readResult.status == CR_INVALID) res = '{1, CR_INVALID, tr.desc, 0};
@@ -138,8 +124,7 @@ module DataL1(
         end
         else if (aDesc.uncachedStore)
             res = '{1, CR_HIT, tr.desc, 'x};
-        else if (aDesc.sys) begin end
-        
+
         // Otherwise check translation
         else if (!virtualAddressValid(aDesc.vadr))
             res = '{1, CR_INVALID, tr.desc, 'x}; // Invalid virtual adr
@@ -151,7 +136,7 @@ module DataL1(
             res = '{1, CR_INVALID, tr.desc, 'x};
         else if (!tr.desc.cached)
             res = '{1, CR_UNCACHED, tr.desc, 'x}; // Just detected uncached access, tr.desc indicates uncached
-        
+
         // If translation correct and content is cacheable, look at cache results
         else if (!readRes.valid)
             res = '{1, CR_TAG_MISS, tr.desc, 'x};
@@ -162,16 +147,16 @@ module DataL1(
     endfunction
 
 
-    function automatic ReadResult readWay(input DataWay way, input AccessInfo aInfo, input Translation tr);
-        DataCacheBlock block = way[aInfo.block];
+    function automatic ReadResult readWay(input DataWay way, input AccessDesc aDesc, input Translation tr);
+        DataCacheBlock block = way[aDesc.blockIndex];
         Dword accessPbase = getBlockBaseD(tr.padr);
 
         if (block == null) return '{0, 'x};
         else begin
             logic hit0 = (accessPbase === block.pbase);
-            Mword val0 = aInfo.size == SIZE_1 ? block.readByte(aInfo.blockOffset) : block.readWord(aInfo.blockOffset);                    
+            Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
 
-            if (aInfo.blockCross) $error("Read crossing block at %x", aInfo.adr);
+            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
             return '{hit0, val0};
         end
     endfunction
@@ -184,23 +169,19 @@ module DataL1(
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
 
-        accessDescs_Reg[p] <= DEFAULT_ACCESS_DESC;
         translations_Reg[p] <= DEFAULT_TRANSLATION;
         readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
-            AccessInfo aInfo = analyzeAccess(aDesc.vadr, aDesc.size);
             Translation tr = translations_T[p];
-          
             // Read all ways of cache with tags
-            ReadResult result0 = readWay(blocksWay0, aInfo, tr);
-            ReadResult result1 = readWay(blocksWay1, aInfo, tr);
+            ReadResult result0 = readWay(blocksWay0, aDesc, tr);
+            ReadResult result1 = readWay(blocksWay1, aDesc, tr);
             ReadResult selectedResult = selectWayResult(result0, result1);
             
-            DataCacheOutput thisResult = doReadAccess(/*aInfo, */ tr, aDesc, selectedResult);//,
+            DataCacheOutput thisResult = doReadAccess(tr, aDesc, selectedResult);
 
-            accessDescs_Reg[p] <= aDesc;
             translations_Reg[p] <= tr;
             readOut[p] <= thisResult;
         end
@@ -279,10 +260,9 @@ module DataL1(
     endfunction
 
     task automatic reset();
-        accessDescs_Reg <= '{default: DEFAULT_ACCESS_DESC};
         translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
-            
+
         TMP_tlbL1.delete();
         TMP_tlbL2.delete();
         DB_fillTranslations();
@@ -350,15 +330,15 @@ module DataL1(
                 res[p] = getBlockBaseD(translations_Reg[p].padr);
             return res;
         endfunction
-    
-    
+
+
         function automatic LogicA tlbFillEnables();
             LogicA res = '{default: 0};
             foreach (readOut[p])
                 res[p] = (readOut[p].status == CR_TLB_MISS);
             return res;
         endfunction
-    
+
         function automatic MwordA tlbFillVirtual();
             MwordA res = '{default: 'x};
             foreach (readOut[p])
@@ -374,7 +354,7 @@ module DataL1(
         if (dataFillEngine.notifyFill) allocInDynamicRange(dataFillEngine.notifiedAdr);
         if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
 
-        doCachedWrite(TMP_writeReqs[0]);
+        doCachedWrite(writeReqs[0]);
     end
 
 endmodule

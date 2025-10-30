@@ -699,4 +699,21 @@ package AbstractSim;
         return adr & ~(4*FETCH_WIDTH-1);
     endfunction;
 
+
+    function automatic UopName decodeUop(input AbstractInstruction ins);
+        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
+
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
+        return OP_DECODING_TABLE[ins.mnemonic];
+    endfunction
+
+    function automatic AbstractInstruction decodeWithAddress(input Word bits, input Mword adr);
+        AbstractInstruction ins = DEFAULT_ABS_INS;
+    
+        if (!physicalAddressValid(adr) || (adr % 4 != 0)) ins.def.o = O_fetchError;
+        else ins = decodeAbstract(bits);
+        
+        return ins;
+    endfunction
+
 endpackage

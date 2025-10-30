@@ -101,7 +101,9 @@ module ReplayQueue(
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
             content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                    theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]};
+                                    //theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]
+                                    DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
+                                    };
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
