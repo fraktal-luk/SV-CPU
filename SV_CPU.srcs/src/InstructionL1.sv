@@ -51,20 +51,21 @@ module InstructionL1(
     typedef Dword DwordA[1];
 
     LogicA blockFillEnA, tlbFillEnA;
-    DwordA blockFillPhysA;
-    MwordA tlbFillVirtA;
 
-
-    DataFillEngine#(Dword, 1, 14) blockFillEngine(clk, blockFillEnA, blockFillPhysA, tr_Reg);
-    DataFillEngine#(Mword, 1, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA, tr_Reg);
+    DataFillEngine#(Dword, 1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
+    DataFillEngine#(Mword, 1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
 
     assign readOut = readOutCached;
 
     always @(posedge clk) begin
         doCacheAccess();
        
-        if (blockFillEngine.notifyFill) allocInDynamicRange(blockFillEngine.notifiedAdr);
-        if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
+        if (blockFillEngine.notifyFill) begin
+            allocInDynamicRange(blockFillEngine.notifiedTr.padr);
+        end
+        if (tlbFillEngine.notifyFill) begin
+            allocInTlb(tlbFillEngine.notifiedTr.vadr);
+        end
     end
 
 
@@ -109,12 +110,8 @@ module InstructionL1(
     endtask
 
 
-
-
     // TODO: use aDesc, get rid of aInfo 
     function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input AccessDesc aDesc, input Translation tr);
-        //AccessInfo aInfo = analyzeAccess(adr, ...);
-
         InstructionCacheBlock block = way[aInfo.block];
         Dword accessPbase = getBlockBaseD(tr.padr);
 
@@ -201,7 +198,6 @@ module InstructionL1(
     endfunction
 
 
-
     // Initialization and DB
     
     function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
@@ -271,15 +267,8 @@ module InstructionL1(
 
 
 
-
-
-
     always_comb blockFillEnA = dataMakeEnables();
-    always_comb blockFillPhysA = dataMakePhysical();
     always_comb tlbFillEnA = tlbMakeEnables();
-    always_comb tlbFillVirtA = tlbMakeVirtual();
-
-
 /////////////////////////////////////////////////
 
 
@@ -288,26 +277,12 @@ module InstructionL1(
             res[0] = (readOutCached.status == CR_TAG_MISS);
             return res;
         endfunction
-    
-        function automatic DwordA dataMakePhysical();
-            DwordA res = '{default: 'x};
-            res[0] = getBlockBaseD(translationSig.padr);
-            return res;
-        endfunction
-    
 
         function automatic LogicA tlbMakeEnables();
             LogicA res = '{default: 0};
             res[0] = (readOutCached.status == CR_TLB_MISS);
             return res;
         endfunction
-    
-        function automatic MwordA tlbMakeVirtual();
-            MwordA res = '{default: 'x};
-            res[0] = getPageBaseM(translationSig.vadr);
-            return res;
-        endfunction
-
 
 endmodule
 

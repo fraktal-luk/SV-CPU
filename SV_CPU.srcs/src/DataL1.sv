@@ -27,22 +27,18 @@ module DataL1(
     typedef Translation TranslationA[N_MEM_PORTS];
 
     Translation translations_T[N_MEM_PORTS];
-    Translation translations_Reg[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION}; // Only for fill requests
-
 
     typedef struct {
         logic valid;
         Mword value;
     } ReadResult;
 
-    
+    // TODO: review the type definition
     LogicA dataFillEnA, tlbFillEnA;
-    DwordA dataFillPhysA;
-    MwordA tlbFillVirtA;
 
     UncachedSubsystem uncachedSubsystem(clk, writeReqs);
-    DataFillEngine#(Dword, N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, dataFillPhysA, translations_Reg);
-    DataFillEngine#(Mword, N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA, translations_Reg);
+    DataFillEngine#(Dword, N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
+    DataFillEngine#(Mword, N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
@@ -169,7 +165,7 @@ module DataL1(
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
 
-        translations_Reg[p] <= DEFAULT_TRANSLATION;
+       // translations_Reg[p] <= DEFAULT_TRANSLATION;
         readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
@@ -182,7 +178,7 @@ module DataL1(
             
             DataCacheOutput thisResult = doReadAccess(tr, aDesc, selectedResult);
 
-            translations_Reg[p] <= tr;
+          //  translations_Reg[p] <= tr;
             readOut[p] <= thisResult;
         end
     endtask
@@ -260,7 +256,7 @@ module DataL1(
     endfunction
 
     task automatic reset();
-        translations_Reg <= '{default: DEFAULT_TRANSLATION};
+       // translations_Reg <= '{default: DEFAULT_TRANSLATION};
         readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
         TMP_tlbL1.delete();
@@ -311,49 +307,34 @@ module DataL1(
 
 ////////////////////////
     always_comb dataFillEnA = dataFillEnables();
-    always_comb dataFillPhysA = dataFillPhysical();
     always_comb tlbFillEnA = tlbFillEnables();
-    always_comb tlbFillVirtA = tlbFillVirtual();
-
 
     ////////////////////////////////////
-        function automatic LogicA dataFillEnables();
-            LogicA res = '{default: 0};
-            foreach (readOut[p])
-                res[p] = (readOut[p].status == CR_TAG_MISS);
-            return res;
-        endfunction
+    function automatic LogicA dataFillEnables();
+        LogicA res = '{default: 0};
+        foreach (readOut[p])
+            res[p] = (readOut[p].status == CR_TAG_MISS);
+        return res;
+    endfunction
 
-        function automatic DwordA dataFillPhysical();
-            DwordA res = '{default: 'x};
-            foreach (readOut[p])
-                res[p] = getBlockBaseD(translations_Reg[p].padr);
-            return res;
-        endfunction
-
-
-        function automatic LogicA tlbFillEnables();
-            LogicA res = '{default: 0};
-            foreach (readOut[p])
-                res[p] = (readOut[p].status == CR_TLB_MISS);
-            return res;
-        endfunction
-
-        function automatic MwordA tlbFillVirtual();
-            MwordA res = '{default: 'x};
-            foreach (readOut[p])
-                res[p] = getPageBaseM(translations_Reg[p].vadr);
-            return res;
-        endfunction
-
+    function automatic LogicA tlbFillEnables();
+        LogicA res = '{default: 0};
+        foreach (readOut[p])
+            res[p] = (readOut[p].status == CR_TLB_MISS);
+        return res;
+    endfunction
 
 
     always @(posedge clk) begin
         handleReads();
 
-        if (dataFillEngine.notifyFill) allocInDynamicRange(dataFillEngine.notifiedAdr);
-        if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
-
+        if (dataFillEngine.notifyFill) begin
+            allocInDynamicRange(dataFillEngine.notifiedTr.padr);
+        end
+        if (tlbFillEngine.notifyFill) begin
+            allocInTlb(tlbFillEngine.notifiedTr.vadr);
+        end
+    
         doCachedWrite(writeReqs[0]);
     end
 

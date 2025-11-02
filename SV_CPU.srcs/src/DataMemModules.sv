@@ -18,179 +18,67 @@ import CacheDefs::*;
 module DataFillEngine#(type Key = Dword, parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 14)
 (
     input logic clk,
-    
-        input logic enable[WIDTH],
-        input Key dataIn[WIDTH], //,
-        Translation translations[WIDTH]
-        //input DataCacheOutput reads[WIDTH]
+    input logic enable[WIDTH],
+    Translation translations[WIDTH]
 );
-    // Fill logic
     logic notifyFill = 0;
-
-    Key notifiedAdr = 'x;
     Translation notifiedTr = DEFAULT_TRANSLATION;
 
-
-    int     blockFillCounters[Key]; // Container for request in progress
-    int     blockFillCounters_T[Translation]; // Container for request in progress
-
-    Key     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
-    Translation     readyBlocksToFill_T[$]; // Queue of request ready for immediate completion 
+    int     blockFillCounters[Translation]; // Container for request in progress
+    Translation     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
 
 
     task automatic resetBlockFills();
         blockFillCounters.delete();
-        blockFillCounters_T.delete();
         readyBlocksToFill.delete();
-        readyBlocksToFill_T.delete();
         notifyFill <= 0;
-        notifiedAdr <= 'x;
         notifiedTr <= DEFAULT_TRANSLATION;
     endtask
 
-
     task automatic handleBlockFills();
-        Key adr;
+        Translation tr;
 
         notifyFill <= 0;
-        notifiedAdr <= 'x;
+        notifiedTr <= DEFAULT_TRANSLATION;
 
-        foreach (blockFillCounters[a]) begin
-            if (blockFillCounters[a] == 0) begin
-                readyBlocksToFill.push_back(a);
-                blockFillCounters[a] = -1;
+        foreach (blockFillCounters[t]) begin
+            if (blockFillCounters[t] == 0) begin
+                readyBlocksToFill.push_back(t);
+                blockFillCounters[t] = -1;
             end
-            else blockFillCounters[a]--;
+            else blockFillCounters[t]--;
         end
 
         if (readyBlocksToFill.size() == 0) return;
 
-        adr = readyBlocksToFill.pop_front();
-        blockFillCounters.delete(adr); //
+        tr = readyBlocksToFill.pop_front();
+        blockFillCounters.delete(tr); //
 
         notifyFill <= 1;
-        notifiedAdr <= adr;
-    endtask
-
-    task automatic handleBlockFills_T();
-        Translation tr;
-
-        //notifyFill <= 0;
-        //notifiedAdr <= 'x;
-        notifiedTr <= DEFAULT_TRANSLATION;
-
-        foreach (blockFillCounters_T[t]) begin
-            if (blockFillCounters_T[t] == 0) begin
-                readyBlocksToFill_T.push_back(t);
-                blockFillCounters_T[t] = -1;
-            end
-            else blockFillCounters_T[t]--;
-    
-
-        end
-
-        if (readyBlocksToFill_T.size() == 0) return;
-
-        tr = readyBlocksToFill_T.pop_front();
-        blockFillCounters_T.delete(tr); //
-
-        //notifyFill <= 1;
-        //notifiedAdr <= adr;
         notifiedTr <= tr;
     endtask
-
 
     task automatic scheduleBlockFills();
         foreach (enable[p]) begin
             if (enable[p]) begin
-                Key padr = dataIn[p];
-                scheduleBlockFill(padr);
+                Translation tr = translations[p];
+                tr.vadr = getPageBaseM(tr.vadr);    // vadr is used for finding page mappings
+                tr.padr = $isunknown(tr.padr) ? 'x : getBlockBaseD(tr.padr); // padr is used to find data blocks
+                scheduleBlockFill(tr);
             end
         end
     endtask
 
-    function automatic void scheduleBlockFill(input Key adr);
-        if (!blockFillCounters.exists(adr))
-            blockFillCounters[adr] = DELAY;            
+    function automatic void scheduleBlockFill(input Translation tr);
+        if (!blockFillCounters.exists(tr))
+            blockFillCounters[tr] = DELAY;
     endfunction
-
-
-        task automatic scheduleBlockFills_T();
-            foreach (enable[p]) begin
-                if (enable[p]) begin
-                    Translation tr = translations[p];
-                    scheduleBlockFill_T(tr);
-                end
-            end
-        endtask
-    
-        function automatic void scheduleBlockFill_T(input Translation tr);
-            if (!blockFillCounters_T.exists(tr))
-                blockFillCounters_T[tr] = DELAY;
-        endfunction
     
 
     always @(posedge clk) begin
         handleBlockFills();
-           // handleBlockFills_T();
         scheduleBlockFills();
-           // scheduleBlockFills_T();
     end
-
-
-
-    
-//    /////////////////////////////////////
-//    LogicA dataFillEnA, tlbFillEnA;
-//    DwordA dataFillPhysA;
-//    MwordA tlbFillVirtA;
-
-//    always_comb dataFillEnA = dataFillEnables();
-//    always_comb dataFillPhysA = dataFillPhysical();
-//    always_comb tlbFillEnA = tlbFillEnables();
-//    always_comb tlbFillVirtA = tlbFillVirtual();
-
-
-//    ////////////////////////////////////
-//        function automatic LogicA dataFillEnables();
-//            LogicA res = '{default: 0};
-//            foreach (reads[p]) begin
-//                if (reads[p].status == CR_TAG_MISS) begin
-//                    res[p] = 1;
-//                end
-//            end
-//            return res;
-//        endfunction
-
-//        function automatic DwordA dataFillPhysical();
-//            DwordA res = '{default: 'x};
-//            foreach (reads[p]) begin
-//                res[p] = getBlockBaseD(translations[p].padr);
-//            end
-//            return res;
-//        endfunction
-    
-    
-//        function automatic LogicA tlbFillEnables();
-//            LogicA res = '{default: 0};
-//            foreach (reads[p]) begin
-//                if (reads[p].status == CR_TLB_MISS) begin
-//                    res[p] = 1;
-//                end
-//            end
-//            return res;
-//        endfunction
-    
-//        function automatic MwordA tlbFillVirtual();
-//            MwordA res = '{default: 'x};
-//            foreach (reads[p]) begin
-//                res[p] = getPageBaseM(translations[p].vadr);
-                
-//            end
-//            return res;
-//        endfunction
-
-
 
 endmodule
 

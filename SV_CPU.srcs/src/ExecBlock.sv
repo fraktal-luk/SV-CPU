@@ -42,8 +42,9 @@ module ExecBlock(ref InstructionMap insMap,
     AccessDesc accessDescs_E2[N_MEM_PORTS];
 
     Translation dcacheTranslations_EE0[N_MEM_PORTS]; // source: DataL1
+    Translation dcacheTranslations_E1[N_MEM_PORTS];
     Translation dcacheTranslations_E2[N_MEM_PORTS];
-    
+
 
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
     DataCacheOutput sysOuts_E1[N_MEM_PORTS];
@@ -196,6 +197,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign storeDataE0_E = storeData0.stage0_E;
 
         assign accessDescs_E2 = '{0: mem0.accessDescE2, 1: DEFAULT_ACCESS_DESC, 2: mem2.accessDescE2, 3: DEFAULT_ACCESS_DESC};
+        assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
         assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
 
     assign toReplayQueue0 = memToReplay(mem0.stage0_E);
