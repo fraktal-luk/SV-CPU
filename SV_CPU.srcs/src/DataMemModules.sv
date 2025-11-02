@@ -15,28 +15,37 @@ import CacheDefs::*;
 
 
 /*****************************************************************/
-module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
+module DataFillEngine#(type Key = Dword, parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 14)
 (
     input logic clk,
     
-        input logic enable[N_MEM_PORTS],
-        input Key dataIn[N_MEM_PORTS] //,
-        //Translation translations[N_MEM_PORTS],
-        //input DataCacheOutput reads[N_MEM_PORTS]
+        input logic enable[WIDTH],
+        input Key dataIn[WIDTH], //,
+        Translation translations[WIDTH]
+        //input DataCacheOutput reads[WIDTH]
 );
     // Fill logic
     logic notifyFill = 0;
+
     Key notifiedAdr = 'x;
+    Translation notifiedTr = DEFAULT_TRANSLATION;
+
 
     int     blockFillCounters[Key]; // Container for request in progress
+    int     blockFillCounters_T[Translation]; // Container for request in progress
+
     Key     readyBlocksToFill[$]; // Queue of request ready for immediate completion 
+    Translation     readyBlocksToFill_T[$]; // Queue of request ready for immediate completion 
 
 
     task automatic resetBlockFills();
         blockFillCounters.delete();
+        blockFillCounters_T.delete();
         readyBlocksToFill.delete();
+        readyBlocksToFill_T.delete();
         notifyFill <= 0;
         notifiedAdr <= 'x;
+        notifiedTr <= DEFAULT_TRANSLATION;
     endtask
 
 
@@ -57,10 +66,37 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
         if (readyBlocksToFill.size() == 0) return;
 
         adr = readyBlocksToFill.pop_front();
-        blockFillCounters.delete(adr); // 
+        blockFillCounters.delete(adr); //
 
         notifyFill <= 1;
         notifiedAdr <= adr;
+    endtask
+
+    task automatic handleBlockFills_T();
+        Translation tr;
+
+        //notifyFill <= 0;
+        //notifiedAdr <= 'x;
+        notifiedTr <= DEFAULT_TRANSLATION;
+
+        foreach (blockFillCounters_T[t]) begin
+            if (blockFillCounters_T[t] == 0) begin
+                readyBlocksToFill_T.push_back(t);
+                blockFillCounters_T[t] = -1;
+            end
+            else blockFillCounters_T[t]--;
+    
+
+        end
+
+        if (readyBlocksToFill_T.size() == 0) return;
+
+        tr = readyBlocksToFill_T.pop_front();
+        blockFillCounters_T.delete(tr); //
+
+        //notifyFill <= 1;
+        //notifiedAdr <= adr;
+        notifiedTr <= tr;
     endtask
 
 
@@ -79,9 +115,26 @@ module DataFillEngine#(type Key = Dword, parameter int DELAY = 14)
     endfunction
 
 
+        task automatic scheduleBlockFills_T();
+            foreach (enable[p]) begin
+                if (enable[p]) begin
+                    Translation tr = translations[p];
+                    scheduleBlockFill_T(tr);
+                end
+            end
+        endtask
+    
+        function automatic void scheduleBlockFill_T(input Translation tr);
+            if (!blockFillCounters_T.exists(tr))
+                blockFillCounters_T[tr] = DELAY;
+        endfunction
+    
+
     always @(posedge clk) begin
         handleBlockFills();
+           // handleBlockFills_T();
         scheduleBlockFills();
+           // scheduleBlockFills_T();
     end
 
 

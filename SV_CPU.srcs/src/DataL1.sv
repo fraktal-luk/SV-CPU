@@ -41,8 +41,8 @@ module DataL1(
     MwordA tlbFillVirtA;
 
     UncachedSubsystem uncachedSubsystem(clk, writeReqs);
-    DataFillEngine dataFillEngine(clk, dataFillEnA, dataFillPhysA);
-    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
+    DataFillEngine#(Dword, N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, dataFillPhysA, translations_Reg);
+    DataFillEngine#(Mword, N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA, translations_Reg);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 

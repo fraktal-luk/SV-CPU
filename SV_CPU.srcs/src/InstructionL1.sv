@@ -27,8 +27,12 @@ module InstructionL1(
 
     Translation translationSig = DEFAULT_TRANSLATION;
 
+    Translation tr_Reg[1];
+
     InstructionCacheOutput readOutCached, readOutUncached;
     
+
+        assign tr_Reg[0] = translationSig;
 
     typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
     InsWay blocksWay0;
@@ -42,17 +46,17 @@ module InstructionL1(
     } ReadResult;
 
 
-    typedef logic LogicA[N_MEM_PORTS];
-    typedef Mword MwordA[N_MEM_PORTS];
-    typedef Dword DwordA[N_MEM_PORTS];
+    typedef logic LogicA[1];
+    typedef Mword MwordA[1];
+    typedef Dword DwordA[1];
 
     LogicA blockFillEnA, tlbFillEnA;
     DwordA blockFillPhysA;
     MwordA tlbFillVirtA;
 
 
-    DataFillEngine blockFillEngine(clk, blockFillEnA, blockFillPhysA);
-    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
+    DataFillEngine#(Dword, 1, 14) blockFillEngine(clk, blockFillEnA, blockFillPhysA, tr_Reg);
+    DataFillEngine#(Mword, 1, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA, tr_Reg);
 
     assign readOut = readOutCached;
 
