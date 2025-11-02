@@ -24,8 +24,8 @@ module StoreQueue
     ref MemTracker memTracker,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotAB inGroup,
-    output OpSlotAB outGroup
+    input OpSlotAB inGroup
+    //output OpSlotAB outGroup
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -151,8 +151,8 @@ module StoreQueue
 
 
     task automatic advance();
-        int nOut = 0;
-        outGroup <= '{default: EMPTY_SLOT_B};
+        //int nOut = 0;
+        //outGroup <= '{default: EMPTY_SLOT_B};
 
         while (isScanned(content[scanPointer % SIZE].mid)) begin 
             outputQ.push_back(content[scanPointer % SIZE]);
@@ -161,9 +161,9 @@ module StoreQueue
 
         while (isCommittable(content[startPointer % SIZE].mid)) begin
             InsId thisId = content[startPointer % SIZE].mid;
-            outGroup[nOut].mid <= thisId;
-            outGroup[nOut].active <= 1;
-            nOut++;
+            //outGroup[nOut].mid <= thisId;
+            //outGroup[nOut].active <= 1;
+            //nOut++;
 
             assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
             outputQ.pop_front();
@@ -447,6 +447,7 @@ module TmpSubLq();
     endtask
 
     task automatic readImpl();
+        // TODO: unify with updateMain?
         foreach (theExecBlock.toLqE2[p]) begin
             UopMemPacket storeUop = theExecBlock.toLqE2[p];
 

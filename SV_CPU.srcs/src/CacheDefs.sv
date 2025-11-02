@@ -43,19 +43,17 @@ package CacheDefs;
         DEFAULT_DATA_LINE_DESC,
         '{default: 'x}
     };
-    
+
 
     typedef struct {
         logic active;
         CacheReadStatus status;
-        DataLineDesc desc;        
         Mword data;
     } DataCacheOutput;
-    
+
     localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
         0,
         CR_INVALID,
-        DEFAULT_DATA_LINE_DESC,
         'x
     };
 

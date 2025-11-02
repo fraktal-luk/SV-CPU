@@ -16,7 +16,8 @@ module DataL1(
             input logic clk,
             input MemWriteInfo writeReqs[2],
             output Translation translationsOut[N_MEM_PORTS],
-            output DataCacheOutput readOut[N_MEM_PORTS]
+            output DataCacheOutput cacheReadOut[N_MEM_PORTS],
+            output DataCacheOutput uncachedReadOut[N_MEM_PORTS]
 );
 
     // TLB
@@ -37,8 +38,8 @@ module DataL1(
     LogicA dataFillEnA, tlbFillEnA;
 
     UncachedSubsystem uncachedSubsystem(clk, writeReqs);
-    DataFillEngine#(Dword, N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
-    DataFillEngine#(Mword, N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
+    DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
+    DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
@@ -47,12 +48,10 @@ module DataL1(
 
     localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
-
     Translation TMP_tlbL1[$];
     Translation TMP_tlbL2[$];
 
     Translation translationTableL1[DATA_TLB_SIZE]; // DB
-
 
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         if (!wrInfo.req || wrInfo.uncached) return;
@@ -105,39 +104,61 @@ module DataL1(
     assign translationsOut = translations_T;
 
 
-    // Main dispatch
-    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
-        DataCacheOutput res;        
+    function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
 
         // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
         if (0) begin end
+        // sys regs
         else if (aDesc.sys) begin end
+
+        // uncached access
         else if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read              
-            if (uncachedSubsystem.readResult.status == CR_HIT) res = '{1, CR_HIT, tr.desc, uncachedSubsystem.readResult.data};
-            else if (uncachedSubsystem.readResult.status == CR_INVALID) res = '{1, CR_INVALID, tr.desc, 0};
+            if (uncachedSubsystem.readResult.status == CR_HIT)
+                res = '{1, CR_HIT, uncachedSubsystem.readResult.data};
+            else if (uncachedSubsystem.readResult.status == CR_INVALID)
+                res = '{1, CR_INVALID, 0};
             else $error("Wrong status returned by uncached");
         end
-        else if (aDesc.uncachedStore)
-            res = '{1, CR_HIT, tr.desc, 'x};
+        else if (aDesc.uncachedStore) begin
+            res = '{1, CR_HIT, 'x};
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
+
+        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
+        if (0) begin end
+        // sys regs
+        else if (aDesc.sys) begin end
+
+        // uncached access
+        else if (aDesc.uncachedReq) begin end
+        else if (aDesc.uncachedCollect) begin end
+        else if (aDesc.uncachedStore) begin end
 
         // Otherwise check translation
         else if (!virtualAddressValid(aDesc.vadr))
-            res = '{1, CR_INVALID, tr.desc, 'x}; // Invalid virtual adr
+            res = '{1, CR_INVALID, 'x}; // Invalid virtual adr
         else if (!tr.present)
-            res = '{1, CR_TLB_MISS, tr.desc, 'x}; // TLB miss
+            res = '{1, CR_TLB_MISS, 'x}; // TLB miss
         else if (!tr.desc.canRead)
-            res = '{1, CR_NOT_ALLOWED, tr.desc, 'x};
+            res = '{1, CR_NOT_ALLOWED, 'x};
         else if (!tr.desc.canWrite) // TODO: condition should be for stores only
-            res = '{1, CR_INVALID, tr.desc, 'x};
+            res = '{1, CR_INVALID, 'x};
         else if (!tr.desc.cached)
-            res = '{1, CR_UNCACHED, tr.desc, 'x}; // Just detected uncached access, tr.desc indicates uncached
+            res = '{1, CR_UNCACHED, 'x}; // Just detected uncached access, tr.desc indicates uncached
 
         // If translation correct and content is cacheable, look at cache results
         else if (!readRes.valid)
-            res = '{1, CR_TAG_MISS, tr.desc, 'x};
+            res = '{1, CR_TAG_MISS, 'x};
         else
-            res = '{1, CR_HIT, tr.desc, readRes.value};
+            res = '{1, CR_HIT, readRes.value};
 
         return res;
     endfunction
@@ -165,8 +186,7 @@ module DataL1(
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
 
-       // translations_Reg[p] <= DEFAULT_TRANSLATION;
-        readOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
+        cacheReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
@@ -175,20 +195,35 @@ module DataL1(
             ReadResult result0 = readWay(blocksWay0, aDesc, tr);
             ReadResult result1 = readWay(blocksWay1, aDesc, tr);
             ReadResult selectedResult = selectWayResult(result0, result1);
-            
-            DataCacheOutput thisResult = doReadAccess(tr, aDesc, selectedResult);
 
-          //  translations_Reg[p] <= tr;
-            readOut[p] <= thisResult;
+            cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
+        end
+    endtask
+
+    task automatic handleSingleReadUnc(input int p);
+        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+
+        uncachedReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
+
+        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
+        else begin
+            uncachedReadOut[p] <= doReadAccessUnc(aDesc);
         end
     endtask
 
 
     // FUTURE: support for block crossing and page crossing accesses
     task automatic handleReads();
-        foreach (theExecBlock.accessDescs_E0[p]) handleSingleRead(p);
+        foreach (theExecBlock.accessDescs_E0[p]) begin
+            handleSingleRead(p);
+        end
     endtask
 
+    task automatic handleReadsUnc();
+        foreach (theExecBlock.accessDescs_E0[p]) begin
+            handleSingleReadUnc(p);
+        end
+    endtask
 
 /////////
 // Filling
@@ -207,7 +242,6 @@ module DataL1(
     endfunction
 
 
-
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
@@ -217,7 +251,7 @@ module DataL1(
         AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
         DataCacheBlock block = way[aInfo.block];
         Dword fillPbase = getBlockBaseD(adr);
-        
+
         if (block != null) begin
             $error("Block already filled at %x", fillPbase);
             return 0;
@@ -256,8 +290,7 @@ module DataL1(
     endfunction
 
     task automatic reset();
-       // translations_Reg <= '{default: DEFAULT_TRANSLATION};
-        readOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+        cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
         TMP_tlbL1.delete();
         TMP_tlbL2.delete();
@@ -312,15 +345,15 @@ module DataL1(
     ////////////////////////////////////
     function automatic LogicA dataFillEnables();
         LogicA res = '{default: 0};
-        foreach (readOut[p])
-            res[p] = (readOut[p].status == CR_TAG_MISS);
+        foreach (cacheReadOut[p])
+            res[p] = (cacheReadOut[p].status == CR_TAG_MISS);
         return res;
     endfunction
 
     function automatic LogicA tlbFillEnables();
         LogicA res = '{default: 0};
-        foreach (readOut[p])
-            res[p] = (readOut[p].status == CR_TLB_MISS);
+        foreach (cacheReadOut[p])
+            res[p] = (cacheReadOut[p].status == CR_TLB_MISS);
         return res;
     endfunction
 
@@ -334,9 +367,14 @@ module DataL1(
         if (tlbFillEngine.notifyFill) begin
             allocInTlb(tlbFillEngine.notifiedTr.vadr);
         end
-    
+
         doCachedWrite(writeReqs[0]);
     end
 
-endmodule
 
+    always @(posedge clk) begin
+        handleReadsUnc();
+    end
+
+
+endmodule

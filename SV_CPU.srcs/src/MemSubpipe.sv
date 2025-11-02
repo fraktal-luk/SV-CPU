@@ -18,12 +18,12 @@ module MemSubpipe#()
     input UopPacket opP,
 
     output AccessDesc accessDescOut,
-    
+
     input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
+    input DataCacheOutput uncachedResp,
     input DataCacheOutput sysRegResp,
-    input UopPacket sqResp //,
-   // input UopPacket lqResp
+    input UopPacket sqResp
 );
 
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
@@ -39,7 +39,7 @@ module MemSubpipe#()
     assign accessDescOut = accessDescE0;
 
     always_comb stage0_E = pE2_E;
-    assign p0 = TMP_toMemPacket(opP);
+    always_comb p0 = TMP_toMemPacket(opP);
 
     assign trE0 = cacheTranslation;
 
@@ -50,13 +50,13 @@ module MemSubpipe#()
         performE0();
         performE1();
         performE2();
-        
+
         pD0 <= tickP(pE2);
         pD1 <= tickP(pD0);
-        
+
         trE1 <= trE0;
         trE2 <= trE1;
-        
+
         accessDescE1 <= accessDescE0;
         accessDescE2 <= accessDescE1;
     end
@@ -71,13 +71,13 @@ module MemSubpipe#()
     always_comb pD1_E = effP(pD1);
 
 
-        assign p0_Emp = TMP_mp(p0_E);
-        assign p1_Emp = TMP_mp(p1_E);
-        assign pE0_Emp = TMP_mp(pE0_E);
-        assign pE1_Emp = TMP_mp(pE1_E);
-        assign pE2_Emp = TMP_mp(pE2_E);
-        assign pD0_Emp = TMP_mp(pD0_E);
-        assign pD1_Emp = TMP_mp(pD1_E);
+        always_comb p0_Emp = TMP_mp(p0_E);
+        always_comb p1_Emp = TMP_mp(p1_E);
+        always_comb pE0_Emp = TMP_mp(pE0_E);
+        always_comb pE1_Emp = TMP_mp(pE1_E);
+        always_comb pE2_Emp = TMP_mp(pE2_E);
+        always_comb pD0_Emp = TMP_mp(pD0_E);
+        always_comb pD1_Emp = TMP_mp(pD1_E);
 
 
     ForwardingElement image_E[-3:1];
@@ -131,8 +131,7 @@ module MemSubpipe#()
     task automatic performE0();    
         UopMemPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
-        UopName uname = decUname(stateE0.TMP_oid);
-        
+
         accessDescE0 <= getAccessDesc(stateE0, adr);
         pE0 <= updateE0(stateE0, adr);
     endtask
@@ -145,7 +144,7 @@ module MemSubpipe#()
     
     task automatic performE2();    
         UopMemPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, sysRegResp, sqResp);//, lqResp);
+        stateE2 = updateE2(stateE2, cacheResp, uncachedResp, sysRegResp, sqResp);//, lqResp);
         pE2 <= stateE2;
     endtask
 
@@ -169,12 +168,13 @@ module MemSubpipe#()
     endfunction
 
 
-    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput sysResp, input UopPacket sqResp);//, input UopPacket lqResp);
+    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, input DataCacheOutput sysResp, input UopPacket sqResp);
         UopMemPacket res = p;
         UidT uid = p.TMP_oid;
 
         if (!p.active) return res;
 
+        // TODO: can use accessDesc for this choice
         if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
             return TMP_updateSysTransfer(res, sysResp);
         end
@@ -186,16 +186,23 @@ module MemSubpipe#()
             end
 
             ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                if (cacheResp.status == CR_HIT)
+                assert (!cacheResp.active) else $error("Why cache resp\n%p\n%p", uncachedResp, cacheResp);
+
+                if (uncachedResp.status == CR_HIT) begin 
                     res.status = ES_OK; // Go on to handle mem result
-                else if (cacheResp.status == CR_INVALID) begin
+                    res.result = loadValue(uncachedResp.data, decUname(uid));
+                    insMap.setActualResult(uid, res.result);
+                    return res;
+                end
+                else if (uncachedResp.status == CR_INVALID) begin
                     res.status = ES_ILLEGAL;
+                    res.result = 0;
                     insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
                     return res;
                 end
                 else
                     $fatal(2, "Wrong status %p", cacheResp.status);
-            end 
+            end
 
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin
                 if (cacheResp.status == CR_TAG_MISS) begin
@@ -211,8 +218,7 @@ module MemSubpipe#()
                     res.status = ES_ILLEGAL;
                     return res;
                 end
-
-                if (/*!cacheResp.desc.cached ||*/ cacheResp.status == CR_UNCACHED) begin
+                else if (cacheResp.status == CR_UNCACHED) begin
                     res.status = ES_UNCACHED_1;  
                     return res; // go to RQ
                 end
@@ -221,7 +227,9 @@ module MemSubpipe#()
             default: $fatal(2, "Wrong status of memory op");
         endcase
         
-        return updateE2_Regular(p, cacheResp, sqResp);//, lqResp);
+        assert (!uncachedResp.active) else $error("Why uncched\n%p\n%p", uncachedResp, cacheResp);
+        
+        return updateE2_Regular(p, cacheResp, sqResp);
     endfunction
 
 
@@ -245,9 +253,9 @@ module MemSubpipe#()
 
         return res;
     endfunction
-    
-    // NOTE: lqResp is UNUSED, may be removed from design? 
-    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp);//, input UopPacket lqResp);
+
+    // TODO: sqResp - change to DataCacheOutput?
+    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
@@ -265,13 +273,14 @@ module MemSubpipe#()
                 end
                 else begin
                     res.status = ES_OK;
-                    res.result = loadValue(sqResp.result, decUname(uid));
+                    res.result = loadValue(sqResp.result, decUname(uid));    // TODO: change uop to accesDesc input
                     putMilestone(uid, InstructionMap::MemFwConsume);
                 end
             end
-            else begin //no forwarding 
+            else begin //no forwarding
+                assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
                 res.status = ES_OK;
-                res.result = loadValue(cacheResp.data, decUname(uid));
+                res.result = loadValue(cacheResp.data, decUname(uid));    // TODO: change uop to accesDesc input
             end
 
             insMap.setActualResult(uid, res.result);

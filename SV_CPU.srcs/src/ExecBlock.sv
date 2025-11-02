@@ -47,6 +47,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
+    DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
     DataCacheOutput sysOuts_E1[N_MEM_PORTS];
     
     UopMemPacket sqResponse_E1[N_MEM_PORTS];
@@ -118,6 +119,7 @@ module ExecBlock(ref InstructionMap insMap,
         accessDescs_E0[0],
         dcacheTranslations_EE0[0],
         dcacheOuts_E1[0],
+        uncachedOuts_E1[0],
         sysOuts_E1[0],
         sqResponse_E1[0]
     );
@@ -132,6 +134,7 @@ module ExecBlock(ref InstructionMap insMap,
         accessDescs_E0[2],
         dcacheTranslations_EE0[2],
         dcacheOuts_E1[2],
+        uncachedOuts_E1[2],
         sysOuts_E1[2],
         sqResponse_E1[2]
     );

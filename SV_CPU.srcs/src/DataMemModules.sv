@@ -15,7 +15,7 @@ import CacheDefs::*;
 
 
 /*****************************************************************/
-module DataFillEngine#(type Key = Dword, parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 14)
+module DataFillEngine#(parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 14)
 (
     input logic clk,
     input logic enable[WIDTH],
@@ -144,7 +144,7 @@ module UncachedSubsystem(
         if (size == SIZE_1) value = readByteUncached(adr);
         else if (size == SIZE_4) value = readWordUncached(adr);
         else $error("Wrong access size");
-        
+
         res.active = 1;
         res.status = CR_HIT;
         res.data = value;

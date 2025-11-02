@@ -61,7 +61,7 @@ module AbstractCore
     } CurrentConfig;
 
 
-    DataCacheOutput sysReadOuts[N_MEM_PORTS];
+   // DataCacheOutput sysReadOuts[N_MEM_PORTS];
 
     // Overall
     logic renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
@@ -90,7 +90,7 @@ module AbstractCore
     MemWriteInfo sysWriteInfos[1];
 
 
-    SystemRegisterUnit sysUnit(sysReadOuts, sysWriteInfos);
+    SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, sysWriteInfos);
 
     // Event control
     Mword retiredTarget = 0;
@@ -98,21 +98,21 @@ module AbstractCore
 
     ///////////////////////////
 
-    DataL1        dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1);
+    DataL1        dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
-    OpSlotAB sqOut, lqOut, bqOut; // UNUSED so far
+    //OpSlotAB sqOut, lqOut, bqOut; // UNUSED so far
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
 
     bind StoreQueue: theSq TmpSubSq submod();
     bind StoreQueue: theLq TmpSubLq submod();
@@ -129,7 +129,7 @@ module AbstractCore
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
-    assign theExecBlock.sysOuts_E1 = sysReadOuts;
+   // assign theExecBlock.sysOuts_E1 = sysReadOuts;
 
     assign dcacheWriteInfos[0] = writeInfo;
     assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;

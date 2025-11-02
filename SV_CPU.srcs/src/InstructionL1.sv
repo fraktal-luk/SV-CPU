@@ -52,14 +52,14 @@ module InstructionL1(
 
     LogicA blockFillEnA, tlbFillEnA;
 
-    DataFillEngine#(Dword, 1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
-    DataFillEngine#(Mword, 1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
+    DataFillEngine#(1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
+    DataFillEngine#(1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
 
     assign readOut = readOutCached;
 
     always @(posedge clk) begin
         doCacheAccess();
-       
+
         if (blockFillEngine.notifyFill) begin
             allocInDynamicRange(blockFillEngine.notifiedTr.padr);
         end

@@ -679,6 +679,7 @@ package AbstractSim;
                 && acc.iqStoreData;
     endfunction
 
+    // TODO: change uop to accesDesc input
     function automatic Mword loadValue(input Mword w, input UopName uop);
         case (uop)
              UOP_mem_ldi: return w;
