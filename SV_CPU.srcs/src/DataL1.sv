@@ -149,7 +149,7 @@ module DataL1(
             res = '{1, CR_TLB_MISS, 'x}; // TLB miss
         else if (!tr.desc.canRead)
             res = '{1, CR_NOT_ALLOWED, 'x};
-        else if (!tr.desc.canWrite) // TODO: condition should be for stores only
+        else if (aDesc.store && !tr.desc.canWrite)
             res = '{1, CR_INVALID, 'x};
         else if (!tr.desc.cached)
             res = '{1, CR_UNCACHED, 'x}; // Just detected uncached access, tr.desc indicates uncached
@@ -364,9 +364,10 @@ module DataL1(
         if (dataFillEngine.notifyFill) begin
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
         end
-        if (tlbFillEngine.notifyFill) begin
-            allocInTlb(tlbFillEngine.notifiedTr.vadr);
-        end
+
+            if (tlbFillEngine.notifyFill) begin
+                allocInTlb(tlbFillEngine.notifiedTr.vadr);
+            end
 
         doCachedWrite(writeReqs[0]);
     end
