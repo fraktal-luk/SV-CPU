@@ -144,7 +144,7 @@ module MemSubpipe#()
     
     task automatic performE2();    
         UopMemPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, uncachedResp, sysRegResp, sqResp);//, lqResp);
+        stateE2 = updateE2(stateE2, cacheResp, uncachedResp, sysRegResp, sqResp);
         pE2 <= stateE2;
     endtask
 
@@ -171,11 +171,14 @@ module MemSubpipe#()
     function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, input DataCacheOutput sysResp, input UopPacket sqResp);
         UopMemPacket res = p;
         UidT uid = p.TMP_oid;
+        UopName uname;
 
         if (!p.active) return res;
 
+        uname = decUname(uid);
+
         // TODO: can use accessDesc for this choice
-        if (isLoadSysUop(decUname(uid)) || isStoreSysUop(decUname(uid))) begin
+        if (isLoadSysUop(uname) || isStoreSysUop(uname)) begin
             return TMP_updateSysTransfer(res, sysResp);
         end
 
@@ -190,7 +193,7 @@ module MemSubpipe#()
 
                 if (uncachedResp.status == CR_HIT) begin 
                     res.status = ES_OK; // Go on to handle mem result
-                    res.result = loadValue(uncachedResp.data, decUname(uid));
+                    res.result = loadValue(uncachedResp.data, uname);
                     insMap.setActualResult(uid, res.result);
                     return res;
                 end
@@ -273,14 +276,14 @@ module MemSubpipe#()
                 end
                 else begin
                     res.status = ES_OK;
-                    res.result = loadValue(sqResp.result, decUname(uid));    // TODO: change uop to accesDesc input
+                    res.result = loadValue(sqResp.result, decUname(uid));
                     putMilestone(uid, InstructionMap::MemFwConsume);
                 end
             end
             else begin //no forwarding
                 assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
                 res.status = ES_OK;
-                res.result = loadValue(cacheResp.data, decUname(uid));    // TODO: change uop to accesDesc input
+                res.result = loadValue(cacheResp.data, decUname(uid));
             end
 
             insMap.setActualResult(uid, res.result);

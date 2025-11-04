@@ -27,31 +27,91 @@ module DataL1(
 
     typedef Translation TranslationA[N_MEM_PORTS];
 
-    Translation translations_T[N_MEM_PORTS];
 
-    typedef struct {
-        logic valid;
-        Mword value;
-    } ReadResult;
 
-    // TODO: review the type definition
+    typedef logic LogicA[N_MEM_PORTS];
+
     LogicA dataFillEnA, tlbFillEnA;
 
     UncachedSubsystem uncachedSubsystem(clk, writeReqs);
-    DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
-    DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
-    typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
+    DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
+
+
+//    localparam DataBlock CLEAN_BLOCK = '{default: 0};
+
+//    typedef struct {
+//        logic valid;
+//        Mword value;
+//    } ReadResult;
+
+//    typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
+
+
+//        function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc, input Translation tr);
+//            DataCacheBlock block = way[aDesc.blockIndex];
+    
+//            if (block == null) return '{0, 'x};
+//            else begin
+//                Dword accessPbase = getBlockBaseD(tr.padr);
+//                logic hit0 = (accessPbase === block.pbase);
+//                Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
+    
+//                if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+//                return '{hit0, val0};
+//            end
+//        endfunction
+    
+//        function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1);
+//            return res0.valid ? res0 : res1;
+//        endfunction
+
+
+//        function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
+//            AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
+//            DataCacheBlock block = way[aInfo.block];
+//            Dword accessPbase = getBlockBaseD(wrInfo.padr);
+    
+//            if (block != null && accessPbase === block.pbase) begin
+//                if (aInfo.size == SIZE_1) way[aInfo.block].writeByte(aInfo.blockOffset, wrInfo.value);
+//                if (aInfo.size == SIZE_4) way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
+//                return 1;
+//            end
+//            return 0;
+//        endfunction
+
+//        function automatic logic tryFillWay(ref DataWay way, input Dword adr);
+//            AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
+//            DataCacheBlock block = way[aInfo.block];
+//            Dword fillPbase = getBlockBaseD(adr);
+    
+//            if (block != null) begin
+//                $error("Block already filled at %x", fillPbase);
+//                return 0;
+//            end
+    
+//            way[aInfo.block] = new();
+//            way[aInfo.block].valid = 1;
+//            way[aInfo.block].pbase = fillPbase;
+//            way[aInfo.block].array = '{default: 0};
+    
+//            return 1;
+//        endfunction
+
 
     DataWay blocksWay0;
     DataWay blocksWay1;
 
-    localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
-    Translation TMP_tlbL1[$];
-    Translation TMP_tlbL2[$];
 
-    Translation translationTableL1[DATA_TLB_SIZE]; // DB
+
+        Translation translations_T[N_MEM_PORTS];
+        Translation translationsH[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION};
+
+
+
+
+
 
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         if (!wrInfo.req || wrInfo.uncached) return;
@@ -59,75 +119,6 @@ module DataL1(
         void'(tryWriteWay(blocksWay0, wrInfo));
         void'(tryWriteWay(blocksWay1, wrInfo));
     endtask
-
-    ////////////////////
-    // translation
-    
-    function automatic Translation translateAddress(input Mword adr);    
-        Translation res = DEFAULT_TRANSLATION;
-        Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
-
-        if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
-
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
-
-        if (found.size() == 0) begin
-            res.vadr = adr; // It's needed because TLB fill is based on this adr
-            return res;
-        end
-
-        res = found[0];
-
-        res.vadr = adr;
-        res.padr = res.padr + (adr - getPageBaseM(adr));
-
-        return res;
-    endfunction
-
-
-    function automatic TranslationA getTranslations();
-        TranslationA res = '{default: DEFAULT_TRANSLATION};
-
-        foreach (res[p]) begin
-            AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-            if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
-            res[p] = translateAddress(aDesc.vadr);
-        end
-        return res;
-    endfunction
-
-    ///////////////////////////////////////////////////
-
-    always_comb translations_T = getTranslations();
-
-    assign translationsOut = translations_T;
-
-
-    function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);
-        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
-
-        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
-        if (0) begin end
-        // sys regs
-        else if (aDesc.sys) begin end
-
-        // uncached access
-        else if (aDesc.uncachedReq) begin end
-        else if (aDesc.uncachedCollect) begin // Completion of uncached read              
-            if (uncachedSubsystem.readResult.status == CR_HIT)
-                res = '{1, CR_HIT, uncachedSubsystem.readResult.data};
-            else if (uncachedSubsystem.readResult.status == CR_INVALID)
-                res = '{1, CR_INVALID, 0};
-            else $error("Wrong status returned by uncached");
-        end
-        else if (aDesc.uncachedStore) begin
-            res = '{1, CR_HIT, 'x};
-        end
-
-        return res;
-    endfunction
-
 
     function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
@@ -164,24 +155,6 @@ module DataL1(
     endfunction
 
 
-    function automatic ReadResult readWay(input DataWay way, input AccessDesc aDesc, input Translation tr);
-        DataCacheBlock block = way[aDesc.blockIndex];
-        Dword accessPbase = getBlockBaseD(tr.padr);
-
-        if (block == null) return '{0, 'x};
-        else begin
-            logic hit0 = (accessPbase === block.pbase);
-            Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
-
-            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-            return '{hit0, val0};
-        end
-    endfunction
-
-    function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1);
-        return res0.valid ? res0 : res1;
-    endfunction
-
 
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
@@ -190,26 +163,19 @@ module DataL1(
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
-            Translation tr = translations_T[p];
+            Translation tr = //translations_T[p];
+                             translationsH[p];
             // Read all ways of cache with tags
             ReadResult result0 = readWay(blocksWay0, aDesc, tr);
             ReadResult result1 = readWay(blocksWay1, aDesc, tr);
             ReadResult selectedResult = selectWayResult(result0, result1);
 
+                assert (translations_T[p] === translationsH[p]) else $fatal(2, "Tr differs\n%p\n%p", tr, translationsH[p]);
+
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
     endtask
 
-    task automatic handleSingleReadUnc(input int p);
-        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-
-        uncachedReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
-
-        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
-        else begin
-            uncachedReadOut[p] <= doReadAccessUnc(aDesc);
-        end
-    endtask
 
 
     // FUTURE: support for block crossing and page crossing accesses
@@ -219,27 +185,6 @@ module DataL1(
         end
     endtask
 
-    task automatic handleReadsUnc();
-        foreach (theExecBlock.accessDescs_E0[p]) begin
-            handleSingleReadUnc(p);
-        end
-    endtask
-
-/////////
-// Filling
-
-    function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
-        AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
-        DataCacheBlock block = way[aInfo.block];
-        Dword accessPbase = getBlockBaseD(wrInfo.padr);
-
-        if (block != null && accessPbase === block.pbase) begin
-            if (aInfo.size == SIZE_1) way[aInfo.block].writeByte(aInfo.blockOffset, wrInfo.value);
-            if (aInfo.size == SIZE_4) way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
-            return 1;
-        end
-        return 0;
-    endfunction
 
 
     function automatic void allocInDynamicRange(input Dword adr);
@@ -247,62 +192,23 @@ module DataL1(
     endfunction
 
 
-    function automatic logic tryFillWay(ref DataWay way, input Dword adr);
-        AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
-        DataCacheBlock block = way[aInfo.block];
-        Dword fillPbase = getBlockBaseD(adr);
-
-        if (block != null) begin
-            $error("Block already filled at %x", fillPbase);
-            return 0;
-        end
-
-        way[aInfo.block] = new();
-        way[aInfo.block].valid = 1;
-        way[aInfo.block].pbase = fillPbase;
-        way[aInfo.block].array = '{default: 0};
-
-        return 1;
-    endfunction
-
-
-    function automatic void allocInTlb(input Mword adr);
-        Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-            
-        assert (found.size() > 0) else $error("Not prent in TLB L2");
-        
-        translationTableL1[TMP_tlbL1.size()] = found[0];
-        TMP_tlbL1.push_back(found[0]);
-    endfunction
-
 ///////////////////////////
 
 
 /////////////////
 // Init and DB
-    function automatic void DB_fillTranslations();
-        int i = 0;
-        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-        foreach (TMP_tlbL1[a]) begin
-            translationTableL1[i] = TMP_tlbL1[a];
-            i++;
-        end
-    endfunction
 
     task automatic reset();
         cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
-        TMP_tlbL1.delete();
-        TMP_tlbL2.delete();
-        DB_fillTranslations();
-        
         blocksWay0 = '{default: null};
         blocksWay1 = '{default: null};
 
         dataFillEngine.resetBlockFills();
-        tlbFillEngine.resetBlockFills();
 
         uncachedSubsystem.UNC_reset();
+
+            resetTlb();
     endtask
 
     function automatic void initBlocksWay(ref DataWay way, input Mword baseVadr);
@@ -321,7 +227,7 @@ module DataL1(
     // CAREFUL: this sets all data to default values
     function automatic void copyToWay(Dword pageAdr);
         Dword pageBase = getPageBaseD(pageAdr);
-        
+
         case (pageBase)
             0:              initBlocksWay(blocksWay0, 0);
             PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
@@ -329,10 +235,12 @@ module DataL1(
         endcase
     endfunction
 
+
+
+
+
     function automatic void preloadForTest();
-        TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;
-        TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;
-        DB_fillTranslations();
+            preloadTlbForTest();
  
         foreach (AbstractCore.globalParams.preloadedDataWays[i])
             copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
@@ -365,12 +273,162 @@ module DataL1(
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
         end
 
-            if (tlbFillEngine.notifyFill) begin
-                allocInTlb(tlbFillEngine.notifiedTr.vadr);
-            end
-
         doCachedWrite(writeReqs[0]);
     end
+
+    
+    
+    ///////////////////
+    // TLB
+
+        Translation TMP_tlbL1[$];
+        Translation TMP_tlbL2[$];
+    
+        Translation translationTableL1[DATA_TLB_SIZE]; // DB
+
+        DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
+
+
+        task automatic resetTlb();
+            TMP_tlbL1.delete();
+            TMP_tlbL2.delete();
+            DB_fillTranslations();
+            
+            tlbFillEngine.resetBlockFills();
+        endtask
+    
+        function automatic void preloadTlbForTest();
+            TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;
+            TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;
+            DB_fillTranslations();
+        endfunction
+    
+        function automatic void DB_fillTranslations();
+            int i = 0;
+            translationTableL1 = '{default: DEFAULT_TRANSLATION};
+            foreach (TMP_tlbL1[a]) begin
+                translationTableL1[i] = TMP_tlbL1[a];
+                i++;
+            end
+        endfunction
+
+        ////////////////////
+        // translation
+        
+        function automatic Translation translateAddress(input Mword adr);    
+            Translation res = DEFAULT_TRANSLATION;
+            Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
+    
+            if ($isunknown(adr)) return DEFAULT_TRANSLATION;
+            if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+    
+            assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
+    
+            if (found.size() == 0) begin
+                res.vadr = adr; // It's needed because TLB fill is based on this adr
+                return res;
+            end
+    
+            res = found[0];
+    
+            res.vadr = adr;
+            res.padr = res.padr + (adr - getPageBaseM(adr));
+    
+            return res;
+        endfunction
+    
+    
+        function automatic TranslationA getTranslations();
+            TranslationA res = '{default: DEFAULT_TRANSLATION};
+    
+            foreach (res[p]) begin
+                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+                if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
+                res[p] = translateAddress(aDesc.vadr);
+            end
+            return res;
+        endfunction
+    
+    
+        function automatic void allocInTlb(input Mword adr);
+            Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
+                
+            assert (found.size() > 0) else $error("Not present in TLB L2");
+            
+            translationTableL1[TMP_tlbL1.size()] = found[0];
+            TMP_tlbL1.push_back(found[0]);
+        endfunction
+
+
+    ///////////////////////////////////////////////////
+
+    always_comb translations_T = getTranslations();
+
+    assign translationsOut = //translations_T;
+                             translationsH;
+
+
+
+        // Read on half-cycle
+        always @(negedge clk) begin
+            translationsH <= getTranslations();
+        end
+
+
+    always @(posedge clk) begin
+        if (tlbFillEngine.notifyFill) begin
+            allocInTlb(tlbFillEngine.notifiedTr.vadr);
+        end
+    end
+
+
+
+
+
+    ////////////////////////
+    // Unc
+    
+    task automatic handleReadsUnc();
+        foreach (theExecBlock.accessDescs_E0[p]) begin
+            handleSingleReadUnc(p);
+        end
+    endtask
+
+    task automatic handleSingleReadUnc(input int p);
+        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+
+        uncachedReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
+
+        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
+        else begin
+            uncachedReadOut[p] <= doReadAccessUnc(aDesc);
+        end
+    endtask
+
+
+    function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
+
+        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
+        if (0) begin end
+        // sys regs
+        else if (aDesc.sys) begin end
+
+        // uncached access
+        else if (aDesc.uncachedReq) begin end
+        else if (aDesc.uncachedCollect) begin // Completion of uncached read              
+            if (uncachedSubsystem.readResult.status == CR_HIT)
+                res = '{1, CR_HIT, uncachedSubsystem.readResult.data};
+            else if (uncachedSubsystem.readResult.status == CR_INVALID)
+                res = '{1, CR_INVALID, 0};
+            else $error("Wrong status returned by uncached");
+        end
+        else if (aDesc.uncachedStore) begin
+            res = '{1, CR_HIT, 'x};
+        end
+
+        return res;
+    endfunction
 
 
     always @(posedge clk) begin

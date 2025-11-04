@@ -317,15 +317,6 @@ module TmpSubSq();
         return res;
     endfunction
 
-    function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
-        Transaction tr[$] = AbstractCore.memTracker.stores.find_first with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
-        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find_first with (item.owner == mid); // ... so may be already here
-
-        if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
-
-        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  StoreQueue.insMap.get(mid));
-    endfunction
-
 
     function automatic void checkSqResp(input InsId mid, input UopPacket sr, input Transaction tr, input AccessSize trSize, input Dword padr, input AccessSize esize);
         Transaction latestOverlap = StoreQueue.memTracker.checkTransactionOverlap(mid);
@@ -346,6 +337,15 @@ module TmpSubSq();
     endfunction
 
 
+    function automatic void checkStore(input InsId mid, input Mword adr, input Mword value);
+        Transaction tr[$] = AbstractCore.memTracker.stores.find_first with (item.owner == mid); // removal from tracker is unordered w.r.t. this...
+        if (tr.size() == 0) tr = AbstractCore.memTracker.committedStores.find_first with (item.owner == mid); // ... so may be already here
+
+        if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
+
+        assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  StoreQueue.insMap.get(mid));
+    endfunction
+
     function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
         UopName uname = decUname(p.TMP_oid);
         if (uname inside {UOP_mem_sti,  UOP_mem_stib, UOP_mem_stf, UOP_mem_sts}) begin
@@ -357,7 +357,7 @@ module TmpSubSq();
 
     task automatic updateStoreData();
         UopPacket dataUop = theExecBlock.storeDataE0_E;
-        if (dataUop.active && (decUname(dataUop.TMP_oid) inside {UOP_data_int, UOP_data_fp})) begin // TODO: isStoreDataUop
+        if (dataUop.active && isStoreDataUop(decUname(dataUop.TMP_oid))) begin
             int dataFound[$] = StoreQueue.content.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
             assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
             
