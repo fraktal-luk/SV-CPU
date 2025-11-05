@@ -30,6 +30,11 @@ package AbstractSim;
     
     localparam int DISPATCH_WIDTH = RENAME_WIDTH;
 
+    // General uarch defs
+    localparam int N_INT_PORTS = 6;
+    localparam int N_MEM_PORTS = 4;
+    localparam int N_VEC_PORTS = 4;
+
 
     //localparam logic IN_ORDER = 0;
 

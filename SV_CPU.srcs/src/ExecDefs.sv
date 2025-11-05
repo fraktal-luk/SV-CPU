@@ -13,12 +13,7 @@ package ExecDefs;
     import CacheDefs::*;
     
 
-    // General uarch defs
-    localparam int N_INT_PORTS = 6;
-    localparam int N_MEM_PORTS = 4;
-    localparam int N_VEC_PORTS = 4;
 
-    
     typedef enum {
         ES_OK,
         ES_UNALIGNED,

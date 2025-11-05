@@ -393,5 +393,6 @@ package CacheDefs;
             return 1;
         endfunction
 
+    typedef Translation TranslationA[N_MEM_PORTS];
 
 endpackage
