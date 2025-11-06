@@ -340,6 +340,13 @@ package CacheDefs;
         Mword value;
     } ReadResult;
 
+
+        typedef struct {
+            logic valid;
+            Dword tag;
+            Mword value;
+        } ReadResult_N;
+
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
 
@@ -356,11 +363,48 @@ package CacheDefs;
                 return '{hit0, val0};
             end
         endfunction
-    
+
+
+            function automatic ReadResult_N readWay_N(input DataCacheBlock way[], input AccessDesc aDesc);
+                DataCacheBlock block = way[aDesc.blockIndex];
+        
+                if (block == null) return '{0, 'x, 'x};
+                else begin
+                    //Dword accessPbase = getBlockBaseD(tr.padr);
+                    //logic hit0 = (accessPbase === block.pbase);
+                    Dword tag0 = block.pbase;
+                    Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
+
+                    if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+                    return '{1, tag0, val0};
+                end
+            endfunction
+
+            function automatic ReadResult_N matchWay_N(input ReadResult_N rr, input AccessDesc aDesc, input Translation tr);
+                ReadResult_N res = rr;
+                Dword trBase = getBlockBaseD(tr.padr);
+               
+                res.valid &= (getBlockBaseD(res.tag) === trBase);
+                
+                return res;
+            endfunction
+
         function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1);
             return res0.valid ? res0 : res1;
         endfunction
 
+            function automatic ReadResult_N selectWayResult_N(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
+                Dword trBase = getBlockBaseD(tr.padr);
+
+                if (res0.valid && getBlockBaseD(res0.tag) === trBase)
+                    return res0;
+
+                if (res1.valid && getBlockBaseD(res1.tag) === trBase)
+                    return res1;
+                //return (res0.valid && ) ? res0 : res1;
+                
+                return '{0, 'x, 'x};
+            endfunction
 
         function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
             AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
@@ -394,5 +438,20 @@ package CacheDefs;
         endfunction
 
     typedef Translation TranslationA[N_MEM_PORTS];
+
+
+        function automatic void initBlocksWay(ref DataWay way, input Mword baseVadr);
+            foreach (way[i]) begin
+                Mword vadr = baseVadr + i*BLOCK_SIZE;
+                Dword padr = vadr;
+    
+                way[i] = new();
+                way[i].valid = 1;
+                way[i].vbase = vadr;
+                way[i].pbase = padr;
+                way[i].array = CLEAN_BLOCK;
+            end
+        endfunction
+
 
 endpackage
