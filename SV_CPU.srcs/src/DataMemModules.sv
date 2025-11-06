@@ -25,38 +25,17 @@ module DataCacheArray#()
     generate
         genvar j;
         for (j = 0; j < N_MEM_PORTS; j++) begin: QHU
-            ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x}, se = '{0, 'x, 'x};
-            ReadResult_N ur0 = '{0, 'x, 'x}, ur1 = '{0, 'x, 'x};
+            ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x};
     
             task automatic readArray();
-                int p = j;
+                AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
 
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-    
-                ar0 <= readWay_N(blocksWay0, aDesc);
-                ar1 <= readWay_N(blocksWay1, aDesc);
+                ar0 <= readWay(blocksWay0, aDesc);
+                ar1 <= readWay(blocksWay1, aDesc);
             endtask
     
-            task automatic selectArray();
-                int p = j;
-    
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-                Translation tr = tlb.translationsH[p];
-    
-                ur0 <= matchWay_N(ar0, aDesc, tr);
-                ur1 <= matchWay_N(ar1, aDesc, tr);
-
-                se <= '{0, 'x, 'x};
-                se <= selectWayResult_N(ar0, ar1, tr);
-            endtask
-
-
             always @(negedge clk) begin
                 readArray();
-            end
-        
-            always @(posedge clk) begin
-                selectArray();
             end
         end
     endgenerate
@@ -132,8 +111,6 @@ module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
             TMP_tlbL1.delete();
             TMP_tlbL2.delete();
             DB_fillTranslations();
-            
-            tlbFillEngine.resetBlockFills();
         endtask
     
         function automatic void preloadTlbForTest();

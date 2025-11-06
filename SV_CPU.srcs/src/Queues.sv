@@ -88,14 +88,15 @@ package Queues;
         localparam InstructionMap::Milestone QUEUE_EXIT =  InstructionMap::BqExit;
     endclass
 
-            function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
-                return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                        sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
-            endfunction
-        
-            function automatic MemWriteInfo makeSysWriteInfo(input SqEntry sqe);
-                return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                        sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
-            endfunction
+
+    function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
+        return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
+    endfunction
+
+    function automatic MemWriteInfo makeSysWriteInfo(input SqEntry sqe);
+        return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+                sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
+    endfunction
 
 endpackage

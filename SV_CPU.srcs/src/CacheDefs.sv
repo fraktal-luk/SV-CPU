@@ -172,6 +172,7 @@ package CacheDefs;
     } MemWriteInfo;
 
 
+
     localparam AccessInfo DEFAULT_ACCESS_INFO = '{
         adr: 'x,
         size: SIZE_NONE,
@@ -335,123 +336,84 @@ package CacheDefs;
 
     localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
+
     typedef struct {
         logic valid;
+        Dword tag;
         Mword value;
-    } ReadResult;
-
-
-        typedef struct {
-            logic valid;
-            Dword tag;
-            Mword value;
-        } ReadResult_N;
+    } ReadResult_N;
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
+    function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
+        DataCacheBlock block = way[aDesc.blockIndex];
 
-        function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc, input Translation tr);
-            DataCacheBlock block = way[aDesc.blockIndex];
-    
-            if (block == null) return '{0, 'x};
-            else begin
-                Dword accessPbase = getBlockBaseD(tr.padr);
-                logic hit0 = (accessPbase === block.pbase);
-                Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
-    
-                if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-                return '{hit0, val0};
-            end
-        endfunction
+        if (block == null) return '{0, 'x, 'x};
+        else begin
+            Dword tag0 = block.pbase;
+            Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
+
+            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+            return '{1, tag0, val0};
+        end
+    endfunction
 
 
-            function automatic ReadResult_N readWay_N(input DataCacheBlock way[], input AccessDesc aDesc);
-                DataCacheBlock block = way[aDesc.blockIndex];
-        
-                if (block == null) return '{0, 'x, 'x};
-                else begin
-                    //Dword accessPbase = getBlockBaseD(tr.padr);
-                    //logic hit0 = (accessPbase === block.pbase);
-                    Dword tag0 = block.pbase;
-                    Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
+    function automatic ReadResult_N selectWayResult(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
+        Dword trBase = getBlockBaseD(tr.padr);
+        if (res0.valid && getBlockBaseD(res0.tag) === trBase) return res0;
+        if (res1.valid && getBlockBaseD(res1.tag) === trBase) return res1;
+        return '{0, 'x, 'x};
+    endfunction
 
-                    if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-                    return '{1, tag0, val0};
-                end
-            endfunction
 
-            function automatic ReadResult_N matchWay_N(input ReadResult_N rr, input AccessDesc aDesc, input Translation tr);
-                ReadResult_N res = rr;
-                Dword trBase = getBlockBaseD(tr.padr);
-               
-                res.valid &= (getBlockBaseD(res.tag) === trBase);
-                
-                return res;
-            endfunction
 
-        function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1);
-            return res0.valid ? res0 : res1;
-        endfunction
+    function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
+        AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
+        DataCacheBlock block = way[aInfo.block];
+        Dword accessPbase = getBlockBaseD(wrInfo.padr);
 
-            function automatic ReadResult_N selectWayResult_N(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
-                Dword trBase = getBlockBaseD(tr.padr);
-
-                if (res0.valid && getBlockBaseD(res0.tag) === trBase)
-                    return res0;
-
-                if (res1.valid && getBlockBaseD(res1.tag) === trBase)
-                    return res1;
-                //return (res0.valid && ) ? res0 : res1;
-                
-                return '{0, 'x, 'x};
-            endfunction
-
-        function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
-            AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
-            DataCacheBlock block = way[aInfo.block];
-            Dword accessPbase = getBlockBaseD(wrInfo.padr);
-    
-            if (block != null && accessPbase === block.pbase) begin
-                if (aInfo.size == SIZE_1) way[aInfo.block].writeByte(aInfo.blockOffset, wrInfo.value);
-                if (aInfo.size == SIZE_4) way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
-                return 1;
-            end
-            return 0;
-        endfunction
-
-        function automatic logic tryFillWay(ref DataWay way, input Dword adr);
-            AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
-            DataCacheBlock block = way[aInfo.block];
-            Dword fillPbase = getBlockBaseD(adr);
-    
-            if (block != null) begin
-                $error("Block already filled at %x", fillPbase);
-                return 0;
-            end
-    
-            way[aInfo.block] = new();
-            way[aInfo.block].valid = 1;
-            way[aInfo.block].pbase = fillPbase;
-            way[aInfo.block].array = '{default: 0};
-    
+        if (block != null && accessPbase === block.pbase) begin
+            if (aInfo.size == SIZE_1) way[aInfo.block].writeByte(aInfo.blockOffset, wrInfo.value);
+            if (aInfo.size == SIZE_4) way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
             return 1;
-        endfunction
+        end
+        return 0;
+    endfunction
+
+    function automatic logic tryFillWay(ref DataWay way, input Dword adr);
+        AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
+        DataCacheBlock block = way[aInfo.block];
+        Dword fillPbase = getBlockBaseD(adr);
+
+        if (block != null) begin
+            $error("Block already filled at %x", fillPbase);
+            return 0;
+        end
+
+        way[aInfo.block] = new();
+        way[aInfo.block].valid = 1;
+        way[aInfo.block].pbase = fillPbase;
+        way[aInfo.block].array = '{default: 0};
+
+        return 1;
+    endfunction
+
+
+    function automatic void initBlocksWay(ref DataWay way, input Mword baseVadr);
+        foreach (way[i]) begin
+            Mword vadr = baseVadr + i*BLOCK_SIZE;
+            Dword padr = vadr;
+
+            way[i] = new();
+            way[i].valid = 1;
+            way[i].vbase = vadr;
+            way[i].pbase = padr;
+            way[i].array = CLEAN_BLOCK;
+        end
+    endfunction
 
     typedef Translation TranslationA[N_MEM_PORTS];
-
-
-        function automatic void initBlocksWay(ref DataWay way, input Mword baseVadr);
-            foreach (way[i]) begin
-                Mword vadr = baseVadr + i*BLOCK_SIZE;
-                Dword padr = vadr;
-    
-                way[i] = new();
-                way[i].valid = 1;
-                way[i].vbase = vadr;
-                way[i].pbase = padr;
-                way[i].array = CLEAN_BLOCK;
-            end
-        endfunction
 
 
 endpackage

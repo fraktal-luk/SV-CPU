@@ -38,8 +38,7 @@ module DataL1(
 
 
 
-
-    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
+    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult_N readRes);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
 
         // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
@@ -84,14 +83,10 @@ module DataL1(
         else begin
             Translation tr = tlb.translationsH[p];
 
-            ReadResult selectedResult;
-            ReadResult_N selectedResult_N;
+            ReadResult_N selectedResult;
 
-            if (p == 0)      selectedResult_N = selectWayResult_N(dataArray.QHU[0].ar0, dataArray.QHU[0].ar1, tr);
-            else if (p == 2) selectedResult_N = selectWayResult_N(dataArray.QHU[2].ar0, dataArray.QHU[2].ar1, tr);
-
-            selectedResult.valid = selectedResult_N.valid;
-            selectedResult.value = selectedResult_N.value;
+            if (p == 0)      selectedResult = selectWayResult(dataArray.QHU[0].ar0, dataArray.QHU[0].ar1, tr);
+            else if (p == 2) selectedResult = selectWayResult(dataArray.QHU[2].ar0, dataArray.QHU[2].ar1, tr);
 
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
@@ -105,44 +100,6 @@ module DataL1(
         end
     endtask
 
-
-/////////////////
-// Init and DB
-
-
-    task automatic reset();
-        cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
-
-        dataFillEngine.resetBlockFills();
-
-        uncachedSubsystem.UNC_reset();
-
-        tlb.resetTlb();
-        dataArray.resetArray();
-    endtask
-
-    function automatic void preloadForTest();
-        tlb.preloadTlbForTest();
-        dataArray.preloadArrayForTest();
-    endfunction
-
-
-////////////////////////
-
-    ////////////////////////////////////
-    function automatic LogicA dataFillEnables();
-        LogicA res = '{default: 0};
-        foreach (cacheReadOut[p])
-            res[p] = (cacheReadOut[p].status == CR_TAG_MISS);
-        return res;
-    endfunction
-
-    function automatic LogicA tlbFillEnables();
-        LogicA res = '{default: 0};
-        foreach (cacheReadOut[p])
-            res[p] = (cacheReadOut[p].status == CR_TLB_MISS);
-        return res;
-    endfunction
 
 
     ////////////////////////
@@ -164,8 +121,6 @@ module DataL1(
             uncachedReadOut[p] <= doReadAccessUnc(aDesc);
         end
     endtask
-
-
 
 
     function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);
@@ -192,6 +147,23 @@ module DataL1(
         return res;
     endfunction
 
+////////////////////////
+
+    ////////////////////////////////////
+    function automatic LogicA dataFillEnables();
+        LogicA res = '{default: 0};
+        foreach (cacheReadOut[p])
+            res[p] = (cacheReadOut[p].status == CR_TAG_MISS);
+        return res;
+    endfunction
+
+    function automatic LogicA tlbFillEnables();
+        LogicA res = '{default: 0};
+        foreach (cacheReadOut[p])
+            res[p] = (cacheReadOut[p].status == CR_TLB_MISS);
+        return res;
+    endfunction
+
 
 
     always_comb dataFillEnA = dataFillEnables();
@@ -207,5 +179,26 @@ module DataL1(
     end
 
     assign translationsOut = tlb.translationsH;
+
+/////////////////
+// Init and DB
+
+    task automatic reset();
+        cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+        uncachedReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+
+        uncachedSubsystem.UNC_reset();
+
+        dataFillEngine.resetBlockFills();
+        tlbFillEngine.resetBlockFills();
+
+        tlb.resetTlb();
+        dataArray.resetArray();
+    endtask
+
+    function automatic void preloadForTest();
+        tlb.preloadTlbForTest();
+        dataArray.preloadArrayForTest();
+    endfunction
 
 endmodule
