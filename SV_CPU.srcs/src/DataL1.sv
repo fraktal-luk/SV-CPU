@@ -37,85 +37,6 @@ module DataL1(
     DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
 
-    
-        DataWay blocksWay0;
-        DataWay blocksWay1;
-    
-        generate
-            genvar j;
-            for (j = 0; j < N_MEM_PORTS; j++) begin: QHU
-                ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x}, se = '{0, 'x, 'x};
-                ReadResult_N ur0 = '{0, 'x, 'x}, ur1 = '{0, 'x, 'x};
-        
-                task automatic readArray();
-                    int p = j;
-    
-                    AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-        
-                    ar0 <= readWay_N(blocksWay0, aDesc);
-                    ar1 <= readWay_N(blocksWay1, aDesc);
-                endtask
-        
-                task automatic selectArray();
-                    int p = j;
-        
-                    AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-                    Translation tr = tlb.translationsH[p];
-        
-                    ur0 <= matchWay_N(ar0, aDesc, tr);
-                    ur1 <= matchWay_N(ar1, aDesc, tr);
-    
-                    se <= '{0, 'x, 'x};
-                    se <= selectWayResult_N(ar0, ar1, tr);
-                endtask
-    
-    
-                always @(negedge clk) begin
-                    readArray();
-                end
-            
-                always @(posedge clk) begin
-                    selectArray();
-                end
-            end
-        endgenerate
-    
-    
-        function automatic void allocInDynamicRange(input Dword adr);
-            tryFillWay(blocksWay1, adr);
-        endfunction
-    
-        task automatic doCachedWrite(input MemWriteInfo wrInfo);
-            if (!wrInfo.req || wrInfo.uncached) return;
-    
-            void'(tryWriteWay(blocksWay0, wrInfo));
-            void'(tryWriteWay(blocksWay1, wrInfo));
-        endtask
-    
-        // CAREFUL: this sets all data to default values
-        function automatic void copyToWay(Dword pageAdr);
-            Dword pageBase = getPageBaseD(pageAdr);
-    
-            case (pageBase)
-                0:              initBlocksWay(blocksWay0, 0);
-                PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-                default: $error("Incorrect page to init cache: %x", pageBase);
-            endcase
-        endfunction
-        
-    
-        always @(posedge clk) begin
-            if (dataFillEngine.notifyFill) begin
-                allocInDynamicRange(dataFillEngine.notifiedTr.padr);
-            end
-    
-            doCachedWrite(writeReqs[0]);
-        end
-    
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
 
 
     function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
@@ -166,8 +87,8 @@ module DataL1(
             ReadResult selectedResult;
             ReadResult_N selectedResult_N;
 
-            if (p == 0)      selectedResult_N = selectWayResult_N(QHU[0].ar0, QHU[0].ar1, tr);
-            else if (p == 2) selectedResult_N = selectWayResult_N(QHU[2].ar0, QHU[2].ar1, tr);
+            if (p == 0)      selectedResult_N = selectWayResult_N(dataArray.QHU[0].ar0, dataArray.QHU[0].ar1, tr);
+            else if (p == 2) selectedResult_N = selectWayResult_N(dataArray.QHU[2].ar0, dataArray.QHU[2].ar1, tr);
 
             selectedResult.valid = selectedResult_N.valid;
             selectedResult.value = selectedResult_N.value;
@@ -198,27 +119,11 @@ module DataL1(
 
         tlb.resetTlb();
         dataArray.resetArray();
-        
-            resetArray();
     endtask
 
     function automatic void preloadForTest();
         tlb.preloadTlbForTest();
         dataArray.preloadArrayForTest();
-            
-            preloadArrayForTest();
-    endfunction
-
-
-
-    task automatic resetArray();
-        blocksWay0 = '{default: null};
-        blocksWay1 = '{default: null};
-    endtask
-
-    function automatic void preloadArrayForTest(); 
-        foreach (AbstractCore.globalParams.preloadedDataWays[i])
-            copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
     endfunction
 
 
@@ -259,6 +164,8 @@ module DataL1(
             uncachedReadOut[p] <= doReadAccessUnc(aDesc);
         end
     endtask
+
+
 
 
     function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);

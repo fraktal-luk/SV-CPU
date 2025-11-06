@@ -18,80 +18,80 @@ module DataCacheArray#()
     input MemWriteInfo writeReqs[2]
 );
 
+    DataWay blocksWay0;
+    DataWay blocksWay1;
+    
+    // N_MEM_PORTS read interfaces
+    generate
+        genvar j;
+        for (j = 0; j < N_MEM_PORTS; j++) begin: QHU
+            ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x}, se = '{0, 'x, 'x};
+            ReadResult_N ur0 = '{0, 'x, 'x}, ur1 = '{0, 'x, 'x};
+    
+            task automatic readArray();
+                int p = j;
 
-        DataWay blocksWay0;
-        DataWay blocksWay1;
+                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
     
-        generate
-            genvar j;
-            for (j = 0; j < N_MEM_PORTS; j++) begin: QHU
-                ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x}, se = '{0, 'x, 'x};
-                ReadResult_N ur0 = '{0, 'x, 'x}, ur1 = '{0, 'x, 'x};
-        
-                task automatic readArray();
-                    int p = j;
+                ar0 <= readWay_N(blocksWay0, aDesc);
+                ar1 <= readWay_N(blocksWay1, aDesc);
+            endtask
     
-                    AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-        
-                    ar0 <= readWay_N(blocksWay0, aDesc);
-                    ar1 <= readWay_N(blocksWay1, aDesc);
-                endtask
-        
-                task automatic selectArray();
-                    int p = j;
-        
-                    AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-                    Translation tr = tlb.translationsH[p];
-        
-                    ur0 <= matchWay_N(ar0, aDesc, tr);
-                    ur1 <= matchWay_N(ar1, aDesc, tr);
+            task automatic selectArray();
+                int p = j;
     
-                    se <= '{0, 'x, 'x};
-                    se <= selectWayResult_N(ar0, ar1, tr);
-                endtask
+                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+                Translation tr = tlb.translationsH[p];
     
-    
-                always @(negedge clk) begin
-                    readArray();
-                end
-            
-                always @(posedge clk) begin
-                    selectArray();
-                end
+                ur0 <= matchWay_N(ar0, aDesc, tr);
+                ur1 <= matchWay_N(ar1, aDesc, tr);
+
+                se <= '{0, 'x, 'x};
+                se <= selectWayResult_N(ar0, ar1, tr);
+            endtask
+
+
+            always @(negedge clk) begin
+                readArray();
             end
-        endgenerate
-    
-    
-        function automatic void allocInDynamicRange(input Dword adr);
-            tryFillWay(blocksWay1, adr);
-        endfunction
-    
-        task automatic doCachedWrite(input MemWriteInfo wrInfo);
-            if (!wrInfo.req || wrInfo.uncached) return;
-    
-            void'(tryWriteWay(blocksWay0, wrInfo));
-            void'(tryWriteWay(blocksWay1, wrInfo));
-        endtask
-    
-        // CAREFUL: this sets all data to default values
-        function automatic void copyToWay(Dword pageAdr);
-            Dword pageBase = getPageBaseD(pageAdr);
-    
-            case (pageBase)
-                0:              initBlocksWay(blocksWay0, 0);
-                PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-                default: $error("Incorrect page to init cache: %x", pageBase);
-            endcase
-        endfunction
         
-    
-        always @(posedge clk) begin
-            if (dataFillEngine.notifyFill) begin
-                allocInDynamicRange(dataFillEngine.notifiedTr.padr);
+            always @(posedge clk) begin
+                selectArray();
             end
-    
-            doCachedWrite(writeReqs[0]);
         end
+    endgenerate
+
+
+    function automatic void allocInDynamicRange(input Dword adr);
+        tryFillWay(blocksWay1, adr);
+    endfunction
+
+    task automatic doCachedWrite(input MemWriteInfo wrInfo);
+        if (!wrInfo.req || wrInfo.uncached) return;
+
+        void'(tryWriteWay(blocksWay0, wrInfo));
+        void'(tryWriteWay(blocksWay1, wrInfo));
+    endtask
+
+    // CAREFUL: this sets all data to default values
+    function automatic void copyToWay(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
+
+        case (pageBase)
+            0:              initBlocksWay(blocksWay0, 0);
+            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
+            default: $error("Incorrect page to init cache: %x", pageBase);
+        endcase
+    endfunction
+    
+
+    always @(posedge clk) begin
+        if (dataFillEngine.notifyFill) begin
+            allocInDynamicRange(dataFillEngine.notifiedTr.padr);
+        end
+
+        doCachedWrite(writeReqs[0]);
+    end
 
 
     task automatic resetArray();
