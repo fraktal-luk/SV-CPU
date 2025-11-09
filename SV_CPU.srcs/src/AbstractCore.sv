@@ -737,6 +737,9 @@ module AbstractCore
         dataCache.reset();
         theFrontend.instructionCache.reset();
 
+            theFrontend.stageUnc_IP.active <= 0;
+            theFrontend.stage_IP.active <= 0;
+
         branchCheckpointQueue.delete();
         
         sysUnit.reset();

@@ -28,20 +28,6 @@ module InstructionL1(
     InstructionCacheOutput readOutCached, readOutUncached;
 
 
-
-    typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
-    InsWay blocksWay0;
-    InsWay blocksWay1;
-    InsWay blocksWay2;
-    InsWay blocksWay3;
-
-//    typedef struct {
-//        logic valid;
-//        Dword tag;
-//        FetchLine value;
-//    } ReadResult;
-
-
     typedef logic LogicA[1];
     typedef Mword MwordA[1];
     typedef Dword DwordA[1];
@@ -53,39 +39,41 @@ module InstructionL1(
 
 
     DataTlb#(.WIDTH(1)) tlb(clk, '{0: aDesc_T}, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
+    InstructionCacheArray insArray(clk, blockFillEngine.notifyFill, blockFillEngine.notifiedTr);
 
     DataFillEngine#(1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
     DataFillEngine#(1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
 
 
-    always_comb aDesc_T = getAccessDesc_I(readAddress);
+    always_comb aDesc_T = getAccessDesc_I(readEn, readAddress);
     assign tr_Reg[0] = translationSig;
     assign readOut = readOutCached;
 
 
     always @(posedge clk) begin
         doCacheAccess();
-
-        if (blockFillEngine.notifyFill) begin
-            allocInDynamicRange(blockFillEngine.notifiedTr.padr);
-        end
     end
 
 
     task automatic doCacheAccess();
-        AccessDesc aDesc = getAccessDesc_I(readAddress);
+        AccessDesc aDesc = getAccessDesc_I(readEn, readAddress);
+        
+        readOutCached <= EMPTY_INS_CACHE_OUTPUT;
+        
+        if (!aDesc.active) return;
+        
         begin
             Translation tr = tlb.translationsH[0];
 
-            ReadResult_I result0 = readWay_I(blocksWay0, aDesc);
-            ReadResult_I result1 = readWay_I(blocksWay1, aDesc);
-            ReadResult_I result2 = readWay_I(blocksWay2, aDesc);
-            ReadResult_I result3 = readWay_I(blocksWay3, aDesc);
+            ReadResult_I result0a = insArray.rdInterface[0].ar0;
+            ReadResult_I result1a = insArray.rdInterface[0].ar1;
+            ReadResult_I result2a = insArray.rdInterface[0].ar2;
+            ReadResult_I result3a = insArray.rdInterface[0].ar3;
 
-            ReadResult_I result0m = matchWay_I(result0, aDesc, tr);
-            ReadResult_I result1m = matchWay_I(result1, aDesc, tr);
-            ReadResult_I result2m = matchWay_I(result2, aDesc, tr);
-            ReadResult_I result3m = matchWay_I(result3, aDesc, tr);
+            ReadResult_I result0m = matchWay_I(result0a, aDesc, tr);
+            ReadResult_I result1m = matchWay_I(result1a, aDesc, tr);
+            ReadResult_I result2m = matchWay_I(result2a, aDesc, tr);
+            ReadResult_I result3m = matchWay_I(result3a, aDesc, tr);
  
             translationSig <= tr;
 
@@ -93,9 +81,9 @@ module InstructionL1(
         end
     endtask
 
-    
 
-    
+
+
     function automatic ReadResult_I matchWay_I(input ReadResult_I rr, input AccessDesc aDesc, input Translation tr);
         ReadResult_I res = rr;
         Dword accessPbase = getBlockBaseD(tr.padr);       
@@ -105,12 +93,19 @@ module InstructionL1(
         return res;
     endfunction
 
+    function automatic ReadResult_I selectWay_I(input ReadResult_I res0, input ReadResult_I res1, input ReadResult_I res2, input ReadResult_I res3);
+        if (res0.valid === 1) return res0; 
+        if (res1.valid === 1) return res1; 
+        if (res2.valid === 1) return res2; 
+        return res3;
+    endfunction
 
-        function automatic AccessDesc getAccessDesc_I(input Mword adr);
+
+        function automatic AccessDesc getAccessDesc_I(input logic en, input Mword adr);
             AccessDesc res;
             AccessInfo aInfo = analyzeAccess(adr, SIZE_INS_LINE);
 
-            res.active = 1;
+            res.active = en;
 
             res.size = SIZE_INS_LINE;
 
@@ -131,14 +126,6 @@ module InstructionL1(
         
             return res;
         endfunction
-
-
-    function automatic ReadResult_I selectWay_I(input ReadResult_I res0, input ReadResult_I res1, input ReadResult_I res2, input ReadResult_I res3);
-        if (res0.valid === 1) return res0; 
-        if (res1.valid === 1) return res1; 
-        if (res2.valid === 1) return res2; 
-        return res3;
-    endfunction
 
 
     function automatic InstructionCacheOutput readCache(input logic readEnable, input Translation tr, input ReadResult_I res0, input ReadResult_I res1, input ReadResult_I res2, input ReadResult_I res3);
@@ -162,85 +149,19 @@ module InstructionL1(
     endfunction
 
 
-    /////////////////////////
-    // Filling
-
-    function automatic void allocInDynamicRange(input Dword adr);
-        tryFillWay(blocksWay3, adr);
-    endfunction
-
-
-    function automatic logic tryFillWay(ref InsWay way, input Dword adr);
-        AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
-        InstructionCacheBlock block = way[aInfo.block];
-        Dword fillPbase = getBlockBaseD(adr);
-        Dword fillPageBase = getPageBaseD(adr);
-        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(fillPageBase);
-
-        if (block != null) begin
-            $error("Block already filled at %x", fillPbase);
-            return 0;
-        end
-
-        way[aInfo.block] = new();
-        way[aInfo.block].valid = 1;
-        way[aInfo.block].pbase = fillPbase;
-        way[aInfo.block].array = page[(fillPbase-fillPageBase)/4 +: BLOCK_SIZE/4];
-
-        return 1;
-    endfunction
-
-
-    // Initialization and DB
-
-    function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
-        Dword basePadr = baseVadr;
-
-        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(basePadr);
-
-        foreach (way[i]) begin
-            Mword vadr = baseVadr + i*BLOCK_SIZE;
-            Dword padr = vadr;
-
-            way[i] = new();
-            way[i].valid = 1;
-            way[i].vbase = vadr;
-            way[i].pbase = padr;
-            way[i].array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
-        end
-    endfunction
-
-    function automatic void copyToWay(Dword pageAdr);
-        Dword pageBase = getPageBaseD(pageAdr);
-        
-        case (pageBase)
-            0:              initBlocksWay(blocksWay0, 0);
-            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-            2*PAGE_SIZE:    initBlocksWay(blocksWay2, 2*PAGE_SIZE);
-            3*PAGE_SIZE:    initBlocksWay(blocksWay3, 3*PAGE_SIZE);
-            default: $error("Incorrect page to init cache: %x", pageBase);
-        endcase
-    endfunction
-
 
     function automatic void preloadForTest();
         tlb.preloadTlbForTest(AbstractCore.globalParams.preloadedInsTlbL1, AbstractCore.globalParams.preloadedInsTlbL2);
-        
-        foreach (AbstractCore.globalParams.preloadedInsWays[i])
-            copyToWay(AbstractCore.globalParams.preloadedInsWays[i]);
+        insArray.preloadForTest();
     endfunction
 
 
     task automatic reset();
         readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
         readOutCached <= EMPTY_INS_CACHE_OUTPUT;
-
-        blocksWay0 = '{default: null};
-        blocksWay1 = '{default: null};
-        blocksWay2 = '{default: null};
-        blocksWay3 = '{default: null};
         
         tlb.resetTlb();
+        insArray.resetArray();
         
         blockFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
@@ -252,17 +173,17 @@ module InstructionL1(
 /////////////////////////////////////////////////
 
 
-        function automatic LogicA dataMakeEnables();
-            LogicA res = '{default: 0};
-            res[0] = (readOutCached.status == CR_TAG_MISS);
-            return res;
-        endfunction
+    function automatic LogicA dataMakeEnables();
+        LogicA res = '{default: 0};
+        res[0] = (readOutCached.status == CR_TAG_MISS);
+        return res;
+    endfunction
 
-        function automatic LogicA tlbMakeEnables();
-            LogicA res = '{default: 0};
-            res[0] = (readOutCached.status == CR_TLB_MISS);
-            return res;
-        endfunction
+    function automatic LogicA tlbMakeEnables();
+        LogicA res = '{default: 0};
+        res[0] = (readOutCached.status == CR_TLB_MISS);
+        return res;
+    endfunction
 
 endmodule
 
@@ -310,36 +231,34 @@ endmodule
 
 
 module InstructionCacheArray(
-    input logic clk
+    input logic clk,
+    
+    input logic notify,
+    input Translation fillTr
 
 );
 
-
-
-    
-    InsWay blocksWay0;
-    InsWay blocksWay1;
-    InsWay blocksWay2;
-    InsWay blocksWay3;
-
-
-
+    InsWay blocksWay0a;
+    InsWay blocksWay1a;
+    InsWay blocksWay2a;
+    InsWay blocksWay3a;
 
     typedef logic LogicA[1];
     typedef Mword MwordA[1];
     typedef Dword DwordA[1];
 
-
     // Read interfaces
     generate
         genvar j;
         for (j = 0; j < 1; j++) begin: rdInterface
-            ReadResult_I ar0 = '{0, 'x, '{default: 'x}}, ar1 = '{0, 'x, '{default: 'x}};
+            ReadResult_I ar0 = '{0, 'x, '{default: 'x}}, ar1 = '{0, 'x, '{default: 'x}}, ar2 = '{0, 'x, '{default: 'x}}, ar3 = '{0, 'x, '{default: 'x}};
 
             task automatic readArray();
-                AccessDesc aDesc;// = theExecBlock.accessDescs_E0[j];
-                ar0 <= readWay_I(blocksWay0, aDesc);
-                ar1 <= readWay_I(blocksWay1, aDesc);
+                AccessDesc aDesc = instructionCache.aDesc_T;
+                ar0 <= readWay_I(blocksWay0a, aDesc);
+                ar1 <= readWay_I(blocksWay1a, aDesc);
+                ar2 <= readWay_I(blocksWay2a, aDesc);
+                ar3 <= readWay_I(blocksWay3a, aDesc);
             endtask
 
             always @(negedge clk) begin
@@ -350,51 +269,79 @@ module InstructionCacheArray(
 
 
     // Filling
-//    function automatic void allocInDynamicRange(input Dword adr);
-//        tryFillWay(blocksWay1, adr);
-//    endfunction
-    
-    // Write
-//    task automatic doCachedWrite(input MemWriteInfo wrInfo);
-//        if (!wrInfo.req || wrInfo.uncached) return;
+    function automatic void allocInDynamicRange(input Dword adr);
+        tryFillWay_I(blocksWay3a, adr);
+    endfunction
 
-//     //   void'(tryWriteWay(blocksWay0, wrInfo));
-//     //   void'(tryWriteWay(blocksWay1, wrInfo));
-//    endtask
+    function automatic logic tryFillWay_I(ref InsWay way, input Dword adr);
+        AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
+        InstructionCacheBlock block = way[aInfo.block];
+        Dword fillPbase = getBlockBaseD(adr);
+        Dword fillPageBase = getPageBaseD(adr);
+        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(fillPageBase);
+
+        if (block != null) begin
+            $error("Block already filled at %x", fillPbase);
+            return 0;
+        end
+
+        way[aInfo.block] = new();
+        way[aInfo.block].valid = 1;
+        way[aInfo.block].pbase = fillPbase;
+        way[aInfo.block].array = page[(fillPbase-fillPageBase)/4 +: BLOCK_SIZE/4];
+
+        return 1;
+    endfunction
 
 
     // Init/DB
     task automatic resetArray();
-        blocksWay0 = '{default: null};
-        blocksWay1 = '{default: null};
+        blocksWay0a = '{default: null};
+        blocksWay1a = '{default: null};
+        blocksWay2a = '{default: null};
+        blocksWay3a = '{default: null};
     endtask
 
-    function automatic void preloadArrayForTest(); 
-        //foreach (AbstractCore.globalParams.preloadedDataWays[i])
-        //    copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
+    function automatic void preloadForTest();        
+        foreach (AbstractCore.globalParams.preloadedInsWays[i])
+            copyToWay_I(AbstractCore.globalParams.preloadedInsWays[i]);
     endfunction
 
-    // CAREFUL: this sets all data to default values
-    function automatic void copyToWay(Dword pageAdr);
+
+    function automatic void initBlocksWay_I(ref InsWay way, input Mword baseVadr);
+        Dword basePadr = baseVadr;
+
+        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(basePadr);
+
+        foreach (way[i]) begin
+            Mword vadr = baseVadr + i*BLOCK_SIZE;
+            Dword padr = vadr;
+
+            way[i] = new();
+            way[i].valid = 1;
+            way[i].vbase = vadr;
+            way[i].pbase = padr;
+            way[i].array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
+        end
+    endfunction
+
+    function automatic void copyToWay_I(Dword pageAdr);
         Dword pageBase = getPageBaseD(pageAdr);
-
-//        case (pageBase)
-//            0:              initBlocksWay(blocksWay0, 0);
-//            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-//            default: $error("Incorrect page to init cache: %x", pageBase);
-//        endcase
+        
+        case (pageBase)
+            0:              initBlocksWay_I(blocksWay0a, 0);
+            PAGE_SIZE:      initBlocksWay_I(blocksWay1a, PAGE_SIZE);
+            2*PAGE_SIZE:    initBlocksWay_I(blocksWay2a, 2*PAGE_SIZE);
+            3*PAGE_SIZE:    initBlocksWay_I(blocksWay3a, 3*PAGE_SIZE);
+            default: $error("Incorrect page to init cache: %x", pageBase);
+        endcase
     endfunction
-
-
 
 
     always @(posedge clk) begin
-//        if (dataFillEngine.notifyFill) begin
-//            allocInDynamicRange(dataFillEngine.notifiedTr.padr);
-//        end
-
-        //doCachedWrite(writeReqs[0]);
+        if (notify) begin
+            allocInDynamicRange(fillTr.padr);
+        end
     end
 
 endmodule
-
