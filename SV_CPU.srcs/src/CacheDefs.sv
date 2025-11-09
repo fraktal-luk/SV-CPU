@@ -336,36 +336,36 @@ package CacheDefs;
 
     localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
-
-    typedef struct {
-        logic valid;
-        Dword tag;
-        Mword value;
-    } ReadResult_N;
-
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
-    function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
-        DataCacheBlock block = way[aDesc.blockIndex];
+        /////////////////////////////////////////////////
+        // Cache reading functions
+        typedef struct {
+            logic valid;
+            Dword tag;
+            Mword value;
+        } ReadResult_N;
 
-        if (block == null) return '{0, 'x, 'x};
-        else begin
-            Dword tag0 = block.pbase;
-            Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
+        function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
+            DataCacheBlock block = way[aDesc.blockIndex];
+    
+            if (block == null) return '{0, 'x, 'x};
+            else begin
+                Dword tag0 = block.pbase;
+                Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
+    
+                if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+                return '{1, tag0, val0};
+            end
+        endfunction
 
-            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-            return '{1, tag0, val0};
-        end
-    endfunction
-
-
-    function automatic ReadResult_N selectWayResult(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
-        Dword trBase = getBlockBaseD(tr.padr);
-        if (res0.valid && getBlockBaseD(res0.tag) === trBase) return res0;
-        if (res1.valid && getBlockBaseD(res1.tag) === trBase) return res1;
-        return '{0, 'x, 'x};
-    endfunction
-
+        function automatic ReadResult_N selectWayResult(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
+            Dword trBase = getBlockBaseD(tr.padr);
+            if (res0.valid && getBlockBaseD(res0.tag) === trBase) return res0;
+            if (res1.valid && getBlockBaseD(res1.tag) === trBase) return res1;
+            return '{0, 'x, 'x};
+        endfunction
+        //////////////////////////////////////////
 
 
     function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
@@ -415,29 +415,51 @@ package CacheDefs;
 
     typedef Translation TranslationA[N_MEM_PORTS];
 
-            function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
-                Mword adr = aDesc.vadr;
-                Translation res = DEFAULT_TRANSLATION;
-                Translation found[$];
+    function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
+        Mword adr = aDesc.vadr;
+        Translation res = DEFAULT_TRANSLATION;
+        Translation found[$];
 
-                if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
-                if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+        if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
+        if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
-                found = tq.find with (item.vadr == getPageBaseM(adr));
+        found = tq.find with (item.vadr == getPageBaseM(adr));
 
-                assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
-        
-                if (found.size() == 0) begin
-                    res.vadr = adr; // It's needed because TLB fill is based on this adr
-                    return res;
-                end
-        
-                res = found[0];
-        
-                res.vadr = adr;
-                res.padr = res.padr + (adr - getPageBaseM(adr));
-        
-                return res;
-            endfunction
+        assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
 
+        if (found.size() == 0) begin
+            res.vadr = adr; // It's needed because TLB fill is based on this adr
+            return res;
+        end
+
+        res = found[0];
+
+        res.vadr = adr;
+        res.padr = res.padr + (adr - getPageBaseM(adr));
+
+        return res;
+    endfunction
+
+
+
+    typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
+    
+     typedef struct {
+        logic valid;
+        Dword tag;
+        FetchLine value;
+    } ReadResult_I;
+
+        function automatic ReadResult_I readWay_I(input InsWay way, input AccessDesc aDesc);
+            InstructionCacheBlock block = way[aDesc.blockIndex];
+    
+            if (block == null) return '{0, 'x, '{default: 'x}};
+            begin
+                logic hit0 = 1;
+                FetchLine val0 = block.readLine(aDesc.blockOffset);                    
+                if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+                return '{hit0, block.pbase, val0};
+            end
+        endfunction
+ 
 endpackage

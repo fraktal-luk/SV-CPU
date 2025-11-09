@@ -21,6 +21,7 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     DataWay blocksWay0;
     DataWay blocksWay1;
 
+    // Read interfaces
     generate
         genvar j;
         for (j = 0; j < WIDTH; j++) begin: rdInterface
@@ -39,16 +40,30 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     endgenerate
 
 
+    // Filling
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
     endfunction
-
+    
+    // Write
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         if (!wrInfo.req || wrInfo.uncached) return;
 
         void'(tryWriteWay(blocksWay0, wrInfo));
         void'(tryWriteWay(blocksWay1, wrInfo));
     endtask
+
+
+    // Init/DB
+    task automatic resetArray();
+        blocksWay0 = '{default: null};
+        blocksWay1 = '{default: null};
+    endtask
+
+    function automatic void preloadArrayForTest(); 
+        foreach (AbstractCore.globalParams.preloadedDataWays[i])
+            copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
+    endfunction
 
     // CAREFUL: this sets all data to default values
     function automatic void copyToWay(Dword pageAdr);
@@ -62,6 +77,8 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     endfunction
 
 
+
+
     always @(posedge clk) begin
         if (dataFillEngine.notifyFill) begin
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
@@ -69,16 +86,6 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
 
         doCachedWrite(writeReqs[0]);
     end
-
-    task automatic resetArray();
-        blocksWay0 = '{default: null};
-        blocksWay1 = '{default: null};
-    endtask
-
-    function automatic void preloadArrayForTest(); 
-        foreach (AbstractCore.globalParams.preloadedDataWays[i])
-            copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
-    endfunction
 
 endmodule
 
