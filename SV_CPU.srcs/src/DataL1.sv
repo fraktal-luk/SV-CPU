@@ -27,7 +27,6 @@ module DataL1(
 
     LogicA dataFillEnA, tlbFillEnA;
 
-
     UncachedSubsystem uncachedSubsystem(clk, writeReqs);
 
     DataTlb tlb(clk, theExecBlock.accessDescs_E0, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
@@ -82,11 +81,10 @@ module DataL1(
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
             Translation tr = tlb.translationsH[p];
-
             ReadResult_N selectedResult;
 
-            if (p == 0)      selectedResult = selectWayResult(dataArray.QHU[0].ar0, dataArray.QHU[0].ar1, tr);
-            else if (p == 2) selectedResult = selectWayResult(dataArray.QHU[2].ar0, dataArray.QHU[2].ar1, tr);
+            if (p == 0)      selectedResult = selectWayResult(dataArray.rdInterface[0].ar0, dataArray.rdInterface[0].ar1, tr);
+            else if (p == 2) selectedResult = selectWayResult(dataArray.rdInterface[2].ar0, dataArray.rdInterface[2].ar1, tr);
 
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
@@ -99,7 +97,6 @@ module DataL1(
             handleSingleRead(p);
         end
     endtask
-
 
 
     ////////////////////////
@@ -197,7 +194,7 @@ module DataL1(
     endtask
 
     function automatic void preloadForTest();
-        tlb.preloadTlbForTest();
+        tlb.preloadTlbForTest(AbstractCore.globalParams.preloadedDataTlbL1, AbstractCore.globalParams.preloadedDataTlbL2);
         dataArray.preloadArrayForTest();
     endfunction
 

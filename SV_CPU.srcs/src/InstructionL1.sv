@@ -21,10 +21,6 @@ module InstructionL1(
                 output InstructionCacheOutput readOut
               );
 
-    Translation TMP_tlbL1[$], TMP_tlbL2[$];
-
-    Translation translationTableL1[32]; // DB
-
     Translation translationSig = DEFAULT_TRANSLATION;
 
     Translation tr_Reg[1];
@@ -32,7 +28,6 @@ module InstructionL1(
     InstructionCacheOutput readOutCached, readOutUncached;
     
 
-        assign tr_Reg[0] = translationSig;
 
     typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
     InsWay blocksWay0;
@@ -51,12 +46,22 @@ module InstructionL1(
     typedef Mword MwordA[1];
     typedef Dword DwordA[1];
 
+
+    AccessDesc aDesc_T;
+
     LogicA blockFillEnA, tlbFillEnA;
+
+
+    DataTlb#(.WIDTH(1)) tlb(clk, '{0: aDesc_T}, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
 
     DataFillEngine#(1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
     DataFillEngine#(1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
 
+
+    always_comb aDesc_T = getAccessDesc_I(readAddress);
+    assign tr_Reg[0] = translationSig;
     assign readOut = readOutCached;
+
 
     always @(posedge clk) begin
         doCacheAccess();
@@ -64,16 +69,13 @@ module InstructionL1(
         if (blockFillEngine.notifyFill) begin
             allocInDynamicRange(blockFillEngine.notifiedTr.padr);
         end
-        if (tlbFillEngine.notifyFill) begin
-            allocInTlb(tlbFillEngine.notifiedTr.vadr);
-        end
     end
 
-    
+
     task automatic doCacheAccess();
         AccessDesc aDesc = getAccessDesc_I(readAddress);
         begin
-            Translation tr = translateAddress(aDesc, TMP_tlbL1, AbstractCore.CurrentConfig.enableMmu); // TODO: always mmu because uncached fetch has different unit?
+            Translation tr = tlb.translationsH[0];
 
             ReadResult result0 = readWay_I(blocksWay0, aDesc);
             ReadResult result1 = readWay_I(blocksWay1, aDesc);
@@ -85,11 +87,6 @@ module InstructionL1(
             ReadResult result2m = matchWay_I(result2, aDesc, tr);
             ReadResult result3m = matchWay_I(result3, aDesc, tr);
  
-            //assert (result0m === result0) else $error("diffread0\n%p\n%p", result0m, result0);
-            //assert (result1m === result1) else $error("diffread1\n%p\n%p", result1m, result1);
-            //assert (result2m === result2) else $error("diffread2\n%p\n%p", result2m, result2);
-            //assert (result3m === result3) else $error("diffread3\n%p\n%p", result3m, result3);
-
             translationSig <= tr;
 
             readOutCached <= readCache(readEn, tr, result0m, result1m, result2m, result3m);
@@ -102,7 +99,7 @@ module InstructionL1(
 
         if (block == null) return '{0, 'x, '{default: 'x}};
         begin
-            logic hit0 = 1;//(accessPbase === block.pbase);
+            logic hit0 = 1;
             FetchLine val0 = block.readLine(aDesc.blockOffset);                    
             if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
             return '{hit0, block.pbase, val0};
@@ -204,17 +201,6 @@ module InstructionL1(
     endfunction
 
 
-
-    function automatic void allocInTlb(input Mword adr);
-        Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-            
-        assert (found.size() > 0) else $error("NOt prent in TLB L2");
-        
-        translationTableL1[TMP_tlbL1.size()] = found[0];
-        TMP_tlbL1.push_back(found[0]);
-    endfunction
-
-
     // Initialization and DB
 
     function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
@@ -247,23 +233,11 @@ module InstructionL1(
     endfunction
 
 
-
     function automatic void preloadForTest();
-        TMP_tlbL1 = AbstractCore.globalParams.preloadedInsTlbL1;
-        TMP_tlbL2 = AbstractCore.globalParams.preloadedInsTlbL2;
-        DB_fillTranslations();
+        tlb.preloadTlbForTest(AbstractCore.globalParams.preloadedInsTlbL1, AbstractCore.globalParams.preloadedInsTlbL2);
         
         foreach (AbstractCore.globalParams.preloadedInsWays[i])
             copyToWay(AbstractCore.globalParams.preloadedInsWays[i]);
-    endfunction
-
-    function automatic void DB_fillTranslations();
-        int i = 0;
-        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-        foreach (TMP_tlbL1[a]) begin
-            translationTableL1[i] = TMP_tlbL1[a];
-            i++;
-        end
     endfunction
 
 
@@ -271,20 +245,16 @@ module InstructionL1(
         readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
         readOutCached <= EMPTY_INS_CACHE_OUTPUT;
 
-        TMP_tlbL1.delete();
-        TMP_tlbL2.delete();
-        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-
         blocksWay0 = '{default: null};
         blocksWay1 = '{default: null};
         blocksWay2 = '{default: null};
         blocksWay3 = '{default: null};
         
+        tlb.resetTlb();
+        
         blockFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
     endtask
-
-
 
 
     always_comb blockFillEnA = dataMakeEnables();

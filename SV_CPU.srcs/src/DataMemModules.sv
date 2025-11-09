@@ -12,7 +12,7 @@ import ExecDefs::*;
 import CacheDefs::*;
 
 
-module DataCacheArray#()
+module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
 (
     input logic clk,
     input MemWriteInfo writeReqs[2]
@@ -20,20 +20,18 @@ module DataCacheArray#()
 
     DataWay blocksWay0;
     DataWay blocksWay1;
-    
-    // N_MEM_PORTS read interfaces
+
     generate
         genvar j;
-        for (j = 0; j < N_MEM_PORTS; j++) begin: QHU
+        for (j = 0; j < WIDTH; j++) begin: rdInterface
             ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x};
-    
+
             task automatic readArray();
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
-
                 ar0 <= readWay(blocksWay0, aDesc);
                 ar1 <= readWay(blocksWay1, aDesc);
             endtask
-    
+
             always @(negedge clk) begin
                 readArray();
             end
@@ -62,7 +60,7 @@ module DataCacheArray#()
             default: $error("Incorrect page to init cache: %x", pageBase);
         endcase
     endfunction
-    
+
 
     always @(posedge clk) begin
         if (dataFillEngine.notifyFill) begin
@@ -72,19 +70,15 @@ module DataCacheArray#()
         doCachedWrite(writeReqs[0]);
     end
 
-
     task automatic resetArray();
-
         blocksWay0 = '{default: null};
         blocksWay1 = '{default: null};
-
     endtask
 
     function automatic void preloadArrayForTest(); 
         foreach (AbstractCore.globalParams.preloadedDataWays[i])
             copyToWay(AbstractCore.globalParams.preloadedDataWays[i]);
     endfunction
-
 
 endmodule
 
@@ -99,63 +93,58 @@ module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
     input Translation fillTr
 );
     
+    typedef Translation TranslationsW[WIDTH];
+    
     Translation translations_T[WIDTH];
     Translation translationsH[WIDTH] = '{default: DEFAULT_TRANSLATION};
 
+    Translation TMP_tlbL1[$];
+    Translation TMP_tlbL2[$];
 
-        Translation TMP_tlbL1[$];
-        Translation TMP_tlbL2[$];
-    
-        Translation translationTableL1[L1_SIZE]; // DB
+    Translation translationTableL1[L1_SIZE];
+
+    task automatic resetTlb();
+        TMP_tlbL1.delete();
+        TMP_tlbL2.delete();
+        DB_fillTranslations();
+    endtask
+
+    function automatic void preloadTlbForTest(input Translation tlbL1[$], input Translation tlbL2[$]);
+        TMP_tlbL1 = tlbL1;
+        TMP_tlbL2 = tlbL2;
+        DB_fillTranslations();
+    endfunction
+
+    function automatic void DB_fillTranslations();
+        int i = 0;
+        translationTableL1 = '{default: DEFAULT_TRANSLATION};
+        foreach (TMP_tlbL1[a]) begin
+            translationTableL1[i] = TMP_tlbL1[a];
+            i++;
+        end
+    endfunction
 
 
-        task automatic resetTlb();
-            TMP_tlbL1.delete();
-            TMP_tlbL2.delete();
-            DB_fillTranslations();
-        endtask
+    function automatic TranslationsW getTranslations();
+        TranslationsW res;
 
-        function automatic void preloadTlbForTest();
-            TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;  // TODO: func input?
-            TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;  // TODO: func input?
-            DB_fillTranslations();
-        endfunction
+        foreach (res[p]) begin
+            AccessDesc aDesc = ad[p];
+            res[p] = translateAddress(aDesc, TMP_tlbL1, AbstractCore.CurrentConfig.enableMmu);
+        end
+        return res;
+    endfunction
 
-        function automatic void DB_fillTranslations();
-            int i = 0;
-            translationTableL1 = '{default: DEFAULT_TRANSLATION};
-            foreach (TMP_tlbL1[a]) begin
-                translationTableL1[i] = TMP_tlbL1[a];
-                i++;
-            end
+
+    function automatic void allocInTlb(input Mword adr);
+        Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
             
-        endfunction
+        assert (found.size() > 0) else $error("Not present in TLB L2");
+        
+        translationTableL1[TMP_tlbL1.size()] = found[0];
+        TMP_tlbL1.push_back(found[0]);
+    endfunction
 
-        ////////////////////
-    
-        function automatic TranslationA getTranslations();
-            TranslationA res;
-    
-            foreach (res[p]) begin
-                AccessDesc aDesc = //ad[p];//
-                                    theExecBlock.accessDescs_E0[p];   // TODO: input
-                res[p] = translateAddress(aDesc, TMP_tlbL1, AbstractCore.CurrentConfig.enableMmu);
-            end
-            return res;
-        endfunction
-    
-    
-        function automatic void allocInTlb(input Mword adr);
-            Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-                
-            assert (found.size() > 0) else $error("Not present in TLB L2");
-            
-            translationTableL1[TMP_tlbL1.size()] = found[0];
-            TMP_tlbL1.push_back(found[0]);
-        endfunction
-
-
-    ///////////////////////////////////////////////////
 
     always_comb translations_T = getTranslations();
 
@@ -164,15 +153,11 @@ module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
         translationsH <= getTranslations();
     end
 
-
     always @(posedge clk) begin
-        if (tlbFillEngine.notifyFill) begin             // TODO input
-        //if (notify) begin             // TODO input
-            allocInTlb(tlbFillEngine.notifiedTr.vadr);  // TODO input
-            //allocInTlb(fillTr.vadr);  // TODO input
+        if (notify) begin
+            allocInTlb(fillTr.vadr);
         end
     end
-
 
 endmodule
 
@@ -317,55 +302,55 @@ module UncachedSubsystem(
     endfunction
     
     /////////////////
-        function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
-            PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
-        endfunction
-    
-        function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
-            PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
-        endfunction
-    
-        function automatic Mword readWordUncached(input Mword adr);
-            return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
-        endfunction
-    
-        function automatic Mword readByteUncached(input Mword adr);
-            return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
-        endfunction
+    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
+        PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+    endfunction
+
+    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
+        PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+    endfunction
+
+    function automatic Mword readWordUncached(input Mword adr);
+        return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
+    endfunction
+
+    function automatic Mword readByteUncached(input Mword adr);
+        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
+    endfunction
     //////////////////////
 
-        task automatic UNC_write(input MemWriteInfo wrInfo);
-            Dword padr = wrInfo.padr;
-            Mword val = wrInfo.value;
+    task automatic UNC_write(input MemWriteInfo wrInfo);
+        Dword padr = wrInfo.padr;
+        Mword val = wrInfo.value;
 
-            uncachedCounter = 15;
-            uncachedBusy <= 1;
+        uncachedCounter = 15;
+        uncachedBusy <= 1;
 
-            if (wrInfo.size == SIZE_1) writeToUncachedRangeB(padr, val);
-            if (wrInfo.size == SIZE_4) writeToUncachedRangeW(padr, val);
-        endtask
+        if (wrInfo.size == SIZE_1) writeToUncachedRangeB(padr, val);
+        if (wrInfo.size == SIZE_4) writeToUncachedRangeW(padr, val);
+    endtask
 
 
-        // uncached read pipe
-        task automatic UNC_handleUncachedData();
-            if (uncachedCounter == 0) uncachedBusy <= 0;
-            if (uncachedCounter >= 0) uncachedCounter--;
+    // uncached read pipe
+    task automatic UNC_handleUncachedData();
+        if (uncachedCounter == 0) uncachedBusy <= 0;
+        if (uncachedCounter >= 0) uncachedCounter--;
 
-            if (uncachedReads[0].ongoing) begin
-                if (--uncachedReads[0].counter == 0) begin
-                    uncachedReads[0].ongoing = 0;
-                    uncachedReads[0].ready = 1;
-                    readResult <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
-                end
+        if (uncachedReads[0].ongoing) begin
+            if (--uncachedReads[0].counter == 0) begin
+                uncachedReads[0].ongoing = 0;
+                uncachedReads[0].ready = 1;
+                readResult <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
             end
+        end
 
-            foreach (theExecBlock.accessDescs_E0[p]) begin
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-                if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
-                else if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aDesc); // request for uncached read
-                else if (aDesc.uncachedCollect) UNC_clearUncachedRead();
-            end
-        endtask
+        foreach (theExecBlock.accessDescs_E0[p]) begin
+            AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+            if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
+            else if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aDesc); // request for uncached read
+            else if (aDesc.uncachedCollect) UNC_clearUncachedRead();
+        end
+    endtask
 
 
     always @(posedge clk) begin
