@@ -415,5 +415,29 @@ package CacheDefs;
 
     typedef Translation TranslationA[N_MEM_PORTS];
 
+            function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
+                Mword adr = aDesc.vadr;
+                Translation res = DEFAULT_TRANSLATION;
+                Translation found[$];
+
+                if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
+                if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+
+                found = tq.find with (item.vadr == getPageBaseM(adr));
+
+                assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
+        
+                if (found.size() == 0) begin
+                    res.vadr = adr; // It's needed because TLB fill is based on this adr
+                    return res;
+                end
+        
+                res = found[0];
+        
+                res.vadr = adr;
+                res.padr = res.padr + (adr - getPageBaseM(adr));
+        
+                return res;
+            endfunction
 
 endpackage

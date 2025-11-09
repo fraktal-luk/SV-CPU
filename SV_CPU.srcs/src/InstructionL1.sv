@@ -42,6 +42,7 @@ module InstructionL1(
 
     typedef struct {
         logic valid;
+        Dword tag;
         FetchLine value;
     } ReadResult;
 
@@ -68,66 +69,82 @@ module InstructionL1(
         end
     end
 
+    
+    task automatic doCacheAccess();
+        AccessDesc aDesc = getAccessDesc_I(readAddress);
+        begin
+            Translation tr = translateAddress(aDesc, TMP_tlbL1, AbstractCore.CurrentConfig.enableMmu); // TODO: always mmu because uncached fetch has different unit?
 
-    // Near duplicate of DataL1?
-    function automatic Translation translate(input Mword adr);
-        Translation res = DEFAULT_TRANSLATION;
+            ReadResult result0 = readWay_I(blocksWay0, aDesc);
+            ReadResult result1 = readWay_I(blocksWay1, aDesc);
+            ReadResult result2 = readWay_I(blocksWay2, aDesc);
+            ReadResult result3 = readWay_I(blocksWay3, aDesc);
 
-        Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
+            ReadResult result0m = matchWay_I(result0, aDesc, tr);
+            ReadResult result1m = matchWay_I(result1, aDesc, tr);
+            ReadResult result2m = matchWay_I(result2, aDesc, tr);
+            ReadResult result3m = matchWay_I(result3, aDesc, tr);
+ 
+            //assert (result0m === result0) else $error("diffread0\n%p\n%p", result0m, result0);
+            //assert (result1m === result1) else $error("diffread1\n%p\n%p", result1m, result1);
+            //assert (result2m === result2) else $error("diffread2\n%p\n%p", result2m, result2);
+            //assert (result3m === result3) else $error("diffread3\n%p\n%p", result3m, result3);
 
-        if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+            translationSig <= tr;
 
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
+            readOutCached <= readCache(readEn, tr, result0m, result1m, result2m, result3m);
+        end
+    endtask
 
-        if (found.size() == 0) begin
-            res.vadr = adr; // It's needed because TLB fill is based on this adr
-            return res;
-        end 
 
-        res = found[0];
+    function automatic ReadResult readWay_I(input InsWay way, input AccessDesc aDesc);
+        InstructionCacheBlock block = way[aDesc.blockIndex];
 
-        res.vadr = adr;
-        res.padr = adr + (res.padr - getPageBaseM(adr));
+        if (block == null) return '{0, 'x, '{default: 'x}};
+        begin
+            logic hit0 = 1;//(accessPbase === block.pbase);
+            FetchLine val0 = block.readLine(aDesc.blockOffset);                    
+            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+            return '{hit0, block.pbase, val0};
+        end
+    endfunction
 
+    function automatic ReadResult matchWay_I(input ReadResult rr, input AccessDesc aDesc, input Translation tr);
+        ReadResult res = rr;
+        Dword accessPbase = getBlockBaseD(tr.padr);       
+        logic hit0 = (accessPbase === rr.tag);
+        
+        res.valid &= hit0;
         return res;
     endfunction
 
 
+        function automatic AccessDesc getAccessDesc_I(input Mword adr);
+            AccessDesc res;
+            AccessInfo aInfo = analyzeAccess(adr, SIZE_INS_LINE);
     
-    task automatic doCacheAccess();
-        AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_INS_LINE);
-        Translation tr = translate(readAddress);
+            res.active = 1;
+    
+            res.size = SIZE_INS_LINE;
+    
+            res.store = 1;//isStoreUop(uname);
+            res.sys = 0;//isLoadSysUop(uname) || isStoreSysUop(uname);
+            res.uncachedReq = 0;//(p.status == ES_UNCACHED_1) && !res.store;
+            res.uncachedCollect = 0;//(p.status == ES_UNCACHED_2) && !res.store;
+            res.uncachedStore = 0;//(p.status == ES_UNCACHED_2) && res.store;
+            
+            res.vadr = adr;
+            
+            res.blockIndex = aInfo.block;
+            res.blockOffset = aInfo.blockOffset;
+    
+            res.unaligned = aInfo.unaligned;
+            res.blockCross = aInfo.blockCross;
+            res.pageCross = aInfo.pageCross;
+        
+            return res;
+        endfunction
 
-        ReadResult result0 = readWay(blocksWay0, acc, DEFAULT_ACCESS_DESC, tr);
-        ReadResult result1 = readWay(blocksWay1, acc, DEFAULT_ACCESS_DESC, tr);
-        ReadResult result2 = readWay(blocksWay2, acc, DEFAULT_ACCESS_DESC, tr);
-        ReadResult result3 = readWay(blocksWay3, acc, DEFAULT_ACCESS_DESC, tr);
-
-        translationSig <= tr;
-
-        readOutCached <= readCache(readEn, tr, result0, result1, result2, result3);
-    endtask
-
-
-    // TODO: use aDesc, get rid of aInfo 
-    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input AccessDesc aDesc, input Translation tr);
-        InstructionCacheBlock block = way[aInfo.block];
-        Dword accessPbase = getBlockBaseD(tr.padr);
-
-        if (block == null) return '{0, '{default: 'x}};
-
-        begin
-            logic hit0 = (accessPbase === block.pbase);
-            FetchLine val0 = block.readLine(aInfo.blockOffset);                    
-
-            if (aInfo.blockCross) begin
-                $error("Read crossing block at %x", aInfo.adr);
-            end
-
-            return '{hit0, val0};
-        end
-    endfunction
 
     function automatic ReadResult selectWay(input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
         if (res0.valid === 1) return res0; 
@@ -199,7 +216,7 @@ module InstructionL1(
 
 
     // Initialization and DB
-    
+
     function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
         Dword basePadr = baseVadr;
 
@@ -228,6 +245,8 @@ module InstructionL1(
             default: $error("Incorrect page to init cache: %x", pageBase);
         endcase
     endfunction
+
+
 
     function automatic void preloadForTest();
         TMP_tlbL1 = AbstractCore.globalParams.preloadedInsTlbL1;
@@ -264,6 +283,7 @@ module InstructionL1(
         blockFillEngine.resetBlockFills();
         tlbFillEngine.resetBlockFills();
     endtask
+
 
 
 
@@ -326,4 +346,17 @@ module InstructionUncached(
 
 endmodule
 
+
+module InstructionTlb(
+    input logic clk
+);
+
+endmodule
+
+
+module InstructionCacheArray(
+    input logic clk
+);
+
+endmodule
 

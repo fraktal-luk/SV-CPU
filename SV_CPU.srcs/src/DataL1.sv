@@ -30,7 +30,7 @@ module DataL1(
 
     UncachedSubsystem uncachedSubsystem(clk, writeReqs);
 
-    DataTlb tlb(clk);
+    DataTlb tlb(clk, theExecBlock.accessDescs_E0, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
     DataCacheArray dataArray(clk, writeReqs);
 
     DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);

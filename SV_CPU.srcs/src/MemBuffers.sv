@@ -448,7 +448,7 @@ module TmpSubLq();
                int index = findIndex(packet.TMP_oid);
                if (packet.status == ES_REFETCH) StoreQueue.content[index].refetch = 1;
                else if (packet.status == ES_ILLEGAL) StoreQueue.content[index].error = 1;
-               else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;           
+               else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;  // CAREFUL: this is critical because needed to find order violations
             end
         end
 

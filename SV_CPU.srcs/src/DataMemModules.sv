@@ -92,13 +92,15 @@ endmodule
 /******************************************************************/
 module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
 (
-    input logic clk
-    //input logic enable[WIDTH],
-    //Translation translations[WIDTH]
+    input logic clk,
+    input AccessDesc ad[WIDTH],
+    
+    input logic notify,
+    input Translation fillTr
 );
     
-    Translation translations_T[N_MEM_PORTS];
-    Translation translationsH[N_MEM_PORTS] = '{default: DEFAULT_TRANSLATION};
+    Translation translations_T[WIDTH];
+    Translation translationsH[WIDTH] = '{default: DEFAULT_TRANSLATION};
 
 
         Translation TMP_tlbL1[$];
@@ -112,13 +114,13 @@ module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
             TMP_tlbL2.delete();
             DB_fillTranslations();
         endtask
-    
+
         function automatic void preloadTlbForTest();
-            TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;
-            TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;
+            TMP_tlbL1 = AbstractCore.globalParams.preloadedDataTlbL1;  // TODO: func input?
+            TMP_tlbL2 = AbstractCore.globalParams.preloadedDataTlbL2;  // TODO: func input?
             DB_fillTranslations();
         endfunction
-    
+
         function automatic void DB_fillTranslations();
             int i = 0;
             translationTableL1 = '{default: DEFAULT_TRANSLATION};
@@ -126,41 +128,18 @@ module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
                 translationTableL1[i] = TMP_tlbL1[a];
                 i++;
             end
+            
         endfunction
 
         ////////////////////
-        // translation
-        
-        function automatic Translation translateAddress(input Mword adr);    
-            Translation res = DEFAULT_TRANSLATION;
-            Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
-    
-            if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-            if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
-    
-            assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
-    
-            if (found.size() == 0) begin
-                res.vadr = adr; // It's needed because TLB fill is based on this adr
-                return res;
-            end
-    
-            res = found[0];
-    
-            res.vadr = adr;
-            res.padr = res.padr + (adr - getPageBaseM(adr));
-    
-            return res;
-        endfunction
-    
     
         function automatic TranslationA getTranslations();
-            TranslationA res = '{default: DEFAULT_TRANSLATION};
+            TranslationA res;
     
             foreach (res[p]) begin
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-                if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
-                res[p] = translateAddress(aDesc.vadr);
+                AccessDesc aDesc = //ad[p];//
+                                    theExecBlock.accessDescs_E0[p];   // TODO: input
+                res[p] = translateAddress(aDesc, TMP_tlbL1, AbstractCore.CurrentConfig.enableMmu);
             end
             return res;
         endfunction
@@ -187,8 +166,10 @@ module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
 
 
     always @(posedge clk) begin
-        if (tlbFillEngine.notifyFill) begin
-            allocInTlb(tlbFillEngine.notifiedTr.vadr);
+        if (tlbFillEngine.notifyFill) begin             // TODO input
+        //if (notify) begin             // TODO input
+            allocInTlb(tlbFillEngine.notifiedTr.vadr);  // TODO input
+            //allocInTlb(fillTr.vadr);  // TODO input
         end
     end
 
