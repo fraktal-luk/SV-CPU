@@ -35,6 +35,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     logic FETCH_UNC;
 
+    assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
+
+
+
     logic fetchAllow;
 
     logic fetchEnable;
@@ -49,117 +53,256 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize);
 
 
-    InstructionCacheOutput cacheOut;
-    
-    FrontStage stage_IP = DEFAULT_FRONT_STAGE,
-               stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE, stageFetch2 = DEFAULT_FRONT_STAGE, stageFetch2_U = DEFAULT_FRONT_STAGE;
+    FrontStage stageIpSig, stageUncIpSig;
 
     Mword expectedTargetF2 = 'x, expectedTargetF2_U = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
     
-        localparam int UFQ_SIZE = 80;
-        FetchStage uncachedFetchQueue[$:UFQ_SIZE];
-    int fqSize = 0,
-        ufqSize = 0;
+    localparam int UFQ_SIZE = 80;
+    FetchStage uncachedFetchQueue[$:UFQ_SIZE];
+
+    int fqSize = 0, ufqSize = 0;
 
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
-    logic frontRed, frontRedCa, frontRedOnMiss, groupMismatchF2;
 
-    InstructionL1 instructionCache(clk, stage_IP.active, fetchLineBase(stage_IP.vadr), cacheOut);
+    FrontStage stageFetch2 = DEFAULT_FRONT_STAGE, stageFetch2_U = DEFAULT_FRONT_STAGE;
+    FrontStage stageFetch1sig, stageFetchUncLast;
+
+ 
+        // UNC
+        logic frontRedUnc;
+        assign frontRedUnc = stageFetch2_U.active && stageFetch2_U.arr[0].takenBranch;
+
+        // CACHED
+        logic frontRedCa, frontRedOnMiss, groupMismatchF2;
+        assign groupMismatchF2 = (fetchLineBase(stageFetch1sig.arr[0].adr) !== fetchLineBase(expectedTargetF2));
+        assign frontRedCa = stageFetch1sig.active && groupMismatchF2;
+        assign frontRedOnMiss = (stageFetch1sig.active && stageFetch1sig.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
+            // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
+
+        // GENERAL
+        assign fetchEnable = FETCH_UNC ? stageUncIpSig.active : stageIpSig.active;
+        assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUncIpSig.vadr) : fetchLineBase(stageIpSig.vadr);
+
+
+    /////////////////////////////////////
+    // CACHED
+
+    generate
+        InstructionCacheOutput cacheOut;
+        InstructionL1 instructionCache(clk, stageIpSig.active, fetchLineBase(stageIpSig.vadr), cacheOut);
+
+        FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE;
+    
+        assign stageIpSig = stage_IP;
+        assign stageFetch1sig = stageFetch1;
+        
+        
+        always @(posedge AbstractCore.clk) begin
+            assert (!stage_IP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
+            runCached();
+        end
+    
+        task automatic runCached();
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+                flushFrontendBeforeF2();
+                stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC, FETCH_SINGLE);
+            end
+            else if (frontRedCa || frontRedOnMiss) begin
+                flushFrontendBeforeF2();
+                stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC && !frontRedOnMiss, FETCH_SINGLE);
+            end
+            else begin
+                fetchNormalCached();
+            end
+    
+            if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
+                if (!FETCH_UNC) stage_IP.active <= 1; // Resume fetching after miss
+            end
+        endtask
+    
+        task automatic fetchNormalCached();
+            Mword nextTrg = FETCH_SINGLE ? stage_IP.vadr + 4 : fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
+    
+            if (fetchAllow && stage_IP.active) begin
+                stage_IP <= makeStage_IP(nextTrg, stage_IP.active, FETCH_SINGLE);
+                stageFetch0 <= stage_IP;
+            end
+            else
+                stageFetch0 <= DEFAULT_FRONT_STAGE;
+    
+            stageFetch1 <= setCacheResponse(stageFetch0, cacheOut);
+        endtask
+    
+    
+        task automatic flushFrontendBeforeF2();
+            markKilledFrontStage(stage_IP.arr);
+            markKilledFrontStage(stageFetch0.arr);
+            markKilledFrontStage(stageFetch1.arr);
+           
+            stage_IP <= DEFAULT_FRONT_STAGE;
+            stageFetch0 <= DEFAULT_FRONT_STAGE;
+            stageFetch1 <= DEFAULT_FRONT_STAGE;
+        endtask    
+    
+        // ONE USE
+        function automatic FetchStage setWords(input logic active, input CacheReadStatus status, input FetchStage s, input InstructionCacheOutput cacheOut);
+            FetchStage res = s;
+    
+            if (!active || status != CR_HIT) return res;
+    
+            foreach (res[i]) begin
+                Word realBits = cacheOut.words[i];
+    
+                if (res[i].active) begin
+                    Translation tr = AbstractCore.retiredEmul.translateProgramAddress(res[i].adr);
+                    Word bits = AbstractCore.programMem.fetch(tr.padr);
+    
+                    assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
+                end
+                
+                res[i].bits = realBits;
+            end
+            return res;
+        endfunction
+    
+    
+        function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);        
+            // TODO: set padr
+            return '{stage.active, cachedOut.status, stage.vadr, 'x, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
+        endfunction
+    
+    endgenerate
+
+
+
+
+
+    ////////////////////////////////////
+    // UNC
+
+    generate
+        InstructionCacheOutput uncachedOut;
+        InstructionUncached instructionUncached(clk, stageUncIpSig.active, stageUncIpSig.vadr, uncachedOut);
+
+    
+        FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
+                   stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
+                   stageFetchUnc2 = DEFAULT_FRONT_STAGE, stageFetchUnc3 = DEFAULT_FRONT_STAGE, stageFetchUnc4 = DEFAULT_FRONT_STAGE;
+        
+        assign stageUncIpSig = stageUnc_IP;
+        assign stageFetchUncLast = stageFetchUnc4;
+
+
+        always @(posedge AbstractCore.clk) begin
+            runUncached();
+        end
+
+        task automatic runUncached();
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+                flushUncachedPipe();
+                stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), FETCH_UNC, stageUnc_IP.vadr, 0);
+            end
+            else if (frontRedUnc) begin
+                flushUncachedPipe();
+                stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, FETCH_UNC, stageUnc_IP.vadr, 1);
+            end
+            else begin
+                fetchNormalUncached();
+            end
+            
+            // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
+            if (FETCH_UNC && !stageUnc_IP.active && AbstractCore.theRob.isEmpty && stageEmptyAB(AbstractCore.stageRename1) && !AbstractCore.lateEventInfoWaiting.active
+                && stageEmptyAF(stageRename0) && ufqSize == 0 && fqSize == 0
+                && !stageFetch2_U.active
+                && !stageFetchUnc4.active
+                && !stageFetchUnc3.active
+                && !stageFetchUnc2.active
+                && !stageFetchUnc1.active
+                && !stageFetchUnc0.active
+            ) begin
+                stageUnc_IP.active <= 1; // Resume fetching after miss
+            end
+        endtask
+
+        task automatic fetchNormalUncached();
+            if (stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: slack number matched with memory fetch delay 
+                stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
+                stageFetchUnc0 <= stageUnc_IP;
+            end
+            else
+                stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
+
+            stageFetchUnc1 <= setUncachedResponse(stageFetchUnc0, uncachedOut);
+            stageFetchUnc2 <= stageFetchUnc1;
+            stageFetchUnc3 <= stageFetchUnc2;
+            stageFetchUnc4 <= stageFetchUnc3;
+        endtask
+
+        task automatic flushUncachedPipe();
+            markKilledFrontStage(stageUnc_IP.arr);
+            markKilledFrontStage(stageFetchUnc0.arr);
+            markKilledFrontStage(stageFetchUnc1.arr);
+            markKilledFrontStage(stageFetchUnc2.arr);
+            markKilledFrontStage(stageFetchUnc3.arr);
+            markKilledFrontStage(stageFetchUnc4.arr);
+            
+            stageUnc_IP <= DEFAULT_FRONT_STAGE;
+            stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
+            stageFetchUnc1 <= DEFAULT_FRONT_STAGE;
+            stageFetchUnc2 <= DEFAULT_FRONT_STAGE;
+            stageFetchUnc3 <= DEFAULT_FRONT_STAGE;
+            stageFetchUnc4 <= DEFAULT_FRONT_STAGE;
+        endtask
+
+
+        // ONE USE
+        function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
+            FetchStage res = EMPTY_STAGE;
+            if (!s[0].active) return EMPTY_STAGE; 
+
+            if (uncachedOut.status == CR_HIT) begin
+                Word bits = AbstractCore.programMem.fetch(s[0].adr);
+                assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
+            end
+            res[0] = s[0];
+            res[0].bits = uncachedOut.words[0];
+            
+            return res;
+        endfunction
+
+        function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);            
+            return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
+        endfunction
+
+        function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
+            FrontStage res = DEFAULT_FRONT_STAGE;
+
+            logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
+
+            res.active = on && !(guardPageCross && pageCross);
+            res.status = CR_HIT;
+            res.vadr = target;
+            res.padr = target;
+
+            res.arr[0] = '{1, -1, target, 'x, 0, 'x};
+            
+            return res;
+        endfunction
+    
+    endgenerate
     
 
-    assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
+   //////////////////////////
+   ////////////////////////////////
 
 
-
-    ///////////////
-    // UNCACHED
-
-    InstructionCacheOutput uncachedOut;
-    logic frontRedUnc;
-
-    FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE,
-               stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE,
-               stageFetchUnc2 = DEFAULT_FRONT_STAGE, stageFetchUnc3 = DEFAULT_FRONT_STAGE, stageFetchUnc4 = DEFAULT_FRONT_STAGE;
-
-    InstructionUncached instructionUncached(clk, stageUnc_IP.active, stageUnc_IP.vadr, uncachedOut);
-
-
-    assign frontRedUnc = stageFetch2_U.active && stageFetch2_U.arr[0].takenBranch;
-
-           // assign chk = stageFetch2_U.active ^ stageFetch2.active;
-           //  assign chk_2 =       shiftTo0(stageFetch2) === stageFetch2_U;
-
-
-    always @(posedge AbstractCore.clk) begin
-        runUncached();
-    end
-
-    //////////
-
-
-    assign frontRed = FETCH_UNC ? frontRedUnc : frontRedCa;
-
-    assign groupMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
-    assign frontRedCa = stageFetch1.active && groupMismatchF2;
-    assign frontRedOnMiss = (stageFetch1.active && stageFetch1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
-        // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
-
-       //assign chk = 0;
-       //assign chk_2 = stageFetch1.active;
-       //assign chk_3 = chk ^ chk_2;
-      // assign chk_4 = ;(anyActiveFetch(fetchStageSelected1, 'z) === stageFetch1.active);
-
-
-    always @(posedge AbstractCore.clk) begin
-        assert (!stage_IP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
-        
-        runCached();
-    end
 
 
     always @(posedge AbstractCore.clk) begin
         runDownstream();
     end
-
-
-    assign fetchEnable = FETCH_UNC ? stageUnc_IP.active : stage_IP.active;
-    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUnc_IP.vadr) : fetchLineBase(stage_IP.vadr);
-
-
-    task automatic runCached();
-        if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-            flushFrontendBeforeF2();
-            stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC, FETCH_SINGLE);
-        end
-        else if (frontRedCa || frontRedOnMiss) begin
-            flushFrontendBeforeF2();
-            stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC && !frontRedOnMiss, FETCH_SINGLE);
-        end
-        else begin
-            fetchNormalCached();
-        end
-
-        if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
-            if (!FETCH_UNC) stage_IP.active <= 1; // Resume fetching after miss
-        end
-    endtask
-
-
-    task automatic fetchNormalCached();
-        Mword nextTrg = FETCH_SINGLE ? stage_IP.vadr + 4 : fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
-
-        if (fetchAllow && stage_IP.active) begin
-            stage_IP <= makeStage_IP(nextTrg, stage_IP.active, FETCH_SINGLE);
-            stageFetch0 <= stage_IP;
-        end
-        else
-            stageFetch0 <= DEFAULT_FRONT_STAGE;
-
-        stageFetch1 <= setCacheResponse(stageFetch0, cacheOut);
-    endtask
-
 
 
     task automatic runDownstream();
@@ -199,10 +342,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             return;
         end
 
-        stageFetch2_U <= getFrontStageF2_U(stageFetchUnc4);
+        stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
 
-        if (stageFetchUnc4.active)
-            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUnc4);
+        if (stageFetchUncLast.active)
+            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
         else
            expectedTargetF2_U <= 'x;
     endtask
@@ -257,43 +400,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
 
-
-    task automatic flushFrontendBeforeF2();
-        markKilledFrontStage(stage_IP.arr);
-        markKilledFrontStage(stageFetch0.arr);
-        markKilledFrontStage(stageFetch1.arr);
-       
-        stage_IP <= DEFAULT_FRONT_STAGE;
-        stageFetch0 <= DEFAULT_FRONT_STAGE;
-        stageFetch1 <= DEFAULT_FRONT_STAGE;
-    endtask    
-
-    // ONE USE
-    function automatic FetchStage setWords(input logic active, input CacheReadStatus status, input FetchStage s, input InstructionCacheOutput cacheOut);
-        FetchStage res = s;
-
-        if (!active || status != CR_HIT) return res;
-
-        foreach (res[i]) begin
-            Word realBits = cacheOut.words[i];
-
-            if (res[i].active) begin
-                Translation tr = AbstractCore.retiredEmul.translateProgramAddress(res[i].adr);
-                Word bits = AbstractCore.programMem.fetch(tr.padr);
-
-                assert (realBits === bits) else $fatal(2, "Bits fetched at %d not same: %p, %p", res[i].adr, realBits, bits);
-            end
-            
-            res[i].bits = realBits;
-        end
-        return res;
-    endfunction
-
-
-    function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);        
-        // TODO: set padr
-        return '{stage.active, cachedOut.status, stage.vadr, 'x, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
-    endfunction
 
 
 
@@ -407,133 +513,37 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-   //////////////////////////
-   //////////////////////////
-   
-        function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
-            FetchStage arrayF2 = fs.arr;
-            
-            int brSlot = scanBranches(arrayF2);
-                        
-            // Set prediction info
-            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
-    
-            return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
-        endfunction
 
-        function automatic Mword getNextTargetF2_U(input FrontStage fs);
-            FetchStage res = fs.arr;
-            Mword adr = res[0].adr + 4;
-    
-            if (res[0].active) begin
-                AbstractInstruction ins = decodeAbstract(res[0].bits);
-                
-                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                    if (isBranchAlwaysIns(ins)) begin
-                        adr = res[0].adr + Mword'(ins.sources[1]);
-                    end
+    function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
+        FetchStage arrayF2 = fs.arr;
+        
+        int brSlot = scanBranches(arrayF2);
+                    
+        // Set prediction info
+        if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+
+        return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
+    endfunction
+
+    function automatic Mword getNextTargetF2_U(input FrontStage fs);
+        FetchStage res = fs.arr;
+        Mword adr = res[0].adr + 4;
+
+        if (res[0].active) begin
+            AbstractInstruction ins = decodeAbstract(res[0].bits);
+            
+            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                if (isBranchAlwaysIns(ins)) begin
+                    adr = res[0].adr + Mword'(ins.sources[1]);
                 end
             end
-    
-            return adr;
-        endfunction
+        end
 
+        return adr;
+    endfunction
 
-        task automatic runUncached();
-            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-                flushUncachedPipe();
-                stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), FETCH_UNC, stageUnc_IP.vadr, 0);
-            end
-            else if (frontRedUnc) begin
-                flushUncachedPipe();
-                stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, FETCH_UNC, stageUnc_IP.vadr, 1);
-            end
-            else begin
-                fetchNormalUncached();
-            end
-            
-            // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
-            if (FETCH_UNC && !stageUnc_IP.active && AbstractCore.theRob.isEmpty && stageEmptyAB(AbstractCore.stageRename1) && !AbstractCore.lateEventInfoWaiting.active
-                && stageEmptyAF(stageRename0) && ufqSize == 0 && fqSize == 0
-                && !stageFetch2_U.active
-                && !stageFetchUnc4.active
-                && !stageFetchUnc3.active
-                && !stageFetchUnc2.active
-                && !stageFetchUnc1.active
-                && !stageFetchUnc0.active
-            ) begin
-                stageUnc_IP.active <= 1; // Resume fetching after miss
-            end
-        endtask
+///////////////////////////////
 
-        task automatic fetchNormalUncached();
-            if (stageUnc_IP.active && ufqSize < UFQ_SIZE - 50) begin // TODO: slack number matched with memory fetch delay 
-                stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
-                stageFetchUnc0 <= stageUnc_IP;
-            end
-            else
-                stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
-
-            stageFetchUnc1 <= setUncachedResponse(stageFetchUnc0, uncachedOut);
-            stageFetchUnc2 <= stageFetchUnc1;
-            stageFetchUnc3 <= stageFetchUnc2;
-            stageFetchUnc4 <= stageFetchUnc3;
-        endtask
-
-        task automatic flushUncachedPipe();
-            markKilledFrontStage(stageUnc_IP.arr);
-            markKilledFrontStage(stageFetchUnc0.arr);
-            markKilledFrontStage(stageFetchUnc1.arr);
-            markKilledFrontStage(stageFetchUnc2.arr);
-            markKilledFrontStage(stageFetchUnc3.arr);
-            markKilledFrontStage(stageFetchUnc4.arr);
-            
-            stageUnc_IP <= DEFAULT_FRONT_STAGE;
-            stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
-            stageFetchUnc1 <= DEFAULT_FRONT_STAGE;
-            stageFetchUnc2 <= DEFAULT_FRONT_STAGE;
-            stageFetchUnc3 <= DEFAULT_FRONT_STAGE;
-            stageFetchUnc4 <= DEFAULT_FRONT_STAGE;
-        endtask
-
-
-        // ONE USE
-        function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
-            FetchStage res = EMPTY_STAGE;
-            if (!s[0].active) return EMPTY_STAGE; 
-
-            if (uncachedOut.status == CR_HIT) begin
-                Word bits = AbstractCore.programMem.fetch(s[0].adr);
-                assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
-            end
-            res[0] = s[0];
-            res[0].bits = uncachedOut.words[0];
-            
-            return res;
-        endfunction
-
-        function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);            
-            return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
-        endfunction
-
-        function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
-            FrontStage res = DEFAULT_FRONT_STAGE;
-
-            logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
-
-            res.active = on && !(guardPageCross && pageCross);
-            res.status = CR_HIT;
-            res.vadr = target;
-            res.padr = target;
-
-            res.arr[0] = '{1, -1, target, 'x, 0, 'x};
-            
-            return res;
-        endfunction
-
-
-   //////////////////////////
-   //////////////////////////
 
     // FUTURE: split along with split between FETCH_WIDTH and RENAME_WIDTH
     task automatic markKilledFrontStage(ref FetchStage stage);
