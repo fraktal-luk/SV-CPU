@@ -20,9 +20,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
-
-    localparam int MAX_STAGE_UNCACHED = 4;
-
+    localparam int MAX_STAGE_UNCACHED = 4 + 12;
 
 
     typedef struct {
@@ -43,33 +41,28 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
 
 
+    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
+    localparam int FQ_SLACK = 3;
+
+    // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
+    localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 1;
+
+    localparam int UFQ_SIZE = UFQ_SLACK + 20;
+
+
 
     logic fetchAllowCa;
 
     logic fetchEnable;
     Mword fetchAdr;
 
-    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
-    localparam int FQ_SLACK = 3;
-
-
-//    // Helper (inline it?)
-//    function logic fetchQueueAccepts(input int k);
-//        // TODO: careful about numbers accounting for pipe lengths! 
-//        return k < FETCH_QUEUE_SIZE - FQ_SLACK; // stages between IP stage and FQ?
-//    endfunction
-    
-
-
     FrontStage stageIpSig, stageUncIpSig;
 
     Mword expectedTargetF2 = 'x, expectedTargetF2_U = 'x;
     FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
     
-    // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
-    localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 1;
+
     
-    localparam int UFQ_SIZE = UFQ_SLACK + 20;
     FetchStage uncachedFetchQueue[$:UFQ_SIZE];
 
     int fqSize = 0, ufqSize = 0;
@@ -200,28 +193,15 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         InstructionCacheOutput uncachedOut;
         InstructionUncached instructionUncached(clk, stageUncIpSig.active, stageUncIpSig.vadr, uncachedOut);
 
-    
-        FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE;
-        
-        
-        FrontStage stageFetchUnc0 = DEFAULT_FRONT_STAGE,
-                   stageFetchUnc1 = DEFAULT_FRONT_STAGE;//, stageFetchUnc2 = DEFAULT_FRONT_STAGE, stageFetchUnc3 = DEFAULT_FRONT_STAGE, stageFetchUnc4 = DEFAULT_FRONT_STAGE;
+        FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE, stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE;
         FrontStage stageFetchUncArr[2:MAX_STAGE_UNCACHED] = '{default: DEFAULT_FRONT_STAGE};
 
         assign stageUncIpSig = stageUnc_IP;
         assign stageFetchUncLast = stageFetchUncArr[MAX_STAGE_UNCACHED];
 
-
         always @(posedge AbstractCore.clk) begin
-        
-               // assert (stageFetchUncArr[2] === stageFetchUnc2) else $error("2 nt");
-              //  assert (stageFetchUncArr[4] === stageFetchUnc4) else $error("4 nt");
-        
             runUncached();
         end
-
-
-
 
 
         task automatic runUncached();
@@ -241,7 +221,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (FETCH_UNC
                     && stageEmptyAF(stageRename0)
                     && fqSize == 0
-                    
                     && AbstractCore.pipesEmpty()
                     && frontUncachedEmpty()
             ) begin
@@ -258,11 +237,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
 
             stageFetchUnc1 <= setUncachedResponse(stageFetchUnc0, uncachedOut);
-//                stageFetchUnc2 <= stageFetchUnc1;
-//                stageFetchUnc3 <= stageFetchUnc2;
-//                stageFetchUnc4 <= stageFetchUnc3;
-            
-            stageFetchUncArr[2] <= stageFetchUnc1; 
+            stageFetchUncArr[2] <= stageFetchUnc1;
             stageFetchUncArr[3:MAX_STAGE_UNCACHED] <= stageFetchUncArr[2:MAX_STAGE_UNCACHED-1];
             
         endtask
@@ -271,17 +246,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             markKilledFrontStage(stageUnc_IP.arr);
             markKilledFrontStage(stageFetchUnc0.arr);
             markKilledFrontStage(stageFetchUnc1.arr);
-//                markKilledFrontStage(stageFetchUnc2.arr);
-//                markKilledFrontStage(stageFetchUnc3.arr);
-//                markKilledFrontStage(stageFetchUnc4.arr);
             
             stageUnc_IP <= DEFAULT_FRONT_STAGE;
             stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
             stageFetchUnc1 <= DEFAULT_FRONT_STAGE;
-//                stageFetchUnc2 <= DEFAULT_FRONT_STAGE;
-//                stageFetchUnc3 <= DEFAULT_FRONT_STAGE;
-//                stageFetchUnc4 <= DEFAULT_FRONT_STAGE;
-            
+
             foreach (stageFetchUncArr[i]) markKilledFrontStage(stageFetchUncArr[i].arr);
             stageFetchUncArr <= '{default: DEFAULT_FRONT_STAGE};
         endtask
@@ -331,12 +300,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 return
                     ufqSize == 0
                 && !stageFetch2_U.active
-                
-                   // && !stageFetchUnc4.active
-                   // && !stageFetchUnc3.active
-                   // && !stageFetchUnc2.active
-                //&& !stageFetchUnc1.active
-                //&& !stageFetchUnc0.active
                 && !stageUnc_IP.active;
             endfunction
     endgenerate
@@ -344,8 +307,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
    //////////////////////////
    ////////////////////////////////
-
-
 
 
     always @(posedge AbstractCore.clk) begin
@@ -440,8 +401,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             markKilledFrontStage(uncachedFetchQueue[i]);
 
         uncachedFetchQueue.delete();
-        // 
-
 
         markKilledFrontStage(stageRename0);
 
