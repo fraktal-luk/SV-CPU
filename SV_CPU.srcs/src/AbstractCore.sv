@@ -785,4 +785,10 @@ module AbstractCore
             CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
         endfunction
 
+
+        
+        function automatic logic pipesEmpty();
+            return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
+        endfunction
+
 endmodule
