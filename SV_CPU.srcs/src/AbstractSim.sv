@@ -30,6 +30,8 @@ package AbstractSim;
     
     localparam int DISPATCH_WIDTH = RENAME_WIDTH;
 
+    localparam int N_RENAME_STAGES = 2; // Number of stages between FQ and OOO buffers
+
     // General uarch defs
     localparam int N_INT_PORTS = 6;
     localparam int N_MEM_PORTS = 4;

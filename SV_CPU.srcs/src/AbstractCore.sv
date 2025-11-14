@@ -517,7 +517,7 @@ module AbstractCore
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
-        
+ 
         // TODO: incorporate arith exc into ROB output to bring back this check?
           //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
           //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);

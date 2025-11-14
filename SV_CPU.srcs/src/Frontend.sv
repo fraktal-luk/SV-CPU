@@ -139,7 +139,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             else
                 stageFetch0 <= DEFAULT_FRONT_STAGE;
     
-            stageFetch1 <= setCacheResponse(stageFetch0, cacheOut);
+            stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
         endtask
     
     
@@ -175,9 +175,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endfunction
     
     
-        function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut);        
-            // TODO: set padr
-            return '{stage.active, cachedOut.status, stage.vadr, 'x, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
+        function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cachedOut, input Mword padr);        
+            return '{stage.active, cachedOut.status, stage.vadr, padr, setWords(stage.active, cachedOut.status, stage.arr, cachedOut)};
         endfunction
     
     endgenerate

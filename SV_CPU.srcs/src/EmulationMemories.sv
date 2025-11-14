@@ -76,8 +76,6 @@ package EmulationMemories;
     endclass
 
 
-    // TODO: introduce page based control? - existing and non-existing pages
-    //       However, pages are managed by MMU, not physical memory
     class SparseDataMemory;
         
         class RW#(type Elem = Mbyte, int ESIZE = 1);
