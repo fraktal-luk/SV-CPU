@@ -20,9 +20,9 @@ package AbstractSim;
 
     localparam int ROB_SIZE = 128;
     localparam int ROB_WIDTH = 4;
-    
-    localparam int LQ_SIZE = 80;
-    localparam int SQ_SIZE = 80;
+
+    localparam int LQ_SIZE = 40;
+    localparam int SQ_SIZE = 40;
     localparam int BQ_SIZE = 32;
 
     localparam int FETCH_WIDTH = 4;
@@ -37,9 +37,6 @@ package AbstractSim;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
 
-
-    //localparam logic IN_ORDER = 0;
-
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
 
@@ -48,8 +45,6 @@ package AbstractSim;
     // Core structures
 
     typedef int InsId;  // Implem detail
-    typedef InsId IdQueue[$]; // Implem detail
-
 
     typedef struct {
         int m;
@@ -722,5 +717,11 @@ package AbstractSim;
         
         return ins;
     endfunction
+
+            function automatic InsId replaceEvId(input InsId prev, input InsId next);
+                if (prev == -1) return next;
+                else if (next != -1 && prev > next) return next;
+                else return prev;
+            endfunction
 
 endpackage

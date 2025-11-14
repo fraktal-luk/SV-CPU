@@ -791,4 +791,9 @@ module AbstractCore
             return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
         endfunction
 
+            function automatic logic hasStaticEvent(InsId id);
+                AbstractInstruction abs = insMap.get(id).basicData.dec;
+                return isStaticEventIns(abs);
+            endfunction
+
 endmodule
