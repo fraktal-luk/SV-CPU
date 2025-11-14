@@ -15,7 +15,7 @@ import CacheDefs::*;
 
 import Queues::*;
 
-module SystemRegisterUnit();
+module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input MemWriteInfo writeReqs[1]);
 
     Mword sysRegs[32];
 
@@ -25,6 +25,21 @@ module SystemRegisterUnit();
     endtask
 
 
+    task automatic handleWrite();
+        if (writeReqs[0].req) setSysReg(writeReqs[0].adr, writeReqs[0].value);
+    endtask
+
+    task automatic handleReads();
+        foreach (readOuts[p])
+            readOuts[p] <= getSysReadResponse(theExecBlock.accessDescs_E0[p]);
+    endtask
+
+
+    function automatic Mword getReg(input Mword adr);
+        assert (isValidSysReg(adr)) else $fatal("Reading incorrect sys reg: adr = %d", adr);
+        return sysRegs[adr];
+    endfunction
+    
 
     function automatic void setSysReg(input Mword adr, input Mword val);
         assert (isValidSysReg(adr)) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
@@ -62,6 +77,13 @@ module SystemRegisterUnit();
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
             end
+            CO_fetchError: begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[2] = adr;// + 4;
+                
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                sysRegs[1] &= ~('h00100000); // clear dbstep
+            end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;// + 4;
@@ -92,7 +114,7 @@ module SystemRegisterUnit();
             
             CO_refetch, CO_sync, CO_send: ;
             
-            default: $error("Incorrent control op %p", cOp);
+            default: $error("Incorrect control op %p", cOp);
         endcase
     endfunction
     

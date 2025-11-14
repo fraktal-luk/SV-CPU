@@ -22,7 +22,7 @@ module RegularSubpipe(
 
     assign stage0_E = pE0_E;
 
-    assign p0 = opP;
+    always_comb p0 = opP;
 
     always @(posedge AbstractCore.clk) begin
         p1 <= tickP(p0);
@@ -145,6 +145,8 @@ module FloatSubpipe(
         
         if (decUname(p.TMP_oid) == UOP_fp_inv) res.status = ES_FP_INVALID;
         else if (decUname(p.TMP_oid) == UOP_fp_ov) res.status = ES_FP_OVERFLOW;
+        
+        if (res.status inside {ES_FP_INVALID, ES_FP_OVERFLOW} && AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(p.TMP_oid), PE_ARITH_EXCEPTION);
         
         return res;
     endfunction
@@ -315,8 +317,7 @@ module DividerSubpipe#(
 
     assign opSelected = IS_FP ? theIssueQueues.fdivQueue.anySelected && theIssueQueues.fdivQueue.allow : theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow;
 
-    // TODO: exclude outputStages from this because they don't need to be empty when mainStage gets another op
-    assign empty = !(p0.active || p1.active || mainStage.active       || outputStage0.active || outputStage1.active || outputStage2.active
+    assign empty = !(p0.active || p1.active || mainStage.active //      || outputStage0.active || outputStage1.active || outputStage2.active
                     );
 
     // allow signal for divider IQ

@@ -55,42 +55,10 @@ package Emulation;
     endfunction
 
 
-        function automatic void setRegsFromStatus(ref Mword sysRegs[32], CoreStatus status);
-            // Status
-            //coreState.sysRegs[1] = ;
-            
-            // Exc saved IP
-            //coreState.sysRegs[2] = ;
-            
-            // Exc saved status
-            //coreState.sysRegs[3] = ;
-            
-            // Int saved IP
-            //coreState.sysRegs[4] = ;
-            
-            // Int saved status
-            //coreState.sysRegs[5] = ;
-
-
-            // syndrome
-            sysRegs[6] = status.eventType;
-
-            // mem control
-            sysRegs['ha] = status.memControl;
-                assert (status.memControl[0] === status.enableMmu) else $fatal(2, "Difference in mmu ctrl %p", status);
-            
-        endfunction
-
-
-        function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
-            
-            // syndrome
-            status.eventType = ProgramEvent'(sysRegs[6]);
-
-            // mem control
-            status.memControl = sysRegs['ha];
-                status.enableMmu = status.memControl[0];
-        endfunction
+    function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
+        // syndrome
+        status.eventType = ProgramEvent'(sysRegs[6]);
+    endfunction
 
 
 
@@ -141,15 +109,16 @@ package Emulation;
         endfunction
 
         function automatic void resetCore();
+            CpuControlRegisters cr; // Default value
+
             this.ip = 'x;
 
-            this.status = DEFAULT_CORE_STATUS;//'{eventType: PE_NONE, default: 0};
+            this.status = DEFAULT_CORE_STATUS;
 
             this.coreState = initialState(IP_RESET);
-                    
-            syncRegsFromStatus();
+            this.cregs = cr;
 
-            syncCregsFromSysRegs();
+            syncFromCregs();
 
             this.programMappings.delete();
             this.dataMappings.delete();
@@ -165,23 +134,24 @@ package Emulation;
             dataMem.clear();
         endfunction
 
+            
+        function automatic void syncCregsFromSysRegs();
+            syncCregsFromArray(cregs, coreState.sysRegs);
+        endfunction
 
-        function automatic void syncRegsFromStatus();
-            setRegsFromStatus(coreState.sysRegs, status);
+        function automatic void syncFromCregs();
+            syncSysRegsFromCregs();
+            syncStatusFromRegs();
         endfunction
 
         function automatic void syncStatusFromRegs();
             setStatusFromRegs(status, coreState.sysRegs);
         endfunction
 
-
-        function automatic void syncCregsFromSysRegs();
-            syncCregsFromArray(cregs, coreState.sysRegs);
-        endfunction
-
         function automatic void syncSysRegsFromCregs();
             syncArrayFromCregs(coreState.sysRegs, cregs);
         endfunction
+
 
         function automatic Translation translateProgramAddress(input Mword vadr);
             Translation foundTr[$] = programMappings.find with (item.vadr == getPageBaseM(vadr));
@@ -268,7 +238,7 @@ package Emulation;
                 cregs.excSyndrome = evType; // TODO: temporary
 
             syncSysRegsFromCregs();
-                     
+
             coreState.target = trg;
         endfunction
 
@@ -291,11 +261,8 @@ package Emulation;
         endfunction
 
     
-        function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);            
-            
-            // TODO: control ops clean dbEventPending because synchronous events are prioritized over dbstep.
-            // Exec exceptions have the same effect switch state before dbstep bit is checked.
-            // However what about control ops which are not state-swtching (sync, replay, send)? The should be able to get dbstep event?
+        function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
+            // Control events clear dbEventPending because they have higher priority. Sync and send don't prevent db event.
             
             // SR_SET
             case (abs.def.o)
@@ -364,10 +331,12 @@ package Emulation;
                 evt = PE_FETCH_DISALLOWED_ACCESS;
             else if (!physicalAddressValid(tr.padr))
                 evt = PE_FETCH_NONEXISTENT_ADDRESS;
-            else if (!progMem.addressValid(tr.padr))
-                evt = PE_FETCH_NONEXISTENT_ADDRESS;
+//            else if (!progMem.addressValid(tr.padr))
+//                evt = PE_FETCH_NONEXISTENT_ADDRESS;
 
             if (evt === PE_NONE) return 0;
+            
+              //  $error("we hve f err: %p, %p %p", vadr, tr, evt);
             
             setExecState(evt, ip);
             syncStatusFromRegs();
@@ -377,9 +346,17 @@ package Emulation;
 
 
 
-        function automatic TMP_runInstruction(input Mword adr, input Word bits);
-            AbstractInstruction ins = decodeAbstract(bits);
-            processInstruction(adr, ins);
+        function automatic void TMP_runInstruction(input Mword adr, input Word bits);
+            Mword vadr = adr;
+            Translation tr = translateProgramAddress(vadr);
+                
+                this.ip = vadr;
+                if (catchFetchException(vadr, tr)) return;
+            
+            begin
+                AbstractInstruction ins = decodeAbstract(bits);
+                processInstruction(adr, ins);
+            end
         endfunction
 
 
@@ -423,8 +400,10 @@ package Emulation;
                 if (!exceptionFromMem) writeToDo = getMemWrite(ins, args);
             end
             
-            status.dbEventPending = cregs.currentStatus.dbStep; // Checking here because sys reg write may change it and that should take effect after "retirement" which is not yet 
-            // TODO: clear dbtrap bit if other exception happened
+            // Don't set if exception happened
+             status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
+            
+            status.exceptionRaised = 0;
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);
@@ -467,11 +446,10 @@ package Emulation;
             
             syncSysRegsFromCregs();
             
-            // TODO: fire exception if trap is enabled 
             if (excGenerated && cregs.currentStatus.enArithExc) begin
-                // 
                 setExecState(PE_ARITH_EXCEPTION, ip);
                 syncStatusFromRegs();
+                status.exceptionRaised = 1;
                 return 1;
             end
                 
@@ -566,6 +544,7 @@ package Emulation;
 
             setExecState(evt, ip);
             syncStatusFromRegs();
+            status.exceptionRaised = 1;
             
             return 1;
         endfunction
@@ -593,6 +572,7 @@ package Emulation;
             
             setExecState(evt, ip);
             syncStatusFromRegs();
+            status.exceptionRaised = 1;
 
             return 1;
         endfunction
@@ -665,15 +645,14 @@ package Emulation;
         
         
         function automatic void DB_enableMmu();
-            status.enableMmu = 1;
-            status.memControl = 7;
+            cregs.memControl = 7;
+            syncFromCregs();
         endfunction
         
         
-        function automatic void initStatus(input CoreStatus cs);
-            status = cs;
-            syncRegsFromStatus();
-            syncCregsFromSysRegs();
+        function automatic void initStatus(input CpuControlRegisters cr);
+            cregs = cr;
+            syncFromCregs();
         endfunction
         
     endclass

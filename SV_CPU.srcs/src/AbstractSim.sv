@@ -10,8 +10,8 @@ package AbstractSim;
 
 
     // Uarch specific
-    localparam int FETCH_QUEUE_SIZE = 8;
-    localparam int BC_QUEUE_SIZE = 64;
+    localparam int FETCH_QUEUE_SIZE = 16;
+    localparam int BC_QUEUE_SIZE = 128;
 
     localparam int N_REGS_INT = 128;
     localparam int N_REGS_FLOAT = 128;
@@ -29,6 +29,11 @@ package AbstractSim;
     localparam int RENAME_WIDTH = 4;
     
     localparam int DISPATCH_WIDTH = RENAME_WIDTH;
+
+    // General uarch defs
+    localparam int N_INT_PORTS = 6;
+    localparam int N_MEM_PORTS = 4;
+    localparam int N_VEC_PORTS = 4;
 
 
     //localparam logic IN_ORDER = 0;
@@ -99,14 +104,14 @@ package AbstractSim;
         logic takenBranch;
         Mword predictedTarget;
     } OpSlotF;
-        
-        // Maybe redundant (OpSlotF has it all)
-        typedef struct {
-            logic active;
-            InsId mid;
-            Mword adr;  // hardly used
-            Word bits;  // hardly used
-        } OpSlotB;
+
+    // Maybe redundant (OpSlotF has it all)
+    typedef struct {
+        logic active;
+        InsId mid;
+        Mword adr;  // hardly used
+        Word bits;  // hardly used
+    } OpSlotB;
 
 
     typedef struct {
@@ -131,12 +136,29 @@ package AbstractSim;
     typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
 
 
+    function automatic logic stageEmptyAF(input OpSlotAF stage);
+        foreach (stage[i])
+            if (stage[i].active) return 0;
+        
+        return 1; 
+    endfunction 
+    
+    function automatic logic stageEmptyAB(input OpSlotAB stage);
+        foreach (stage[i])
+            if (stage[i].active) return 0;
+        
+        return 1; 
+    endfunction 
+
+
     typedef enum {
         CO_none,
         
         CO_reset,
         CO_int,
-        
+
+        CO_fetchError,
+
         CO_undef,
         
         CO_error,
@@ -664,15 +686,15 @@ package AbstractSim;
 
     function automatic Mword loadValue(input Mword w, input UopName uop);
         case (uop)
-             UOP_mem_ldi: return w;
-             UOP_mem_ldib: return Mword'(w[7:0]);
-             UOP_mem_ldf,
-             UOP_mem_lds: return w;
-
-             UOP_mem_sti,
-             UOP_mem_stib,
-             UOP_mem_stf,
-             UOP_mem_sts: return 0;
+            UOP_mem_ldi: return w;
+            UOP_mem_ldib: return Mword'(w[7:0]);
+            UOP_mem_ldf,
+            UOP_mem_lds: return w;
+            
+            UOP_mem_sti,
+            UOP_mem_stib,
+            UOP_mem_stf,
+            UOP_mem_sts: return 0;
             
             default: $fatal(2, "Wrong op");
         endcase
@@ -681,5 +703,22 @@ package AbstractSim;
     function automatic Mword fetchLineBase(input Mword adr);
         return adr & ~(4*FETCH_WIDTH-1);
     endfunction;
+
+
+    function automatic UopName decodeUop(input AbstractInstruction ins);
+        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
+
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
+        return OP_DECODING_TABLE[ins.mnemonic];
+    endfunction
+
+    function automatic AbstractInstruction decodeWithAddress(input Word bits, input Mword adr);
+        AbstractInstruction ins = DEFAULT_ABS_INS;
+    
+        if (!physicalAddressValid(adr) || (adr % 4 != 0)) ins.def.o = O_fetchError;
+        else ins = decodeAbstract(bits);
+        
+        return ins;
+    endfunction
 
 endpackage

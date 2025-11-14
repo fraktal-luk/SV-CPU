@@ -95,11 +95,15 @@ module ReplayQueue(
             
             if (!inPackets[i].active) continue;
             
+            assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
+            
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
             content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                    theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]};
+                                    //theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]
+                                    DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
+                                    };
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
     endtask
@@ -172,7 +176,7 @@ module ReplayQueue(
         // Wakeup data misses
         if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedAdr)) begin
+                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
                     content[i].ready_N = 1;
                 end
             end
@@ -181,7 +185,7 @@ module ReplayQueue(
         // Wakeup TLB misses
         if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
             foreach (content[i]) begin
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedAdr)) begin
+                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                     content[i].ready_N = 1;                    
                 end
             end
@@ -233,7 +237,7 @@ module ReplayQueue(
 
 
 
-    assign accept = numUsed < SIZE - 5;
+    assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
     assign outPacket = effP(issued0);
 
 endmodule

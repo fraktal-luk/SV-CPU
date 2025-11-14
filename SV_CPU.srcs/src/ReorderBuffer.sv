@@ -89,7 +89,9 @@ module ReorderBuffer
     RobResult rrq_View[40];
     //int rrqSize = -1;
 
-
+    logic isEmpty;
+    
+    always_comb isEmpty = (endPointer === backupPointer); //(indB === ind_Start);
 
     assign size = (endPointer - drainPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - 3);

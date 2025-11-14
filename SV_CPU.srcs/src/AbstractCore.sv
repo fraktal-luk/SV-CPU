@@ -38,17 +38,21 @@ module AbstractCore
     Emulator renamedEmul = new(), retiredEmul = new();
     PageBasedProgramMemory programMem;
 
-
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
-    
+
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
-    //..............................
+    Mword insAdr;       // DB?
+    logic fetchEnable;  // DB?
+
+    InsId lastRetired;
+
     int cycleCtr = 0;
 
     always @(posedge clk) cycleCtr++;
 
+    //..............................
 
     struct {
         logic enableMmu = 0;
@@ -56,18 +60,11 @@ module AbstractCore
         logic enArithExc = 0;
     } CurrentConfig;
 
-        
-        InsId lastRetired;
-        
 
-    Mword insAdr;
-    logic fetchEnable;
-    InstructionCacheOutput icacheOut;
-    DataCacheOutput dcacheOuts[N_MEM_PORTS];
-    DataCacheOutput sysReadOuts[N_MEM_PORTS];
+   // DataCacheOutput sysReadOuts[N_MEM_PORTS];
 
     // Overall
-    logic fetchAllow, renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
+    logic renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
     IqLevels oooLevels, oooAccepts;
     int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
 
@@ -89,31 +86,33 @@ module AbstractCore
     SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
     MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
 
-    SystemRegisterUnit sysUnit();
+    MemWriteInfo dcacheWriteInfos[2];
+    MemWriteInfo sysWriteInfos[1];
+
+
+    SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, sysWriteInfos);
 
     // Event control
-        Mword retiredTarget = 0;
+    Mword retiredTarget = 0;
 
-
-    MemWriteInfo TMP_writeInfos[2];
 
     ///////////////////////////
 
-    DataL1        dataCache(clk, TMP_writeInfos, theExecBlock.dcacheTranslations, dcacheOuts);
+    DataL1        dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
-    OpSlotAB sqOut, lqOut, bqOut; // UNUSED so far
+    //OpSlotAB sqOut, lqOut, bqOut; // UNUSED so far
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, sqOut);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, lqOut);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1, bqOut);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
 
     bind StoreQueue: theSq TmpSubSq submod();
     bind StoreQueue: theLq TmpSubLq submod();
@@ -125,16 +124,16 @@ module AbstractCore
 
     //////////////////////////////////////////
 
-    assign fetchEnable = theFrontend.fetchEnable;
-    assign insAdr = theFrontend.fetchAdr;
+        assign fetchEnable = theFrontend.fetchEnable;
+        assign insAdr = theFrontend.fetchAdr;
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
 
-    assign theExecBlock.dcacheOuts = dcacheOuts;
-    assign theExecBlock.sysOuts = sysReadOuts;
+   // assign theExecBlock.sysOuts_E1 = sysReadOuts;
 
-    assign TMP_writeInfos[0] = writeInfo;
-    assign TMP_writeInfos[1] = EMPTY_WRITE_INFO;
+    assign dcacheWriteInfos[0] = writeInfo;
+    assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
+    assign sysWriteInfos[0] = sysWriteInfo;
 
 
     function automatic InsId oldestCsq();
@@ -146,14 +145,14 @@ module AbstractCore
     always @(posedge clk) begin
         insMap.endCycle();
 
-        readSysReg();
+        sysUnit.handleReads();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
         activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
-            performSysStore();  // sysRegs
+            sysUnit.handleWrite();
         end
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
@@ -165,8 +164,8 @@ module AbstractCore
 
         updateBookkeeping();
 
-        
-        syncGlobalParamsFromRegs();
+
+        syncCurrentConfigFromRegs();
 
         insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops form base if csq still contains something that would be deleted
     end
@@ -204,25 +203,17 @@ module AbstractCore
 
     ////////////////
 
-    function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
-        return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
-    endfunction
-
-    function automatic MemWriteInfo makeSysWriteInfo(input SqEntry sqe);
-        return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
-    endfunction
-
-    task automatic putWrite();        
+    task automatic putWrite();
+        // This block is not related to CSQ itself 
         if (drainHead.mid != -1) begin
             memTracker.drain(drainHead.mid);
             putMilestoneC(drainHead.mid, InstructionMap::WqExit);
         end
+
         void'(csq.pop_front());
 
         assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
- 
+
         if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
             csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
             csqEmpty <= 1;
@@ -230,21 +221,10 @@ module AbstractCore
         else begin
             csqEmpty <= 0;
         end
-        
+
         drainHead <= csq[0];
-        
         writeInfo <= makeWriteInfo(csq[1]);
         sysWriteInfo <= makeSysWriteInfo(csq[1]);
-    endtask
-
-
-    task automatic performSysStore();
-        if (sysWriteInfo.req) sysUnit.setSysReg(sysWriteInfo.adr, sysWriteInfo.value);
-    endtask
-
-    task automatic readSysReg();
-        foreach (sysReadOuts[p])
-            sysReadOuts[p] <= sysUnit.getSysReadResponse(theExecBlock.accessDescs[p]);
     endtask
 
 
@@ -259,8 +239,7 @@ module AbstractCore
     assign oooAccepts = getBufferAccepts(oooLevels);
     assign iqsAccepting = iqsAccept(oooAccepts);
 
-    assign fetchAllow = fetchQueueAccepts(theFrontend.fqSize) && bcQueueAccepts(bcqSize);
-    assign renameAllow = iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
+    assign renameAllow = bcQueueAccepts(bcqSize) && iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
 
 
     // Helper (inline it?)
@@ -268,14 +247,9 @@ module AbstractCore
         return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
     endfunction
 
-    // Helper (inline it?)
-    function logic fetchQueueAccepts(input int k);
-        // TODO: careful about numbers accounting for pipe lengths! 
-        return k <= FETCH_QUEUE_SIZE - 3; // 2 stages between IP stage and FQ
-    endfunction
 
     function logic bcQueueAccepts(input int k);
-        return k <= BC_QUEUE_SIZE - 3*FETCH_WIDTH - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH;// - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
 
@@ -291,7 +265,7 @@ module AbstractCore
 
         foreach (ops[i]) begin            
             if (ops[i].active !== 1) continue;
-            
+
             ops[i].mid = insMap.insBase.lastM + 1;
             renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, opsF[i].predictedTarget);
         end
@@ -359,14 +333,8 @@ module AbstractCore
     endtask
 
 
-    function automatic UopName decodeUop(input AbstractInstruction ins);
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
-        return OP_DECODING_TABLE[ins.mnemonic];
-    endfunction
-
-
     task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg /*UNUSED so far*/);
-        AbstractInstruction ins = decodeAbstract(bits);
+        AbstractInstruction ins = decodeWithAddress(bits, adr);
         UopInfo mainUinfo;
         UopInfo uInfos[$];
         Mword target;
@@ -464,8 +432,8 @@ module AbstractCore
             lateEventInfo <= DB_EVENT;
         end
         else begin
-            Mword sr2 = getSysReg(2);
-            Mword sr3 = getSysReg(3);
+            Mword sr2 = sysUnit.sysRegs[2];//getSysReg(2);
+            Mword sr3 = sysUnit.sysRegs[3];//getSysReg(3);
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
            
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);
@@ -507,17 +475,12 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
-                begin
-                    if (theId == theExecBlock.firstFloatInvId) begin
-                        sysUnit.setFpInv();
-                    end
-                    if (theId == theExecBlock.firstFloatOvId) begin
-                        sysUnit.setFpOv();
-                    end
-                    
-                    syncGlobalParamsFromRegs();
-                end
-            
+            begin
+                if (theId == theExecBlock.firstFloatInvId) sysUnit.setFpInv();
+                if (theId == theExecBlock.firstFloatOvId)  sysUnit.setFpOv();
+                
+                syncCurrentConfigFromRegs();
+            end
 
             lastRetired <= theId;
 
@@ -531,10 +494,9 @@ module AbstractCore
     endtask
 
 
-
     function automatic void checkUops(input InsId id);
         InstructionInfo info = insMap.get(id);
-        
+
         for (int u = 0; u < info.nUops; u++) begin
             UopInfo uinfo = insMap.getU('{id, u});    
             if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
@@ -543,7 +505,6 @@ module AbstractCore
             end
         end
     endfunction
-
 
 
     task automatic verifyOnCommit(input RetirementInfo retInfo);
@@ -558,7 +519,8 @@ module AbstractCore
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
         
         // TODO: incorporate arith exc into ROB output to bring back this check?
-        //assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+          //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
+          //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 
@@ -604,8 +566,8 @@ module AbstractCore
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
             assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
-                                isStaticEventIns(insInfo.basicData.dec)|| (insInfo.eventType == PE_ARITH_EXCEPTION)))
-                else $error("MIsmatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
+                                isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
+                else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
                             retInfo.refetch, retInfo.exception);
 
 
@@ -659,12 +621,6 @@ module AbstractCore
         if (isLoadUop(decMainUop(id))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
         if (isStoreUop(decMainUop(id))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
-
-
-    function automatic Mword getSysReg(input Mword adr);
-        return sysUnit.sysRegs[adr];
-    endfunction
-
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
@@ -741,7 +697,6 @@ module AbstractCore
 
 
     function automatic logic shouldFlushEvent(input UidT uid);
-        //return lateEventInfo.redirect || (branchEventInfo.redirect && U2M(uid) > branchEventInfo.eventMid);
         return shouldFlushId(U2M(uid));
     endfunction
 
@@ -782,12 +737,15 @@ module AbstractCore
         dataCache.reset();
         theFrontend.instructionCache.reset();
 
+            theFrontend.stageUnc_IP.active <= 0;
+            theFrontend.stage_IP.active <= 0;
+
         branchCheckpointQueue.delete();
         
         sysUnit.reset();
         
-        syncRegsFromStatus();
-        syncGlobalParamsFromRegs();
+        syncRegsFromRetiredCregs();
+        syncCurrentConfigFromRegs();
         
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
@@ -799,11 +757,11 @@ module AbstractCore
 
     task automatic preloadForTest();
 
-        retiredEmul.initStatus(globalParams.initialCoreStatus);
-        renamedEmul.initStatus(globalParams.initialCoreStatus);
+        retiredEmul.initStatus(globalParams.initialCregs);
+        renamedEmul.initStatus(globalParams.initialCregs);
 
-        syncRegsFromStatus();
-        syncGlobalParamsFromRegs();
+        syncRegsFromRetiredCregs();
+        syncCurrentConfigFromRegs();
 
         renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
         retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
@@ -816,20 +774,21 @@ module AbstractCore
     endtask
 
 
-        function automatic void syncRegsFromStatus();
+        function automatic void syncRegsFromRetiredCregs();
             syncArrayFromCregs(sysUnit.sysRegs, retiredEmul.cregs);
         endfunction
 
-
         // Call every time sys regs are set
-        function automatic void syncGlobalParamsFromRegs();
-            CoreStatus tmpStatus;
-            setStatusFromRegs(tmpStatus, sysUnit.sysRegs);
-
-            CurrentConfig.enableMmu <= tmpStatus.enableMmu;
+        function automatic void syncCurrentConfigFromRegs();
+            CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
             CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-            // TODO: en FP exceptions likewise
             CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
+        endfunction
+
+
+        
+        function automatic logic pipesEmpty();
+            return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
         endfunction
 
 endmodule

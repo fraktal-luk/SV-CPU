@@ -33,7 +33,7 @@ module IssueQueue
 
     typedef UopPacket OutGroupP[OUT_WIDTH];
  
-    typedef IqEntry InputArray[RENAME_WIDTH]; // TODO: change to dynamic arr
+    typedef IqEntry InputArray[RENAME_WIDTH];
     
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY}, arrayReg[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
     InputArray inputArray = '{default: EMPTY_ENTRY};
@@ -47,32 +47,32 @@ module IssueQueue
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
     typedef Wakeup WakeupInputMatrix[RENAME_WIDTH][3];
 
-    WakeupMatrix wMatrix, wMatrixVar;
-    WakeupInputMatrix wiMatrix, wiMatrixVar;
+    WakeupMatrix wMatrix;
+    WakeupInputMatrix wiMatrix;
 
     ReadinessInfo readiness[TOTAL_SIZE],  readinessVar[TOTAL_SIZE];
     ReadinessInfo readinessInput[RENAME_WIDTH], readinessInputVar[RENAME_WIDTH];
     
     typedef ReadinessInfo ReadinessInfoArr[];
 
-        logic anySelected;
-        //UidArray selectedUops;
-        UidT selectedUops[OUT_WIDTH];
-        //always_comb selectedUops = getArrOpsToIssue_A();
-        //assign anySelected = (selectedUops.size() > 0 && selectedUops[0] != UIDT_NONE);
-        always_comb anySelected = anyReady();//(selectedUops[0] != UIDT_NONE);
+    logic anySelected;
 
-    assign outPackets = effA(pIssued0);
+    always_comb anySelected = anyReady();
+
+    always_comb  outPackets = effA(pIssued0);
 
     always_comb inputArray = makeInputArray(inGroupU); 
 
-    always_comb wMatrix = getForwardsD(arrayReg);
-    always_comb wiMatrix = getForwardsD(inputArray);
+    always @(negedge AbstractCore.clk) begin
+        wMatrix = getForwardsD(arrayReg);
+        wiMatrix = getForwardsD(inputArray);
+    end
 
-    always_comb readiness = getReadinessArr();
-    always_comb readinessInput = getReadinessInputArr();
+    always_comb readiness = getReadinessArr(arrayReg, wMatrix);
+    always_comb readinessInput = getReadinessArr(inputArray, wiMatrix);
 
-
+    assign readinessVar = readiness;
+    assign readinessInputVar = readinessInput;
 
     function automatic logic anyReady();
         int inds[$] = readiness.find_first_index with (item.all);
@@ -82,7 +82,7 @@ module IssueQueue
 
 
     always @(posedge AbstractCore.clk) begin
-            array = arrayReg;
+        array = arrayReg;
     
         TMP_incIssueCounter();
 
@@ -90,17 +90,14 @@ module IssueQueue
            flushIq();
         end
 
-        setModuleVars();
-
-        issue(); // TODO: order array update so that Issue milestone is later than Wakeup milestones
-
-        updateWakeups();    // rfq_perArg, wMatrixVar
+        updateWakeups();
         updateWakeups_Part2();
+
+        issue();
 
         // Assure that ready indications in entries agree with ready signals
         checkReadyStatus();
         
-
         if (!(lateEventInfo.redirect || branchEventInfo.redirect)) begin
             writeInput();
         end                
@@ -117,30 +114,16 @@ module IssueQueue
     end
 
 
-        // TODO: make one function for all array lengths
-        function automatic ReadinessInfoArr getReadinessArr();
-            ReadinessInfoArr res = new[TOTAL_SIZE];           
-            foreach (res[i]) res[i] = getReadinessInfo(insMap, arrayReg[i], wMatrix[i]);   
-            return res;
-        endfunction
+    function automatic ReadinessInfoArr getReadinessArr(input IqEntry arr[], input Wakeup wm[][3]);
+        ReadinessInfoArr res = new[arr.size()];           
+        foreach (res[i]) res[i] = getReadinessInfo(insMap, arr[i], wm[i]);
+        return res;
+    endfunction
 
-        function automatic ReadinessInfoArr getReadinessInputArr();
-            ReadinessInfoArr res = new[RENAME_WIDTH];
-            foreach (res[i]) res[i] = getReadinessInfo(insMap, inputArray[i], wiMatrix[i]);
-            return res;
-        endfunction
-
-    task automatic setModuleVars();
-        wMatrixVar = wMatrix;
-        wiMatrixVar = wiMatrix;
-
-        readinessVar = readiness;
-        readinessInputVar = readinessInput;
-    endtask
 
     task automatic updateWakeups();    
-        foreach (array[i]) begin        
-            if (array[i].used) updateReadyBits(array[i], readinessVar[i].combined, wMatrixVar[i]); // TODO: poison from readinessVar?
+        foreach (array[i]) begin            
+            if (array[i].used) updateReadyBits(array[i], readinessVar[i].combined, /*wMatrixVar[i],*/ readinessVar[i].poisons);
         end
     endtask
 
@@ -151,7 +134,6 @@ module IssueQueue
 
     task automatic issue();
         UidArray selected = getArrOpsToIssue_A();
-        //                    new[OUT_WIDTH](selectedUops);
 
         pIssued0 <= '{default: EMPTY_UOP_PACKET};
         
@@ -169,10 +151,8 @@ module IssueQueue
         UidT res[] = new[OUT_WIDTH];
         int cnt = 0;
         
-        UidQueueT idsSorted = //getIdQueue(array);  // array
-                              getUsedIdQueue(array);
+        UidQueueT idsSorted = getUsedIdQueue(array);
         
-        //foreach (res[i]) res[i] = UIDT_NONE;
         res = '{default: UIDT_NONE};
         
         idsSorted.sort with (U2M(item));
@@ -180,19 +160,17 @@ module IssueQueue
         foreach (idsSorted[i]) begin
             UidT thisId = idsSorted[i];
 
-            //begin
-                int arrayLoc[$] = array.find_index with (item.uid == thisId); // array
-                IqEntry entry = array[arrayLoc[0]];     // array
-                logic ready = readinessVar[arrayLoc[0]].all;
-                logic active = entry.used && entry.active;
+            int arrayLoc[$] = array.find_index with (item.uid == thisId); // array
+            IqEntry entry = array[arrayLoc[0]];     // array
+            logic ready = readinessVar[arrayLoc[0]].all;
+            logic active = entry.used && entry.active;
 
-                assert (active) else $fatal(2, "Issue inactive slot");
-                if (!active) continue;
+            assert (active) else $fatal(2, "Issue inactive slot");
+            //if (!active) continue;
 
-                if (ready) res[cnt++] = thisId;
-                
-                if (cnt == OUT_WIDTH) break;
-            //end
+            if (ready) res[cnt++] = thisId;
+            
+            if (cnt == OUT_WIDTH) break;
         end
         
         return res;
@@ -218,7 +196,6 @@ module IssueQueue
 
     task automatic setIssued(ref IqEntry entry);
         putMilestone(entry.uid, InstructionMap::IqIssue);
-
         entry.active = 0;         // Entry upd
         entry.issueCounter = 0;   // Entry upd
     endtask
@@ -307,8 +284,7 @@ module IssueQueue
 
                 putMilestone(inputArray[i].uid, InstructionMap::IqEnter);
                 
-                // TODO: use poison from readinessInputVar?
-                updateReadyBits(array[location], readinessInputVar[i].combined, wiMatrixVar[i]);
+                updateReadyBits(array[location], readinessInputVar[i].combined, /*wiMatrixVar[i],*/ readinessInputVar[i].poisons);
             end
         end
     endtask
@@ -346,10 +322,10 @@ module IssueQueue
     endfunction
 
 
-    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, input Wakeup wup[3]);
+    function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, /*input Wakeup wup[3],*/ input Poison poisons[3]);
         foreach (ready3[a]) begin
             if (ready3[a] && !entry.state.readyArgs[a]) begin // Entry tr rd? (only for DB?)
-                setArgReady(entry, a, wup[a]);
+                setArgReady(entry, a,/* wup[a],*/ poisons[a]);
             end
         end
 
@@ -370,10 +346,10 @@ module IssueQueue
         end
     endfunction
 
-    function automatic void setArgReady(ref IqEntry entry, input int a, input Wakeup wup);
+    function automatic void setArgReady(ref IqEntry entry, input int a, /*input Wakeup wup,*/ input Poison p);
         entry.state.readyArgs[a] = 1;            // Entry upd
-        entry.poisons.poisoned[a] = wup.poison;  // Entry upd
-
+        entry.poisons.poisoned[a] = p;//wup.poison;  // Entry upd
+                      //  assert (wup.poison === p) else $error("diffetn p");
         putMilestone(entry.uid, wakeupMilestone(a));
     endfunction
 
@@ -519,12 +495,12 @@ module IssueQueue
         res.registers = getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = getLogic3(wup);
         
-        foreach (res.combined[i]) res.combined[i] = res.registers[i] || res.bypasses[i];        
-        foreach (res.poisons[i]) res.poisons[i] = wup[i].poison;
+        foreach (res.combined[a]) res.combined[a] = res.registers[a] || res.bypasses[a];        
+        foreach (res.poisons[a]) res.poisons[a] = wup[a].poison;
 
         res.all = res.combined.and();
 
-        res.prevReady = entry.state.readyArgs; // CAREFUL, TODO: entry.state.readyArgs should be set with nonblocking (we're interested in prev cycle, use $past()?)
+        res.prevReady = entry.state.readyArgs;
         res.prevPoisons = entry.poisons.poisoned;
         
         return res;
@@ -602,7 +578,7 @@ module IssueQueueComplex(
     IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, routedUops.fdivider, theExecBlock.fdiv.allowIssue,
                                             issuedFdivP);                                           
 
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, '1,
+    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, theExecBlock.memIssueAllow,
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
                                             issuedStoreDataP);

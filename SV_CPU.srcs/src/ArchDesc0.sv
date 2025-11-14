@@ -116,7 +116,7 @@ module ArchDesc0();
         emul.programMappings = gp.preloadedInsTlbL2;
         emul.dataMappings = gp.preloadedDataTlbL2;
 
-        emul.initStatus(gp.initialCoreStatus);
+        emul.initStatus(gp.initialCregs);
 
         performEmul(emul);
     endtask
@@ -135,7 +135,7 @@ module ArchDesc0();
         emul.programMappings = gp.preloadedInsTlbL2;
         emul.dataMappings = gp.preloadedDataTlbL2;
 
-        emul.initStatus(gp.initialCoreStatus);
+        emul.initStatus(gp.initialCregs);
         
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
@@ -338,9 +338,8 @@ module ArchDesc0();
     function automatic GlobalParams Test_fillGpCached();
         GlobalParams gp;
         gp.initialCoreStatus = DEFAULT_CORE_STATUS;
-        // TODO: bring in line with DB_enableMmu - API to work on status indepedently of Emulator object? 
-        gp.initialCoreStatus.enableMmu = 1;
-        gp.initialCoreStatus.memControl = 7;
+            //gp.initialCoreStatus.memControl = 7;
+        gp.initialCregs.memControl = 7;
         
         Ins_prefetchForTest(gp);
         Data_prefetchForTest(gp);

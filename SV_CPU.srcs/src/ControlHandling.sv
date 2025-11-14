@@ -22,15 +22,17 @@ package ControlHandling;
                 res.target = IP_EXC;
                 res.redirect = 1;
             end
+            CO_fetchError: begin
+                res.target = IP_FETCH_EXC;
+                res.redirect = 1;
+            end
             CO_error: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
-                //res.sigWrong = 1;
             end
             CO_undef: begin
                 res.target = IP_ERROR;
                 res.redirect = 1;
-                //res.sigWrong = 1;
             end
             CO_call: begin
                 res.target = IP_CALL;
@@ -59,7 +61,6 @@ package ControlHandling;
             CO_send: begin
                 res.target = adr + 4;
                 res.redirect = 1;
-                //res.sigOk = 1;
             end
             CO_break: begin
                 res.target = IP_DB_BREAK;
@@ -90,17 +91,18 @@ package ControlHandling;
         end
         else begin
             case (uname)
+                UOP_ctrl_fetchError: res.cOp = CO_fetchError;
                 UOP_ctrl_error:    res.cOp = CO_error;
                 UOP_ctrl_undef:    res.cOp = CO_undef;
                 UOP_ctrl_call:     res.cOp = CO_call;
-                UOP_ctrl_dbcall:     res.cOp = CO_dbcall;
+                UOP_ctrl_dbcall:   res.cOp = CO_dbcall;
                 UOP_ctrl_rete:     res.cOp = CO_retE;
                 UOP_ctrl_reti:     res.cOp = CO_retI;
-                UOP_ctrl_sync:     res.cOp = CO_sync;
-                UOP_ctrl_refetch:   res.cOp = CO_refetch;
-                //O_halt:     res.cOp = CO_undef;
-                UOP_ctrl_send:     res.cOp = CO_send;
-                default:    res.cOp = dbStep ? CO_break : CO_none; // TODO: maybe dbstep should override sync, send, refetch because they are not "real" events? See Emulation
+
+                UOP_ctrl_refetch:  res.cOp = CO_refetch;
+                UOP_ctrl_sync:     res.cOp = dbStep ? CO_break : CO_sync;
+                UOP_ctrl_send:     res.cOp = CO_send; // TODO: implement CO_send_break which will work like CO_break but also sends signal
+                default:           res.cOp = dbStep ? CO_break : CO_none;
             endcase
         end
         return res;
@@ -113,7 +115,9 @@ package ControlHandling;
     // core logic
     function automatic Mword getCommitTarget(input UopName uname, input logic taken, input Mword prev, input Mword executed, input logic refetch, input logic exception);
         if (isBranchUop(uname) && taken) return executed;
-        else if (isControlUop(uname) || exception) return 'x;
+        else if (exception) return 'x;
+        else if (uname == UOP_ctrl_sync) return prev + 4;
+        else if (isControlUop(uname)) return 'x;
         else if (refetch) return prev;
         else return prev + 4;
     endfunction;

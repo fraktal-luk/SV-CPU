@@ -6,3 +6,6 @@ branch_conditional
 branch_register
 loop1
 loop2
+fetch_error
+fetch_break
+load_error

@@ -154,13 +154,11 @@ package EmulationDefs;
     };
 
 
-    
-    // TODO: review functions below, their functionality may be implemented in uop defs 
 
     // Not including memory
-    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
-        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
-    endfunction    
+//    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
+//        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
+//    endfunction    
 
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
@@ -183,11 +181,11 @@ package EmulationDefs;
     endfunction
 
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
+        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
     endfunction
 
     function automatic logic isStaticEventIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send};
+        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send};
     endfunction
 
     function automatic logic isLoadIns(input AbstractInstruction ins);
@@ -202,17 +200,17 @@ package EmulationDefs;
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
     endfunction
 
-    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_floatLoadW});
-    endfunction
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
 
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
     endfunction
 
-    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_floatStoreW};
-    endfunction
+//    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
+//        return ins.def.o inside {O_floatStoreW};
+//    endfunction
 
     function automatic logic isStoreSysIns(input AbstractInstruction ins);
         return ins.def.o inside {O_sysStore};
@@ -396,16 +394,12 @@ package EmulationDefs;
 
 
     typedef struct {
-
         logic send;
+        logic exceptionRaised;
         logic dbEventPending;
         logic arithException;
         
-        ProgramEvent eventType;
-        
-        logic enableMmu;
-        Mword memControl;
-
+        ProgramEvent eventType;        
     } CoreStatus;
 
     localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};

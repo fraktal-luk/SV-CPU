@@ -215,6 +215,10 @@ package Insmap;
 
 
         // ins info
+        function automatic logic hasM(input InsId id);
+            return insBase.minfos.exists(id);
+        endfunction
+
         function automatic InstructionInfo get(input InsId id);
             assert (insBase.minfos.exists(id)) else $fatal(2, "wrong id %d", id);
             return insBase.minfos[id];

@@ -18,128 +18,129 @@ module InstructionL1(
                 
                 input logic readEn,
                 input Mword readAddress,
-                output InstructionCacheOutput readOut,
-                
-                input logic readEnUnc,
-                input Mword readAddressUnc,
-                output InstructionCacheOutput readOutUnc
+                output InstructionCacheOutput readOut
               );
 
-    Translation TMP_tlbL1[$], TMP_tlbL2[$];
+    Translation translationSig = DEFAULT_TRANSLATION;
 
-    Translation translationTableL1[32]; // DB
-
-    Translation translation = DEFAULT_TRANSLATION;
+    Translation tr_Reg[1];
 
     InstructionCacheOutput readOutCached, readOutUncached;
-    
-
-    typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
-    InsWay blocksWay0;
-    InsWay blocksWay1;
-    InsWay blocksWay2;
-    InsWay blocksWay3;
-
-        typedef struct {
-            logic valid;
-            FetchLine value;
-        } ReadResult;
 
 
-    typedef logic LogicA[N_MEM_PORTS];
-    typedef Mword MwordA[N_MEM_PORTS];
-    typedef Dword DwordA[N_MEM_PORTS];
+    typedef logic LogicA[1];
+    typedef Mword MwordA[1];
+    typedef Dword DwordA[1];
+
+
+    AccessDesc aDesc_T;
 
     LogicA blockFillEnA, tlbFillEnA;
-    DwordA blockFillPhysA;
-    MwordA tlbFillVirtA;
-
-    DataFillEngine blockFillEngine(clk, blockFillEnA, blockFillPhysA);
-    DataFillEngine#(Mword, 11) tlbFillEngine(clk, tlbFillEnA, tlbFillVirtA);
 
 
-    assign readOutUnc = readOutUncached;
+    DataTlb#(.WIDTH(1)) tlb(clk, '{0: aDesc_T}, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
+    InstructionCacheArray insArray(clk, blockFillEngine.notifyFill, blockFillEngine.notifiedTr);
+
+    DataFillEngine#(1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
+    DataFillEngine#(1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
+
+
+    always_comb aDesc_T = getAccessDesc_I(readEn, readAddress);
+    assign tr_Reg[0] = translationSig;
     assign readOut = readOutCached;
 
 
-    function automatic void DB_fillTranslations();
-        int i = 0;
-        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-        foreach (TMP_tlbL1[a]) begin
-            translationTableL1[i] = TMP_tlbL1[a];
-            i++;
-        end
-    endfunction
+    always @(posedge clk) begin
+        doCacheAccess();
+    end
 
 
-    task automatic reset();
-        readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
-        readOutCached <= EMPTY_INS_CACHE_OUTPUT;
-
-        TMP_tlbL1.delete();
-        TMP_tlbL2.delete();
-        translationTableL1 = '{default: DEFAULT_TRANSLATION};
-
-        blocksWay0 = '{default: null};
-        blocksWay1 = '{default: null};
-        blocksWay2 = '{default: null};
-        blocksWay3 = '{default: null};
+    task automatic doCacheAccess();
+        AccessDesc aDesc = getAccessDesc_I(readEn, readAddress);
         
-        blockFillEngine.resetBlockFills();
-        tlbFillEngine.resetBlockFills();
+        readOutCached <= EMPTY_INS_CACHE_OUTPUT;
+        
+        if (!aDesc.active) return;
+        
+        begin
+            Translation tr = tlb.translationsH[0];
+
+            ReadResult_I result0a = insArray.rdInterface[0].ar0;
+            ReadResult_I result1a = insArray.rdInterface[0].ar1;
+            ReadResult_I result2a = insArray.rdInterface[0].ar2;
+            ReadResult_I result3a = insArray.rdInterface[0].ar3;
+
+            ReadResult_I result0m = matchWay_I(result0a, aDesc, tr);
+            ReadResult_I result1m = matchWay_I(result1a, aDesc, tr);
+            ReadResult_I result2m = matchWay_I(result2a, aDesc, tr);
+            ReadResult_I result3m = matchWay_I(result3a, aDesc, tr);
+ 
+            translationSig <= tr;
+
+            readOutCached <= readCache(readEn, tr, result0m, result1m, result2m, result3m);
+        end
     endtask
 
 
 
-    function automatic Translation translate(input Mword adr);
-        Translation res = DEFAULT_TRANSLATION;
 
-        Translation found[$] = TMP_tlbL1.find with (item.vadr == getPageBaseM(adr));
-
-        if ($isunknown(adr)) return DEFAULT_TRANSLATION;
-        //if (!AbstractCore.globalParams.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
-        if (!AbstractCore.CurrentConfig.enableMmu) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
-
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in itlb\n%p", TMP_tlbL1);
-
-        if (found.size() == 0) begin
-            res.vadr = adr; // It's needed because TLB fill is based on this adr
-            return res;
-        end 
-
-        res = found[0];
-
-        res.vadr = adr;
-        res.padr = adr + res.padr - getPageBaseM(adr);
-
+    function automatic ReadResult_I matchWay_I(input ReadResult_I rr, input AccessDesc aDesc, input Translation tr);
+        ReadResult_I res = rr;
+        Dword accessPbase = getBlockBaseD(tr.padr);       
+        logic hit0 = (accessPbase === rr.tag);
+        
+        res.valid &= hit0;
         return res;
     endfunction
 
+    function automatic ReadResult_I selectWay_I(input ReadResult_I res0, input ReadResult_I res1, input ReadResult_I res2, input ReadResult_I res3);
+        if (res0.valid === 1) return res0; 
+        if (res1.valid === 1) return res1; 
+        if (res2.valid === 1) return res2; 
+        return res3;
+    endfunction
 
-    function automatic InstructionCacheOutput readCache(input logic readEnable, input Translation tr, input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
+
+        function automatic AccessDesc getAccessDesc_I(input logic en, input Mword adr);
+            AccessDesc res;
+            AccessInfo aInfo = analyzeAccess(adr, SIZE_INS_LINE);
+
+            res.active = en;
+
+            res.size = SIZE_INS_LINE;
+
+            res.store = 1;//isStoreUop(uname);
+            res.sys = 0;//isLoadSysUop(uname) || isStoreSysUop(uname);
+            res.uncachedReq = 0;//(p.status == ES_UNCACHED_1) && !res.store;
+            res.uncachedCollect = 0;//(p.status == ES_UNCACHED_2) && !res.store;
+            res.uncachedStore = 0;//(p.status == ES_UNCACHED_2) && res.store;
+            
+            res.vadr = adr;
+            
+            res.blockIndex = aInfo.block;
+            res.blockOffset = aInfo.blockOffset;
+    
+            res.unaligned = aInfo.unaligned;
+            res.blockCross = aInfo.blockCross;
+            res.pageCross = aInfo.pageCross;
+        
+            return res;
+        endfunction
+
+
+    function automatic InstructionCacheOutput readCache(input logic readEnable, input Translation tr, input ReadResult_I res0, input ReadResult_I res1, input ReadResult_I res2, input ReadResult_I res3);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
-        ReadResult selected = selectWay(res0, res1, res2, res3);
+        ReadResult_I selected = selectWay_I(res0, res1, res2, res3);
         
         if (!readEnable) return res;
-        
-        // TLB miss
-        if (!tr.present) begin
-            res.status = CR_TLB_MISS;
-        end
-        // Not cached
-        else if (!tr.desc.cached) begin
-            res.status = CR_UNCACHED;
-        end
-        // Miss
-        else if (!selected.valid) begin
-            res.status = CR_TAG_MISS;
-        end
-        // Hit
-        else begin
+
+        if (!tr.present)          res.status = CR_TLB_MISS; // TLB miss
+        else if (!tr.desc.cached) res.status = CR_UNCACHED; // Not cached
+        else if (!selected.valid) res.status = CR_TAG_MISS; // Miss
+        else begin         // Hit
             res.status = CR_HIT;
             res.words = selected.value;
         end
-        
         
         res.active = 1;
         res.desc = tr.desc;
@@ -148,161 +149,131 @@ module InstructionL1(
     endfunction
 
 
+
+    function automatic void preloadForTest();
+        tlb.preloadTlbForTest(AbstractCore.globalParams.preloadedInsTlbL1, AbstractCore.globalParams.preloadedInsTlbL2);
+        insArray.preloadForTest();
+    endfunction
+
+
+    task automatic reset();
+        readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
+        readOutCached <= EMPTY_INS_CACHE_OUTPUT;
+        
+        tlb.resetTlb();
+        insArray.resetArray();
+        
+        blockFillEngine.resetBlockFills();
+        tlbFillEngine.resetBlockFills();
+    endtask
+
+
+    always_comb blockFillEnA = dataMakeEnables();
+    always_comb tlbFillEnA = tlbMakeEnables();
+/////////////////////////////////////////////////
+
+
+    function automatic LogicA dataMakeEnables();
+        LogicA res = '{default: 0};
+        res[0] = (readOutCached.status == CR_TAG_MISS);
+        return res;
+    endfunction
+
+    function automatic LogicA tlbMakeEnables();
+        LogicA res = '{default: 0};
+        res[0] = (readOutCached.status == CR_TLB_MISS);
+        return res;
+    endfunction
+
+endmodule
+
+
+
+module InstructionUncached(
+                input logic clk,                
+                input logic readEnUnc,
+                input Mword readAddressUnc,
+                output InstructionCacheOutput readOutUnc
+              );
+
+    InstructionCacheOutput readOutUncached;
+
+    assign readOutUnc = readOutUncached;
+
+
+    always @(posedge clk) begin
+        readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
+    end
+
+    // TODO: make more general memory read definitions, no to use InstructionCacheOutput for uncached
     function automatic InstructionCacheOutput readUncached(input logic readEnable, input Dword adr);
         InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
 
         if (!readEnable) return res;
-        
-        assert (physicalAddressValid(adr)) else $fatal(2, "Wrong fetch");
-        
-        // TODO: catch invalid adr or nonexistent mem exception
-        res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend 
+
+        if (!physicalAddressValid(adr) || (adr % 4 != 0)) begin
+            res.status = CR_INVALID;
+        end
+        else begin
+            res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend
+            res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
+        end
 
         res.active = 1;
         res.desc = '{1, 1, 1, 1, 0};
-        res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
-        
+
         return res;
     endfunction
 
+endmodule
 
 
-    always @(posedge clk) begin
-        doCacheAccess();
-       
-        if (blockFillEngine.notifyFill) allocInDynamicRange(blockFillEngine.notifiedAdr);
-        if (tlbFillEngine.notifyFill) allocInTlb(tlbFillEngine.notifiedAdr);
-    end
+
+
+module InstructionCacheArray(
+    input logic clk,
     
-    
-    
-    task automatic doCacheAccess();
-        AccessInfo acc = analyzeAccess(Dword'(readAddress), SIZE_INS_LINE);
-        Translation tr = translate(readAddress);
-        
-        ReadResult result0 = readWay(blocksWay0, acc, tr);
-        ReadResult result1 = readWay(blocksWay1, acc, tr);
-        ReadResult result2 = readWay(blocksWay2, acc, tr);
-        ReadResult result3 = readWay(blocksWay3, acc, tr);
+    input logic notify,
+    input Translation fillTr
 
-        translation <= tr;
+);
 
-        readOutCached <= readCache(readEn, tr, result0, result1, result2, result3);
-        
-        readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
-    endtask
+    InsWay blocksWay0a;
+    InsWay blocksWay1a;
+    InsWay blocksWay2a;
+    InsWay blocksWay3a;
 
-    
-    function automatic ReadResult selectWay(input ReadResult res0, input ReadResult res1, input ReadResult res2, input ReadResult res3);
-        if (res0.valid === 1) return res0; 
-        if (res1.valid === 1) return res1; 
-        if (res2.valid === 1) return res2; 
-        return res3;
-    endfunction 
+    typedef logic LogicA[1];
+    typedef Mword MwordA[1];
+    typedef Dword DwordA[1];
 
+    // Read interfaces
+    generate
+        genvar j;
+        for (j = 0; j < 1; j++) begin: rdInterface
+            ReadResult_I ar0 = '{0, 'x, '{default: 'x}}, ar1 = '{0, 'x, '{default: 'x}}, ar2 = '{0, 'x, '{default: 'x}}, ar3 = '{0, 'x, '{default: 'x}};
 
-    function automatic void initBlocksWay(ref InsWay way, input Mword baseVadr);
-        Dword basePadr = baseVadr;
+            task automatic readArray();
+                AccessDesc aDesc = instructionCache.aDesc_T;
+                ar0 <= readWay_I(blocksWay0a, aDesc);
+                ar1 <= readWay_I(blocksWay1a, aDesc);
+                ar2 <= readWay_I(blocksWay2a, aDesc);
+                ar3 <= readWay_I(blocksWay3a, aDesc);
+            endtask
 
-        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(basePadr);
-
-        foreach (way[i]) begin
-            Mword vadr = baseVadr + i*BLOCK_SIZE;
-            Dword padr = vadr;
-
-            way[i] = new();
-            way[i].valid = 1;
-            way[i].vbase = vadr;
-            way[i].pbase = padr;
-            way[i].array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
-        end
-    endfunction
-
-    function automatic void copyToWay(Dword pageAdr);
-        Dword pageBase = getPageBaseD(pageAdr);
-        
-        case (pageBase)
-            0:              initBlocksWay(blocksWay0, 0);
-            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-            2*PAGE_SIZE:    initBlocksWay(blocksWay2, 2*PAGE_SIZE);
-            3*PAGE_SIZE:    initBlocksWay(blocksWay3, 3*PAGE_SIZE);
-            default: $error("Incorrect page to init cache: %x", pageBase);
-        endcase
-    endfunction
-
-
-
-    function automatic void preloadForTest();
-        TMP_tlbL1 = AbstractCore.globalParams.preloadedInsTlbL1;
-        TMP_tlbL2 = AbstractCore.globalParams.preloadedInsTlbL2;
-        DB_fillTranslations();
-        
-        foreach (AbstractCore.globalParams.preloadedInsWays[i])
-            copyToWay(AbstractCore.globalParams.preloadedInsWays[i]);
-    endfunction
-
-
-    function automatic ReadResult readWay(input InsWay way, input AccessInfo aInfo, input Translation tr);
-        InstructionCacheBlock block = way[aInfo.block];
-        Dword accessPbase = getBlockBaseD(tr.padr);
-
-        if (block == null) return '{0, '{default: 'x}};
-
-        begin
-            logic hit0 = (accessPbase === block.pbase);
-            FetchLine val0 = block.readLine(aInfo.blockOffset);                    
-
-            if (aInfo.blockCross) begin
-                $error("Read crossing block at %x", aInfo.adr);
+            always @(negedge clk) begin
+                readArray();
             end
-
-            return '{hit0, val0};
         end
-    endfunction
+    endgenerate
 
 
-    always_comb blockFillEnA = dataMakeEnables();
-    always_comb blockFillPhysA = dataMakePhysical();
-    always_comb tlbFillEnA = tlbMakeEnables();
-    always_comb tlbFillVirtA = tlbMakeVirtual();
-
-
-/////////////////////////////////////////////////
-
-
-        function automatic LogicA dataMakeEnables();
-            LogicA res = '{default: 0};
-            if (readOutCached.status == CR_TAG_MISS) res[0] = 1;
-            return res;
-        endfunction
-    
-        function automatic DwordA dataMakePhysical();
-            DwordA res = '{default: 'x};
-            res[0] = getBlockBaseD(translation.padr);
-            return res;
-        endfunction
-    
-    
-        function automatic LogicA tlbMakeEnables();
-            LogicA res = '{default: 0};
-            if (readOutCached.status == CR_TLB_MISS) res[0] = 1;
-            return res;
-        endfunction
-    
-        function automatic MwordA tlbMakeVirtual();
-            MwordA res = '{default: 'x};
-            res[0] = getPageBaseM(translation.vadr);
-            return res;
-        endfunction
-    
-
-
+    // Filling
     function automatic void allocInDynamicRange(input Dword adr);
-        tryFillWay(blocksWay3, adr);
+        tryFillWay_I(blocksWay3a, adr);
     endfunction
 
-
-    function automatic logic tryFillWay(ref InsWay way, input Dword adr);
+    function automatic logic tryFillWay_I(ref InsWay way, input Dword adr);
         AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
         InstructionCacheBlock block = way[aInfo.block];
         Dword fillPbase = getBlockBaseD(adr);
@@ -323,15 +294,54 @@ module InstructionL1(
     endfunction
 
 
+    // Init/DB
+    task automatic resetArray();
+        blocksWay0a = '{default: null};
+        blocksWay1a = '{default: null};
+        blocksWay2a = '{default: null};
+        blocksWay3a = '{default: null};
+    endtask
 
-    function automatic void allocInTlb(input Mword adr);
-        Translation found[$] = TMP_tlbL2.find with (item.vadr === getPageBaseM(adr));  
-            
-        assert (found.size() > 0) else $error("NOt prent in TLB L2");
-        
-        translationTableL1[TMP_tlbL1.size()] = found[0];
-        TMP_tlbL1.push_back(found[0]);
+    function automatic void preloadForTest();        
+        foreach (AbstractCore.globalParams.preloadedInsWays[i])
+            copyToWay_I(AbstractCore.globalParams.preloadedInsWays[i]);
     endfunction
 
+
+    function automatic void initBlocksWay_I(ref InsWay way, input Mword baseVadr);
+        Dword basePadr = baseVadr;
+
+        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(basePadr);
+
+        foreach (way[i]) begin
+            Mword vadr = baseVadr + i*BLOCK_SIZE;
+            Dword padr = vadr;
+
+            way[i] = new();
+            way[i].valid = 1;
+            way[i].vbase = vadr;
+            way[i].pbase = padr;
+            way[i].array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
+        end
+    endfunction
+
+    function automatic void copyToWay_I(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
+        
+        case (pageBase)
+            0:              initBlocksWay_I(blocksWay0a, 0);
+            PAGE_SIZE:      initBlocksWay_I(blocksWay1a, PAGE_SIZE);
+            2*PAGE_SIZE:    initBlocksWay_I(blocksWay2a, 2*PAGE_SIZE);
+            3*PAGE_SIZE:    initBlocksWay_I(blocksWay3a, 3*PAGE_SIZE);
+            default: $error("Incorrect page to init cache: %x", pageBase);
+        endcase
+    endfunction
+
+
+    always @(posedge clk) begin
+        if (notify) begin
+            allocInDynamicRange(fillTr.padr);
+        end
+    end
 
 endmodule
