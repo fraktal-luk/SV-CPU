@@ -270,7 +270,7 @@ module ExecBlock(ref InstructionMap insMap,
         InsId lqRefetchReg = -1, lqRefetchOldH = -1, lqRefetchNewH = -1;
 
 
-           assign chp = staticEventReg.mid === staticEventSlot.mid;
+           assign chp = U2M(fpOvReg.TMP_oid) === firstFloatOvId;
            assign chq = U2M(fpInvReg.TMP_oid) === firstFloatInvId;
 
 
@@ -310,20 +310,23 @@ module ExecBlock(ref InstructionMap insMap,
 
                     if (found.size() == 0) return;
                     if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];
-                    //if (shouldFlushId(found)) staticEventSlot <= found[0];
                 endtask
 
 
-
             function automatic UopPacket effEventP(input UopPacket p);
-                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(p.TMP_oid)) // TODO: redundant cuse lateEventInfo.redirect flushes it anyway?
+                InsId lastId = AbstractCore.lastRetired;
+
+                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(p.TMP_oid) || (lastId != -1 && lastId >= U2M(p.TMP_oid)))
+                                             // TODO: redundant lateEventInfo.eventMid cause lateEventInfo.redirect flushes it anyway?
                     return EMPTY_UOP_PACKET;
                 else
                     return effP(p);
             endfunction
 
             function automatic OpSlotB effEventS(input OpSlotB s);
-                if (shouldFlushId(s.mid)) // TODO: redundant cuse lateEventInfo.redirect flushes it anyway?
+                InsId lastId = AbstractCore.lastRetired;
+
+                if (shouldFlushId(s.mid) || (lastId != -1 && lastId >= s.mid))
                     return EMPTY_SLOT_B;
                 else
                     return s;
