@@ -696,6 +696,15 @@ module AbstractCore
     endfunction 
 
 
+    function automatic logic shouldFlushEventId(input InsId id);
+        InsId lastRet = lastRetired;
+    
+        if (id == -1) return 0;
+    
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid) || (lastRet != -1 && lastRet >= id);
+    endfunction
+
+
     function automatic logic shouldFlushEvent(input UidT uid);
         return shouldFlushId(U2M(uid));
     endfunction

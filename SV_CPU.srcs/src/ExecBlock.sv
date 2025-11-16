@@ -326,7 +326,7 @@ module ExecBlock(ref InstructionMap insMap,
             function automatic OpSlotB effEventS(input OpSlotB s);
                 InsId lastId = AbstractCore.lastRetired;
 
-                if (shouldFlushId(s.mid) || (lastId != -1 && lastId >= s.mid))
+                if (shouldFlushEventId(s.mid) || (lastId != -1 && lastId >= s.mid))
                     return EMPTY_SLOT_B;
                 else
                     return s;
@@ -361,7 +361,7 @@ module ExecBlock(ref InstructionMap insMap,
             staticEventOldH <= effEventS(staticEventReg);
             memEventOldH <= effEventP(memEventReg);
             memRefetchOldH <= effEventP(memRefetchReg);
-            lqRefetchOldH <= shouldFlushId(lqRefetchReg) ? -1 : lqRefetchReg;
+            lqRefetchOldH <= shouldFlushEventId(lqRefetchReg) ? -1 : lqRefetchReg;
 
             fpInvOldH <= effEventP(fpInvReg);
             fpOvOldH <= effEventP(fpOvReg);
@@ -370,7 +370,7 @@ module ExecBlock(ref InstructionMap insMap,
             staticEventNewH <= effEventS(getOldestRenameEvSlot());
             memEventNewH <= effEventP(findOldestMemWithState(ES_ILLEGAL));
             memRefetchNewH <= effEventP(findOldestMemWithState(ES_REFETCH));
-            lqRefetchNewH <= shouldFlushId(theLq.submod.oldestRefetchEntryP0.mid) ? -1 : theLq.submod.oldestRefetchEntryP0.mid;
+            lqRefetchNewH <= shouldFlushEventId(theLq.submod.oldestRefetchEntryP0.mid) ? -1 : theLq.submod.oldestRefetchEntryP0.mid;
             
             fpInvNewH <= effEventP(findOldestFpWithState(ES_FP_INVALID));
             fpOvNewH <= effEventP(findOldestFpWithState(ES_FP_OVERFLOW));
@@ -387,12 +387,12 @@ module ExecBlock(ref InstructionMap insMap,
             fpOvReg <= replaceEvP(fpOvOldH, fpOvNewH);
             
             ///////////////////////////////
-                  
+
             updateFirstEvent();
         
             updateArithBits();
 
-            if (shouldFlushId(staticEventSlot.mid)) staticEventSlot <= EMPTY_SLOT_B;
+            if (shouldFlushEventId(staticEventSlot.mid)) staticEventSlot <= EMPTY_SLOT_B;
             gatherStaticEvents();         
         end
 
@@ -421,7 +421,7 @@ module ExecBlock(ref InstructionMap insMap,
                 if (AbstractCore.CurrentConfig.enArithExc && oldestInv.size() > 0) nextId = replaceEvId(nextId, U2M(oldestInv[0].TMP_oid));
                 if (AbstractCore.CurrentConfig.enArithExc && oldestOv.size() > 0)  nextId = replaceEvId(nextId, U2M(oldestOv[0].TMP_oid));
                 
-                if (shouldFlushId(nextId)) firstEventId_N <= -1;
+                if (shouldFlushEventId(nextId)) firstEventId_N <= -1;
                 else firstEventId_N <= nextId;
             end
 
@@ -434,13 +434,15 @@ module ExecBlock(ref InstructionMap insMap,
                 ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);
                 ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);
     
+                InsId lastRet = AbstractCore.lastRetired;
+    
                 begin
                     InsId nextId = firstFloatInvId;
                     if (oldestInv.size() > 0) begin
                         nextId = replaceEvId(nextId, U2M(oldestInv[0].TMP_oid));
                     end
     
-                    if (shouldFlushId(nextId)) firstFloatInvId <= -1;
+                    if (shouldFlushEventId(nextId) || (lastRet != -1 && lastRet >= nextId)) firstFloatInvId <= -1;
                     else if (AbstractCore.lastRetired == nextId) firstFloatInvId <= -1;
                     else firstFloatInvId <= nextId;
                 end
@@ -452,7 +454,7 @@ module ExecBlock(ref InstructionMap insMap,
                         if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestOv[0].TMP_oid), PE_ARITH_EXCEPTION);
                     end
     
-                    if (shouldFlushId(nextId)) firstFloatOvId <= -1;
+                    if (shouldFlushEventId(nextId) || (lastRet != -1 && lastRet >= nextId)) firstFloatOvId <= -1;
                     else if (AbstractCore.lastRetired == nextId) firstFloatOvId <= -1;
                     else firstFloatOvId <= nextId;
                 end
