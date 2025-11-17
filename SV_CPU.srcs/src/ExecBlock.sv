@@ -244,7 +244,7 @@ module ExecBlock(ref InstructionMap insMap,
     generate
         logic chp, chq;
     
-        InsId firstEventId_N = -1, firstFloatInvId = -1, firstFloatOvId = -1;
+        InsId firstEventId_N = -1, firstFloatInvId = -1, firstFloatOvId = -1, currentEventReg = -1;
         
             OpSlotB staticEventSlot = EMPTY_SLOT_B;
 
@@ -270,8 +270,8 @@ module ExecBlock(ref InstructionMap insMap,
         InsId lqRefetchReg = -1, lqRefetchOldH = -1, lqRefetchNewH = -1;
 
 
-           assign chp = U2M(fpOvReg.TMP_oid) === firstFloatOvId;
-           assign chq = U2M(fpInvReg.TMP_oid) === firstFloatInvId;
+           assign chp = currentEventReg === firstEventId_N;
+           assign chq = staticEventReg === staticEventSlot  &&  U2M(fpInvReg.TMP_oid) === firstFloatInvId  &&   U2M(fpOvReg.TMP_oid) === firstFloatOvId;
 
 
             function automatic OpSlotB replaceEvS(input OpSlotB prev, input OpSlotB next);
@@ -292,6 +292,28 @@ module ExecBlock(ref InstructionMap insMap,
                 else if (nextId != -1 && prevId > nextId) return next;
                 else return prev;
             endfunction
+
+                function automatic OpSlotB replaceEvS3(input OpSlotB prev, input OpSlotB prevE, input OpSlotB next);
+                    InsId prevId = prev.mid;
+                    InsId prevEId = prevE.mid;
+                    InsId nextId = next.mid;
+
+                    if (prevId == -1) return next;
+                    else if (nextId != -1 && prevId > nextId) return next;
+                    else return prevE;
+                endfunction
+    
+    
+                function automatic UopPacket replaceEvP3(input UopPacket prev, input UopPacket prevE, input UopPacket next);
+                    InsId prevId = U2M(prev.TMP_oid);
+                    InsId prevEId = U2M(prevE.TMP_oid);
+                    InsId nextId = U2M(next.TMP_oid);
+                
+                    if (prevId == -1) return next;
+                    else if (nextId != -1 && prevId > nextId) return next;
+                    else return prevE;
+                endfunction
+
 
 
             function automatic OpSlotB getOldestRenameEvSlot();
@@ -378,13 +400,16 @@ module ExecBlock(ref InstructionMap insMap,
         
         
         always @(posedge AbstractCore.clk) begin
-            staticEventReg <= replaceEvS(staticEventOldH, staticEventNewH);
-            memEventReg <= replaceEvP(memEventOldH, memEventNewH);
-            memRefetchReg <= replaceEvP(memRefetchOldH, memRefetchNewH);
-            lqRefetchReg <= replaceEvId(lqRefetchOldH, lqRefetchNewH);
+            staticEventReg <= replaceEvS3(staticEventReg, staticEventOldH, staticEventNewH);
+            memEventReg <= replaceEvP3(memEventReg, memEventOldH, memEventNewH);
+            memRefetchReg <= replaceEvP3(memRefetchReg, memRefetchOldH, memRefetchNewH);
+            lqRefetchReg <= replaceEvId3(lqRefetchReg, lqRefetchOldH, lqRefetchNewH);
             
-            fpInvReg <= replaceEvP(fpInvOldH, fpInvNewH);
-            fpOvReg <= replaceEvP(fpOvOldH, fpOvNewH);
+            fpInvReg <= replaceEvP3(fpInvReg, fpInvOldH, fpInvNewH);
+            fpOvReg <= replaceEvP3(fpOvReg, fpOvOldH, fpOvNewH);
+            
+            currentEventReg <= getCurrentEventId();
+            
             
             ///////////////////////////////
 
@@ -396,6 +421,32 @@ module ExecBlock(ref InstructionMap insMap,
             gatherStaticEvents();         
         end
 
+
+        function automatic InsId getCurrentEventId();
+            InsId id = currentEventReg;
+            InsId idE = shouldFlushEventId(id) ? -1 : id;//replaceEvId(currentEventReg, -1);
+            InsId tmp = idE;
+            
+                //if (lqRefetchNewH > 4300 && lqRefetchNewH < 4310) $error(" lq ref: ", lqRefetchNewH);
+            
+            if (AbstractCore.CurrentConfig.enArithExc) begin
+                tmp = replaceEvId(tmp, U2M(fpInvNewH.TMP_oid));
+                tmp = replaceEvId(tmp, U2M(fpOvNewH.TMP_oid));
+            end
+            
+            tmp = replaceEvId(tmp, U2M(memEventNewH.TMP_oid));
+            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));
+            
+                //if (lqRefetchNewH > 4300 && lqRefetchNewH < 4310) $error(">> %d, %d, %d", id, tmp, lqRefetchNewH);
+            
+            tmp = replaceEvId(tmp, lqRefetchNewH);
+            tmp = replaceEvId(tmp, staticEventNewH.mid);
+            
+            
+            tmp = replaceEvId3(id, idE, tmp);
+            
+            return tmp;
+        endfunction
 
 
         task automatic updateFirstEvent();

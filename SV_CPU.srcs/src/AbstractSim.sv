@@ -724,4 +724,10 @@ package AbstractSim;
                 else return prev;
             endfunction
 
+            function automatic InsId replaceEvId3(input InsId prev, input InsId prevE, input InsId next);
+                if (prev == -1) return next;
+                else if (next != -1 && prev > next) return next;
+                else return prevE;
+            endfunction
+            
 endpackage
