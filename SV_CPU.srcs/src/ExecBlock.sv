@@ -246,7 +246,7 @@ module ExecBlock(ref InstructionMap insMap,
     
         InsId firstEventId_N = -1, firstFloatInvId = -1, firstFloatOvId = -1, currentEventReg = -1;
         
-            OpSlotB staticEventSlot = EMPTY_SLOT_B;
+        OpSlotB staticEventSlot = EMPTY_SLOT_B;
 
 
         OpSlotB staticEventReg = EMPTY_SLOT_B;
@@ -261,59 +261,59 @@ module ExecBlock(ref InstructionMap insMap,
         UopPacket fpInvNewH = EMPTY_UOP_PACKET;
         UopPacket fpOvNewH = EMPTY_UOP_PACKET;
 
-        OpSlotB staticEventOldH = EMPTY_SLOT_B;
-        UopPacket memEventOldH = EMPTY_UOP_PACKET;
-        UopPacket memRefetchOldH = EMPTY_UOP_PACKET;
-        UopPacket fpInvOldH = EMPTY_UOP_PACKET;
-        UopPacket fpOvOldH = EMPTY_UOP_PACKET;
+        InsId lqRefetchReg = -1, lqRefetchNewH = -1;
 
-        InsId lqRefetchReg = -1, lqRefetchOldH = -1, lqRefetchNewH = -1;
+            
 
 
            assign chp = currentEventReg === firstEventId_N;
            assign chq = staticEventReg === staticEventSlot  &&  U2M(fpInvReg.TMP_oid) === firstFloatInvId  &&   U2M(fpOvReg.TMP_oid) === firstFloatOvId;
 
-
-            function automatic OpSlotB replaceEvS(input OpSlotB prev, input OpSlotB next);
-                InsId prevId = prev.mid;
-                InsId nextId = next.mid;
-            
-                if (prevId == -1) return next;
-                else if (nextId != -1 && prevId > nextId) return next;
+            function automatic InsId replaceEvId(input InsId prev, input InsId next);
+                if (prev == -1) return next;
+                else if (next != -1 && prev > next) return next;
                 else return prev;
             endfunction
 
 
-            function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
-                InsId prevId = U2M(prev.TMP_oid);
-                InsId nextId = U2M(next.TMP_oid);
-            
-                if (prevId == -1) return next;
-                else if (nextId != -1 && prevId > nextId) return next;
-                else return prev;
-            endfunction
-
-                function automatic OpSlotB replaceEvS3(input OpSlotB prev, input OpSlotB prevE, input OpSlotB next);
+                function automatic InsId replaceEvId_N(input InsId prev, input InsId next);
+                    InsId older = prev;
+                    
+                    if (prev == -1) older = next;
+                    else if (next != -1 && prev > next) older = next;
+                    
+                    if (shouldFlushId(older) || AbstractCore.lastRetired > older) return -1;
+                    
+                    return older;
+                endfunction
+                    
+                function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
+                    OpSlotB older = prev;
                     InsId prevId = prev.mid;
-                    InsId prevEId = prevE.mid;
                     InsId nextId = next.mid;
 
-                    if (prevId == -1) return next;
-                    else if (nextId != -1 && prevId > nextId) return next;
-                    else return prevE;
+                
+                    if (prevId == -1) older = next;
+                    else if (nextId != -1 && prevId > nextId) older = next;
+
+                    if (shouldFlushId(older.mid) || AbstractCore.lastRetired > older.mid) return EMPTY_SLOT_B;
+
+                    return older;
                 endfunction
     
     
-                function automatic UopPacket replaceEvP3(input UopPacket prev, input UopPacket prevE, input UopPacket next);
+                function automatic UopPacket replaceEvP_N(input UopPacket prev, input UopPacket next);
+                    UopPacket older = prev;
                     InsId prevId = U2M(prev.TMP_oid);
-                    InsId prevEId = U2M(prevE.TMP_oid);
                     InsId nextId = U2M(next.TMP_oid);
                 
-                    if (prevId == -1) return next;
-                    else if (nextId != -1 && prevId > nextId) return next;
-                    else return prevE;
-                endfunction
+                    if (prevId == -1) older = next;
+                    else if (nextId != -1 && prevId > nextId) older = next;
+                    //else return prev;
+                    if (shouldFlushId(U2M(older.TMP_oid)) || AbstractCore.lastRetired > U2M(older.TMP_oid)) return EMPTY_UOP_PACKET;
 
+                    return older;
+                endfunction
 
 
             function automatic OpSlotB getOldestRenameEvSlot();
@@ -324,8 +324,6 @@ module ExecBlock(ref InstructionMap insMap,
                 else return found[0];
             endfunction
             
-            
-
                 task automatic gatherStaticEvents();        
                     OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
                     // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
@@ -333,27 +331,6 @@ module ExecBlock(ref InstructionMap insMap,
                     if (found.size() == 0) return;
                     if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];
                 endtask
-
-
-            function automatic UopPacket effEventP(input UopPacket p);
-                InsId lastId = AbstractCore.lastRetired;
-
-                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(p.TMP_oid) || (lastId != -1 && lastId >= U2M(p.TMP_oid)))
-                                             // TODO: redundant lateEventInfo.eventMid cause lateEventInfo.redirect flushes it anyway?
-                    return EMPTY_UOP_PACKET;
-                else
-                    return effP(p);
-            endfunction
-
-            function automatic OpSlotB effEventS(input OpSlotB s);
-                InsId lastId = AbstractCore.lastRetired;
-
-                if (shouldFlushEventId(s.mid) || (lastId != -1 && lastId >= s.mid))
-                    return EMPTY_SLOT_B;
-                else
-                    return s;
-            endfunction
-
 
 
             function automatic UopPacket findOldestMemWithState(input ExecStatus refSt);
@@ -380,41 +357,30 @@ module ExecBlock(ref InstructionMap insMap,
         
         
         always @(negedge AbstractCore.clk) begin
-            staticEventOldH <= effEventS(staticEventReg);
-            memEventOldH <= effEventP(memEventReg);
-            memRefetchOldH <= effEventP(memRefetchReg);
-            lqRefetchOldH <= shouldFlushEventId(lqRefetchReg) ? -1 : lqRefetchReg;
-
-            fpInvOldH <= effEventP(fpInvReg);
-            fpOvOldH <= effEventP(fpOvReg);
+            staticEventNewH <= (getOldestRenameEvSlot());
+            memEventNewH <= (findOldestMemWithState(ES_ILLEGAL));
+            memRefetchNewH <= (findOldestMemWithState(ES_REFETCH));
+            lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
             
-
-            staticEventNewH <= effEventS(getOldestRenameEvSlot());
-            memEventNewH <= effEventP(findOldestMemWithState(ES_ILLEGAL));
-            memRefetchNewH <= effEventP(findOldestMemWithState(ES_REFETCH));
-            lqRefetchNewH <= shouldFlushEventId(theLq.submod.oldestRefetchEntryP0.mid) ? -1 : theLq.submod.oldestRefetchEntryP0.mid;
-            
-            fpInvNewH <= effEventP(findOldestFpWithState(ES_FP_INVALID));
-            fpOvNewH <= effEventP(findOldestFpWithState(ES_FP_OVERFLOW));
+            fpInvNewH <= (findOldestFpWithState(ES_FP_INVALID));
+            fpOvNewH <= (findOldestFpWithState(ES_FP_OVERFLOW));
         end
         
         
         always @(posedge AbstractCore.clk) begin
-            staticEventReg <= replaceEvS3(staticEventReg, staticEventOldH, staticEventNewH);
-            memEventReg <= replaceEvP3(memEventReg, memEventOldH, memEventNewH);
-            memRefetchReg <= replaceEvP3(memRefetchReg, memRefetchOldH, memRefetchNewH);
-            lqRefetchReg <= replaceEvId3(lqRefetchReg, lqRefetchOldH, lqRefetchNewH);
+            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
+            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+            memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
+            lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
             
-            fpInvReg <= replaceEvP3(fpInvReg, fpInvOldH, fpInvNewH);
-            fpOvReg <= replaceEvP3(fpOvReg, fpOvOldH, fpOvNewH);
+            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
             
             currentEventReg <= getCurrentEventId();
-            
             
             ///////////////////////////////
 
             updateFirstEvent();
-        
             updateArithBits();
 
             if (shouldFlushEventId(staticEventSlot.mid)) staticEventSlot <= EMPTY_SLOT_B;
@@ -423,27 +389,19 @@ module ExecBlock(ref InstructionMap insMap,
 
 
         function automatic InsId getCurrentEventId();
-            InsId id = currentEventReg;
-            InsId idE = shouldFlushEventId(id) ? -1 : id;//replaceEvId(currentEventReg, -1);
-            InsId tmp = idE;
-            
-                //if (lqRefetchNewH > 4300 && lqRefetchNewH < 4310) $error(" lq ref: ", lqRefetchNewH);
-            
+            InsId tmp = currentEventReg;
+                        
             if (AbstractCore.CurrentConfig.enArithExc) begin
                 tmp = replaceEvId(tmp, U2M(fpInvNewH.TMP_oid));
                 tmp = replaceEvId(tmp, U2M(fpOvNewH.TMP_oid));
             end
             
             tmp = replaceEvId(tmp, U2M(memEventNewH.TMP_oid));
-            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));
-            
-                //if (lqRefetchNewH > 4300 && lqRefetchNewH < 4310) $error(">> %d, %d, %d", id, tmp, lqRefetchNewH);
-            
+            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));           
             tmp = replaceEvId(tmp, lqRefetchNewH);
             tmp = replaceEvId(tmp, staticEventNewH.mid);
             
-            
-            tmp = replaceEvId3(id, idE, tmp);
+            tmp = replaceEvId_N(currentEventReg, tmp);
             
             return tmp;
         endfunction
