@@ -476,8 +476,12 @@ module AbstractCore
             commitOp(theRob.retirementGroup[i]);
 
             begin
-                if (theId == theExecBlock.firstFloatInvId) sysUnit.setFpInv();
-                if (theId == theExecBlock.firstFloatOvId)  sysUnit.setFpOv();
+                if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
+                    sysUnit.setFpInv();
+                end
+                if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
+                    sysUnit.setFpOv();
+                end
                 
                 syncCurrentConfigFromRegs();
             end
@@ -564,11 +568,6 @@ module AbstractCore
         InstructionInfo insInfo = insMap.get(id);
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
-
-            assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
-                                isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-                else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
-                            retInfo.refetch, retInfo.exception);
 
             assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
                                 isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
