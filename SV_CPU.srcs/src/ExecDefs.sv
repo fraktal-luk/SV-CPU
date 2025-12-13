@@ -587,4 +587,10 @@ package ExecDefs;
             endcase 
         endfunction
 
+            function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
+                ForwardingElement found[$] = elems.find with (item.active && item.status == st);
+                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+                return oldest;
+            endfunction
+            
 endpackage

@@ -242,144 +242,135 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     generate
-        InsId firstEventId = -1, firstEventId_N = -1;
-        InsId firstFloatInvId = -1, firstFloatOvId = -1;
-        
-            OpSlotB staticEventSlot = EMPTY_SLOT_B;
-            UopPacket memEventPacket = EMPTY_UOP_PACKET;
-            UopPacket memRefetchPacket = EMPTY_UOP_PACKET;
+        logic chp, chq;
+    
+        InsId currentEventReg = -1, lqRefetchReg = -1, lqRefetchNewH = -1;
 
-            function automatic logic hasStaticEvent(InsId id);
-                AbstractInstruction abs = insMap.get(id).basicData.dec;
-                return isStaticEventIns(abs);
-            endfunction
-            
-            task automatic gatherMemEvents();        
-                ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-                ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_ILLEGAL);
-                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-                
-                if (found.size() == 0) return;
-                assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
-                if (!memEventPacket.active || U2M(oldest[0].TMP_oid) < U2M(memEventPacket.TMP_oid)) memEventPacket <= tickP(oldest[0]);
-            endtask
-     
-     
-             task automatic gatherMemRefetches();        
-                ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-                ForwardingElement found[$] = memStages0.find with (item.active && item.status == ES_REFETCH);
-                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-                
-                if (found.size() == 0) return;
-                assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none"); 
-                if (!memRefetchPacket.active || U2M(oldest[0].TMP_oid) < U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= tickP(oldest[0]);
-            endtask       
-            
-             task automatic gatherStaticEvents();        
-                OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
-                // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-
-                if (found.size() == 0) return;
-                if (!staticEventSlot.active && !branchEventInfo.redirect && !lateEventInfo.redirect) staticEventSlot <= found[0];
-            endtask
+        OpSlotB staticEventReg = EMPTY_SLOT_B, staticEventNewH = EMPTY_SLOT_B;
+        UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
+        UopPacket memRefetchReg = EMPTY_UOP_PACKET, memRefetchNewH = EMPTY_UOP_PACKET;
+        UopPacket fpInvReg = EMPTY_UOP_PACKET, fpInvNewH = EMPTY_UOP_PACKET;
+        UopPacket fpOvReg = EMPTY_UOP_PACKET, fpOvNewH = EMPTY_UOP_PACKET;
 
 
-            function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
-                ForwardingElement found[$] = elems.find with (item.active && item.status == st);
-                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-                return oldest;
-            endfunction
-            
-            
-        task automatic updateFirstEvent();
-            OpSlotB foundRename[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
-        
-            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement oldestMemIll[$] = findOldestWithStatus(memStages0, ES_ILLEGAL);
-            ForwardingElement oldestMemRef[$] = findOldestWithStatus(memStages0, ES_REFETCH);
-
-            ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
-
-            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);
-            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);
-
-
-            begin
-                InsId nextId = firstEventId_N;
-                if (foundRename.size() > 0) nextId = replaceId(nextId, foundRename[0].mid);
-                
-                if (oldestMemIll.size() > 0) nextId = replaceId(nextId, U2M(oldestMemIll[0].TMP_oid));                                    
-                if (oldestMemRef.size() > 0) nextId = replaceId(nextId, U2M(oldestMemRef[0].TMP_oid));                                    
-                nextId = replaceId(nextId, theLq.submod.oldestRefetchEntryP0.mid);
-                
-                if (AbstractCore.CurrentConfig.enArithExc && oldestInv.size() > 0) nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
-                if (AbstractCore.CurrentConfig.enArithExc && oldestOv.size() > 0)  nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));
-                
-                if (shouldFlushId(nextId)) firstEventId_N <= -1;
-                else firstEventId_N <= nextId;
-            end
-
-        endtask
-
-
-        task automatic updateArithBits();        
-            ForwardingElement floatStages0[N_VEC_PORTS] = floatImagesTr[0];
-
-            ForwardingElement oldestInv[$] = findOldestWithStatus(floatStages0, ES_FP_INVALID);
-            ForwardingElement oldestOv[$] =  findOldestWithStatus(floatStages0, ES_FP_OVERFLOW);
-
-            begin
-                InsId nextId = firstFloatInvId;
-                if (oldestInv.size() > 0) begin
-                    nextId = replaceId(nextId, U2M(oldestInv[0].TMP_oid));
-                end
-
-                if (shouldFlushId(nextId)) firstFloatInvId <= -1;
-                else if (AbstractCore.lastRetired == nextId) firstFloatInvId <= -1;
-                else firstFloatInvId <= nextId;
-            end
-
-            begin
-                InsId nextId = firstFloatOvId;
-                if (oldestOv.size() > 0) begin
-                    nextId = replaceId(nextId, U2M(oldestOv[0].TMP_oid));                                    
-                    if (AbstractCore.CurrentConfig.enArithExc) insMap.setException(U2M(oldestOv[0].TMP_oid), PE_ARITH_EXCEPTION);
-                end
-
-                if (shouldFlushId(nextId)) firstFloatOvId <= -1;
-                else if (AbstractCore.lastRetired == nextId) firstFloatOvId <= -1;
-                else firstFloatOvId <= nextId;
-            end
-
-        endtask
-
-
-        function automatic InsId replaceId(input InsId prev, input InsId next);
+        function automatic InsId replaceEvId(input InsId prev, input InsId next);
             if (prev == -1) return next;
             else if (next != -1 && prev > next) return next;
             else return prev;
         endfunction
-        
-        
-        
-        always @(posedge AbstractCore.clk) begin        
-            updateFirstEvent();
-        
-            updateArithBits();
-        
-                if (lateEventInfo.redirect || branchEventInfo.redirect) staticEventSlot <= EMPTY_SLOT_B;
+
+
+        function automatic InsId replaceEvId_N(input InsId prev, input InsId next);
+            InsId older = prev;
             
-                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memEventPacket.TMP_oid)) memEventPacket <= EMPTY_UOP_PACKET;
-                else memEventPacket <= tickP(memEventPacket);
-    
-                if (lateEventInfo.redirect && lateEventInfo.eventMid == U2M(memRefetchPacket.TMP_oid)) memRefetchPacket <= EMPTY_UOP_PACKET;
-                else memRefetchPacket <= tickP(memRefetchPacket);
-                
-                gatherMemEvents();
-                gatherMemRefetches();
-                gatherStaticEvents();
+            if (prev == -1) older = next;
+            else if (next != -1 && prev > next) older = next;
+            
+            if (shouldFlushId(older) || AbstractCore.lastRetired > older) return -1;
+            else return older;
+        endfunction
+            
+        function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
+            OpSlotB older = prev;
+            InsId prevId = prev.mid;
+            InsId nextId = next.mid;
+
+            if (prevId == -1) older = next;
+            else if (nextId != -1 && prevId > nextId) older = next;
+
+            if (shouldFlushId(older.mid) || AbstractCore.lastRetired > older.mid) return EMPTY_SLOT_B;
+            else return older;
+        endfunction
+
+
+        function automatic UopPacket replaceEvP_N(input UopPacket prev, input UopPacket next);
+            UopPacket older = prev;
+            InsId prevId = U2M(prev.TMP_oid);
+            InsId nextId = U2M(next.TMP_oid);
+        
+            if (prevId == -1) older = next;
+            else if (nextId != -1 && prevId > nextId) older = next;
+
+            if (shouldFlushId(U2M(older.TMP_oid)) || AbstractCore.lastRetired > U2M(older.TMP_oid)) return EMPTY_UOP_PACKET;
+            else return older;
+        endfunction
+
+
+        function automatic OpSlotB getOldestRenameEvSlot();
+            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
+            // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+            if (found.size() == 0) return EMPTY_SLOT_B;
+            else return found[0];
+        endfunction
+
+
+        function automatic UopPacket findOldestMemWithState(input ExecStatus refSt);
+            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
+            ForwardingElement found[$] = memStages0.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+
+         function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
+            ForwardingElement fpStages0[N_MEM_PORTS] = floatImagesTr[0];
+            ForwardingElement found[$] = fpStages0.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+        
+        
+        always @(negedge AbstractCore.clk) begin
+            staticEventNewH <= (getOldestRenameEvSlot());
+            memEventNewH <= (findOldestMemWithState(ES_ILLEGAL));
+            memRefetchNewH <= (findOldestMemWithState(ES_REFETCH));
+            lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
+            
+            fpInvNewH <= (findOldestFpWithState(ES_FP_INVALID));
+            fpOvNewH <= (findOldestFpWithState(ES_FP_OVERFLOW));
         end
-    
+        
+        
+        always @(posedge AbstractCore.clk) begin
+            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
+            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+            memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
+            lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
+            
+            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+            
+            currentEventReg <= getCurrentEventId();        
+        end
+
+
+        function automatic InsId getCurrentEventId();
+            InsId tmp = currentEventReg;
+                        
+            if (AbstractCore.CurrentConfig.enArithExc) begin
+                tmp = replaceEvId(tmp, U2M(fpInvNewH.TMP_oid));
+                tmp = replaceEvId(tmp, U2M(fpOvNewH.TMP_oid));
+            end
+            
+            tmp = replaceEvId(tmp, U2M(memEventNewH.TMP_oid));
+            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));           
+            tmp = replaceEvId(tmp, lqRefetchNewH);
+            tmp = replaceEvId(tmp, staticEventNewH.mid);
+            
+            tmp = replaceEvId_N(currentEventReg, tmp);
+            
+            return tmp;
+        endfunction
+
+
     endgenerate
 
 

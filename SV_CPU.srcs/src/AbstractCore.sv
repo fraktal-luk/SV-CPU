@@ -476,8 +476,12 @@ module AbstractCore
             commitOp(theRob.retirementGroup[i]);
 
             begin
-                if (theId == theExecBlock.firstFloatInvId) sysUnit.setFpInv();
-                if (theId == theExecBlock.firstFloatOvId)  sysUnit.setFpOv();
+                if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
+                    sysUnit.setFpInv();
+                end
+                if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
+                    sysUnit.setFpOv();
+                end
                 
                 syncCurrentConfigFromRegs();
             end
@@ -517,7 +521,7 @@ module AbstractCore
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
-        
+ 
         // TODO: incorporate arith exc into ROB output to bring back this check?
           //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
           //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
@@ -565,12 +569,11 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-            assert ((theExecBlock.firstEventId_N == id) === (retInfo.refetch || retInfo.exception ||
+            assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
                                 isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-                else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.firstEventId_N, 
+                else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
                             retInfo.refetch, retInfo.exception);
-
-
+                            
         verifyOnCommit(retInfo);
 
         // RET: update regs
@@ -696,6 +699,15 @@ module AbstractCore
     endfunction 
 
 
+    function automatic logic shouldFlushEventId(input InsId id);
+        InsId lastRet = lastRetired;
+    
+        if (id == -1) return 0;
+    
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid) || (lastRet != -1 && lastRet >= id);
+    endfunction
+
+
     function automatic logic shouldFlushEvent(input UidT uid);
         return shouldFlushId(U2M(uid));
     endfunction
@@ -790,5 +802,10 @@ module AbstractCore
         function automatic logic pipesEmpty();
             return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
         endfunction
+
+            function automatic logic hasStaticEvent(InsId id);
+                AbstractInstruction abs = insMap.get(id).basicData.dec;
+                return isStaticEventIns(abs);
+            endfunction
 
 endmodule

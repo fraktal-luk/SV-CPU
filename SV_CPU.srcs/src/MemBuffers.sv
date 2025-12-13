@@ -45,7 +45,7 @@ module StoreQueue
     logic allow;
 
     assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
-    assign allow = (size < SIZE - 3*RENAME_WIDTH); // TODO: check slack number
+    assign allow = (size < SIZE - N_RENAME_STAGES * RENAME_WIDTH); // Must account for N_RENAME_STAGES stages possibly full of applicable ops 
 
     QEntry content[SIZE] = '{default: EMPTY_QENTRY};
 

@@ -20,9 +20,9 @@ package AbstractSim;
 
     localparam int ROB_SIZE = 128;
     localparam int ROB_WIDTH = 4;
-    
-    localparam int LQ_SIZE = 80;
-    localparam int SQ_SIZE = 80;
+
+    localparam int LQ_SIZE = 40;
+    localparam int SQ_SIZE = 40;
     localparam int BQ_SIZE = 32;
 
     localparam int FETCH_WIDTH = 4;
@@ -30,13 +30,12 @@ package AbstractSim;
     
     localparam int DISPATCH_WIDTH = RENAME_WIDTH;
 
+    localparam int N_RENAME_STAGES = 2; // Number of stages between FQ and OOO buffers
+
     // General uarch defs
     localparam int N_INT_PORTS = 6;
     localparam int N_MEM_PORTS = 4;
     localparam int N_VEC_PORTS = 4;
-
-
-    //localparam logic IN_ORDER = 0;
 
     localparam int FW_FIRST = -2 + 0;
     localparam int FW_LAST = 1;
@@ -46,8 +45,6 @@ package AbstractSim;
     // Core structures
 
     typedef int InsId;  // Implem detail
-    typedef InsId IdQueue[$]; // Implem detail
-
 
     typedef struct {
         int m;
@@ -721,4 +718,5 @@ package AbstractSim;
         return ins;
     endfunction
 
+            
 endpackage
