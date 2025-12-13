@@ -4,3 +4,7 @@
 /SV_CPU.ip_user_files/
 /SV_CPU.sim/
 /sim_files
+simulation/behav/questa/files/questa_lib/msim/
+simulation/behav/questa/files/questa_lib/work/
+simulation/behav/questa/files/logs
+simulation/behav/questa/files/vsim.wlf

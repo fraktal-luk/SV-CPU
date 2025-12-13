@@ -1,0 +1,5 @@
+
+$VSIM_PATH  -c -do "do {ArchDesc0_compile.do}" -l logs/compile.log
+$VSIM_PATH  -c -do "do {ArchDesc0_elaborate.do}" -l logs/elaborate.log
+$VSIM_PATH     -do "do {ArchDesc0_simulate.do}" -l logs/simulate.log
+
