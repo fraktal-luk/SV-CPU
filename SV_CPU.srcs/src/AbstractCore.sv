@@ -628,6 +628,12 @@ module AbstractCore
 
         if (isLoadMemUop(mainUop)) markers.load = id;
         if (isStoreMemUop(mainUop)) markers.store = id;
+        
+        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
+        if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
+
+        if (isLoadAqUop(mainUop)) markers.loadAq = id;
+        if (isStoreRelUop(mainUop)) markers.storeRel = id;
 
     endfunction
 

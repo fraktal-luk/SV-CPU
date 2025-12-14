@@ -169,7 +169,7 @@ package UopList;
             "mb_ld_b":  UOP_mem_mb_ld_b,
             "mb_ld_f":  UOP_mem_mb_ld_f,
             "mb_ld_bf": UOP_mem_mb_ld_bf,
-            "mb_st:b":  UOP_mem_mb_st_b,
+            "mb_st_b":  UOP_mem_mb_st_b,
             "mb_st_f":  UOP_mem_mb_st_f,
             "mb_st_bf": UOP_mem_mb_st_bf,
 
@@ -302,7 +302,13 @@ package UopList;
         return name inside {UOP_mem_sts};
     endfunction
 
+    function automatic logic isLoadAqUop(input UopName name);
+        return name inside {UOP_mem_lda};
+    endfunction
 
+    function automatic logic isStoreRelUop(input UopName name);
+        return name inside {UOP_mem_stc};
+    endfunction
 
 
     function automatic logic uopHasIntDest(input UopName name);

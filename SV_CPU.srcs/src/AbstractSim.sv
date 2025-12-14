@@ -215,6 +215,9 @@ package AbstractSim;
     typedef struct {
         InsId load;
         InsId store;
+        InsId mbLoadF;
+        InsId mbStoreF;
+
         InsId loadAq;
         InsId storeRel;
     } MarkerSet;
