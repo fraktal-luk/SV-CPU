@@ -70,6 +70,7 @@ module AbstractCore
 
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+    MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
@@ -302,8 +303,9 @@ module AbstractCore
             memTracker.flush(branchEventInfo.eventMid);
             
             renameInds = causingCP.inds;
+            renameMarkers = causingCP.markers;
         end
-       
+
     endtask
 
 
@@ -328,7 +330,8 @@ module AbstractCore
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameInds, renamedEmul);
+                                    renameInds, renameMarkers,
+                                    renamedEmul);
         branchCheckpointQueue.push_back(cp);
     endtask
 
@@ -399,6 +402,7 @@ module AbstractCore
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
+        updateMarkers(renameMarkers, id); // Crucial state
 
         putMilestoneM(id, InstructionMap::Rename);
     endtask
@@ -598,6 +602,7 @@ module AbstractCore
 
         // Elements related to crucial signals:
         // RET: update inds
+        updateMarkers(commitMarkers, id);
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
@@ -617,12 +622,24 @@ module AbstractCore
     endtask
 
 
+
+    function automatic void updateMarkers(ref MarkerSet markers, input InsId id);
+        UopName mainUop = decMainUop(id);
+
+        if (isLoadMemUop(mainUop)) markers.load = id;
+        if (isStoreMemUop(mainUop)) markers.store = id;
+
+    endfunction
+
+
     // MOVE?
     function automatic void updateInds(ref IndexSet inds, input InsId id);
+        UopName mainUop = decMainUop(id);
+
         inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
-        if (isBranchUop(decMainUop(id))) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
-        if (isLoadUop(decMainUop(id))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
-        if (isStoreUop(decMainUop(id))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
+        if (isBranchUop(mainUop)) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
+        if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
+        if (isStoreUop(mainUop)) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
 
     task automatic writeResult(input UopPacket p);

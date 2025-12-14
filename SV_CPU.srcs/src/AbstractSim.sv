@@ -212,6 +212,14 @@ package AbstractSim;
         int sq;
     } IndexSet;
 
+    typedef struct {
+        InsId load;
+        InsId store;
+        InsId loadAq;
+        InsId storeRel;
+    } MarkerSet;
+
+
     //////////////////////////////////////
 
     
@@ -232,13 +240,15 @@ package AbstractSim;
         function new(input InsId id,
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
-                    input IndexSet indexSet, input Emulator em);
+                    input IndexSet indexSet, input MarkerSet markerSet,
+                    input Emulator em);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
             this.intMapR = intMapR;
             this.floatMapR = floatMapR;
             this.inds = indexSet;
+            this.markers = markerSet;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
         endfunction
@@ -249,6 +259,7 @@ package AbstractSim;
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
+        MarkerSet markers;
         Emulator emul;
     endclass
 
