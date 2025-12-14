@@ -64,7 +64,17 @@ package UopList;
          UOP_mem_ldf,
          UOP_mem_stf,
     
-        
+            UOP_mem_lda,
+            UOP_mem_stc,
+
+            UOP_mem_mb_ld_b,
+            UOP_mem_mb_ld_f,
+            UOP_mem_mb_ld_bf,
+            UOP_mem_mb_st_b,
+            UOP_mem_mb_st_f,
+            UOP_mem_mb_st_bf,
+
+
          UOP_mem_lds,
          UOP_mem_sts,
         
@@ -152,7 +162,17 @@ package UopList;
                 
             "e_lb":    UOP_mem_ldib,
             "e_sb":    UOP_mem_stib,
-        
+
+            "e_ldaq":   UOP_mem_lda,
+            "e_stc":    UOP_mem_stc,
+
+            "mb_ld_b":  UOP_mem_mb_ld_b,
+            "mb_ld_f":  UOP_mem_mb_ld_f,
+            "mb_ld_bf": UOP_mem_mb_ld_bf,
+            "mb_st:b":  UOP_mem_mb_st_b,
+            "mb_st_f":  UOP_mem_mb_st_f,
+            "mb_st_bf": UOP_mem_mb_st_bf,
+
         "lds":        UOP_mem_lds,
         "sts":        UOP_mem_sts,
         
@@ -250,8 +270,12 @@ package UopList;
         return name inside { UOP_fp_divi, UOP_fp_div32 };
     endfunction
 
+    function automatic logic isMemBarrierUop(input UopName name);
+        return name inside {UOP_mem_mb_ld_b, UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_b, UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
+    endfunction
+
     function automatic logic isMemUop(input UopName name);
-        return isLoadMemUop(name) || isStoreMemUop(name);
+        return isLoadMemUop(name) || isStoreMemUop(name) || isMemBarrierUop(name);
     endfunction
 
     function automatic logic isStoreUop(input UopName name);

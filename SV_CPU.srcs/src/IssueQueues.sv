@@ -529,7 +529,7 @@ module IssueQueueComplex(
                 UopId uid = '{gr[i].mid, u};
                 UopName uname = decUname(uid);                          // module dependence
 
-                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+                if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = '{1, uid};
                 else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
                 else if (isIntDividerUop(uname)) res.idivider[i] = '{1, uid};

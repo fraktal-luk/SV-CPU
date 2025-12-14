@@ -493,6 +493,9 @@ package Emulation;
             if (isLoadSysIns(ins)) begin
                 if (catchSysAccessException(ins, vadr)) return 1;
             end
+            else if (isMemBarrierIns(ins)) begin
+                return 0;
+            end
             else begin
                 Translation tr = translateDataAddress(vadr);
                 padr = tr.padr;
