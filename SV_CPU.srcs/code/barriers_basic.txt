@@ -2,8 +2,18 @@
 ; Checking if no errors when using instructions
 
 mb_ld_f
+mb_ld_b
+mb_ld_bf
 
+mb_st_f
 mb_st_b
+mb_st_bf
+
+
+e_ldaq r5, r0, 16
+
+e_stc  r6, r0, 16
+
 
 
 sys_dbcall

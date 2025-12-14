@@ -291,11 +291,11 @@ package UopList;
     endfunction
 
     function automatic logic isLoadMemUop(input UopName name);
-        return name inside {UOP_mem_ldi, UOP_mem_ldf,    UOP_mem_ldib};
+        return name inside {UOP_mem_ldi, UOP_mem_ldf,    UOP_mem_ldib,   UOP_mem_lda};
     endfunction
 
     function automatic logic isStoreMemUop(input UopName name);
-        return name inside {UOP_mem_sti, UOP_mem_stf,    UOP_mem_stib};
+        return name inside {UOP_mem_sti, UOP_mem_stf,    UOP_mem_stib,  UOP_mem_stc};
     endfunction
 
     function automatic logic isStoreSysUop(input UopName name);
@@ -341,6 +341,10 @@ package UopList;
          UOP_mem_ldi,
             UOP_mem_ldib,
             
+         UOP_mem_lda,
+         UOP_mem_stc,
+
+
          UOP_mem_lds,
         
         

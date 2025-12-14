@@ -708,14 +708,18 @@ package AbstractSim;
         case (uop)
             UOP_mem_ldi: return w;
             UOP_mem_ldib: return Mword'(w[7:0]);
-            UOP_mem_ldf,
+            UOP_mem_ldf: return w;
             UOP_mem_lds: return w;
             
+            UOP_mem_lda: return w;
+
             UOP_mem_sti,
             UOP_mem_stib,
             UOP_mem_stf,
             UOP_mem_sts: return 0;
             
+            UOP_mem_stc: return 0; // TODO
+
             default: $fatal(2, "Wrong op");
         endcase
     endfunction
