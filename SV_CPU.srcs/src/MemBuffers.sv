@@ -112,7 +112,7 @@ module StoreQueue
     
     function automatic logic appliesU(input UopName uname);        
         return (
-            (IS_STORE_QUEUE && isStoreUop(uname)) 
+            (IS_STORE_QUEUE && (isStoreUop(uname) || isMemBarrierUop(uname)))  
          || (IS_LOAD_QUEUE && isLoadUop(uname)) 
          || (IS_BRANCH_QUEUE && isBranchUop(uname)) 
         );
@@ -332,15 +332,23 @@ module TmpSubSq();
 
         if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
 
+        if (isMemBarrierUop(decMainUop(mid))) return;
+
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  StoreQueue.insMap.get(mid));
     endfunction
 
     function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
         UopName uname = decUname(p.TMP_oid);
-        assert (isStoreUop(uname)) else $fatal(2, "This op is not. it is %p", uname);
+        //assert (isStoreUop(uname)) else $fatal(2, "This op is not. it is %p", uname);
 
-        entry.accessDesc = desc;
-        entry.translation = tr;
+        if (isStoreUop(uname)) begin
+            entry.accessDesc = desc;
+            entry.translation = tr;
+        end
+        else if (isMemBarrierUop(uname)) begin
+            
+        end
+        else $fatal(2, "This op is not. it is %p", uname);
     endfunction
 
 

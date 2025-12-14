@@ -375,6 +375,7 @@ package EmulationDefs;
 
 
     function automatic Mword calculateEffectiveAddress(input AbstractInstruction ins, input Mword3 vals);
+        if (isMemBarrierIns(ins)) return 'x;
         return (ins.def.o inside {O_sysLoad, O_sysStore}) ? vals[1] : vals[0] + vals[1];
     endfunction
 

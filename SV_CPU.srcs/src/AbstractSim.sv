@@ -527,6 +527,10 @@ package AbstractSim;
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             AccessSize size = getTransactionSize(uname);
 
+            if (isMemBarrierIns(ins)) begin
+                addBarrier(id, 'x, 'x, 'x, SIZE_NONE);
+            end
+
             if (isStoreMemIns(ins)) begin 
                 Mword value = argVals[2];
                 addStore(id, effAdr, padr, value, size);
@@ -541,6 +545,11 @@ package AbstractSim;
             if (isLoadSysIns(ins)) begin
                 addLoadSys(id, effAdr, 'x);
             end
+        endfunction
+
+        function automatic void addBarrier(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
+            transactions.push_back('{id, adr, val, adr, padr, size});
+            stores.push_back('{id, adr, val, adr, padr, size});
         endfunction
 
         function automatic void addStore(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);

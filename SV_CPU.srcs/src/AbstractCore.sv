@@ -392,7 +392,7 @@ module AbstractCore
 
         insMap.allocate(id, ii, uInfos);  // 
 
-        if (isStoreIns(ins) || isLoadIns(ins)) begin
+        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             Translation tr = renamedEmul.translateDataAddress(effAdr);
             
@@ -587,10 +587,10 @@ module AbstractCore
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
+        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
 
         // RET: free DB queues
-        if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
+        if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
