@@ -223,17 +223,24 @@ package ExecDefs;
     localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
 
 
+    typedef enum {
+        IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
+    } SlotStatus;
+
     typedef struct {
         logic used;
-        logic active;
+        UidT uid;
+        logic active_;
+        SlotStatus status;
         IqArgState state;
         InsId barrier;
         IqPoisonState poisons;
         int issueCounter;
-        UidT uid;
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
+                                status: IqEmpty,
+                                state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
 
     
     typedef enum {
@@ -258,7 +265,7 @@ package ExecDefs;
 
     typedef struct {
         UidT uid;
-        logic allowed;
+       // logic allowed;
         logic used;
         logic active;
         logic3 registers;
