@@ -35,6 +35,8 @@ package Insmap;
         
         InsDependencies deps;
         
+        InsId barrier;
+
         Mword argsE[3]; // Args from emulation
         Mword argsA[3]; // Actual args read from regs and bypass
         Mword resultE;  // Result according to emulation
@@ -46,7 +48,7 @@ package Insmap;
         logic exception;   // Execution event from actual uarch
     } UopInfo;
     
-
+    //localparam UopInfo DEFAULT_UOP_INFO = '{id: '{-1, -1}, vDest: -1,  physDest: -1, deps: DEFAULT_INS_DEPS,  barrier: -1, argsE: '{default}};
 
     typedef struct {
         InsId id;            
@@ -571,12 +573,14 @@ package Insmap;
         
         // Store ops: split into adr and data
         else if (current.name inside {UOP_mem_sti, UOP_mem_sts,   UOP_mem_stib,  UOP_mem_stc}) begin
-            UopInfo sd;
+            UopInfo sd;// = DEFAULT_UOP_INFO;
             sd.id = '{current.id.m, 1};
             sd.name = UOP_data_int;
             sd.physDest = -1;
             sd.argsE = '{default: 0};
             sd.deps = DEFAULT_INS_DEPS;
+
+            sd.barrier = -1;
 
             sd.deps.types[2] = current.deps.types[2];
             sd.deps.sources[2] = current.deps.sources[2];
@@ -592,12 +596,14 @@ package Insmap;
             res.push_back(sd);
         end
         else if (current.name == UOP_mem_stf) begin
-            UopInfo sd;
+            UopInfo sd;// = DEFAULT_UOP_INFO;
             sd.id = '{current.id.m, 1};
             sd.name = UOP_data_fp;
             sd.physDest = -1;
             sd.argsE = '{default: 0};
             sd.deps = DEFAULT_INS_DEPS;
+
+            sd.barrier = -1;
 
             sd.deps.types[2] = current.deps.types[2];
             sd.deps.sources[2] = current.deps.sources[2];
@@ -614,7 +620,7 @@ package Insmap;
         end
         // Branches: split into condition, (target if from register), link
         else if (1 && current.name inside {UOP_br_z, UOP_br_nz, UOP_bc_l}) begin
-            UopInfo lk;
+            UopInfo lk;// = DEFAULT_UOP_INFO;
             lk.id = '{current.id.m, 1};
             lk.name = UOP_int_link;
             lk.vDest = current.vDest;
@@ -622,6 +628,8 @@ package Insmap;
             lk.physDest = -1;
             lk.argsE = '{default: 0};
             lk.deps = DEFAULT_INS_DEPS;
+
+            lk.barrier = -1;
 
             lk.resultE = current.resultE;
                 

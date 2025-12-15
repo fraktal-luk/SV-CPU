@@ -376,12 +376,24 @@ module AbstractCore
         mainUinfo.vDest = ins.dest;
         mainUinfo.physDest = -1;
         mainUinfo.deps = deps;
+
+
+
+
+        mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
 
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
+
+
+            // if (id == 93) begin
+            //     $error("id 93\n%p\n%p", uopName, uInfos);//isMemIns(ins));
+
+            // end
 
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];
@@ -631,6 +643,7 @@ module AbstractCore
         
         if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
         if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
+        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbF = id;
 
         if (isLoadAqUop(mainUop)) markers.loadAq = id;
         if (isStoreRelUop(mainUop)) markers.storeRel = id;

@@ -227,12 +227,13 @@ package ExecDefs;
         logic used;
         logic active;
         IqArgState state;
+        InsId barrier;
         IqPoisonState poisons;
         int issueCounter;
         UidT uid;
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
 
     
     typedef enum {

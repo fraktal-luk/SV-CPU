@@ -261,13 +261,17 @@ module IssueQueue
 
     // MOVE?
     function automatic IqEntry makeIqEntry(input TMP_Uop inUop);
-        return inUop.active ? '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop.uid} : EMPTY_ENTRY;
+        InsId barrier = insMap.getU(inUop.uid).barrier;
+        return inUop.active ? '{used: 1, active: 1, state: ZERO_ARG_STATE, barrier: barrier, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop.uid} : EMPTY_ENTRY;
     endfunction
 
     // MOVE?
     function automatic InputArray makeInputArray(input TMP_Uop inUops[RENAME_WIDTH]);
         InputArray res = '{default: EMPTY_ENTRY};
-        foreach (res[i]) res[i] = makeIqEntry(inUops[i]);
+        foreach (res[i]) begin
+            if (inUops[i].active !== 1) continue;
+            res[i] = makeIqEntry(inUops[i]);
+        end
         return res;
     endfunction
 

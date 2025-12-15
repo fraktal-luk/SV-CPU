@@ -217,6 +217,7 @@ package AbstractSim;
         InsId store;
         InsId mbLoadF;
         InsId mbStoreF;
+        InsId mbF;
 
         InsId loadAq;
         InsId storeRel;
@@ -717,7 +718,7 @@ package AbstractSim;
             UOP_mem_stib,
             UOP_mem_stf,
             UOP_mem_sts: return 0;
-            
+
             UOP_mem_stc: return 0; // TODO
 
             default: $fatal(2, "Wrong op");

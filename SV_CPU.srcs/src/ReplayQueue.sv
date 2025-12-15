@@ -63,22 +63,18 @@ module ReplayQueue(
     endfunction
 
 
-    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET, issued0__ = EMPTY_UOP_PACKET;
+    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET;
 
 
     always @(posedge clk) begin
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flush();
         end
-        
-        
+              
         issue();
         wakeup();
         writeInput();
         removeIssued();
-
-          issued0__ <= tickP(inPackets[0]);
-          issued0__.status <= ES_OK;
 
         issued1 <= tickP(issued0);
         
@@ -241,6 +237,6 @@ module ReplayQueue(
 
 
     assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
-    assign outPacket = effP(issued0);
+    always_comb outPacket = effP(issued0);
 
 endmodule
