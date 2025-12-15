@@ -182,6 +182,7 @@ module MemSubpipe#()
             return TMP_updateSysTransfer(res, sysResp);
         end
 
+
         case (p.status)
             ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
                 res.status = ES_UNCACHED_2;
@@ -207,8 +208,18 @@ module MemSubpipe#()
                     $fatal(2, "Wrong status %p", cacheResp.status);
             end
 
+            ES_BARRIER_1: begin
+                res.status = ES_OK;
+                return res;
+            end
+
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin
-                if (cacheResp.status == CR_TAG_MISS) begin
+                if (isMemBarrierUop(uname)) begin
+                    res.status = ES_BARRIER_1; 
+                    return res; // go to RQ
+                end
+
+                else if (cacheResp.status == CR_TAG_MISS) begin
                     res.status = ES_DATA_MISS;
                     return res;
                 end

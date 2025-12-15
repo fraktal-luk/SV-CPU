@@ -101,7 +101,6 @@ module ReplayQueue(
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
             content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                    //theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]
                                     DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
                                     };
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
@@ -127,7 +126,7 @@ module ReplayQueue(
             // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin
                 // Exclude cases already implemented, leave only dev ones
-                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1,   ES_DATA_MISS    /*, ES_TLB_MISS*/   }) continue;
+                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1}) continue;
             
                 if (content[i].active && content[i].readyCnt > 0) begin
                     content[i].readyCnt--;
@@ -165,7 +164,7 @@ module ReplayQueue(
         
         // Entry waiting to be nonspeculative
         if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
-            int found[$] = content.find_index with (!item.ready_N && item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == theRob.indToCommitSig.mid);            
+            int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1} && U2M(item.uid) == theRob.indToCommitSig.mid);            
             assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
             
             if (found.size() != 0) begin
@@ -176,6 +175,8 @@ module ReplayQueue(
         // Wakeup data misses
         if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
             foreach (content[i]) begin
+                if (content[i].execStatus != ES_DATA_MISS) continue;
+
                 if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
                     content[i].ready_N = 1;
                 end
@@ -185,6 +186,8 @@ module ReplayQueue(
         // Wakeup TLB misses
         if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
             foreach (content[i]) begin
+                if (content[i].execStatus != ES_TLB_MISS) continue;
+
                 if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                     content[i].ready_N = 1;                    
                 end

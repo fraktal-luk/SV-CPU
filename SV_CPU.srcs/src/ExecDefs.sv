@@ -16,22 +16,29 @@ package ExecDefs;
 
     typedef enum {
         ES_OK,
+        
         ES_UNALIGNED,
-            ES_UNCACHED_1,
-            ES_UNCACHED_2,
+        
+        ES_UNCACHED_1,
+        ES_UNCACHED_2,
+
+        ES_BARRIER_1,
+
         ES_SQ_MISS,
-            ES_DATA_MISS,
-            ES_TLB_MISS,
+        ES_DATA_MISS,
+        ES_TLB_MISS,
+        
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
+        
         ES_ILLEGAL,
         
-            ES_FP_INVALID,
-            ES_FP_OVERFLOW
+        ES_FP_INVALID,
+        ES_FP_OVERFLOW
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1};
     endfunction
 
 
