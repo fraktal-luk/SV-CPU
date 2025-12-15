@@ -422,7 +422,8 @@ module IssueQueue
             UidT res[$];
             
             foreach (entries[i]) begin
-                if (entries[i].active_)
+                //if (entries[i].active_)
+                if (entries[i].status == IqActive)
                     res.push_back(entries[i].uid);
             end
             
@@ -511,9 +512,9 @@ module IssueQueue
         if (entry.uid == UIDT_NONE) return res;
         
         res.used = entry.used;
-        res.active = entry.active_;
+        res.active = //entry.active_;
+                        entry.status == IqActive;
         
-        //res.allowed = entry.used && entry.active_;
         res.registers = getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = getLogic3(wup);
         
