@@ -265,7 +265,6 @@ package ExecDefs;
 
     typedef struct {
         UidT uid;
-       // logic allowed;
         logic used;
         logic active;
         logic3 registers;

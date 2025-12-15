@@ -122,13 +122,13 @@ module IssueQueue
 
     task automatic updateWakeups();    
         foreach (array[i]) begin            
-            if (array[i].used) updateReadyBits(array[i], readinessVar[i].combined, readinessVar[i].poisons);
+            if (array[i].status != IqEmpty) updateReadyBits(array[i], readinessVar[i].combined, readinessVar[i].poisons);
         end
     endtask
 
     task automatic updateWakeups_Part2();
         foreach (array[i])
-            if (array[i].used) updateReadyBits_Part2(array[i]);
+            if (array[i].status != IqEmpty) updateReadyBits_Part2(array[i]);
     endtask
 
     task automatic issue();
@@ -162,10 +162,8 @@ module IssueQueue
             int arrayLoc[$] = array.find_index with (item.uid == thisId); // array
             IqEntry entry = array[arrayLoc[0]];     // array
             logic ready = readinessVar[arrayLoc[0]].all;
-            logic active = entry.used && entry.active_;
 
-            assert (active) else $fatal(2, "Issue inactive slot");
-                assert (entry.status == IqActive) else $fatal(2, "!!!!!!Issue inactive slot");
+            assert (entry.status == IqActive) else $fatal(2, "!!!!!!Issue inactive slot");
 
             if (ready) res[cnt++] = thisId;
             
@@ -209,8 +207,8 @@ module IssueQueue
             int s = found[0];
 
             if (theId == UIDT_NONE) continue;
-            assert (array[s].used && array[s].active_) else $fatal(2, "Inactive slot to issue?");
-                assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
+
+            assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
 
             begin
                 UopPacket newPacket = makeUop(array[s], readinessVar[s]);
@@ -227,8 +225,8 @@ module IssueQueue
             int s = found[0];
 
             if (theId == UIDT_NONE) continue;
-            assert (array[s].used && array[s].active_) else $fatal(2, "Inactive slot to issue?");
-                assert (array[s].status == IqActive) else $fatal(2, "!!!!!Inactive slot to issue?");
+
+            assert (array[s].status == IqActive) else $fatal(2, "!!!!!Inactive slot to issue?");
 
             setIssued(array[s]);
         end
@@ -241,7 +239,6 @@ module IssueQueue
             IqEntry entry = array[i];
 
             if (entry.status != IqActive) continue;
-                if (entry.uid == UIDT_NONE || !entry.used || !entry.active_) continue;
             
             assert (entry.state.ready == signalReady) else $fatal(2, "Check ready bits: differ entry %p, sig %p\n%p", entry.state.ready, signalReady, entry);
         end
@@ -249,8 +246,7 @@ module IssueQueue
 
     task automatic TMP_incIssueCounter();
         foreach (array[s])
-            if (array[s].used && !array[s].active_) begin
-                assert (array[s].status == IqIssued) else $error("Status not Issued");
+            if (array[s].status == IqIssued) begin
                 array[s].issueCounter++;  // Entry upd
             end
     endtask
@@ -258,10 +254,8 @@ module IssueQueue
     task automatic removeIssuedFromArray();
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
-                putMilestone(array[s].uid, InstructionMap::IqExit);
-                                
-                assert (array[s].used == 1 && array[s].active_ == 0) else $fatal(2, "slot to remove must be used and inactive");
-                    assert (array[s].status == IqIssued) else $fatal(2, "slot to remove must be used and inactive");
+                assert (array[s].status == IqIssued) else $fatal(2, "slot to remove must be used and inactive\n%p", array[s]);
+                putMilestone(array[s].uid, InstructionMap::IqExit);                                
                 array[s] = EMPTY_ENTRY;  // Entry upd
             end
         end
@@ -318,7 +312,7 @@ module IssueQueue
 
     task automatic flushOpQueueAll();
         foreach (array[i]) begin
-            if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
+            if (array[i].status != IqEmpty) putMilestone(array[i].uid, InstructionMap::IqFlush);
             array[i] = EMPTY_ENTRY;  // Entry upd
         end
     endtask
@@ -326,7 +320,7 @@ module IssueQueue
     task automatic flushOpQueuePartial(input InsId id);
         foreach (array[i]) begin
             if (U2M(array[i].uid) > id) begin
-                if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
+                if (array[i].status != IqEmpty) putMilestone(array[i].uid, InstructionMap::IqFlush);
                 array[i] = EMPTY_ENTRY;  // Entry upd
             end
         end
@@ -337,8 +331,7 @@ module IssueQueue
         int nFound = 0;
 
         foreach (array[i])
-            if (!array[i].used) begin
-                assert (array[i].status == IqEmpty) else $fatal("fcccck");
+            if (array[i].status == IqEmpty) begin
                 res[nFound++] = i;
             end
         return res;
@@ -396,22 +389,15 @@ module IssueQueue
 
     function automatic int getNumUsed();
         int res = 0;
-        foreach (array[s]) if (array[s].used) res++; 
+        foreach (array[s]) if (array[s].status != IqEmpty) res++; 
         return res; 
     endfunction
-
-    // function automatic int getNumVirtual();
-    //     int res = 0;
-    //     foreach (array[s]) if (array[s].used && array[s].issueCounter == -1) res++; // TODO: condition - why issueCounter   -1 ?
-    //     return res; 
-    // endfunction
-
 
     function automatic UidQueueT getIdQueue(input IqEntry entries[]);
         UidT res[$];
         
         foreach (entries[i]) begin
-            UidT uid = entries[i].used ? entries[i].uid : UIDT_NONE;
+            UidT uid = (entries[i].status != IqEmpty) ? entries[i].uid : UIDT_NONE;
             res.push_back(uid);
         end
         
@@ -422,7 +408,6 @@ module IssueQueue
             UidT res[$];
             
             foreach (entries[i]) begin
-                //if (entries[i].active_)
                 if (entries[i].status == IqActive)
                     res.push_back(entries[i].uid);
             end
@@ -511,7 +496,7 @@ module IssueQueue
         
         if (entry.uid == UIDT_NONE) return res;
         
-        res.used = entry.used;
+        res.used = entry.status != IqEmpty;
         res.active = //entry.active_;
                         entry.status == IqActive;
         
