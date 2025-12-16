@@ -104,6 +104,9 @@ module IssueQueue
 
         removeIssuedFromArray();
 
+            unlockBarrier();
+
+
         arrayReg <= array;
 
         foreach (pIssued0[i])
@@ -111,6 +114,17 @@ module IssueQueue
 
         num <= getNumUsed();
     end
+
+
+        function automatic void unlockBarrier();
+            if (!AbstractCore.barrierUnlocking) return;
+
+            foreach (array[i]) begin
+                if (array[i].status == IqSuspended && array[i].barrier <= AbstractCore.barrierUnlockingMid) begin
+                    array[i].status = IqActive;
+                end
+            end
+        endfunction
 
 
     function automatic ReadinessInfoArr getReadinessArr(input IqEntry arr[], input Wakeup wm[][3]);
@@ -298,7 +312,6 @@ module IssueQueue
                 nInserted++;          
 
                 putMilestone(inputArray[i].uid, InstructionMap::IqEnter);
-                
                 updateReadyBits(array[location], readinessInputVar[i].combined, readinessInputVar[i].poisons);
             end
         end
@@ -386,7 +399,6 @@ module IssueQueue
     endfunction
 
 
-
     function automatic int getNumUsed();
         int res = 0;
         foreach (array[s]) if (array[s].status != IqEmpty) res++; 
@@ -415,15 +427,12 @@ module IssueQueue
             return res;
         endfunction
 
-
-
     function automatic OutGroupP effA(input OutGroupP g);
         OutGroupP res;
         foreach (g[i]) res[i] = effP(g[i]);
         
         return res;
     endfunction
-    
 
     function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
@@ -524,8 +533,7 @@ module IssueQueueComplex(
                         input EventInfo lateEventInfo,
                         input OpSlotAB inGroup
 );    
-    
- 
+
                 // .active, .mid
     function automatic RoutedUops routeUops(input OpSlotAB gr);
         RoutedUops res = DEFAULT_ROUTED_UOPS;

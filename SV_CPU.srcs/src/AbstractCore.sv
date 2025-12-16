@@ -96,6 +96,10 @@ module AbstractCore
     // Event control
     Mword retiredTarget = 0;
 
+        logic barrierUnlocking;
+        InsId barrierUnlockingMid;
+
+
 
     ///////////////////////////
 
@@ -124,6 +128,9 @@ module AbstractCore
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     //////////////////////////////////////////
+        assign barrierUnlocking = (drainHead.barrierFw === 1);
+        assign barrierUnlockingMid = barrierUnlocking ? (drainHead.mid) : -1;
+
 
         assign fetchEnable = theFrontend.fetchEnable;
         assign insAdr = theFrontend.fetchAdr;
@@ -160,6 +167,11 @@ module AbstractCore
             redirectRest();     // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
         else
             runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
+
+
+          begin
+            releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid);
+          end
 
         handleWrites(); // registerTracker
 
@@ -378,9 +390,10 @@ module AbstractCore
         mainUinfo.deps = deps;
 
 
-
-
-        mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+            // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
+            if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin
+                mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+            end
 
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
@@ -511,6 +524,8 @@ module AbstractCore
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
+
+            releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
     endtask
 
 
@@ -615,6 +630,7 @@ module AbstractCore
         // Elements related to crucial signals:
         // RET: update inds
         updateMarkers(commitMarkers, id);
+
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
@@ -647,6 +663,22 @@ module AbstractCore
 
         if (isLoadAqUop(mainUop)) markers.loadAq = id;
         if (isStoreRelUop(mainUop)) markers.storeRel = id;
+
+    endfunction
+
+
+    function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
+        if (!unlocking) return;
+
+        if (markers.load <= unlockingId) markers.load = -1;
+        if (markers.store <= unlockingId) markers.store = -1;
+
+        if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
+        if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
+        if (markers.mbF <= unlockingId) markers.mbF = -1;
+
+        if (markers.loadAq <= unlockingId) markers.loadAq = -1;
+        if (markers.storeRel <= unlockingId) markers.storeRel = -1;
 
     endfunction
 

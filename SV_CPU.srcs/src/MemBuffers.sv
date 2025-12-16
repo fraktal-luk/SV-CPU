@@ -396,6 +396,8 @@ module TmpSubSq();
             accessDesc: DEFAULT_ACCESS_DESC,
             translation: DEFAULT_TRANSLATION,
             
+            barrierFw: isMemBarrierUop(decMainUop(mid)),
+
             committed: 0,
             error: 0,
             refetch: 0
@@ -528,6 +530,8 @@ module TmpSubLq();
             accessDesc: DEFAULT_ACCESS_DESC,
             translation: DEFAULT_TRANSLATION,
             
+            barrierFw: 0,
+
             committed: 0,
             error: 0,
             refetch: 0
