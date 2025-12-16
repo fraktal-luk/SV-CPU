@@ -122,6 +122,7 @@ module IssueQueue
             foreach (array[i]) begin
                 if (array[i].status == IqSuspended && array[i].barrier <= AbstractCore.barrierUnlockingMid) begin
                     array[i].status = IqActive;
+                        $error("unlocking %d [%d]", array[i].uid.m,  array[i].barrier);
                 end
             end
         endfunction
@@ -279,8 +280,10 @@ module IssueQueue
     function automatic IqEntry makeIqEntry(input TMP_Uop inUop);
         InsId barrier = insMap.getU(inUop.uid).barrier;
         SlotStatus status = IqActive;
-        //if (barrier != -1) status = IqSuspended; // TODO: introduce barrier unlocking
-        if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
+        
+            if (barrier != -1) status = IqSuspended; // TODO: introduce barrier unlocking
+        
+            if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
 
         return inUop.active ? '{used: 1, active_: 1,
                                 status: status,
