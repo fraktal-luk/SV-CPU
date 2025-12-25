@@ -516,9 +516,10 @@ package AbstractSim;
         Mword adrAny;
         Dword padr;
         AccessSize size;
+        logic barrierF;
     } Transaction;
 
-    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
     class MemTracker;
@@ -532,7 +533,7 @@ package AbstractSim;
             AccessSize size = getTransactionSize(uname);
 
             if (isMemBarrierIns(ins)) begin
-                addBarrier(id, 'x, 'x, 'x, SIZE_NONE);
+                addBarrier(id, 'x, 'x, 'x, SIZE_NONE, isMemBarrierFwIns(ins));
             end
 
             if (isStoreMemIns(ins)) begin 
@@ -551,29 +552,29 @@ package AbstractSim;
             end
         endfunction
 
-        function automatic void addBarrier(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, padr, size});
-            stores.push_back('{id, adr, val, adr, padr, size});
+        function automatic void addBarrier(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size, input logic isFw);
+            transactions.push_back('{id, adr, val, adr, padr, size, isFw});
+            stores.push_back('{id, adr, val, adr, padr, size, isFw});
         endfunction
 
         function automatic void addStore(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, padr, size});
-            stores.push_back('{id, adr, val, adr, padr, size});
+            transactions.push_back('{id, adr, val, adr, padr, size, 0});
+            stores.push_back('{id, adr, val, adr, padr, size, 0});
         endfunction
 
         function automatic void addLoad(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, padr, size});
-            loads.push_back('{id, adr, val, adr, padr, size});
+            transactions.push_back('{id, adr, val, adr, padr, size, 0});
+            loads.push_back('{id, adr, val, adr, padr, size, 0});
         endfunction
 
         function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
-            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
-            stores.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
+            stores.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
         endfunction
 
         function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
-            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
-            loads.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
+            loads.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
         endfunction
 
         function automatic void remove(input InsId id);        
@@ -625,6 +626,17 @@ package AbstractSim;
             Transaction allStores[$] = {committedStores, stores};
             Transaction writers[$] = allStores.find with (item.owner == id);
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
+        endfunction
+
+        function automatic logic checkIssue(input UidT uid);
+            Transaction checked[$] = transactions.find_first with (item.owner == U2M(uid));
+
+            Transaction allStores[$] = {committedStores, stores};
+            Transaction barriers[$] = allStores.find with (item.barrierF === 1);
+            Transaction activeBarriers[$] = barriers.find with (item.owner < U2M(uid));
+
+            assert (activeBarriers.size() == 0) return 0; else $fatal(2, "Barrier violation by %p (barrier %p)", uid, activeBarriers[0].owner);
+            return 1;
         endfunction
 
     endclass

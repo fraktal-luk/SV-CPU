@@ -192,6 +192,12 @@ package EmulationDefs;
                 };
     endfunction
 
+    function automatic logic isMemBarrierFwIns(input AbstractInstruction ins);
+        return ins.def.o inside {
+                    O_mbLoadF, O_mbLoadBF, O_mbStoreF, O_mbStoreBF
+                };
+    endfunction
+
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
         return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
     endfunction

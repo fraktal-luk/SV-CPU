@@ -122,7 +122,7 @@ module IssueQueue
             foreach (array[i]) begin
                 if (array[i].status == IqSuspended && array[i].barrier <= AbstractCore.barrierUnlockingMid) begin
                     array[i].status = IqActive;
-                        $error("unlocking %d [%d]", array[i].uid.m,  array[i].barrier);
+                       // $error("unlocking %d [%d]", array[i].uid.m,  array[i].barrier);
                 end
             end
         endfunction
@@ -224,6 +224,17 @@ module IssueQueue
             if (theId == UIDT_NONE) continue;
 
             assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
+
+                //TODO;
+                // check for violation of conditions preventing issue
+                // * mem: when barrier active 
+                // * mem: when store-load dependecy prediction block a load
+            if (isMemUop(decUname(theId))) begin
+
+                  //  if (U2M(theId) inside {6076, 6077}) $error("\n    Issue uop %d: %p\n", U2M(theId), decUname(theId));
+
+                AbstractCore.memTracker.checkIssue(theId);
+            end
 
             begin
                 UopPacket newPacket = makeUop(array[s], readinessVar[s]);
