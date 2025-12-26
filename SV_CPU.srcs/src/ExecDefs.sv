@@ -23,6 +23,7 @@ package ExecDefs;
         ES_UNCACHED_2,
 
         ES_BARRIER_1,
+            ES_AQ_REL_1,
 
         ES_SQ_MISS,
         ES_DATA_MISS,
@@ -38,7 +39,7 @@ package ExecDefs;
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1};
     endfunction
 
 

@@ -113,9 +113,12 @@ module MemSubpipe#()
         res.uncachedReq = (p.status == ES_UNCACHED_1) && !res.store;
         res.uncachedCollect = (p.status == ES_UNCACHED_2) && !res.store;
         res.uncachedStore = (p.status == ES_UNCACHED_2) && res.store;
-        
+
+            res.acq = isLoadAqUop(uname) && p.status == ES_AQ_REL_1;
+            res.rel = isStoreRelUop(uname) && p.status == ES_AQ_REL_1;
+
         res.vadr = adr;
-        
+
         res.blockIndex = aInfo.block;
         res.blockOffset = aInfo.blockOffset;
 
@@ -213,12 +216,42 @@ module MemSubpipe#()
                 return res;
             end
 
+            ES_AQ_REL_1: begin
+                if (0) begin
+                end
+
+                // The same flow as for normal mem ops
+                else if (cacheResp.status == CR_TAG_MISS) begin
+                    res.status = ES_DATA_MISS;
+                    return res;
+                end
+                else if (cacheResp.status == CR_TLB_MISS) begin
+                    res.status = ES_TLB_MISS;
+                    return res;
+                end
+                else if (cacheResp.status == CR_NOT_ALLOWED) begin
+                    insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                    res.status = ES_ILLEGAL;
+                    return res;
+                end
+                else if (cacheResp.status == CR_UNCACHED) begin
+                        $fatal(2, "Dont use aq-rel on uncached memory!");
+                    res.status = ES_UNCACHED_1;  
+                    return res; // go to RQ
+                end
+            end
+
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS: begin
-                if (isMemBarrierUop(uname)) begin
+                if (isLoadAqUop(uname) || isStoreRelUop(uname)) begin
+                    res.status = ES_AQ_REL_1;
+                    return res; // go to RQ
+                end
+                else if (isMemBarrierUop(uname)) begin
                     res.status = ES_BARRIER_1; 
                     return res; // go to RQ
                 end
 
+                // Normal mem flow
                 else if (cacheResp.status == CR_TAG_MISS) begin
                     res.status = ES_DATA_MISS;
                     return res;

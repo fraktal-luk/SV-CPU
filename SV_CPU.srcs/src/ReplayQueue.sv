@@ -122,7 +122,7 @@ module ReplayQueue(
             // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin
                 // Exclude cases already implemented, leave only dev ones
-                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1}) continue;
+                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1}) continue;
             
                 if (content[i].active && content[i].readyCnt > 0) begin
                     content[i].readyCnt--;
@@ -160,7 +160,8 @@ module ReplayQueue(
         
         // Entry waiting to be nonspeculative
         if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
-            int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1} && U2M(item.uid) == theRob.indToCommitSig.mid);            
+            int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1}
+                                                    && U2M(item.uid) == theRob.indToCommitSig.mid);            
             assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
             
             if (found.size() != 0) begin

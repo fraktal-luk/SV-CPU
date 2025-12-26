@@ -152,6 +152,8 @@ package CacheDefs;
         logic uncachedReq;
         logic uncachedCollect;
         logic uncachedStore;
+        logic acq;
+        logic rel;
 
         AccessSize size;
         Mword vadr;
@@ -182,7 +184,7 @@ package CacheDefs;
         blockCross: 'x,
         pageCross: 'x 
     };
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
     localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
@@ -214,6 +216,7 @@ package CacheDefs;
         logic valid;
         Mword vbase;
         Dword pbase;
+        logic lock;
         Mbyte array[BLOCK_SIZE];
         
         function automatic Word readWord(input int offset);
@@ -293,6 +296,19 @@ package CacheDefs;
                 array[offset +: ACCESS_SIZE] = wval;
             end
         endfunction
+
+        function automatic logic getLock();
+            return lock;
+        endfunction
+
+        function automatic void setLock();
+            lock = 1;
+        endfunction
+
+        function automatic void clearLock();
+            lock = 0;
+        endfunction
+
     endclass
 
 //                PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
@@ -349,6 +365,10 @@ package CacheDefs;
         function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
             DataCacheBlock block = way[aDesc.blockIndex];
     
+
+                    if (aDesc.acq) $error("AQ access:\n%p", aDesc);
+                    if (aDesc.rel) $error("REL access:\n%p", aDesc);
+
             if (block == null) return '{0, 'x, 'x};
             else begin
                 Dword tag0 = block.pbase;
