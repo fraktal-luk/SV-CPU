@@ -25,16 +25,41 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     generate
         genvar j;
         for (j = 0; j < WIDTH; j++) begin: rdInterface
-            ReadResult_N ar0 = '{0, 'x, 'x}, ar1 = '{0, 'x, 'x};
+            ReadResult_N ar0 = '{0, -1, 'x, 'x, 'x}, ar1 = '{0, -1, 'x, 'x, 'x};
+            logic aq = 0;
+            AccessDesc prevDesc = DEFAULT_ACCESS_DESC;
 
             task automatic readArray();
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
                 ar0 <= readWay(blocksWay0, aDesc);
                 ar1 <= readWay(blocksWay1, aDesc);
+
+                prevDesc <= aDesc;
+                aq <= aDesc.active && aDesc.acq;
+            endtask
+
+            task automatic TMP_afterRead();
+                ReadResult_N readRes = DataL1.cacheResults[j];
+
+                if (!(j inside {0, 2}) || readRes.way == -1) return;
+
+                if (aq) begin
+                    $error("Aq for way %d", readRes.way);
+
+                    if (readRes.way == 0) TMP_lockWay(blocksWay0, prevDesc);
+                    if (readRes.way == 1) TMP_lockWay(blocksWay1, prevDesc);
+                end
+                else begin
+                    if (readRes.way == 0) TMP_unlockWay(blocksWay0, prevDesc);
+                    if (readRes.way == 1) TMP_unlockWay(blocksWay1, prevDesc);
+                end
+
             endtask
 
             always @(negedge clk) begin
                 readArray();
+
+                TMP_afterRead();
             end
         end
     endgenerate

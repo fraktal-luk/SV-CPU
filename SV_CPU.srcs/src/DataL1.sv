@@ -35,6 +35,7 @@ module DataL1(
     DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
     DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
+    ReadResult_N cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
 
 
     function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult_N readRes);
@@ -76,6 +77,7 @@ module DataL1(
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
 
+        cacheResults[p] <= '{0, -1, 'x, 'x, 'x};
         cacheReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
@@ -83,9 +85,11 @@ module DataL1(
             Translation tr = tlb.translationsH[p];
             ReadResult_N selectedResult;
 
+            // TODO: signal back to array which way was selected (or none)
             if (p == 0)      selectedResult = selectWayResult(dataArray.rdInterface[0].ar0, dataArray.rdInterface[0].ar1, tr);
             else if (p == 2) selectedResult = selectWayResult(dataArray.rdInterface[2].ar0, dataArray.rdInterface[2].ar1, tr);
 
+            cacheResults[p] <= selectedResult;
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
     endtask

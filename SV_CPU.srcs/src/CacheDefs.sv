@@ -358,34 +358,67 @@ package CacheDefs;
         // Cache reading functions
         typedef struct {
             logic valid;
+            integer way;
             Dword tag;
+            logic locked;
             Mword value;
         } ReadResult_N;
 
         function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
             DataCacheBlock block = way[aDesc.blockIndex];
-    
 
-                    if (aDesc.acq) $error("AQ access:\n%p", aDesc);
-                    if (aDesc.rel) $error("REL access:\n%p", aDesc);
 
-            if (block == null) return '{0, 'x, 'x};
+                  //  if (aDesc.acq) $error("AQ access:\n%p", aDesc);
+                  //  if (aDesc.rel) $error("REL access:\n%p", aDesc);
+
+            if (block == null) return '{0, -1, 'x, 'x, 'x};
             else begin
                 Dword tag0 = block.pbase;
                 Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
     
                 if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-                return '{1, tag0, val0};
+                return '{1, -1, tag0, block.getLock(), val0};
             end
         endfunction
 
         function automatic ReadResult_N selectWayResult(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
             Dword trBase = getBlockBaseD(tr.padr);
-            if (res0.valid && getBlockBaseD(res0.tag) === trBase) return res0;
-            if (res1.valid && getBlockBaseD(res1.tag) === trBase) return res1;
-            return '{0, 'x, 'x};
+            ReadResult_N res = '{0, -1, 'x, 'x, 'x};
+            if (res0.valid && getBlockBaseD(res0.tag) === trBase) begin
+                res = res0;
+                res.way = 0;
+            end
+            if (res1.valid && getBlockBaseD(res1.tag) === trBase) begin
+                res = res1;
+                res.way = 1;
+            end
+            return res;
         endfunction
         //////////////////////////////////////////
+
+        function automatic void TMP_lockWay(input DataCacheBlock way[], input AccessDesc aDesc);
+            DataCacheBlock block = way[aDesc.blockIndex];
+
+            if (block == null) return;// '{0, -1, 'x, 'x, 'x};
+            else begin
+                Dword tag0 = block.pbase;
+                    $error(">>  Set lock?\n%p", aDesc);
+
+                    if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
+                    else block.setLock();
+            end
+        endfunction
+
+        function automatic void TMP_unlockWay(input DataCacheBlock way[], input AccessDesc aDesc);
+            DataCacheBlock block = way[aDesc.blockIndex];
+
+            if (block == null) return;// '{0, -1, 'x, 'x, 'x};
+            else begin
+                Dword tag0 = block.pbase;
+
+                block.clearLock(); // If already locked, clear it and fail locking
+            end
+        endfunction
 
 
     function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
@@ -429,6 +462,7 @@ package CacheDefs;
             way[i].valid = 1;
             way[i].vbase = vadr;
             way[i].pbase = padr;
+            way[i].lock = 0;
             way[i].array = CLEAN_BLOCK;
         end
     endfunction
