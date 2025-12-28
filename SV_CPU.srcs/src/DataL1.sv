@@ -53,21 +53,21 @@ module DataL1(
 
         // Otherwise check translation
         else if (!virtualAddressValid(aDesc.vadr))
-            res = '{1, CR_INVALID, 'x}; // Invalid virtual adr
+            res = '{1, CR_INVALID, 'x, 'x}; // Invalid virtual adr
         else if (!tr.present)
-            res = '{1, CR_TLB_MISS, 'x}; // TLB miss
+            res = '{1, CR_TLB_MISS, 'x, 'x}; // TLB miss
         else if (!tr.desc.canRead)
-            res = '{1, CR_NOT_ALLOWED, 'x};
+            res = '{1, CR_NOT_ALLOWED, 'x, 'x};
         else if (aDesc.store && !tr.desc.canWrite)
-            res = '{1, CR_INVALID, 'x};
+            res = '{1, CR_INVALID, 'x, 'x};
         else if (!tr.desc.cached)
-            res = '{1, CR_UNCACHED, 'x}; // Just detected uncached access, tr.desc indicates uncached
+            res = '{1, CR_UNCACHED, 'x, 'x}; // Just detected uncached access, tr.desc indicates uncached
 
         // If translation correct and content is cacheable, look at cache results
         else if (!readRes.valid)
-            res = '{1, CR_TAG_MISS, 'x};
+            res = '{1, CR_TAG_MISS, 'x, 'x};
         else
-            res = '{1, CR_HIT, readRes.value};
+            res = '{1, CR_HIT, readRes.locked, readRes.value};
 
         return res;
     endfunction
@@ -136,13 +136,13 @@ module DataL1(
         else if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read              
             if (uncachedSubsystem.readResult.status == CR_HIT)
-                res = '{1, CR_HIT, uncachedSubsystem.readResult.data};
+                res = '{1, CR_HIT, 'x, uncachedSubsystem.readResult.data};
             else if (uncachedSubsystem.readResult.status == CR_INVALID)
-                res = '{1, CR_INVALID, 0};
+                res = '{1, CR_INVALID, 'x, 0};
             else $error("Wrong status returned by uncached");
         end
         else if (aDesc.uncachedStore) begin
-            res = '{1, CR_HIT, 'x};
+            res = '{1, CR_HIT, 'x, 'x};
         end
 
         return res;

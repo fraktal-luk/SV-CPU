@@ -257,7 +257,10 @@ module TmpSubSq();
             if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
             begin
+               DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];
                int index = findIndex(packet.TMP_oid);
+               if (isStoreRelUop(uname) && dcOut.lock != 1) StoreQueue.content[index].suppress = 1;
+                    // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
             end
         end
 
@@ -284,7 +287,7 @@ module TmpSubSq();
         AccessSize loadSize = aDesc.size;
         UopPacket res;
         SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
-                                            && item.translation.present && !item.accessDesc.sys
+                                            && item.translation.present && !item.accessDesc.sys && !item.suppress // NOTE: suppress means failed st cond
                                             && memOverlap(item.translation.padr, item.accessDesc.size, tr.padr, loadSize));
         SqEntry fwEntry;
 
@@ -397,6 +400,7 @@ module TmpSubSq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: isMemBarrierUop(decMainUop(mid)),
+            suppress: 0,
 
             committed: 0,
             error: 0,
@@ -531,6 +535,7 @@ module TmpSubLq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: 0,
+            suppress: 0,
 
             committed: 0,
             error: 0,

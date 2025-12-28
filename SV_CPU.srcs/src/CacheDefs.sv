@@ -48,14 +48,24 @@ package CacheDefs;
     typedef struct {
         logic active;
         CacheReadStatus status;
+            logic lock;
         Mword data;
     } DataCacheOutput;
 
     localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
         0,
         CR_INVALID,
+        'x,
         'x
     };
+
+        typedef struct {
+            logic valid;
+            integer way;
+            Dword tag;
+            logic locked;
+            Mword value;
+        } ReadResult_N;
 
 
 //////////////////
@@ -356,13 +366,7 @@ package CacheDefs;
 
         /////////////////////////////////////////////////
         // Cache reading functions
-        typedef struct {
-            logic valid;
-            integer way;
-            Dword tag;
-            logic locked;
-            Mword value;
-        } ReadResult_N;
+
 
         function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
             DataCacheBlock block = way[aDesc.blockIndex];
@@ -402,7 +406,7 @@ package CacheDefs;
             if (block == null) return;// '{0, -1, 'x, 'x, 'x};
             else begin
                 Dword tag0 = block.pbase;
-                    $error(">>  Set lock?\n%p", aDesc);
+                   // $error(">>  Set lock?\n%p", aDesc);
 
                     if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
                     else block.setLock();

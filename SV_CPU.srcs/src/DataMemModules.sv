@@ -44,7 +44,7 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
                 if (!(j inside {0, 2}) || readRes.way == -1) return;
 
                 if (aq) begin
-                    $error("Aq for way %d", readRes.way);
+                    //$error("Aq for way %d", readRes.way);
 
                     if (readRes.way == 0) TMP_lockWay(blocksWay0, prevDesc);
                     if (readRes.way == 1) TMP_lockWay(blocksWay1, prevDesc);
@@ -83,7 +83,15 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     task automatic resetArray();
         blocksWay0 = '{default: null};
         blocksWay1 = '{default: null};
+
+        clearLocks();
     endtask
+
+    task automatic clearLocks();
+        foreach (blocksWay0[i]) if (blocksWay0[i] != null) blocksWay0[i].clearLock();
+        foreach (blocksWay1[i]) if (blocksWay1[i] != null) blocksWay1[i].clearLock();
+    endtask
+
 
     function automatic void preloadArrayForTest(); 
         foreach (AbstractCore.globalParams.preloadedDataWays[i])
@@ -108,6 +116,9 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
         if (dataFillEngine.notifyFill) begin
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
         end
+
+            // ?
+            if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
 
         doCachedWrite(writeReqs[0]);
     end
