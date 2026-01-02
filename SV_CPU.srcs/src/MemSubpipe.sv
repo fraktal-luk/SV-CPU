@@ -200,15 +200,38 @@ module MemSubpipe#()
 
         uname = decUname(uid);
 
+        case (p.memClass)
+            MC_SYS: begin
+                return TMP_updateSysTransfer(res, sysResp);
+            end
 
-        // Sys flow
-        // TODO: can use accessDesc for this choice
-        if (isLoadSysUop(uname) || isStoreSysUop(uname)) begin
+            MC_BARRIER: begin
+                case (p.status)
+                    ES_BEGIN: res.status = ES_BARRIER_1;
+                    ES_BARRIER_1: res.status = ES_OK;
+                    default: $fatal(2, "blbleee");
+                endcase
+                return res;
+            end
+            
+            MC_AQ_REL: begin
+                case (p.status)
+                    ES_BEGIN: begin
+                        res.status = ES_AQ_REL_1;
+                        return res;
+                    end
+                    default: ; // GO ON
+                endcase
+            end
 
-                assert (p.memClass == MC_SYS) else $fatal(2, "Wrong class for sys");
 
-            return TMP_updateSysTransfer(res, sysResp);
-        end
+            MC_UNCACHED: ;
+
+            MC_NORMAL: ;
+
+            default: $fatal(2, "Wrong memClass %p", p.memClass);
+        endcase
+
 
 
         case (p.status)
@@ -216,7 +239,6 @@ module MemSubpipe#()
             // Uncached flow
             ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
                     assert (p.memClass == MC_UNCACHED) else $fatal(2, "Wrong class for uncached");
-
 
                 res.status = ES_UNCACHED_2;
                 return res; // To RQ again
@@ -244,13 +266,7 @@ module MemSubpipe#()
                     $fatal(2, "Wrong status %p", cacheResp.status);
             end
 
-            // Barrier flow
-            ES_BARRIER_1: begin
-                    assert (p.memClass == MC_BARRIER) else $fatal(2, "Wrong class for barrier");
 
-                res.status = ES_OK;
-                return res;
-            end
 
             // Aq-rel flow
             ES_AQ_REL_1: begin
@@ -283,21 +299,9 @@ module MemSubpipe#()
 
             // Normal or aq-rel flow
             ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS,   ES_BEGIN: begin
-                if (isLoadAqUop(uname) || isStoreRelUop(uname)) begin
-                        assert (p.memClass == MC_AQ_REL) else $fatal(2, "Wrong class for aq-rel");
-
-                    res.status = ES_AQ_REL_1;           // other flow 
-                    return res; // go to RQ
-                end
-                else if (isMemBarrierUop(uname)) begin
-                        assert (p.memClass == MC_BARRIER) else $fatal(2, "Wrong class for barrier");
-
-                    res.status = ES_BARRIER_1;          // other flow 
-                    return res; // go to RQ
-                end
 
                 // Normal mem flow
-                else if (cacheResp.status == CR_TAG_MISS) begin
+                if (cacheResp.status == CR_TAG_MISS) begin
                     res.status = ES_DATA_MISS;
                     return res;
                 end
@@ -312,7 +316,8 @@ module MemSubpipe#()
                 end
                 else if (cacheResp.status == CR_UNCACHED) begin
                         res.memClass = MC_UNCACHED;   // other flow
-                    res.status = ES_UNCACHED_1;  
+                        if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
+
                     return res; // go to RQ
                 end
                 // else: _Regular
