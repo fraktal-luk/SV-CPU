@@ -202,7 +202,7 @@ module IssueQueue
         foreach (properPoisons[i]) properPoisons[i] = (prevReady[i]) ? prevPoisons[i] : currentPoisons[i];
         
         newPoison = mergePoisons(properPoisons);
-        return '{1, entry.uid, ES_OK, newPoison, 'x};
+        return '{1, entry.uid, MC_NONE, ES_OK, newPoison, 'x};
     endfunction
 
 

@@ -13,6 +13,15 @@ package ExecDefs;
     import CacheDefs::*;
     
 
+    typedef enum {
+        MC_NONE,
+        MC_NORMAL,
+        MC_BARRIER,
+        MC_UNCACHED,
+        MC_AQ_REL,
+        MC_SYS
+    } MemClass;
+
 
     typedef enum {
         ES_OK,
@@ -62,12 +71,13 @@ package ExecDefs;
     typedef struct {
         logic active;
         UidT TMP_oid;
+        MemClass memClass;
         ExecStatus status;
         Poison poison;
         Mword result;
     } UopPacket;    
     
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
 
 
         typedef UopPacket UopMemPacket;

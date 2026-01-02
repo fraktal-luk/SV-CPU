@@ -259,7 +259,7 @@ module TmpSubSq();
             begin
                DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];
                int index = findIndex(packet.TMP_oid);
-               if (isStoreRelUop(uname) && dcOut.lock != 1) StoreQueue.content[index].suppress = 1;
+               if (isStoreRelUop(uname) && dcOut.lock == 1) StoreQueue.content[index].suppress = 0;
                     // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
             end
         end
@@ -297,12 +297,14 @@ module TmpSubSq();
             fwEntry = vmax[0];
         end
 
+        // TODO: in this scheme store-release, if not successful, will block loads forwarding from it until it gets committed and drained
+
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
-            res = '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-        else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
-            res = '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
+        else if (!fwEntry.valReady || fwEntry.suppress)         // Covers, not has data -> to RQ (or store conditional not executed)
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_SQ_MISS,   EMPTY_POISON, 'x};
         else                                // Covers and has data -> OK
-            res = '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
 
         if (res.active) checkSqResp(id, res, StoreQueue.memTracker.findStoreAll(U2M(res.TMP_oid)), fwEntry.accessDesc.size, tr.padr, loadSize);
 
@@ -400,7 +402,7 @@ module TmpSubSq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: isMemBarrierUop(decMainUop(mid)),
-            suppress: 0,
+            suppress: isStoreRelUop(decMainUop(mid)),
 
             committed: 0,
             error: 0,

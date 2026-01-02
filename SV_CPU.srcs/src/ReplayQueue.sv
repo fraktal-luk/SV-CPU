@@ -202,7 +202,7 @@ module ReplayQueue(
             if (content[i].active && (content[i].ready_N || content[i].ready)) begin
                 selected <= content[i];
                 
-                newPacket = '{1, content[i].uid, content[i].execStatus, EMPTY_POISON, 'x};
+                newPacket = '{1, content[i].uid, MC_NONE, content[i].execStatus, EMPTY_POISON, 'x};
                 
                 putMilestone(content[i].uid, InstructionMap::RqIssue);
                 content[i].active = 0;
