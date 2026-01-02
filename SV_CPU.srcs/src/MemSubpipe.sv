@@ -213,7 +213,7 @@ module MemSubpipe#()
                 endcase
                 return res;
             end
-            
+
             MC_AQ_REL: begin
                 case (p.status)
                     ES_BEGIN: begin
@@ -225,7 +225,38 @@ module MemSubpipe#()
             end
 
 
-            MC_UNCACHED: ;
+            MC_UNCACHED: begin
+                case (p.status)
+
+                    // Uncached flow
+                    ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
+                        res.status = ES_UNCACHED_2;
+                        return res; // To RQ again
+                    end
+
+                    ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
+                        assert (!cacheResp.active) else $error("Why cache resp\n%p\n%p", uncachedResp, cacheResp);
+
+                        if (uncachedResp.status == CR_HIT) begin 
+                            res.status = ES_OK; // Go on to handle mem result
+                            res.result = loadValue(uncachedResp.data, uname);
+                            insMap.setActualResult(uid, res.result);
+                            return res;
+                        end
+                        else if (uncachedResp.status == CR_INVALID) begin
+                            res.status = ES_ILLEGAL;
+                            res.result = 0;
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
+                            return res;
+                        end
+                        else
+                            $fatal(2, "Wrong status %p", cacheResp.status);
+                    end
+                    
+                    default: $fatal(2, "wrong state");
+
+                endcase
+            end
 
             MC_NORMAL: ;
 
@@ -236,69 +267,37 @@ module MemSubpipe#()
 
         case (p.status)
 
-            // Uncached flow
-            ES_UNCACHED_1: begin // 1st replay (2nd pass) of uncached mem access: send load request if it's a load, move to ES_UNCACHED_2
-                    assert (p.memClass == MC_UNCACHED) else $fatal(2, "Wrong class for uncached");
+            // // Aq-rel flow
+            // ES_AQ_REL_1: begin
+            //     assert (p.memClass == MC_AQ_REL) else $fatal(2, "Wrong class for aq-rel");
 
-                res.status = ES_UNCACHED_2;
-                return res; // To RQ again
-            end
+            //     // The same flow as for normal mem ops
+            //     if (cacheResp.status == CR_TAG_MISS) begin
+            //         res.status = ES_DATA_MISS;
+            //         return res;
+            //     end
+            //     else if (cacheResp.status == CR_TLB_MISS) begin
+            //         res.status = ES_TLB_MISS;
+            //         return res;
+            //     end
+            //     else if (cacheResp.status == CR_NOT_ALLOWED) begin
+            //         insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+            //         res.status = ES_ILLEGAL;
+            //         return res;
+            //     end
+            //     else if (cacheResp.status == CR_UNCACHED) begin
+            //         if (p.memClass != MC_NORMAL) $fatal(2, "Wrong use of uncached memory!");
 
-            ES_UNCACHED_2: begin // 2nd replay (3rd pass) of uncached mem access: final result
-                assert (!cacheResp.active) else $error("Why cache resp\n%p\n%p", uncachedResp, cacheResp);
+            //         res.memClass = MC_UNCACHED;   // other flow
+            //         if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
 
-                        assert (p.memClass == MC_UNCACHED) else $fatal(2, "Wrong class for uncached");
-
-
-                if (uncachedResp.status == CR_HIT) begin 
-                    res.status = ES_OK; // Go on to handle mem result
-                    res.result = loadValue(uncachedResp.data, uname);
-                    insMap.setActualResult(uid, res.result);
-                    return res;
-                end
-                else if (uncachedResp.status == CR_INVALID) begin
-                    res.status = ES_ILLEGAL;
-                    res.result = 0;
-                    insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
-                    return res;
-                end
-                else
-                    $fatal(2, "Wrong status %p", cacheResp.status);
-            end
-
-
-
-            // Aq-rel flow
-            ES_AQ_REL_1: begin
-                        assert (p.memClass == MC_AQ_REL) else $fatal(2, "Wrong class for aq-rel");
-
-                if (0) begin
-                end
-
-                // The same flow as for normal mem ops
-                else if (cacheResp.status == CR_TAG_MISS) begin
-                    res.status = ES_DATA_MISS;
-                    return res;
-                end
-                else if (cacheResp.status == CR_TLB_MISS) begin
-                    res.status = ES_TLB_MISS;
-                    return res;
-                end
-                else if (cacheResp.status == CR_NOT_ALLOWED) begin
-                    insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
-                    res.status = ES_ILLEGAL;
-                    return res;
-                end
-                else if (cacheResp.status == CR_UNCACHED) begin
-                        $fatal(2, "Dont use aq-rel on uncached memory!");
-                    res.status = ES_UNCACHED_1;  
-                    return res; // go to RQ
-                end
-                //else: _Regular
-            end
+            //         return res; // go to RQ
+            //     end
+            //     //else: _Regular
+            // end
 
             // Normal or aq-rel flow
-            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS,   ES_BEGIN: begin
+            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS,   ES_BEGIN,   ES_AQ_REL_1: begin
 
                 // Normal mem flow
                 if (cacheResp.status == CR_TAG_MISS) begin
@@ -315,8 +314,10 @@ module MemSubpipe#()
                     return res;
                 end
                 else if (cacheResp.status == CR_UNCACHED) begin
-                        res.memClass = MC_UNCACHED;   // other flow
-                        if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
+                    if (p.memClass != MC_NORMAL) $fatal(2, "Wrong use of uncached memory!");
+                    
+                    res.memClass = MC_UNCACHED;   // other flow
+                    if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
 
                     return res; // go to RQ
                 end
