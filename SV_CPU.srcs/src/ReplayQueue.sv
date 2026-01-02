@@ -28,6 +28,7 @@ module ReplayQueue(
           int readyCnt;
           logic ready_N;
         
+        MemClass memClass;
         // uop status
         ExecStatus execStatus; 
         
@@ -39,7 +40,7 @@ module ReplayQueue(
             Translation translation;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, MC_NONE, ES_OK, UIDT_NONE, 'x, SIZE_NONE, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
     int numUsed = 0;
@@ -96,7 +97,7 @@ module ReplayQueue(
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].memClass, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
                                     DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
                                     };
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
@@ -202,7 +203,7 @@ module ReplayQueue(
             if (content[i].active && (content[i].ready_N || content[i].ready)) begin
                 selected <= content[i];
                 
-                newPacket = '{1, content[i].uid, MC_NONE, content[i].execStatus, EMPTY_POISON, 'x};
+                newPacket = '{1, content[i].uid, content[i].memClass, content[i].execStatus, EMPTY_POISON, 'x};
                 
                 putMilestone(content[i].uid, InstructionMap::RqIssue);
                 content[i].active = 0;
