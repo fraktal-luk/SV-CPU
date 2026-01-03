@@ -147,7 +147,7 @@ module MemSubpipe#()
     
     task automatic performE2();    
         UopMemPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, cacheResp, uncachedResp, sysRegResp, sqResp);
+        stateE2 = updateE2(stateE2, accessDescE1, cacheResp, uncachedResp, sysRegResp, sqResp);
         pE2 <= stateE2;
     endtask
 
@@ -191,7 +191,8 @@ module MemSubpipe#()
     endfunction
 
 
-    function automatic UopMemPacket updateE2(input UopMemPacket p, input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, input DataCacheOutput sysResp, input UopPacket sqResp);
+    function automatic UopMemPacket updateE2(input UopMemPacket p, input AccessDesc ad,
+                                            input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, input DataCacheOutput sysResp, input UopPacket sqResp);
         UopMemPacket res = p;
         UidT uid = p.TMP_oid;
         UopName uname;
@@ -217,6 +218,8 @@ module MemSubpipe#()
             MC_AQ_REL: begin
                 case (p.status)
                     ES_BEGIN: begin
+                            if (ad.unaligned) $fatal(2, "aq-rel uncached!");
+
                         res.status = ES_AQ_REL_1;
                         return res;
                     end
@@ -264,68 +267,34 @@ module MemSubpipe#()
         endcase
 
 
+        // Normal mem flow
+        if (cacheResp.status == CR_TAG_MISS) begin
+            res.status = ES_DATA_MISS;
+            return res;
+        end
+        else if (cacheResp.status == CR_TLB_MISS) begin
+            res.status = ES_TLB_MISS;
+            return res;
+        end
+        else if (cacheResp.status == CR_NOT_ALLOWED) begin
+            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+            res.status = ES_ILLEGAL;
+            return res;
+        end
+        else if (cacheResp.status == CR_UNCACHED) begin
 
-        case (p.status)
+            // TODO: change fatal to arch exceptions
+            if (p.memClass != MC_NORMAL) $fatal(2, "Wrong use of uncached memory!");
+            // TODO: detect unaligned and raise exc
+            if (ad.unaligned) $fatal(2, "unaligned uncached!");
 
-            // // Aq-rel flow
-            // ES_AQ_REL_1: begin
-            //     assert (p.memClass == MC_AQ_REL) else $fatal(2, "Wrong class for aq-rel");
+            res.memClass = MC_UNCACHED;   // other flow
+            if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
 
-            //     // The same flow as for normal mem ops
-            //     if (cacheResp.status == CR_TAG_MISS) begin
-            //         res.status = ES_DATA_MISS;
-            //         return res;
-            //     end
-            //     else if (cacheResp.status == CR_TLB_MISS) begin
-            //         res.status = ES_TLB_MISS;
-            //         return res;
-            //     end
-            //     else if (cacheResp.status == CR_NOT_ALLOWED) begin
-            //         insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
-            //         res.status = ES_ILLEGAL;
-            //         return res;
-            //     end
-            //     else if (cacheResp.status == CR_UNCACHED) begin
-            //         if (p.memClass != MC_NORMAL) $fatal(2, "Wrong use of uncached memory!");
+            return res; // go to RQ
+        end
+        // else: _Regular
 
-            //         res.memClass = MC_UNCACHED;   // other flow
-            //         if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
-
-            //         return res; // go to RQ
-            //     end
-            //     //else: _Regular
-            // end
-
-            // Normal or aq-rel flow
-            ES_SQ_MISS, ES_OK,   ES_DATA_MISS,  ES_TLB_MISS,   ES_BEGIN,   ES_AQ_REL_1: begin
-
-                // Normal mem flow
-                if (cacheResp.status == CR_TAG_MISS) begin
-                    res.status = ES_DATA_MISS;
-                    return res;
-                end
-                else if (cacheResp.status == CR_TLB_MISS) begin
-                    res.status = ES_TLB_MISS;
-                    return res;
-                end
-                else if (cacheResp.status == CR_NOT_ALLOWED) begin
-                    insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
-                    res.status = ES_ILLEGAL;
-                    return res;
-                end
-                else if (cacheResp.status == CR_UNCACHED) begin
-                    if (p.memClass != MC_NORMAL) $fatal(2, "Wrong use of uncached memory!");
-                    
-                    res.memClass = MC_UNCACHED;   // other flow
-                    if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
-
-                    return res; // go to RQ
-                end
-                // else: _Regular
-            end
-
-            default: $fatal(2, "Wrong status of memory op");
-        endcase
         
         assert (!uncachedResp.active) else $error("Why uncched\n%p\n%p", uncachedResp, cacheResp);
         
