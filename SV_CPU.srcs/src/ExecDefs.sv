@@ -19,10 +19,10 @@ package ExecDefs;
         MC_BARRIER,
         MC_UNCACHED,
         MC_AQ_REL,
-        MC_SYS,
+        MC_SYS //,
 
-            MC_UPPER_B, // block cross replay
-            MC_UPPER_P  // page cross replay
+            //MC_UPPER_B, // block cross replay
+            //MC_UPPER_P  // page cross replay
     } MemClass;
 
 
@@ -46,6 +46,9 @@ package ExecDefs;
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
         
+            ES_LOWER_DONE,
+
+
         ES_ILLEGAL,
         
         ES_FP_INVALID,
@@ -53,7 +56,7 @@ package ExecDefs;
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1,   ES_LOWER_DONE};
     endfunction
 
 

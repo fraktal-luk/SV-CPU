@@ -295,10 +295,10 @@ module MemSubpipe#()
         end
         // else: _Regular
 
-        
+
         assert (!uncachedResp.active) else $error("Why uncched\n%p\n%p", uncachedResp, cacheResp);
         
-        return updateE2_Regular(p, cacheResp, sqResp);
+        return updateE2_Regular(p, ad, cacheResp, sqResp);
     endfunction
 
 
@@ -324,38 +324,49 @@ module MemSubpipe#()
     endfunction
 
     // TODO: sqResp - change to DataCacheOutput?
-    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input DataCacheOutput cacheResp, input UopPacket sqResp);
+    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp, input UopPacket sqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
             assert (!(p.memClass inside {MC_UNCACHED, MC_SYS, MC_BARRIER})) else $fatal(2, "Wrong class for %p", p.memClass);
 
-
         // No misses or special actions, typical load/store
         if (isLoadMemUop(decUname(uid))) begin
-            if (sqResp.active) begin
-                if (sqResp.status == ES_CANT_FORWARD) begin
-                    res.status = ES_REFETCH;
-                    insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                    res.result = 0; // TMP
-                end
-                else if (sqResp.status == ES_SQ_MISS) begin            
-                    res.status = ES_SQ_MISS;
-                    res.result = 0; // TMP
-                end
-                else begin
-                    res.status = ES_OK;
-                    res.result = loadValue(sqResp.result, decUname(uid));
-                    putMilestone(uid, InstructionMap::MemFwConsume);
-                end
-            end
-            else begin //no forwarding
-                assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
-                res.status = ES_OK;
-                res.result = loadValue(cacheResp.data, decUname(uid));
-            end
 
-            insMap.setActualResult(uid, res.result);
+            if (ad.blockCross) begin
+                // TODO: 
+
+                res.status = ES_LOWER_DONE;
+                res.result = 0;
+
+                insMap.setActualResult(uid, res.result);
+
+            end
+            else begin
+                if (sqResp.active) begin
+                    if (sqResp.status == ES_CANT_FORWARD) begin
+                        res.status = ES_REFETCH;
+                        insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+                        res.result = 0; // TMP
+                    end
+                    else if (sqResp.status == ES_SQ_MISS) begin   
+                        res.status = ES_SQ_MISS;
+                        res.result = 0; // TMP
+                    end
+                    else begin
+                        res.status = ES_OK;
+                        res.result = loadValue(sqResp.result, decUname(uid));
+                        putMilestone(uid, InstructionMap::MemFwConsume);
+                    end
+                end
+                else begin //no forwarding
+                    assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
+                    res.status = ES_OK;
+                    res.result = loadValue(cacheResp.data, decUname(uid));
+                end
+
+                insMap.setActualResult(uid, res.result);
+            end
         end
 
         if (isStoreMemUop(decUname(uid))) begin            
