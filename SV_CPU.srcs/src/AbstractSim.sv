@@ -742,7 +742,7 @@ package AbstractSim;
         Word cw = w; // combined word
         Word wsaved = saved;
         Dword cd = {wsaved, w};
-        cw = cd[(8*shift) +: 32];
+        cw = cd[63-(8*shift) -: 32];
 
             $error("\ncombined: %x -> %x", cd, cw);
 

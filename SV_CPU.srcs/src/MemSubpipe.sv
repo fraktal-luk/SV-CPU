@@ -360,15 +360,9 @@ module MemSubpipe#()
 
             end
             else begin
-                if (res.memClass == MC_UPPER_B) begin
-                    Mword cacheVal = cacheResp.data;
-                    Mword uopVal = p.result;
-                    $error("\nUpper (%p): %x, @%x: %x\nshift: %d", U2M(uid), uopVal, ad.vadr, cacheVal, ad.shift);
-                    res.status = ES_OK;
-                    res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
 
-                    // TODO: handle cases where block-cross with SQ FW!
-                end
+
+                if (0);
                 else begin // if not upper part
                     if (sqResp.active) begin
                         if (sqResp.status == ES_CANT_FORWARD) begin
@@ -388,8 +382,18 @@ module MemSubpipe#()
                     end
                     else begin //no forwarding
                         assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
-                        res.status = ES_OK;
-                        res.result = loadValue(cacheResp.data, decUname(uid));
+
+                        if (res.memClass == MC_UPPER_B) begin
+                            Mword cacheVal = cacheResp.data;
+                            Mword uopVal = p.result;
+                            $error("\nUpper (%p): %x, @%x: %x\nshift: %d", U2M(uid), uopVal, ad.vadr, cacheVal, ad.shift);
+                            res.status = ES_OK;
+                            res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
+                        end
+                        else begin
+                            res.status = ES_OK;
+                            res.result = loadValue(cacheResp.data, decUname(uid));
+                        end
                     end
                 end
 

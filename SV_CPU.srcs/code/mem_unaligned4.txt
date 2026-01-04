@@ -2,6 +2,7 @@
 $start
 	
 	add_h r10, r0, 0xFE
+	shl_i r20, r10, -8	; 8 right
 	sti_i r10, r0, 64
 
 	sys_sync
@@ -11,6 +12,11 @@ $start
 	ldi_i r11, r0, 62 ; Load from location shifted 2b left
 
 	add_i r12, r11, -0xFE
+	jnz_i r12, $error
+
+	ldi_i r11, r0, 63 ; Load from location shifted 1b left
+
+	sub_r r12, r11, r20
 	jnz_i r12, $error
 
 $check
