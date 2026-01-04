@@ -1,0 +1,60 @@
+
+; Checking if no errors when using instructions
+
+
+add_i r10, r0, 1
+add_i r11, r0, 2
+add_i r12, r0, 3
+add_i r13, r0, 4
+
+
+mb_ld_f
+
+mb_ld_f
+
+
+mb_ld_f
+
+
+ldi_i r8, r0, 16
+ldi_i r9, r0, 24
+
+sti_i r10, r0, 8
+
+mb_ld_f
+
+ldi_i r20, r0, 16
+ldi_i r21, r0, 20
+
+mb_ld_f
+
+sti_i r13, r0, 4
+ldi_i r20, r0, 8
+
+mb_st_f
+mb_ld_f
+
+ldi_i r21, r0, 4
+ldi_i r22, r0, 8
+sti_i r11, r0, 0
+
+mb_st_f
+
+sti_i r20, r0, 40
+ldi_i r18, r0, 32
+ldi_i r19, r0, 28
+
+mb_ld_f
+
+ldi_i r20, r0, 36
+ldi_i r21, r0, 40
+sti_i r20, r0, 16
+
+mb_ld_f
+
+sti_i r21, r0, 20
+ldi_i r20, r0, 8
+ldi_i r21, r0, 12
+
+
+sys_dbcall

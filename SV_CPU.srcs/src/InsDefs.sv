@@ -170,6 +170,11 @@ package InsDefs;
 
             sts, //-- store sys
 
+                mb_ld_b, mb_ld_f, mb_ld_bf, mb_st_b, mb_st_f, mb_st_bf,
+                e_ldaq,
+                e_stc,
+
+
             jz_i, jz_r, jnz_i, jnz_r,
             ja, jl, //-- jump always, jump link
 
@@ -229,8 +234,8 @@ package InsDefs;
             P_intLoadB16 = 24,
             P_intStoreB16 = 25,
 
-            P_intLoadAqW16 = 26,
-            P_intStoreRelW16 = 27,
+            //P_intLoadAqW16 = 26,
+            //P_intStoreRelW16 = 27,
 
         P_none = -1
     } Primary;
@@ -252,9 +257,15 @@ package InsDefs;
         S_floatArith  = 64*P_floatOp + 1,
          
         // P_intMem
-        //S_intLoadW,
-        //S_intStoreW,
-         
+        S_mbLoadB = 64*P_intMem + 0,
+        S_mbStoreB = 64*P_intMem + 1,
+        S_mbLoadF = 64*P_intMem + 2,
+        S_mbStoreF = 64*P_intMem + 3,
+        S_mbLoadBF = 64*P_intMem + 4,
+        S_mbStoreBF = 64*P_intMem + 5,
+        S_loadAq   = 64*P_intMem + 6,
+        S_storeRel   = 64*P_intMem + 7,
+
         // P_floatMem
         //S_floatLoadW,
         //S_floatStoreW,
@@ -434,6 +445,8 @@ package InsDefs;
             O_intLoadB, O_intStoreB,
             O_intLoadAqW, O_intStoreRelW,
         
+        O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF,
+
         O_sysLoad, O_sysStore
     } Operation;
 
@@ -499,27 +512,35 @@ package InsDefs;
             "cmpgtf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt64, O_floatCmpGt64},
             
         
-        "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},//intImm16,
-        "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},//intStore16,
+        "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},
+        "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},
         
-        "ldf_i":      '{F_floatLoad16,  P_floatLoadW16,  S_none, T_none, O_floatLoadW},//floatLoad16,
-        "stf_i":      '{F_floatStore16, P_floatStoreW16,  S_none, T_none, O_floatStoreW},//floatStore16,
+        "ldf_i":      '{F_floatLoad16,  P_floatLoadW16,  S_none, T_none, O_floatLoadW},
+        "stf_i":      '{F_floatStore16, P_floatStoreW16,  S_none, T_none, O_floatStoreW},
 
-            "e_lb":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},//IntImm16
-            "e_sb":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},//IntImm16
+            "e_lb":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},
+            "e_sb":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},
 
-            "e_ldaq":  '{F_intImm16, P_intLoadAqW16, S_none, T_none, O_intLoadAqW},//IntImm16
-            "e_strel": '{F_intImm16, P_intStoreRelW16, S_none, T_none, O_intStoreRelW},//IntImm16                           
+            "e_ldaq":  '{F_intImm10, P_intMem,   S_loadAq,   T_none, O_intLoadAqW},
+            "e_stc":   '{F_intStore10, P_intMem, S_storeRel, T_none, O_intStoreRelW},                           
         
-        "lds":        '{F_sysLoad,  P_sysMem,  S_sysLoad, T_none, O_sysLoad},//sysLoad, //-- load sys
-        "sts":        '{F_sysStore, P_sysMem,  S_sysStore, T_none, O_sysStore},//sysStore, //-- store sys
+          "mb_ld_b":    '{F_noRegs, P_intMem, S_mbLoadB, T_none, O_mbLoadB},
+          "mb_ld_f":    '{F_noRegs, P_intMem, S_mbLoadF, T_none, O_mbLoadF},
+          "mb_ld_bf":    '{F_noRegs, P_intMem, S_mbLoadBF, T_none, O_mbLoadBF},
+          "mb_st_b":    '{F_noRegs, P_intMem, S_mbStoreB, T_none, O_mbStoreB},
+          "mb_st_f":    '{F_noRegs, P_intMem, S_mbStoreF, T_none, O_mbStoreF},
+          "mb_st_bf":    '{F_noRegs, P_intMem, S_mbStoreBF, T_none, O_mbStoreBF},
+
+
+        "lds":        '{F_sysLoad,  P_sysMem,  S_sysLoad, T_none, O_sysLoad},
+        "sts":        '{F_sysStore, P_sysMem,  S_sysStore, T_none, O_sysStore},
         
-        "jz_i":       '{F_jumpCond, P_jz, S_none, T_none, O_jump},//jumpCond,
-        "jz_r":       '{F_int2R, P_intAlu, S_jumpReg, T_jumpRegZ, O_jump},//int2R,
-        "jnz_i":      '{F_jumpCond, P_jnz, S_none, T_none, O_jump},//jumpCond,
-        "jnz_r":      '{F_int2R, P_intAlu, S_jumpReg, T_jumpRegNZ, O_jump},//int2R,
-        "ja":         '{F_jumpLong, P_ja, S_none, T_none, O_jump},//,//jumpLong,
-        "jl":         '{F_jumpLink, P_jl, S_none, T_none, O_jump},//jumpLink, //-- jump always, jump link
+        "jz_i":       '{F_jumpCond, P_jz, S_none, T_none, O_jump},
+        "jz_r":       '{F_int2R, P_intAlu, S_jumpReg, T_jumpRegZ, O_jump},
+        "jnz_i":      '{F_jumpCond, P_jnz, S_none, T_none, O_jump},
+        "jnz_r":      '{F_int2R, P_intAlu, S_jumpReg, T_jumpRegNZ, O_jump},
+        "ja":         '{F_jumpLong, P_ja, S_none, T_none, O_jump},
+        "jl":         '{F_jumpLink, P_jl, S_none, T_none, O_jump},
         
         "sys_rete":   '{F_noRegs, P_sysControl, S_sysRetE, T_none, O_retE},
         "sys_reti":   '{F_noRegs, P_sysControl, S_sysRetI, T_none, O_retI},

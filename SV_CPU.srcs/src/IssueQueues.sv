@@ -41,7 +41,7 @@ module IssueQueue
     logic readyForIssue[OUT_WIDTH] = '{default: 0};
     UopPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET}, pIssued1[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
 
-    int num = 0, numUsed = 0;    
+    int num = 0;    
 
 
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];
@@ -104,14 +104,28 @@ module IssueQueue
 
         removeIssuedFromArray();
 
+            unlockBarrier();
+
+
         arrayReg <= array;
 
         foreach (pIssued0[i])
             pIssued1[i] <= tickP(pIssued0[i]);
 
-        num <= getNumVirtual();     
-        numUsed <= getNumUsed();
+        num <= getNumUsed();
     end
+
+
+        function automatic void unlockBarrier();
+            if (!AbstractCore.barrierUnlocking) return;
+
+            foreach (array[i]) begin
+                if (array[i].status == IqSuspended && array[i].barrier <= AbstractCore.barrierUnlockingMid) begin
+                    array[i].status = IqActive;
+                       // $error("unlocking %d [%d]", array[i].uid.m,  array[i].barrier);
+                end
+            end
+        endfunction
 
 
     function automatic ReadinessInfoArr getReadinessArr(input IqEntry arr[], input Wakeup wm[][3]);
@@ -123,13 +137,13 @@ module IssueQueue
 
     task automatic updateWakeups();    
         foreach (array[i]) begin            
-            if (array[i].used) updateReadyBits(array[i], readinessVar[i].combined, /*wMatrixVar[i],*/ readinessVar[i].poisons);
+            if (array[i].status != IqEmpty) updateReadyBits(array[i], readinessVar[i].combined, readinessVar[i].poisons);
         end
     endtask
 
     task automatic updateWakeups_Part2();
         foreach (array[i])
-            if (array[i].used) updateReadyBits_Part2(array[i]);
+            if (array[i].status != IqEmpty) updateReadyBits_Part2(array[i]);
     endtask
 
     task automatic issue();
@@ -151,7 +165,7 @@ module IssueQueue
         UidT res[] = new[OUT_WIDTH];
         int cnt = 0;
         
-        UidQueueT idsSorted = getUsedIdQueue(array);
+        UidQueueT idsSorted = getActiveIdQueue(array);
         
         res = '{default: UIDT_NONE};
         
@@ -163,10 +177,8 @@ module IssueQueue
             int arrayLoc[$] = array.find_index with (item.uid == thisId); // array
             IqEntry entry = array[arrayLoc[0]];     // array
             logic ready = readinessVar[arrayLoc[0]].all;
-            logic active = entry.used && entry.active;
 
-            assert (active) else $fatal(2, "Issue inactive slot");
-            //if (!active) continue;
+            assert (entry.status == IqActive) else $fatal(2, "!!!!!!Issue inactive slot");
 
             if (ready) res[cnt++] = thisId;
             
@@ -190,13 +202,14 @@ module IssueQueue
         foreach (properPoisons[i]) properPoisons[i] = (prevReady[i]) ? prevPoisons[i] : currentPoisons[i];
         
         newPoison = mergePoisons(properPoisons);
-        return '{1, entry.uid, ES_OK, newPoison, 'x};
+        return '{1, entry.uid, MC_NONE, ES_BEGIN, newPoison, 'x};
     endfunction
 
 
     task automatic setIssued(ref IqEntry entry);
         putMilestone(entry.uid, InstructionMap::IqIssue);
-        entry.active = 0;         // Entry upd
+        entry.status = IqIssued;
+        entry.active_ = 0;         // Entry upd
         entry.issueCounter = 0;   // Entry upd
     endtask
 
@@ -209,7 +222,19 @@ module IssueQueue
             int s = found[0];
 
             if (theId == UIDT_NONE) continue;
-            assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
+
+            assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
+
+                //TODO;
+                // check for violation of conditions preventing issue
+                // * mem: when barrier active 
+                // * mem: when store-load dependecy prediction block a load
+            if (isMemUop(decUname(theId))) begin
+
+                  //  if (U2M(theId) inside {6076, 6077}) $error("\n    Issue uop %d: %p\n", U2M(theId), decUname(theId));
+
+                AbstractCore.memTracker.checkIssue(theId);
+            end
 
             begin
                 UopPacket newPacket = makeUop(array[s], readinessVar[s]);
@@ -226,18 +251,20 @@ module IssueQueue
             int s = found[0];
 
             if (theId == UIDT_NONE) continue;
-            assert (array[s].used && array[s].active) else $fatal(2, "Inactive slot to issue?");
+
+            assert (array[s].status == IqActive) else $fatal(2, "!!!!!Inactive slot to issue?");
 
             setIssued(array[s]);
         end
     endtask
 
+    // Only a check
     function automatic void checkReadyStatus();
         foreach (array[i]) begin
             logic signalReady = readinessVar[i].all;
             IqEntry entry = array[i];
 
-            if (!entry.used || entry.uid == UIDT_NONE || !entry.active) continue;
+            if (entry.status != IqActive) continue;
             
             assert (entry.state.ready == signalReady) else $fatal(2, "Check ready bits: differ entry %p, sig %p\n%p", entry.state.ready, signalReady, entry);
         end
@@ -245,29 +272,45 @@ module IssueQueue
 
     task automatic TMP_incIssueCounter();
         foreach (array[s])
-            if (array[s].used && !array[s].active) array[s].issueCounter++;  // Entry upd
+            if (array[s].status == IqIssued) begin
+                array[s].issueCounter++;  // Entry upd
+            end
     endtask
 
     task automatic removeIssuedFromArray();
         foreach (array[s]) begin
             if (array[s].issueCounter == HOLD_CYCLES) begin
-                putMilestone(array[s].uid, InstructionMap::IqExit);
-                                
-                assert (array[s].used == 1 && array[s].active == 0) else $fatal(2, "slot to remove must be used and inactive");
+                assert (array[s].status == IqIssued) else $fatal(2, "slot to remove must be used and inactive\n%p", array[s]);
+                putMilestone(array[s].uid, InstructionMap::IqExit);                                
                 array[s] = EMPTY_ENTRY;  // Entry upd
             end
         end
     endtask
 
-    // MOVE?
+
     function automatic IqEntry makeIqEntry(input TMP_Uop inUop);
-        return inUop.active ? '{used: 1, active: 1, state: ZERO_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop.uid} : EMPTY_ENTRY;
+        InsId barrier = insMap.getU(inUop.uid).barrier;
+        SlotStatus status = IqActive;
+        
+            if (barrier != -1) status = IqSuspended; // TODO: introduce barrier unlocking
+        
+            if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
+
+        return inUop.active ? '{used: 1, active_: 1,
+                                status: status,
+                                state: ZERO_ARG_STATE,
+                                barrier: barrier,
+                                poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop.uid}
+                                : EMPTY_ENTRY;
     endfunction
 
     // MOVE?
     function automatic InputArray makeInputArray(input TMP_Uop inUops[RENAME_WIDTH]);
         InputArray res = '{default: EMPTY_ENTRY};
-        foreach (res[i]) res[i] = makeIqEntry(inUops[i]);
+        foreach (res[i]) begin
+            if (inUops[i].active !== 1) continue;
+            res[i] = makeIqEntry(inUops[i]);
+        end
         return res;
     endfunction
 
@@ -283,8 +326,7 @@ module IssueQueue
                 nInserted++;          
 
                 putMilestone(inputArray[i].uid, InstructionMap::IqEnter);
-                
-                updateReadyBits(array[location], readinessInputVar[i].combined, /*wiMatrixVar[i],*/ readinessInputVar[i].poisons);
+                updateReadyBits(array[location], readinessInputVar[i].combined, readinessInputVar[i].poisons);
             end
         end
     endtask
@@ -297,7 +339,7 @@ module IssueQueue
 
     task automatic flushOpQueueAll();
         foreach (array[i]) begin
-            if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
+            if (array[i].status != IqEmpty) putMilestone(array[i].uid, InstructionMap::IqFlush);
             array[i] = EMPTY_ENTRY;  // Entry upd
         end
     endtask
@@ -305,7 +347,7 @@ module IssueQueue
     task automatic flushOpQueuePartial(input InsId id);
         foreach (array[i]) begin
             if (U2M(array[i].uid) > id) begin
-                if (array[i].used) putMilestone(array[i].uid, InstructionMap::IqFlush);
+                if (array[i].status != IqEmpty) putMilestone(array[i].uid, InstructionMap::IqFlush);
                 array[i] = EMPTY_ENTRY;  // Entry upd
             end
         end
@@ -316,8 +358,9 @@ module IssueQueue
         int nFound = 0;
 
         foreach (array[i])
-            if (!array[i].used) res[nFound++] = i;
-
+            if (array[i].status == IqEmpty) begin
+                res[nFound++] = i;
+            end
         return res;
     endfunction
 
@@ -349,7 +392,6 @@ module IssueQueue
     function automatic void setArgReady(ref IqEntry entry, input int a, /*input Wakeup wup,*/ input Poison p);
         entry.state.readyArgs[a] = 1;            // Entry upd
         entry.poisons.poisoned[a] = p;//wup.poison;  // Entry upd
-                      //  assert (wup.poison === p) else $error("diffetn p");
         putMilestone(entry.uid, wakeupMilestone(a));
     endfunction
 
@@ -364,50 +406,40 @@ module IssueQueue
         if (entry.state.ready) putMilestone(entry.uid, InstructionMap::IqPullback);
 
         // cancel issue
-        entry.active = 1;        // Entry upd
+        entry.status = IqActive; // TODO: or IqLocked if possible resource conflict?
+        entry.active_ = 1;        // Entry upd
         entry.issueCounter = -1; // Entry upd                  
         entry.state.ready = 0;   // Entry upd
     endfunction
 
 
-
     function automatic int getNumUsed();
         int res = 0;
-        foreach (array[s]) if (array[s].used) res++; 
+        foreach (array[s]) if (array[s].status != IqEmpty) res++; 
         return res; 
     endfunction
-
-    function automatic int getNumVirtual();
-        int res = 0;
-        foreach (array[s]) if (array[s].used && array[s].issueCounter == -1) res++; 
-        return res; 
-    endfunction
-
 
     function automatic UidQueueT getIdQueue(input IqEntry entries[]);
         UidT res[$];
         
         foreach (entries[i]) begin
-            UidT uid = entries[i].used ? entries[i].uid : UIDT_NONE;
+            UidT uid = (entries[i].status != IqEmpty) ? entries[i].uid : UIDT_NONE;
             res.push_back(uid);
         end
         
         return res;
     endfunction
 
-        function automatic UidQueueT getUsedIdQueue(input IqEntry entries[]);
+        function automatic UidQueueT getActiveIdQueue(input IqEntry entries[]);
             UidT res[$];
             
             foreach (entries[i]) begin
-                if (entries[i].active)
-                //UidT uid = entries[i].used ? entries[i].uid : UIDT_NONE;
+                if (entries[i].status == IqActive)
                     res.push_back(entries[i].uid);
             end
             
             return res;
         endfunction
-
-
 
     function automatic OutGroupP effA(input OutGroupP g);
         OutGroupP res;
@@ -415,7 +447,6 @@ module IssueQueue
         
         return res;
     endfunction
-    
 
     function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
@@ -488,10 +519,10 @@ module IssueQueue
         
         if (entry.uid == UIDT_NONE) return res;
         
-        res.used = entry.used;
-        res.active = entry.active;
+        res.used = entry.status != IqEmpty;
+        res.active = //entry.active_;
+                        entry.status == IqActive;
         
-        res.allowed = entry.used && entry.active;
         res.registers = getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = getLogic3(wup);
         
@@ -516,8 +547,7 @@ module IssueQueueComplex(
                         input EventInfo lateEventInfo,
                         input OpSlotAB inGroup
 );    
-    
- 
+
                 // .active, .mid
     function automatic RoutedUops routeUops(input OpSlotAB gr);
         RoutedUops res = DEFAULT_ROUTED_UOPS;
@@ -529,7 +559,7 @@ module IssueQueueComplex(
                 UopId uid = '{gr[i].mid, u};
                 UopName uname = decUname(uid);                          // module dependence
 
-                if (isLoadUop(uname) || isStoreUop(uname)) res.mem[i] = '{1, uid};
+                if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = '{1, uid};
                 else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
                 else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
                 else if (isIntDividerUop(uname)) res.idivider[i] = '{1, uid};

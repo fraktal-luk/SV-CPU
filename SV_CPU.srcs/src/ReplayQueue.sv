@@ -28,6 +28,7 @@ module ReplayQueue(
           int readyCnt;
           logic ready_N;
         
+        MemClass memClass;
         // uop status
         ExecStatus execStatus; 
         
@@ -35,11 +36,13 @@ module ReplayQueue(
             Mword adr;        // transaction desc
             AccessSize size;  // t.d.
             
+            Mword value;
+
             AccessDesc accessDesc;
             Translation translation;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, ES_OK, UIDT_NONE, 'x, SIZE_NONE, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
+    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, MC_NONE, ES_OK, UIDT_NONE, 'x, SIZE_NONE, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
     int numUsed = 0;
@@ -63,22 +66,18 @@ module ReplayQueue(
     endfunction
 
 
-    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET, issued0__ = EMPTY_UOP_PACKET;
+    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET;
 
 
     always @(posedge clk) begin
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flush();
         end
-        
-        
+              
         issue();
         wakeup();
         writeInput();
         removeIssued();
-
-          issued0__ <= tickP(inPackets[0]);
-          issued0__.status <= ES_OK;
 
         issued1 <= tickP(issued0);
         
@@ -100,9 +99,8 @@ module ReplayQueue(
             effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
             trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
             
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                    //theExecBlock.accessDescs_E2[i], theExecBlock.dcacheTranslations_E2[i]
-                                    DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
+            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].memClass, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
+                                    inPackets[i].result, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
                                     };
             putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
         end
@@ -127,7 +125,7 @@ module ReplayQueue(
             // Temporary wakeup on timer for cases under development
             foreach (content[i]) begin
                 // Exclude cases already implemented, leave only dev ones
-                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1,   ES_DATA_MISS    /*, ES_TLB_MISS*/   }) continue;
+                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1}) continue;
             
                 if (content[i].active && content[i].readyCnt > 0) begin
                     content[i].readyCnt--;
@@ -165,7 +163,8 @@ module ReplayQueue(
         
         // Entry waiting to be nonspeculative
         if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
-            int found[$] = content.find_index with (!item.ready_N && item.execStatus == ES_UNCACHED_1 && U2M(item.uid) == theRob.indToCommitSig.mid);            
+            int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1}
+                                                    && U2M(item.uid) == theRob.indToCommitSig.mid);            
             assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
             
             if (found.size() != 0) begin
@@ -176,6 +175,8 @@ module ReplayQueue(
         // Wakeup data misses
         if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
             foreach (content[i]) begin
+                if (content[i].execStatus != ES_DATA_MISS) continue;
+
                 if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
                     content[i].ready_N = 1;
                 end
@@ -185,6 +186,8 @@ module ReplayQueue(
         // Wakeup TLB misses
         if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
             foreach (content[i]) begin
+                if (content[i].execStatus != ES_TLB_MISS) continue;
+
                 if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                     content[i].ready_N = 1;                    
                 end
@@ -202,7 +205,7 @@ module ReplayQueue(
             if (content[i].active && (content[i].ready_N || content[i].ready)) begin
                 selected <= content[i];
                 
-                newPacket = '{1, content[i].uid, content[i].execStatus, EMPTY_POISON, 'x};
+                newPacket = '{1, content[i].uid, content[i].memClass, content[i].execStatus, EMPTY_POISON, content[i].value};
                 
                 putMilestone(content[i].uid, InstructionMap::RqIssue);
                 content[i].active = 0;
@@ -238,6 +241,6 @@ module ReplayQueue(
 
 
     assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
-    assign outPacket = effP(issued0);
+    always_comb outPacket = effP(issued0);
 
 endmodule

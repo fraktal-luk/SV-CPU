@@ -177,7 +177,25 @@ package EmulationDefs;
     endfunction       
 
     function automatic logic isMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD, O_floatLoadW, O_floatStoreW,  O_intLoadB,  O_intStoreB,  O_intLoadAqW, O_intStoreRelW};
+        return ins.def.o inside {
+                O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD,
+                O_floatLoadW, O_floatStoreW,  O_intLoadB,  O_intStoreB, 
+                O_intLoadAqW, O_intStoreRelW,
+
+                O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF
+                };
+    endfunction
+
+    function automatic logic isMemBarrierIns(input AbstractInstruction ins);
+        return ins.def.o inside {
+                O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF
+                };
+    endfunction
+
+    function automatic logic isMemBarrierFwIns(input AbstractInstruction ins);
+        return ins.def.o inside {
+                    O_mbLoadF, O_mbLoadBF, O_mbStoreF, O_mbStoreBF
+                };
     endfunction
 
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
@@ -363,6 +381,7 @@ package EmulationDefs;
 
 
     function automatic Mword calculateEffectiveAddress(input AbstractInstruction ins, input Mword3 vals);
+        if (isMemBarrierIns(ins)) return 'x;
         return (ins.def.o inside {O_sysLoad, O_sysStore}) ? vals[1] : vals[0] + vals[1];
     endfunction
 

@@ -70,6 +70,7 @@ module AbstractCore
 
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+    MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
@@ -94,6 +95,10 @@ module AbstractCore
 
     // Event control
     Mword retiredTarget = 0;
+
+        logic barrierUnlocking;
+        InsId barrierUnlockingMid;
+
 
 
     ///////////////////////////
@@ -123,6 +128,9 @@ module AbstractCore
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     //////////////////////////////////////////
+        assign barrierUnlocking = (drainHead.barrierFw === 1);
+        assign barrierUnlockingMid = barrierUnlocking ? (drainHead.mid) : -1;
+
 
         assign fetchEnable = theFrontend.fetchEnable;
         assign insAdr = theFrontend.fetchAdr;
@@ -159,6 +167,11 @@ module AbstractCore
             redirectRest();     // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
         else
             runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
+
+
+          begin
+            releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid);
+          end
 
         handleWrites(); // registerTracker
 
@@ -302,8 +315,9 @@ module AbstractCore
             memTracker.flush(branchEventInfo.eventMid);
             
             renameInds = causingCP.inds;
+            renameMarkers = causingCP.markers;
         end
-       
+
     endtask
 
 
@@ -328,7 +342,8 @@ module AbstractCore
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameInds, renamedEmul);
+                                    renameInds, renameMarkers,
+                                    renamedEmul);
         branchCheckpointQueue.push_back(cp);
     endtask
 
@@ -373,12 +388,25 @@ module AbstractCore
         mainUinfo.vDest = ins.dest;
         mainUinfo.physDest = -1;
         mainUinfo.deps = deps;
+
+
+            // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
+            if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin
+                mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+            end
+
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
         mainUinfo.argError = 'x;
 
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
+
+
+            // if (id == 93) begin
+            //     $error("id 93\n%p\n%p", uopName, uInfos);//isMemIns(ins));
+
+            // end
 
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];
@@ -389,7 +417,7 @@ module AbstractCore
 
         insMap.allocate(id, ii, uInfos);  // 
 
-        if (isStoreIns(ins) || isLoadIns(ins)) begin
+        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             Translation tr = renamedEmul.translateDataAddress(effAdr);
             
@@ -399,6 +427,7 @@ module AbstractCore
         if (isBranchIns(ins)) saveCP(id); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
+        updateMarkers(renameMarkers, id); // Crucial state
 
         putMilestoneM(id, InstructionMap::Rename);
     endtask
@@ -495,6 +524,8 @@ module AbstractCore
                 cancelRest = 1; // Don't commit anything more if event is being handled
             end  
         end
+
+            releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
     endtask
 
 
@@ -583,10 +614,10 @@ module AbstractCore
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
+        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
 
         // RET: free DB queues
-        if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id))) memTracker.remove(id); // All?
+        if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
@@ -598,6 +629,8 @@ module AbstractCore
 
         // Elements related to crucial signals:
         // RET: update inds
+        updateMarkers(commitMarkers, id);
+
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
@@ -617,12 +650,47 @@ module AbstractCore
     endtask
 
 
+
+    function automatic void updateMarkers(ref MarkerSet markers, input InsId id);
+        UopName mainUop = decMainUop(id);
+
+        if (isLoadMemUop(mainUop)) markers.load = id;
+        if (isStoreMemUop(mainUop)) markers.store = id;
+        
+        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
+        if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
+        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbF = id;
+
+        if (isLoadAqUop(mainUop)) markers.loadAq = id;
+        if (isStoreRelUop(mainUop)) markers.storeRel = id;
+
+    endfunction
+
+
+    function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
+        if (!unlocking) return;
+
+        if (markers.load <= unlockingId) markers.load = -1;
+        if (markers.store <= unlockingId) markers.store = -1;
+
+        if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
+        if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
+        if (markers.mbF <= unlockingId) markers.mbF = -1;
+
+        if (markers.loadAq <= unlockingId) markers.loadAq = -1;
+        if (markers.storeRel <= unlockingId) markers.storeRel = -1;
+
+    endfunction
+
+
     // MOVE?
     function automatic void updateInds(ref IndexSet inds, input InsId id);
+        UopName mainUop = decMainUop(id);
+
         inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
-        if (isBranchUop(decMainUop(id))) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
-        if (isLoadUop(decMainUop(id))) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
-        if (isStoreUop(decMainUop(id))) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
+        if (isBranchUop(mainUop)) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
+        if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
+        if (isStoreUop(mainUop)) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
 
     task automatic writeResult(input UopPacket p);

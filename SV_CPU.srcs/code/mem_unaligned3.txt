@@ -1,9 +1,15 @@
 ; Unaligned access, loaded from previous overlapping store
 $start
 	
-	add_i r10, r0, 15
+	add_h r10, r0, 0xFE
 	sti_i r10, r0, 20
-	ldi_i r11, r0, 18
+
+	sys_sync
+
+	ldi_i r11, r0, 18 ; Load from location shifted 2b left
+
+	add_i r12, r11, -0xFE
+	jnz_i r12, $error
 
 $check
 	sys_dbcall

@@ -37,6 +37,9 @@ package Queues;
         AccessDesc accessDesc;
         Translation translation;
 
+        logic barrierFw;
+        logic suppress;
+
         logic committed;
         logic error;
         logic refetch;
@@ -61,7 +64,7 @@ package Queues;
 
     class StoreQueueHelper;
         typedef SqEntry Entry;
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION,  'x, 'x,  'x, 'x, 'x};
 
         localparam InstructionMap::Milestone QUEUE_ENTER = InstructionMap::SqEnter;
         localparam InstructionMap::Milestone QUEUE_FLUSH = InstructionMap::SqFlush;
@@ -90,7 +93,7 @@ package Queues;
 
 
     function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
-        return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
+        return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch && !sqe.suppress,
                 sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
     endfunction
 

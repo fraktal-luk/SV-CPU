@@ -49,6 +49,8 @@ module ArchDesc0();
         "Tests_mem_align.txt",
         "Tests_sys_transfers.txt",
         
+        "Tests_barriers.txt",
+
         "Tests_all.txt",
         
         "Tests_events.txt"

@@ -212,6 +212,18 @@ package AbstractSim;
         int sq;
     } IndexSet;
 
+    typedef struct {
+        InsId load;
+        InsId store;
+        InsId mbLoadF;
+        InsId mbStoreF;
+        InsId mbF;
+
+        InsId loadAq;
+        InsId storeRel;
+    } MarkerSet;
+
+
     //////////////////////////////////////
 
     
@@ -232,13 +244,15 @@ package AbstractSim;
         function new(input InsId id,
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
-                    input IndexSet indexSet, input Emulator em);
+                    input IndexSet indexSet, input MarkerSet markerSet,
+                    input Emulator em);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
             this.intMapR = intMapR;
             this.floatMapR = floatMapR;
             this.inds = indexSet;
+            this.markers = markerSet;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
         endfunction
@@ -249,6 +263,7 @@ package AbstractSim;
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
+        MarkerSet markers;
         Emulator emul;
     endclass
 
@@ -501,9 +516,10 @@ package AbstractSim;
         Mword adrAny;
         Dword padr;
         AccessSize size;
+        logic barrierF;
     } Transaction;
 
-    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE};
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
     class MemTracker;
@@ -515,6 +531,10 @@ package AbstractSim;
         function automatic void add(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword argVals[3],  input Dword padr);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             AccessSize size = getTransactionSize(uname);
+
+            if (isMemBarrierIns(ins)) begin
+                addBarrier(id, 'x, 'x, 'x, SIZE_NONE, isMemBarrierFwIns(ins));
+            end
 
             if (isStoreMemIns(ins)) begin 
                 Mword value = argVals[2];
@@ -532,24 +552,29 @@ package AbstractSim;
             end
         endfunction
 
+        function automatic void addBarrier(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size, input logic isFw);
+            transactions.push_back('{id, adr, val, adr, padr, size, isFw});
+            stores.push_back('{id, adr, val, adr, padr, size, isFw});
+        endfunction
+
         function automatic void addStore(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, padr, size});
-            stores.push_back('{id, adr, val, adr, padr, size});
+            transactions.push_back('{id, adr, val, adr, padr, size, 0});
+            stores.push_back('{id, adr, val, adr, padr, size, 0});
         endfunction
 
         function automatic void addLoad(input InsId id, input Mword adr, input Dword padr, input Mword val, input AccessSize size);
-            transactions.push_back('{id, adr, val, adr, padr, size});
-            loads.push_back('{id, adr, val, adr, padr, size});
+            transactions.push_back('{id, adr, val, adr, padr, size, 0});
+            loads.push_back('{id, adr, val, adr, padr, size, 0});
         endfunction
 
         function automatic void addStoreSys(input InsId id, input Mword adr, input Mword val);
-            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
-            stores.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
+            stores.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
         endfunction
 
         function automatic void addLoadSys(input InsId id, input Mword adr, input Mword val);            
-            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
-            loads.push_back('{id, 'x, val, adr, 'x, SIZE_NONE});
+            transactions.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
+            loads.push_back('{id, 'x, val, adr, 'x, SIZE_NONE, 0});
         endfunction
 
         function automatic void remove(input InsId id);        
@@ -601,6 +626,17 @@ package AbstractSim;
             Transaction allStores[$] = {committedStores, stores};
             Transaction writers[$] = allStores.find with (item.owner == id);
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
+        endfunction
+
+        function automatic logic checkIssue(input UidT uid);
+            Transaction checked[$] = transactions.find_first with (item.owner == U2M(uid));
+
+            Transaction allStores[$] = {committedStores, stores};
+            Transaction barriers[$] = allStores.find with (item.barrierF === 1);
+            Transaction activeBarriers[$] = barriers.find with (item.owner < U2M(uid));
+
+            assert (activeBarriers.size() == 0) return 0; else $fatal(2, "Barrier violation by %p (barrier %p)", uid, activeBarriers[0].owner);
+            return 1;
         endfunction
 
     endclass
@@ -685,17 +721,50 @@ package AbstractSim;
         case (uop)
             UOP_mem_ldi: return w;
             UOP_mem_ldib: return Mword'(w[7:0]);
-            UOP_mem_ldf,
+            UOP_mem_ldf: return w;
             UOP_mem_lds: return w;
             
+            UOP_mem_lda: return w;
+
             UOP_mem_sti,
             UOP_mem_stib,
             UOP_mem_stf,
             UOP_mem_sts: return 0;
-            
+
+            UOP_mem_stc: return 0; // TODO
+
             default: $fatal(2, "Wrong op");
         endcase
     endfunction
+
+
+    function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
+        Word cw = w; // combined word
+        Word wsaved = saved;
+        Dword cd = {wsaved, w};
+        cw = cd[63-(8*shift) -: 32];
+
+          //  $error("\ncombined: %x -> %x", cd, cw);
+
+        case (uop)
+            UOP_mem_ldi: return cw;
+            UOP_mem_ldib: return Mword'(cw[7:0]);
+            UOP_mem_ldf: return cw;
+            UOP_mem_lds: return cw;
+            
+            UOP_mem_lda: return cw;
+
+            UOP_mem_sti,
+            UOP_mem_stib,
+            UOP_mem_stf,
+            UOP_mem_sts: return 0;
+
+            UOP_mem_stc: return 0; // TODO
+
+            default: $fatal(2, "Wrong op");
+        endcase
+    endfunction
+
 
     function automatic Mword fetchLineBase(input Mword adr);
         return adr & ~(4*FETCH_WIDTH-1);

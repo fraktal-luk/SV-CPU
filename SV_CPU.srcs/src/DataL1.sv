@@ -35,6 +35,7 @@ module DataL1(
     DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
     DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
+    ReadResult_N cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
 
 
     function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult_N readRes);
@@ -52,21 +53,21 @@ module DataL1(
 
         // Otherwise check translation
         else if (!virtualAddressValid(aDesc.vadr))
-            res = '{1, CR_INVALID, 'x}; // Invalid virtual adr
+            res = '{1, CR_INVALID, 'x, 'x}; // Invalid virtual adr
         else if (!tr.present)
-            res = '{1, CR_TLB_MISS, 'x}; // TLB miss
+            res = '{1, CR_TLB_MISS, 'x, 'x}; // TLB miss
         else if (!tr.desc.canRead)
-            res = '{1, CR_NOT_ALLOWED, 'x};
+            res = '{1, CR_NOT_ALLOWED, 'x, 'x};
         else if (aDesc.store && !tr.desc.canWrite)
-            res = '{1, CR_INVALID, 'x};
+            res = '{1, CR_INVALID, 'x, 'x};
         else if (!tr.desc.cached)
-            res = '{1, CR_UNCACHED, 'x}; // Just detected uncached access, tr.desc indicates uncached
+            res = '{1, CR_UNCACHED, 'x, 'x}; // Just detected uncached access, tr.desc indicates uncached
 
         // If translation correct and content is cacheable, look at cache results
         else if (!readRes.valid)
-            res = '{1, CR_TAG_MISS, 'x};
+            res = '{1, CR_TAG_MISS, 'x, 'x};
         else
-            res = '{1, CR_HIT, readRes.value};
+            res = '{1, CR_HIT, readRes.locked, readRes.value};
 
         return res;
     endfunction
@@ -76,6 +77,7 @@ module DataL1(
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
 
+        cacheResults[p] <= '{0, -1, 'x, 'x, 'x};
         cacheReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
@@ -83,9 +85,11 @@ module DataL1(
             Translation tr = tlb.translationsH[p];
             ReadResult_N selectedResult;
 
+            // TODO: signal back to array which way was selected (or none)
             if (p == 0)      selectedResult = selectWayResult(dataArray.rdInterface[0].ar0, dataArray.rdInterface[0].ar1, tr);
             else if (p == 2) selectedResult = selectWayResult(dataArray.rdInterface[2].ar0, dataArray.rdInterface[2].ar1, tr);
 
+            cacheResults[p] <= selectedResult;
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
     endtask
@@ -132,13 +136,13 @@ module DataL1(
         else if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read              
             if (uncachedSubsystem.readResult.status == CR_HIT)
-                res = '{1, CR_HIT, uncachedSubsystem.readResult.data};
+                res = '{1, CR_HIT, 'x, uncachedSubsystem.readResult.data};
             else if (uncachedSubsystem.readResult.status == CR_INVALID)
-                res = '{1, CR_INVALID, 0};
+                res = '{1, CR_INVALID, 'x, 0};
             else $error("Wrong status returned by uncached");
         end
         else if (aDesc.uncachedStore) begin
-            res = '{1, CR_HIT, 'x};
+            res = '{1, CR_HIT, 'x, 'x};
         end
 
         return res;

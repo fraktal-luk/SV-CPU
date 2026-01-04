@@ -13,25 +13,50 @@ package ExecDefs;
     import CacheDefs::*;
     
 
+    typedef enum {
+        MC_NONE,
+        MC_NORMAL,
+        MC_BARRIER,
+        MC_UNCACHED,
+        MC_AQ_REL,
+        MC_SYS,
+
+            MC_UPPER_B // block cross replay
+            //MC_UPPER_P  // page cross replay
+    } MemClass;
+
 
     typedef enum {
+            ES_BEGIN,
+
         ES_OK,
+        
         ES_UNALIGNED,
-            ES_UNCACHED_1,
-            ES_UNCACHED_2,
+        
+        ES_UNCACHED_1,
+        ES_UNCACHED_2,
+
+        ES_BARRIER_1,
+            ES_AQ_REL_1,
+
         ES_SQ_MISS,
-            ES_DATA_MISS,
-            ES_TLB_MISS,
+        ES_DATA_MISS,
+        ES_TLB_MISS,
+        
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
+        
+            ES_LOWER_DONE,
+
+
         ES_ILLEGAL,
         
-            ES_FP_INVALID,
-            ES_FP_OVERFLOW
+        ES_FP_INVALID,
+        ES_FP_OVERFLOW
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS};
+        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1,   ES_LOWER_DONE};
     endfunction
 
 
@@ -54,12 +79,13 @@ package ExecDefs;
     typedef struct {
         logic active;
         UidT TMP_oid;
+        MemClass memClass;
         ExecStatus status;
         Poison poison;
         Mword result;
     } UopPacket;    
     
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, ES_OK, EMPTY_POISON, 'x};
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
 
 
         typedef UopPacket UopMemPacket;
@@ -216,16 +242,24 @@ package ExecDefs;
     localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
 
 
+    typedef enum {
+        IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
+    } SlotStatus;
+
     typedef struct {
         logic used;
-        logic active;
+        UidT uid;
+        logic active_;
+        SlotStatus status;
         IqArgState state;
+        InsId barrier;
         IqPoisonState poisons;
         int issueCounter;
-        UidT uid;
     } IqEntry;
 
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active: 0, state: EMPTY_ARG_STATE, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
+    localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
+                                status: IqEmpty,
+                                state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
 
     
     typedef enum {
@@ -250,7 +284,6 @@ package ExecDefs;
 
     typedef struct {
         UidT uid;
-        logic allowed;
         logic used;
         logic active;
         logic3 registers;

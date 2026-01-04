@@ -112,7 +112,7 @@ module StoreQueue
     
     function automatic logic appliesU(input UopName uname);        
         return (
-            (IS_STORE_QUEUE && isStoreUop(uname)) 
+            (IS_STORE_QUEUE && (isStoreUop(uname) || isMemBarrierUop(uname)))  
          || (IS_LOAD_QUEUE && isLoadUop(uname)) 
          || (IS_BRANCH_QUEUE && isBranchUop(uname)) 
         );
@@ -257,7 +257,10 @@ module TmpSubSq();
             if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
             begin
+               DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];
                int index = findIndex(packet.TMP_oid);
+               if (isStoreRelUop(uname) && dcOut.lock == 1) StoreQueue.content[index].suppress = 0;
+                    // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
             end
         end
 
@@ -284,7 +287,7 @@ module TmpSubSq();
         AccessSize loadSize = aDesc.size;
         UopPacket res;
         SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
-                                            && item.translation.present && !item.accessDesc.sys
+                                            && item.translation.present && !item.accessDesc.sys && !item.suppress // NOTE: suppress means failed st cond
                                             && memOverlap(item.translation.padr, item.accessDesc.size, tr.padr, loadSize));
         SqEntry fwEntry;
 
@@ -294,12 +297,14 @@ module TmpSubSq();
             fwEntry = vmax[0];
         end
 
+        // TODO: in this scheme store-release, if not successful, will block loads forwarding from it until it gets committed and drained
+
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
-            res = '{1, FIRST_U(fwEntry.mid), ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-        else if (!fwEntry.valReady)         // Covers, not has data -> to RQ
-            res = '{1, FIRST_U(fwEntry.mid), ES_SQ_MISS,   EMPTY_POISON, 'x};
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
+        else if (!fwEntry.valReady || fwEntry.suppress)         // Covers, not has data -> to RQ (or store conditional not executed)
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_SQ_MISS,   EMPTY_POISON, 'x};
         else                                // Covers and has data -> OK
-            res = '{1, FIRST_U(fwEntry.mid), ES_OK,        EMPTY_POISON, fwEntry.val};
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
 
         if (res.active) checkSqResp(id, res, StoreQueue.memTracker.findStoreAll(U2M(res.TMP_oid)), fwEntry.accessDesc.size, tr.padr, loadSize);
 
@@ -332,15 +337,23 @@ module TmpSubSq();
 
         if (decMainUop(mid) == UOP_mem_sts) return; // Not checking sys stores
 
+        if (isMemBarrierUop(decMainUop(mid))) return;
+
         assert (tr[0].adr === adr && tr[0].val === value) else $error("Wrong store: Mop %d, %d@%d\n%p\n%p", mid, value, adr, tr[0],  StoreQueue.insMap.get(mid));
     endfunction
 
     function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
         UopName uname = decUname(p.TMP_oid);
-        assert (isStoreUop(uname)) else $fatal(2, "This op is not. it is %p", uname);
+        //assert (isStoreUop(uname)) else $fatal(2, "This op is not. it is %p", uname);
 
-        entry.accessDesc = desc;
-        entry.translation = tr;
+        if (isStoreUop(uname)) begin
+            entry.accessDesc = desc;
+            entry.translation = tr;
+        end
+        else if (isMemBarrierUop(uname)) begin
+            
+        end
+        else $fatal(2, "This op is not. it is %p", uname);
     endfunction
 
 
@@ -388,6 +401,9 @@ module TmpSubSq();
             accessDesc: DEFAULT_ACCESS_DESC,
             translation: DEFAULT_TRANSLATION,
             
+            barrierFw: isMemBarrierUop(decMainUop(mid)),
+            suppress: isStoreRelUop(decMainUop(mid)),
+
             committed: 0,
             error: 0,
             refetch: 0
@@ -520,6 +536,9 @@ module TmpSubLq();
             accessDesc: DEFAULT_ACCESS_DESC,
             translation: DEFAULT_TRANSLATION,
             
+            barrierFw: 0,
+            suppress: 0,
+
             committed: 0,
             error: 0,
             refetch: 0
