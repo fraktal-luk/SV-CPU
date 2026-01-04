@@ -347,53 +347,47 @@ module MemSubpipe#()
                     begin
                         Mword cacheVal = cacheResp.data;
                         //Mword uopVal = p.result;
-                        $error("\nLower (%p): @%x: %x\nshift: %d", U2M(uid), ad.vadr, cacheVal, ad.shift);
+                        //$error("\nLower (%p): @%x: %x\nshift: %d", U2M(uid), ad.vadr, cacheVal, ad.shift);
                     end
 
-                // TODO: 
+                // TODO:
 
                 res.memClass = MC_UPPER_B;
                 res.status = ES_LOWER_DONE;
                 res.result = cacheResp.data;
 
-                //insMap.setActualResult(uid, res.result);
-
             end
+            // Not block-crossing, or first run of block-crossing
             else begin
-
-
-                if (0);
-                else begin // if not upper part
-                    if (sqResp.active) begin
-                        if (sqResp.status == ES_CANT_FORWARD) begin
-                            res.status = ES_REFETCH;
-                            insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                            res.result = 0; // TMP
-                        end
-                        else if (sqResp.status == ES_SQ_MISS) begin   
-                            res.status = ES_SQ_MISS;
-                            res.result = 0; // TMP
-                        end
-                        else begin
-                            res.status = ES_OK;
-                            res.result = loadValue(sqResp.result, decUname(uid));
-                            putMilestone(uid, InstructionMap::MemFwConsume);
-                        end
+                if (sqResp.active) begin
+                    if (sqResp.status == ES_CANT_FORWARD) begin
+                        res.status = ES_REFETCH;
+                        insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+                        res.result = 0; // TMP
                     end
-                    else begin //no forwarding
-                        assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
+                    else if (sqResp.status == ES_SQ_MISS) begin   
+                        res.status = ES_SQ_MISS;
+                        res.result = 0; // TMP
+                    end
+                    else begin
+                        res.status = ES_OK;
+                        res.result = loadValue(sqResp.result, decUname(uid));
+                        putMilestone(uid, InstructionMap::MemFwConsume);
+                    end
+                end
+                else begin //no forwarding
+                    assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
 
-                        if (res.memClass == MC_UPPER_B) begin
-                            Mword cacheVal = cacheResp.data;
-                            Mword uopVal = p.result;
-                            $error("\nUpper (%p): %x, @%x: %x\nshift: %d", U2M(uid), uopVal, ad.vadr, cacheVal, ad.shift);
-                            res.status = ES_OK;
-                            res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
-                        end
-                        else begin
-                            res.status = ES_OK;
-                            res.result = loadValue(cacheResp.data, decUname(uid));
-                        end
+                    if (res.memClass == MC_UPPER_B) begin
+                        Mword cacheVal = cacheResp.data;
+                        Mword uopVal = p.result;
+                        //$error("\nUpper (%p): %x, @%x: %x\nshift: %d", U2M(uid), uopVal, ad.vadr, cacheVal, ad.shift);
+                        res.status = ES_OK;
+                        res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
+                    end
+                    else begin
+                        res.status = ES_OK;
+                        res.result = loadValue(cacheResp.data, decUname(uid));
                     end
                 end
 

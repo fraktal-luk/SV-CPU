@@ -744,7 +744,7 @@ package AbstractSim;
         Dword cd = {wsaved, w};
         cw = cd[63-(8*shift) -: 32];
 
-            $error("\ncombined: %x -> %x", cd, cw);
+          //  $error("\ncombined: %x -> %x", cd, cw);
 
         case (uop)
             UOP_mem_ldi: return cw;
