@@ -6,7 +6,7 @@ $start
 
 	sys_sync
 
-		ja $check
+		;ja $check
 
 	ldi_i r11, r0, 62 ; Load from location shifted 2b left
 

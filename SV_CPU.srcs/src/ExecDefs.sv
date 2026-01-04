@@ -19,9 +19,9 @@ package ExecDefs;
         MC_BARRIER,
         MC_UNCACHED,
         MC_AQ_REL,
-        MC_SYS //,
+        MC_SYS,
 
-            //MC_UPPER_B, // block cross replay
+            MC_UPPER_B // block cross replay
             //MC_UPPER_P  // page cross replay
     } MemClass;
 

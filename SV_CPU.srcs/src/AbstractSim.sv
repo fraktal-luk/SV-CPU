@@ -737,6 +737,35 @@ package AbstractSim;
         endcase
     endfunction
 
+
+    function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
+        Word cw = w; // combined word
+        Word wsaved = saved;
+        Dword cd = {wsaved, w};
+        cw = cd[(8*shift) +: 32];
+
+            $error("\ncombined: %x -> %x", cd, cw);
+
+        case (uop)
+            UOP_mem_ldi: return cw;
+            UOP_mem_ldib: return Mword'(cw[7:0]);
+            UOP_mem_ldf: return cw;
+            UOP_mem_lds: return cw;
+            
+            UOP_mem_lda: return cw;
+
+            UOP_mem_sti,
+            UOP_mem_stib,
+            UOP_mem_stf,
+            UOP_mem_sts: return 0;
+
+            UOP_mem_stc: return 0; // TODO
+
+            default: $fatal(2, "Wrong op");
+        endcase
+    endfunction
+
+
     function automatic Mword fetchLineBase(input Mword adr);
         return adr & ~(4*FETCH_WIDTH-1);
     endfunction;

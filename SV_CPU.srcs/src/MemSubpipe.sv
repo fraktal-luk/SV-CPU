@@ -96,11 +96,13 @@ module MemSubpipe#()
     /////////////////////////////////////////////////////////////////////////////////////
 
     // 
-    function automatic AccessDesc getAccessDesc(input UopMemPacket p, input Mword adr);
+    function automatic AccessDesc getAccessDesc(input UopMemPacket p, input Mword adr, input logic isUpper);
         AccessDesc res;
         UopName uname = decUname(p.TMP_oid);
 
-        AccessInfo aInfo = analyzeAccess(adr, getTransactionSize(uname));
+        Mword vadr = isUpper ? adr - (adr % 4) + 4 : adr;
+
+        AccessInfo aInfo = analyzeAccess(vadr, getTransactionSize(uname));
 
         if (!p.active) return res;
 
@@ -117,7 +119,7 @@ module MemSubpipe#()
             res.acq = isLoadAqUop(uname) && p.status == ES_AQ_REL_1;
             res.rel = isStoreRelUop(uname) && p.status == ES_AQ_REL_1;
 
-        res.vadr = adr;
+        res.vadr = vadr;
 
         res.blockIndex = aInfo.block;
         res.blockOffset = aInfo.blockOffset;
@@ -126,6 +128,8 @@ module MemSubpipe#()
         res.blockCross = aInfo.blockCross;
         res.pageCross = aInfo.pageCross;
     
+        res.shift = isUpper ? (adr % 4) : 0;
+
         return res;
     endfunction 
 
@@ -135,7 +139,11 @@ module MemSubpipe#()
         UopMemPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
 
-        accessDescE0 <= getAccessDesc(stateE0, adr);
+            // if (p1.memClass == MC_UPPER_B) begin
+            //     integer ending = adr % 4;
+            //     adr = adr - ending + 4; // next word. TODO: do for Dword transfer size
+            // end
+        accessDescE0 <= getAccessDesc(stateE0, adr, (p1.memClass == MC_UPPER_B));
         pE0 <= updateE0(stateE0, adr);
     endtask
     
@@ -261,7 +269,7 @@ module MemSubpipe#()
                 endcase
             end
 
-            MC_NORMAL: ;
+            MC_NORMAL, MC_UPPER_B: ;
 
             default: $fatal(2, "Wrong memClass %p", p.memClass);
         endcase
@@ -333,36 +341,56 @@ module MemSubpipe#()
         // No misses or special actions, typical load/store
         if (isLoadMemUop(decUname(uid))) begin
 
-            if (ad.blockCross) begin
+            // First run of block-crossing load?
+            if (ad.blockCross && res.memClass != MC_UPPER_B) begin
+
+                    begin
+                        Mword cacheVal = cacheResp.data;
+                        //Mword uopVal = p.result;
+                        $error("\nLower (%p): @%x: %x\nshift: %d", U2M(uid), ad.vadr, cacheVal, ad.shift);
+                    end
+
                 // TODO: 
 
+                res.memClass = MC_UPPER_B;
                 res.status = ES_LOWER_DONE;
-                res.result = 0;
+                res.result = cacheResp.data;
 
-                insMap.setActualResult(uid, res.result);
+                //insMap.setActualResult(uid, res.result);
 
             end
             else begin
-                if (sqResp.active) begin
-                    if (sqResp.status == ES_CANT_FORWARD) begin
-                        res.status = ES_REFETCH;
-                        insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
-                        res.result = 0; // TMP
-                    end
-                    else if (sqResp.status == ES_SQ_MISS) begin   
-                        res.status = ES_SQ_MISS;
-                        res.result = 0; // TMP
-                    end
-                    else begin
-                        res.status = ES_OK;
-                        res.result = loadValue(sqResp.result, decUname(uid));
-                        putMilestone(uid, InstructionMap::MemFwConsume);
-                    end
-                end
-                else begin //no forwarding
-                    assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
+                if (res.memClass == MC_UPPER_B) begin
+                    Mword cacheVal = cacheResp.data;
+                    Mword uopVal = p.result;
+                    $error("\nUpper (%p): %x, @%x: %x\nshift: %d", U2M(uid), uopVal, ad.vadr, cacheVal, ad.shift);
                     res.status = ES_OK;
-                    res.result = loadValue(cacheResp.data, decUname(uid));
+                    res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
+
+                    // TODO: handle cases where block-cross with SQ FW!
+                end
+                else begin // if not upper part
+                    if (sqResp.active) begin
+                        if (sqResp.status == ES_CANT_FORWARD) begin
+                            res.status = ES_REFETCH;
+                            insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+                            res.result = 0; // TMP
+                        end
+                        else if (sqResp.status == ES_SQ_MISS) begin   
+                            res.status = ES_SQ_MISS;
+                            res.result = 0; // TMP
+                        end
+                        else begin
+                            res.status = ES_OK;
+                            res.result = loadValue(sqResp.result, decUname(uid));
+                            putMilestone(uid, InstructionMap::MemFwConsume);
+                        end
+                    end
+                    else begin //no forwarding
+                        assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
+                        res.status = ES_OK;
+                        res.result = loadValue(cacheResp.data, decUname(uid));
+                    end
                 end
 
                 insMap.setActualResult(uid, res.result);

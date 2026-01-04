@@ -172,6 +172,7 @@ package CacheDefs;
         logic unaligned;
         logic blockCross;
         logic pageCross;
+        int shift; // Applies to block-crossing: bytes to shift at combining 
      } AccessDesc;
 
     typedef struct {
@@ -233,7 +234,8 @@ package CacheDefs;
             localparam int ACCESS_SIZE = 4;
             
             if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
+                Mbyte chosenWord[ACCESS_SIZE] = //'{default: 'x};
+                                                '{default: 0};
                 Word wval;
 
                 foreach (chosenWord[i]) begin
@@ -380,7 +382,7 @@ package CacheDefs;
                 Dword tag0 = block.pbase;
                 Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
     
-                if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+                if (aDesc.blockCross) $error("Read crossing block at %x: %x", aDesc.vadr, val0);
                 return '{1, -1, tag0, block.getLock(), val0};
             end
         endfunction
