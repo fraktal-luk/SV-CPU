@@ -94,31 +94,65 @@ package EmulationMemories;
         endclass
         
         
+            Dword reservations[$];
+
         Mbyte content[Dword];
         
+
         function automatic void clear();
+            reservations.delete();
             content.delete();
         endfunction
         
         
         function automatic void writeWord(input Dword startAdr, input Word value);
+                clearLock(startAdr);
             RW#(Word, 4)::write(startAdr, value, content);
         endfunction
 
         function automatic void writeByte(input Dword startAdr, input Mbyte value);
+                clearLock(startAdr);
             RW#(Mbyte, 1)::write(startAdr, value, content);
         endfunction
 
 
         function automatic Word readWord(input Dword startAdr);
+                clearLock(startAdr);
             return RW#(Word, 4)::read(startAdr, content);
         endfunction
 
         function automatic Mbyte readByte(input Dword startAdr);
+                clearLock(startAdr);
             return RW#(Mbyte, 1)::read(startAdr, content);
         endfunction
-       
+
+
+            function automatic void setLock(input Dword adr);
+                Dword blockBase = TMP_bbase(adr);
+                if (reservations.size() > 0) begin // Let's fail if any reservations
+                    reservations.delete();
+                    return;
+                end
+                reservations.push_back(blockBase);
+            endfunction
+
+            function automatic logic getLock(input Dword adr);
+                Dword blockBase = TMP_bbase(adr);
+                Dword found[$] = reservations.find with (item == blockBase);
+                return found.size() > 0;
+            endfunction
+
+            function automatic void clearLock(input Dword adr);
+                reservations.delete();
+            endfunction
+
     endclass
 
-    
+        function automatic Dword TMP_bbase(input Dword adr);
+            Dword res = adr;
+            res[5:0] = 0; // 64b block
+            return res;
+        endfunction
+
+
 endpackage

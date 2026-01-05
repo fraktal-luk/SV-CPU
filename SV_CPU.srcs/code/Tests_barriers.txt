@@ -1,5 +1,8 @@
 
 barriers_basic
 barriers_0
+
 acquire_basic
+acquire_basic1
+;acquire_basic2
 
