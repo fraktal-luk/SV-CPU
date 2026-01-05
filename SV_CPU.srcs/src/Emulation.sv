@@ -498,7 +498,7 @@ package Emulation;
             if (isLoadSysIns(ins)) begin
                 if (catchSysAccessException(ins, vadr)) return 1;
             end
-            else if (isMemBarrierIns(ins)) begin
+            else if (isMemBarrierIns(ins) && !isLoadMemIns(ins)) begin // load aq counts as barrier but we don't want it to finish here!
                 return 0;
             end
             else begin

@@ -659,7 +659,7 @@ module AbstractCore
         
         if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
         if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
-        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbF = id;
+        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda}) markers.mbF = id;
 
         if (isLoadAqUop(mainUop)) markers.loadAq = id;
         if (isStoreRelUop(mainUop)) markers.storeRel = id;
