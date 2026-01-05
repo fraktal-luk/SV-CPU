@@ -531,7 +531,8 @@ package Emulation;
                 O_intStoreW: size = 4;
                 O_intStoreRelW: begin
                     size = 4;
-                        $error("\nstc to %x: lock %d\n", effAdr, dataMem.getLock(effAdr));
+                       // $error("\nstc to %x: lock %d\n", effAdr, dataMem.getLock(effAdr));
+                    if (!dataMem.getLock(effAdr)) en = 0;
                 end
                 O_intStoreB: size = 1;
                 O_floatStoreW: size = 4;
