@@ -20,3 +20,8 @@ sim:/ArchDesc0/core/theExecBlock/mem2/accessDescE0 \
 sim:/ArchDesc0/core/theExecBlock/mem2/accessDescE1 \
 sim:/ArchDesc0/core/theExecBlock/mem2/accessDescE2
 
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/dcacheOuts_E1
+
+add wave -position insertpoint  \
+{sim:/ArchDesc0/core/dataCache/dataArray/blocksWay0[0]}
