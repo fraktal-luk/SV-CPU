@@ -98,7 +98,7 @@ module AbstractCore
 
         logic barrierUnlocking;
         InsId barrierUnlockingMid;
-
+        InsId latestUnlockingMid = -1;
 
 
     ///////////////////////////
@@ -171,6 +171,7 @@ module AbstractCore
 
           begin
             releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid);
+            if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
           end
 
         handleWrites(); // registerTracker
@@ -301,6 +302,7 @@ module AbstractCore
             memTracker.flushAll();
             
             renameInds = commitInds;
+            renameMarkers = commitMarkers;
         end
         else if (branchEventInfo.redirect) begin
             BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
@@ -316,6 +318,7 @@ module AbstractCore
             
             renameInds = causingCP.inds;
             renameMarkers = causingCP.markers;
+            releaseMarkers(renameMarkers, 1, latestUnlockingMid); // Don't allow already resolved barriers to come back
         end
 
     endtask
@@ -364,6 +367,11 @@ module AbstractCore
         // For insMap and mem queues
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+
+                //if (id > 6960 && id < 7000) $error("\n\nmid %d; %d %s", id, adr, disasm(ii.basicData.bits));
+                //if (id >= 7000) $stop(2);
+
 
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
