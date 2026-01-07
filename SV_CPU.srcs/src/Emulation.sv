@@ -31,7 +31,7 @@ package Emulation;
 
     const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
 
-    
+
 
     function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);
         if (regNum == 0) return;
@@ -199,7 +199,7 @@ package Emulation;
             
             return 'x;
         endfunction
-        
+
         function automatic Mword getLoadValue(input AbstractInstruction ins, input Mword adr, input Dword padr);
             Mword result;
 
@@ -210,7 +210,12 @@ package Emulation;
                     result = $signed(dataMem.readWord(padr));
                 end
                 O_intLoadB: result = Mword'(dataMem.readByte(padr));
-                O_intLoadAqW: result = dataMem.readWord(padr); // FUTURE
+                O_intLoadAqW: begin
+                    result = dataMem.readWord(padr);
+                    dataMem.setLock(padr);
+
+                      //  $error("Tried to lcck %x: %d", padr, dataMem.getLock(padr));
+                end
 
                 O_intLoadD: ;
                 O_floatLoadW: begin
@@ -223,7 +228,7 @@ package Emulation;
             return result;
         endfunction
 
-    
+
         function automatic void performAsyncEvent(/*input Mword trg,*/ input ProgramEvent evType, input Mword prevTarget);            
             Mword trg = programEvent2trg(evType);
 
@@ -493,7 +498,7 @@ package Emulation;
             if (isLoadSysIns(ins)) begin
                 if (catchSysAccessException(ins, vadr)) return 1;
             end
-            else if (isMemBarrierIns(ins)) begin
+            else if (isMemBarrierIns(ins) && !isLoadMemIns(ins)) begin // load aq counts as barrier but we don't want it to finish here!
                 return 0;
             end
             else begin
@@ -524,7 +529,11 @@ package Emulation;
             case (ins.def.o)
                 //O_intStoreD: size = 8;
                 O_intStoreW: size = 4;
-                O_intStoreRelW: size = 4;
+                O_intStoreRelW: begin
+                    size = 4;
+                       // $error("\nstc to %x: lock %d\n", effAdr, dataMem.getLock(effAdr));
+                    if (!dataMem.getLock(effAdr)) en = 0;
+                end
                 O_intStoreB: size = 1;
                 O_floatStoreW: size = 4;
                 default: ;

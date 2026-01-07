@@ -254,7 +254,7 @@ module TmpSubSq();
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active || !appliesU(uname)) continue;
 
-            if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
+            //if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
 
             begin
                DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];

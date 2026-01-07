@@ -271,7 +271,7 @@ package UopList;
     endfunction
 
     function automatic logic isMemBarrierUop(input UopName name);
-        return name inside {UOP_mem_mb_ld_b, UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_b, UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
+        return name inside {UOP_mem_mb_ld_b, UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_b, UOP_mem_mb_st_f, UOP_mem_mb_st_bf,    UOP_mem_lda};
     endfunction
 
     function automatic logic isMemUop(input UopName name);

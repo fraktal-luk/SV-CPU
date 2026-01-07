@@ -233,7 +233,7 @@ module IssueQueue
 
                   //  if (U2M(theId) inside {6076, 6077}) $error("\n    Issue uop %d: %p\n", U2M(theId), decUname(theId));
 
-                AbstractCore.memTracker.checkIssue(theId);
+                void'(AbstractCore.memTracker.checkIssue(theId));
             end
 
             begin

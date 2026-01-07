@@ -44,14 +44,14 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
                 if (!(j inside {0, 2}) || readRes.way == -1) return;
 
                 if (aq) begin
-                    //$error("Aq for way %d", readRes.way);
+                    $error("Aq for (%d) way %d", prevDesc.vadr, readRes.way);
 
-                    if (readRes.way == 0) TMP_lockWay(blocksWay0, prevDesc);
-                    if (readRes.way == 1) TMP_lockWay(blocksWay1, prevDesc);
+                    //if (readRes.way == 0) TMP_lockWay(blocksWay0, prevDesc);
+                    //if (readRes.way == 1) TMP_lockWay(blocksWay1, prevDesc);
                 end
                 else begin
-                    if (readRes.way == 0) TMP_unlockWay(blocksWay0, prevDesc);
-                    if (readRes.way == 1) TMP_unlockWay(blocksWay1, prevDesc);
+                    //if (readRes.way == 0) TMP_unlockWay(blocksWay0, prevDesc);
+                    //if (readRes.way == 1) TMP_unlockWay(blocksWay1, prevDesc);
                 end
 
             endtask
@@ -59,8 +59,37 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
             always @(negedge clk) begin
                 readArray();
 
-                TMP_afterRead();
+                //TMP_afterRead();
             end
+
+            always @(posedge clk) begin
+                TMP_locking();
+            end
+
+            task automatic TMP_locking();
+                Translation tr = tlb.translationsH[j];
+                ReadResult_N selectedResult = selectWayResult(ar0, ar1, tr);
+                AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
+
+                    if (aq) begin
+                        //$error("Aq for (%d) way %d", aDesc.vadr, readRes.way);
+
+                        if (selectedResult.way == 0) TMP_lockWay(blocksWay0, aDesc);
+                        if (selectedResult.way == 1) TMP_lockWay(blocksWay1, aDesc);
+                    end
+                    else begin
+                        if (selectedResult.way == 0) TMP_unlockWay(blocksWay0, aDesc);
+                        if (selectedResult.way == 1) TMP_unlockWay(blocksWay1, aDesc);
+                    end
+
+                if (aq != 1 || selectedResult.way == -1) return;
+
+                //$error("pos ack for way %d", selectedResult.way);
+
+                //if (selectedResult.way == 0) $error();
+                //if (selectedResult.way == 1) $error();
+            endtask
+
         end
     endgenerate
 

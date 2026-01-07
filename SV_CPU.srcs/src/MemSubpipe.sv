@@ -119,6 +119,9 @@ module MemSubpipe#()
             res.acq = isLoadAqUop(uname) && p.status == ES_AQ_REL_1;
             res.rel = isStoreRelUop(uname) && p.status == ES_AQ_REL_1;
 
+            if (isStoreRelUop(uname) && p.status == ES_BEGIN) res.active = 0; // Don't cause lock clearing by idle run
+            if (isMemBarrierUop(uname) && !isLoadAqUop(uname)) res.active = 0; // Pure barriers don't make access
+
         res.vadr = vadr;
 
         res.blockIndex = aInfo.block;
