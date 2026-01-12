@@ -8,6 +8,8 @@ package AbstractSim;
     import Emulation::*;
     import UopList::*;
 
+    /////////////////////////////////////////
+    // Implementation settings
 
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 16;
@@ -41,6 +43,39 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
+    ///////////////////////////////////
+
+
+
+    typedef enum {
+        CO_none,
+        
+        CO_reset,
+        CO_int,
+
+        CO_fetchError,
+
+        CO_undef,
+        
+        CO_error,
+        CO_send,
+        CO_call,
+            CO_dbcall,
+
+        CO_exception,
+            CO_specificException, // 
+        
+        CO_sync,
+        CO_refetch,
+        
+        CO_retE,
+        CO_retI,
+        
+        CO_break
+
+    } ControlOp;
+
+
 ////////////////////////////
     typedef int InsId;  // Implem detail
 
@@ -71,6 +106,20 @@ package AbstractSim;
     
     typedef UidT WriterId;
     localparam WriterId WID_NONE = UIDT_NONE;
+
+    // Defs for tracking, insMap
+    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
+    } SourceType;
+    
+    typedef struct {
+        int sources[3];
+        SourceType types[3];
+        WriterId producers[3];
+    } InsDependencies;
+
+    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
+
+
 
 
     // Transfer size in bytes
@@ -123,34 +172,8 @@ package AbstractSim;
     typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
 
 
-    typedef enum {
-        CO_none,
-        
-        CO_reset,
-        CO_int,
+    //////////////////////////////////////
 
-        CO_fetchError,
-
-        CO_undef,
-        
-        CO_error,
-        CO_send,
-        CO_call,
-            CO_dbcall,
-
-        CO_exception,
-            CO_specificException, // 
-        
-        CO_sync,
-        CO_refetch,
-        
-        CO_retE,
-        CO_retI,
-        
-        CO_break
-
-    } ControlOp;
-    
     typedef struct {
         logic active;
         InsId eventMid;
@@ -197,21 +220,6 @@ package AbstractSim;
         InsId loadAq;
         InsId storeRel;
     } MarkerSet;
-
-
-    //////////////////////////////////////
-
-    // Defs for tracking, insMap
-    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
-    } SourceType;
-    
-    typedef struct {
-        int sources[3];
-        SourceType types[3];
-        WriterId producers[3];
-    } InsDependencies;
-
-    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
 
 
     class BranchCheckpoint;
@@ -467,7 +475,7 @@ package AbstractSim;
             return freeInds.size();
         endfunction
     endclass
-    
+
 
     typedef struct {
         InsId owner;
@@ -613,7 +621,6 @@ package AbstractSim;
     endclass
 
 
-
 //////////////////
 // General
 
@@ -621,11 +628,6 @@ package AbstractSim;
         foreach (s[i]) if (s[i].active) return 1;
         return 0;
     endfunction
-
-    // function automatic logic anyActiveF(input OpSlotAF s);
-    //     foreach (s[i]) if (s[i].active) return 1;
-    //     return 0;
-    // endfunction
 
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
         return '{
@@ -719,12 +721,6 @@ package AbstractSim;
         endfunction;
 
 
-    function automatic UopName decodeUop(input AbstractInstruction ins);
-        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
-
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
-        return OP_DECODING_TABLE[ins.mnemonic];
-    endfunction
 
     function automatic logic stageEmptyAF(input OpSlotAF stage);
         foreach (stage[i])
@@ -744,6 +740,14 @@ package AbstractSim;
         if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
         else if (isMemUop(uname)) return SIZE_4;
         else return SIZE_NONE;
+    endfunction
+
+
+    function automatic UopName decodeUop(input AbstractInstruction ins);
+        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
+
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
+        return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 
 endpackage

@@ -11,82 +11,11 @@ package CacheDefs;
     import Insmap::*;
 
 
-    typedef Word FetchGroup[FETCH_WIDTH];
 
-    typedef enum {
-        CR_INVALID, // Address illegal
-        CR_NOT_MAPPED, // page table walk finds no mapping entry
-        CR_TLB_MISS,
-        CR_NOT_ALLOWED,
-        CR_TAG_MISS,
-        CR_HIT,
-        CR_MULTIPLE,
-        CR_UNCACHED
-    } CacheReadStatus;
-    
-    typedef struct {
-        logic allowed;
-    } InstructionLineDesc;
-
-
-    typedef struct {
-        logic active;
-        CacheReadStatus status;
-        DataLineDesc desc;       
-        FetchGroup words;
-    } InstructionCacheOutput;
-    
-    localparam InstructionCacheOutput EMPTY_INS_CACHE_OUTPUT = '{
-        0,
-        CR_INVALID,
-        DEFAULT_DATA_LINE_DESC,
-        '{default: 'x}
-    };
-
-
-    typedef struct {
-        logic active;
-        CacheReadStatus status;
-            logic lock;
-        Mword data;
-    } DataCacheOutput;
-
-    localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
-        0,
-        CR_INVALID,
-        'x,
-        'x
-    };
-
-    typedef struct {
-        logic valid;
-        integer way;
-        Dword tag;
-        logic locked;
-        Mword value;
-    } ReadResult;
-
-
-    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
-        static
-        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
-            Mbyte wval[ESIZE] = {>>{val}};
-            arr[(adr - BASE) +: ESIZE] = wval;
-        endfunction
-
-        static
-        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
-            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
-            Elem wval = {>>{chosen}};
-            return wval;
-        endfunction
-    endclass
-
-//////////////////
-// Cache specific
+    ///////////////////////////////////////////////
+    // General
 
     typedef Dword EffectiveAddress;
-
 
     localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
     
@@ -98,7 +27,7 @@ package CacheDefs;
     typedef logic[PHYS_ADR_BITS-1:V_INDEX_BITS] PhysicalAddressHigh;
     typedef VirtualAddressLow PhysicalAddressLow;
 
-    // Caches
+    // Impl specific
     localparam int BLOCK_SIZE = 64;
     
     localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
@@ -120,11 +49,38 @@ package CacheDefs;
         return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
     endfunction
 
+
+
+
+
+    typedef enum {
+        CR_INVALID, // Address illegal
+        CR_NOT_MAPPED, // page table walk finds no mapping entry
+        CR_TLB_MISS,
+        CR_NOT_ALLOWED,
+        CR_TAG_MISS,
+        CR_HIT,
+        CR_MULTIPLE,
+        CR_UNCACHED
+    } CacheReadStatus;
+
+
+
+    ////////////////////////////////////////////////////////////
+    // General - translation
+
+    typedef Translation TranslationA[N_MEM_PORTS];
+
+
+
+    ////////////////////////////////////
+    // Depending on block
+
     function automatic BlockBaseD blockBaseD(input Dword adr);
         return adr[$size(Dword)-1:BLOCK_OFFSET_BITS];
     endfunction
 
-    
+
     function automatic Dword getBlockBaseD(input Dword adr);
         Dword res = adr;
         res[BLOCK_OFFSET_BITS-1:0] = 0;
@@ -136,6 +92,8 @@ package CacheDefs;
         res[BLOCK_OFFSET_BITS-1:0] = 0;
         return res;
     endfunction
+
+
 
 
     typedef struct {
@@ -171,6 +129,10 @@ package CacheDefs;
         int shift; // Applies to block-crossing: bytes to shift at combining 
      } AccessDesc;
 
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+
+
+
     typedef struct {
         logic req;
         Mword adr;
@@ -190,10 +152,40 @@ package CacheDefs;
         blockCross: 'x,
         pageCross: 'x 
     };
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
     localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
+
+    function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
+        Mword adr = aDesc.vadr;
+        Translation res = DEFAULT_TRANSLATION;
+        Translation found[$];
+
+        if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
+        if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+
+        found = tq.find with (item.vadr == getPageBaseM(adr));
+
+        assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
+
+        if (found.size() == 0) begin
+            res.vadr = adr; // It's needed because TLB fill is based on this adr
+            return res;
+        end
+
+        res = found[0];
+
+        res.vadr = adr;
+        res.padr = res.padr + (adr - getPageBaseM(adr));
+
+        return res;
+    endfunction
+
+
+
+
+
+    // Dep on BLOCK_SIZE
 
     function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
         AccessInfo res;
@@ -216,6 +208,37 @@ package CacheDefs;
 
         return res;
     endfunction
+
+
+
+
+    // DCache specific
+    typedef struct {
+        logic active;
+        CacheReadStatus status;
+        logic lock;
+        Mword data;
+    } DataCacheOutput;
+
+    localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
+        0,
+        CR_INVALID,
+        'x,
+        'x
+    };
+
+    typedef struct {
+        logic valid;
+        integer way;
+        Dword tag;
+        logic locked;
+        Mword value;
+    } ReadResult;
+
+
+
+    //////////////////////////////////////
+    // Dcache
 
 
     class DataCacheBlock;
@@ -319,44 +342,13 @@ package CacheDefs;
     endclass
 
 
-    typedef Word FetchLine[FETCH_WIDTH];
-
-    class InstructionCacheBlock;
-        logic valid;
-        Mword vbase;
-        Dword pbase;
-        Word array[BLOCK_SIZE/4];
-
-        function automatic Word readWord(input int offset);            
-            assert (offset % 4 == 0) else $error("Trying to read unaligned icache: %x", offset);
-            return array[offset/4];
-        endfunction
-
-        function automatic FetchLine readLine(input int offset);            
-            assert (offset % (FETCH_WIDTH*4) == 0) else $error("Trying to read unaligned icache: %x", offset);
-            return array[(offset/4) +: FETCH_WIDTH];
-        endfunction
-    endclass
-
-    function automatic Mword readSized(input Mword val, input AccessSize size);
-        if (size == SIZE_1) begin
-            Mbyte byteVal = val;
-            return Mword'(byteVal);
-        end
-        else if (size == SIZE_4) return val;
-        else $error("Wrong access size");
-
-        return 'x;
-    endfunction
-
-
+        /////////////////////////////////////////////////
+        // Data cache reading functions
 
     localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
-        /////////////////////////////////////////////////
-        // Cache reading functions
 
         function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
             DataCacheBlock block = way[aDesc.blockIndex];
@@ -454,31 +446,56 @@ package CacheDefs;
         end
     endfunction
 
-    typedef Translation TranslationA[N_MEM_PORTS];
 
-    function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
-        Mword adr = aDesc.vadr;
-        Translation res = DEFAULT_TRANSLATION;
-        Translation found[$];
 
-        if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
-        found = tq.find with (item.vadr == getPageBaseM(adr));
 
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
+    // ICache specific
+    typedef Word FetchGroup[FETCH_WIDTH];
 
-        if (found.size() == 0) begin
-            res.vadr = adr; // It's needed because TLB fill is based on this adr
-            return res;
+    typedef struct {
+        logic active;
+        CacheReadStatus status;
+        DataLineDesc desc;       
+        FetchGroup words;
+    } InstructionCacheOutput;
+    
+    localparam InstructionCacheOutput EMPTY_INS_CACHE_OUTPUT = '{
+        0,
+        CR_INVALID,
+        DEFAULT_DATA_LINE_DESC,
+        '{default: 'x}
+    };
+
+
+    typedef Word FetchLine[FETCH_WIDTH];
+
+    class InstructionCacheBlock;
+        logic valid;
+        Mword vbase;
+        Dword pbase;
+        Word array[BLOCK_SIZE/4];
+
+        function automatic Word readWord(input int offset);            
+            assert (offset % 4 == 0) else $error("Trying to read unaligned icache: %x", offset);
+            return array[offset/4];
+        endfunction
+
+        function automatic FetchLine readLine(input int offset);            
+            assert (offset % (FETCH_WIDTH*4) == 0) else $error("Trying to read unaligned icache: %x", offset);
+            return array[(offset/4) +: FETCH_WIDTH];
+        endfunction
+    endclass
+
+    function automatic Mword readSized(input Mword val, input AccessSize size);
+        if (size == SIZE_1) begin
+            Mbyte byteVal = val;
+            return Mword'(byteVal);
         end
+        else if (size == SIZE_4) return val;
+        else $error("Wrong access size");
 
-        res = found[0];
-
-        res.vadr = adr;
-        res.padr = res.padr + (adr - getPageBaseM(adr));
-
-        return res;
+        return 'x;
     endfunction
 
 
@@ -502,4 +519,27 @@ package CacheDefs;
         end
     endfunction
  
+    //////////////////////////
+
+
+
+
+
+    // TODO: for uncached. Move elsewhere
+    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
+        static
+        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
+            Mbyte wval[ESIZE] = {>>{val}};
+            arr[(adr - BASE) +: ESIZE] = wval;
+        endfunction
+
+        static
+        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
+            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
+            Elem wval = {>>{chosen}};
+            return wval;
+        endfunction
+    endclass
+
+
 endpackage

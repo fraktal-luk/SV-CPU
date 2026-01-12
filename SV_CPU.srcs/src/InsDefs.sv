@@ -700,6 +700,120 @@ package InsDefs;
         
 */
 
+    typedef enum {
+        PE_NONE = 0,
+        
+        PE_FETCH_INVALID_ADDRESS = 16 + 0,
+        PE_FETCH_UNALIGNED_ADDRESS = 16 + 1,
+        PE_FETCH_TLB_MISS = 16 + 2, // HW
+        PE_FETCH_UNMAPPED_ADDRESS = 16 + 3,
+        PE_FETCH_DISALLOWED_ACCESS = 16 + 4,
+        PE_FETCH_UNCACHED = 16 + 5, // HW
+        PE_FETCH_CACHE_MISS = 16 + 6, // HW
+        PE_FETCH_NONEXISTENT_ADDRESS = 16 + 7,
+
+        PE_MEM_INVALID_ADDRESS = 3*16 + 0,
+        PE_MEM_UNALIGNED_ADDRESS = 3*16 + 1, // when crossing blocks/pages
+        PE_MEM_TLB_MISS = 3*16 + 2, // HW
+        PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
+        PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
+        PE_MEM_UNCACHED = 3*16 + 5, // HW
+        PE_MEM_CACHE_MISS = 3*16 + 6, // HW
+        PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
+        
+        PE_ARITH_EXCEPTION = 4*16 + 0,
+        
+        PE_SYS_INVALID_ADDRESS = 5*16 + 0,
+        PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
+        PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
+        PE_SYS_ERROR = 5*16 + 3,
+        PE_SYS_CALL = 5*16 + 4,
+        PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
+            PE_SYS_DBCALL = 5*16 + 6,
+
+        PE_EXT_INTERRUPT = 6*16 + 0,
+        PE_EXT_RESET = 6*16 + 1,
+        PE_EXT_DEBUG = 6*16 + 2
+
+    } ProgramEvent;
+
+
+    function automatic Mword programEvent2trg(input ProgramEvent evType);
+        case (evType) inside
+            [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS]:
+                return IP_FETCH_EXC;
+            [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS]:
+                return IP_MEM_EXC;
+            
+            PE_ARITH_EXCEPTION:
+                return IP_ARITH_EXC;
+                
+            PE_SYS_INVALID_ADDRESS:
+                return IP_EXC;
+            
+            PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION:
+                return IP_ERROR;
+            
+            PE_SYS_CALL:
+                return IP_CALL;
+
+            PE_SYS_DBCALL:
+                return IP_DB_CALL;
+
+
+            PE_EXT_DEBUG:
+                return IP_DB_BREAK;
+
+            PE_EXT_INTERRUPT:
+                return IP_INT;
+
+            PE_EXT_RESET:
+                return IP_RESET;
+                
+            default: return 'x;
+        endcase
+    endfunction
+
+
+
+
+    localparam int V_INDEX_BITS = 12;
+
+
+    //                            byte:  7766554433221100    
+    localparam Mword VADR_LIMIT_LOW =  'h0001000000000000;  // 48b range 
+    localparam Mword VADR_LIMIT_HIGH = 'hffff000000000000;
+
+    localparam Dword PADR_LIMIT = 'h10000000000; // 40b range 
+
+
+
+    function automatic logic isValidSysReg(Mword adr);
+        return adr >= 0 && adr <= 31;    
+    endfunction       
+
+
+    // For fetch
+    function automatic logic virtualAddressValid(input Mword vadr);
+        return !$isunknown(vadr) && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
+    endfunction
+
+    function automatic logic physicalAddressValid(input Dword padr);
+        return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
+    endfunction
+
+
+    function automatic Dword getPageBaseD(input Dword adr);
+        Dword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getPageBaseM(input Mword adr);
+        Mword res = adr;
+        res[V_INDEX_BITS-1:0] = 0;
+        return res;
+    endfunction
 
 
 endpackage
