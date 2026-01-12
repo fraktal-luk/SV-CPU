@@ -35,10 +35,10 @@ module DataL1(
     DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
     DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
-    ReadResult_N cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
+    ReadResult cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
 
 
-    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult_N readRes);
+    function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
 
         // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
@@ -83,7 +83,7 @@ module DataL1(
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
             Translation tr = tlb.translationsH[p];
-            ReadResult_N selectedResult;
+            ReadResult selectedResult;
 
             // TODO: signal back to array which way was selected (or none)
             if (p == 0)      selectedResult = selectWayResult(dataArray.rdInterface[0].ar0, dataArray.rdInterface[0].ar1, tr);

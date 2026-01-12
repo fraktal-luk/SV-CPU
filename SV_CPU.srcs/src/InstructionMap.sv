@@ -13,7 +13,7 @@ package Insmap;
 
     
     typedef int Unum;
-        
+
 
     // 
     typedef struct {
@@ -23,7 +23,7 @@ package Insmap;
         AbstractInstruction dec;
     } InsBasicData;
 
-    
+
     // What should be in base
     typedef struct {
         UopId id;
@@ -294,9 +294,7 @@ package Insmap;
         
         // For uops
         function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
-            if (uid != UIDT_NONE) recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});
-            
-             //   if (uid != UIDT_NONE && uid.m < 25) $error("M %p, %p, %d", uid, kind, cycle);
+            if (uid != UIDT_NONE) recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});            
         endfunction
         
         // For committed
@@ -306,13 +304,9 @@ package Insmap;
 
 
         function automatic void commitCheck(input logic allow);
-            if (!allow) begin
-                //$error("Can't move imap now");
-                return;
-            end
+            if (!allow) return;
         
             while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
-
                 // FUTURE: remove mids and uids as queues because range [first, last] is enough?
                 InsId removedId = insBase.mids.pop_front();
             
@@ -332,7 +326,6 @@ package Insmap;
                     void'(insBase.uids.pop_front());
                 end
             end
-                            //    $error("imap retired to %d, was %d", insBase.retired, insBase.retiredPrev);
 
             insBase.retiredPrev = insBase.retired;
             insBase.retiredPrevM = insBase.retiredM;
@@ -341,8 +334,7 @@ package Insmap;
 
         // all
         function automatic void setRetired(input InsId id);
-            assert (id != -1)  /* $error("Retire: %d", id); */  else $fatal(2, "retired -1");
-
+            assert (id != -1) else $fatal(2, "retired -1");
             lastRetired = id;
             insBase.retireUpToM(id);
         endfunction
@@ -350,7 +342,6 @@ package Insmap;
 
         // all
         function automatic void endCycle();
-
         endfunction
 
         // CHECKS

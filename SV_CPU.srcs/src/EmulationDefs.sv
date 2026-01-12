@@ -127,7 +127,6 @@ package EmulationDefs;
     */
 
 
-
     typedef struct {
         logic allowed;
         logic canRead;
@@ -152,7 +151,6 @@ package EmulationDefs;
         desc: DEFAULT_DATA_LINE_DESC,
         padr: 'x
     };
-
 
 
     // Not including memory
@@ -222,13 +220,13 @@ package EmulationDefs;
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
     endfunction
 
-//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-//        return (ins.def.o inside {O_floatLoadW});
-//    endfunction
-
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
     endfunction
+
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
 
 //    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
 //        return ins.def.o inside {O_floatStoreW};
@@ -255,8 +253,8 @@ package EmulationDefs;
             O_intSub,
             O_intAddH,
             
-                O_intCmpGtU,
-                O_intCmpGtS,
+            O_intCmpGtU,
+            O_intCmpGtS,
             
             O_intMul,
             O_intMulHU,
@@ -273,10 +271,10 @@ package EmulationDefs;
             O_intLoadW,
             O_intLoadD,
                 
-                O_intLoadB,
-                
-                O_intLoadAqW,
-                O_intStoreRelW,
+            O_intLoadB,
+            
+            O_intLoadAqW,
+            O_intStoreRelW,
             
             O_sysLoad
         };
@@ -295,7 +293,6 @@ package EmulationDefs;
         };
     endfunction
 
-
     function automatic Mword getArgValue(input Mword intRegs[32], input Mword floatRegs[32], input int src, input byte spec);
         case (spec)
            "i": return (intRegs[src]);
@@ -303,19 +300,18 @@ package EmulationDefs;
            "c": return Mword'(src);
            "0": return 0;
            default: $fatal("Wrong arg spec");    
-        endcase;    
-    
+        endcase;
     endfunction
 
     function automatic Mword3 getArgs(input Mword intRegs[32], input Mword floatRegs[32], input int sources[3], input string typeSpec);
         Mword3 res;        
         foreach (sources[i]) res[i] = getArgValue(intRegs, floatRegs, sources[i], typeSpec[i+2]);
-        
+
         return res;
     endfunction
 
 
-   function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
+    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
         Mword result;
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
@@ -324,20 +320,14 @@ package EmulationDefs;
             
             O_intAdd:  result = vals[0] + vals[1];
             O_intSub:  result = vals[0] - vals[1];
-            O_intAddH: begin
-                //$error("addh with %x", vals[1]);
-                result = vals[0] + (vals[1] << 16);
-            end
-            
-                O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
-                O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
+            O_intAddH: result = vals[0] + (vals[1] << 16);
+
+            O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
+            O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
             
             O_intMul:   result = w2m( multiplyW(vals[0], vals[1]) ); 
-                                // vals[0] * vals[1];
             O_intMulHU: result = w2m( multiplyHighUnsignedW(vals[0], vals[1]) );
-                                //(Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
             O_intMulHS: result = w2m( multiplyHighSignedW(vals[0], vals[1]) );
-                                //(Dword'($signed(vals[0])) * Dword'($signed(vals[1]))) >> 32;
             O_intDivU:  result = w2m( divUnsignedW(vals[0], vals[1]) );
             O_intDivS:  result = w2m( divSignedW(vals[0], vals[1]) );
             O_intRemU:  result = w2m( remUnsignedW(vals[0], vals[1]) );
@@ -355,24 +345,24 @@ package EmulationDefs;
                 if ($signed(vals[1]) >= 0) result = {vals[0], vals[0]} << vals[1];
                 else                       result = {vals[0], vals[0]} >> -vals[1];
             end
-            
+
             O_floatMove: result = vals[0];
 
             O_floatXor:   result = vals[0] ^ vals[1];
             O_floatAnd:   result = vals[0] & vals[1];
             O_floatOr:   result = vals[0] | vals[1];
             O_floatAddInt: result = vals[0] + vals[1];
-                O_floatMulInt: result = vals[0] * vals[1];
-                O_floatDivInt: result = vals[0] / vals[1];
-                O_floatGenInv: result = 1;
-                O_floatGenOv: result = 1;
-                    O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
-                    O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
-                    O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
-                    O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
-                    O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
-                    O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
-                    O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
+            O_floatMulInt: result = vals[0] * vals[1];
+            O_floatDivInt: result = vals[0] / vals[1];
+            O_floatGenInv: result = 1;
+            O_floatGenOv: result = 1;
+            O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
+            O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
+            O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
+            O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
+            O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
+            O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
+            O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
@@ -396,7 +386,6 @@ package EmulationDefs;
        logic redirect;
     } ExecEvent;
 
-
     function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);
         Mword3 args = vals;
         logic redirect = 0;
@@ -415,7 +404,6 @@ package EmulationDefs;
     endfunction
 
 
-
     typedef struct {
         logic send;
         logic exceptionRaised;
@@ -427,5 +415,9 @@ package EmulationDefs;
 
     localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};
 
+        function automatic AbstractInstruction decodeWithAddress(input Word bits, input Mword adr);    
+            if (!physicalAddressValid(adr) || (adr % 4 != 0)) return FETCH_ERROR_INS;
+            else return decodeAbstract(bits);
+        endfunction
 
 endpackage

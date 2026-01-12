@@ -11,7 +11,7 @@ package CacheDefs;
     import Insmap::*;
 
 
-    typedef Word FetchGroup_N[FETCH_WIDTH];
+    typedef Word FetchGroup[FETCH_WIDTH];
 
     typedef enum {
         CR_INVALID, // Address illegal
@@ -29,12 +29,11 @@ package CacheDefs;
     } InstructionLineDesc;
 
 
-
     typedef struct {
         logic active;
         CacheReadStatus status;
         DataLineDesc desc;       
-        FetchGroup_N words;
+        FetchGroup words;
     } InstructionCacheOutput;
     
     localparam InstructionCacheOutput EMPTY_INS_CACHE_OUTPUT = '{
@@ -59,16 +58,14 @@ package CacheDefs;
         'x
     };
 
-        typedef struct {
-            logic valid;
-            integer way;
-            Dword tag;
-            logic locked;
-            Mword value;
-        } ReadResult_N;
+    typedef struct {
+        logic valid;
+        integer way;
+        Dword tag;
+        logic locked;
+        Mword value;
+    } ReadResult;
 
-
-//////////////////
 
     class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
         static
@@ -141,7 +138,6 @@ package CacheDefs;
     endfunction
 
 
-
     typedef struct {
         Dword adr;
         AccessSize size;
@@ -183,7 +179,6 @@ package CacheDefs;
         AccessSize size;
         logic uncached;
     } MemWriteInfo;
-
 
 
     localparam AccessInfo DEFAULT_ACCESS_INFO = '{
@@ -323,14 +318,8 @@ package CacheDefs;
 
     endclass
 
-//                PageWriter#(Word, 4)::writeTyped(staticContent, adr, val);
-//                PageWriter#(Mbyte, 1)::writeTyped(staticContent, adr, val);
-        
-//                return PageWriter#(Word, 4)::readTyped(staticContent, adr);
-//                return Mword'(PageWriter#(Mbyte, 1)::readTyped(staticContent, adr));
 
     typedef Word FetchLine[FETCH_WIDTH];
-
 
     class InstructionCacheBlock;
         logic valid;
@@ -369,27 +358,20 @@ package CacheDefs;
         /////////////////////////////////////////////////
         // Cache reading functions
 
-
-        function automatic ReadResult_N readWay(input DataCacheBlock way[], input AccessDesc aDesc);
+        function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
             DataCacheBlock block = way[aDesc.blockIndex];
-
-
-                  //  if (aDesc.acq) $error("AQ access:\n%p", aDesc);
-                  //  if (aDesc.rel) $error("REL access:\n%p", aDesc);
 
             if (block == null) return '{0, -1, 'x, 'x, 'x};
             else begin
                 Dword tag0 = block.pbase;
-                Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);
-    
-                //if (aDesc.blockCross) $error("Read crossing block at %x: %x", aDesc.vadr, val0);
+                Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);    
                 return '{1, -1, tag0, block.getLock(), val0};
             end
         endfunction
 
-        function automatic ReadResult_N selectWayResult(input ReadResult_N res0, input ReadResult_N res1, input Translation tr);
+        function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1, input Translation tr);
             Dword trBase = getBlockBaseD(tr.padr);
-            ReadResult_N res = '{0, -1, 'x, 'x, 'x};
+            ReadResult res = '{0, -1, 'x, 'x, 'x};
             if (res0.valid && getBlockBaseD(res0.tag) === trBase) begin
                 res = res0;
                 res.way = 0;
@@ -408,10 +390,9 @@ package CacheDefs;
             if (block == null) return;// '{0, -1, 'x, 'x, 'x};
             else begin
                 Dword tag0 = block.pbase;
-                   // $error(">>  Set lock?\n%p", aDesc);
 
-                    if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
-                    else block.setLock();
+                if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
+                else block.setLock();
             end
         endfunction
 
@@ -501,25 +482,24 @@ package CacheDefs;
     endfunction
 
 
-
     typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
     
-     typedef struct {
+    typedef struct {
         logic valid;
         Dword tag;
         FetchLine value;
     } ReadResult_I;
 
-        function automatic ReadResult_I readWay_I(input InsWay way, input AccessDesc aDesc);
-            InstructionCacheBlock block = way[aDesc.blockIndex];
-    
-            if (block == null) return '{0, 'x, '{default: 'x}};
-            begin
-                logic hit0 = 1;
-                FetchLine val0 = block.readLine(aDesc.blockOffset);                    
-                if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-                return '{hit0, block.pbase, val0};
-            end
-        endfunction
+    function automatic ReadResult_I readWay_I(input InsWay way, input AccessDesc aDesc);
+        InstructionCacheBlock block = way[aDesc.blockIndex];
+
+        if (block == null) return '{0, 'x, '{default: 'x}};
+        begin
+            logic hit0 = 1;
+            FetchLine val0 = block.readLine(aDesc.blockOffset);                    
+            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+            return '{hit0, block.pbase, val0};
+        end
+    endfunction
  
 endpackage

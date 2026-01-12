@@ -25,7 +25,7 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     generate
         genvar j;
         for (j = 0; j < WIDTH; j++) begin: rdInterface
-            ReadResult_N ar0 = '{0, -1, 'x, 'x, 'x}, ar1 = '{0, -1, 'x, 'x, 'x};
+            ReadResult ar0 = '{0, -1, 'x, 'x, 'x}, ar1 = '{0, -1, 'x, 'x, 'x};
             logic aq = 0;
             AccessDesc prevDesc = DEFAULT_ACCESS_DESC;
 
@@ -39,7 +39,7 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
             endtask
 
             task automatic TMP_afterRead();
-                ReadResult_N readRes = DataL1.cacheResults[j];
+                ReadResult readRes = DataL1.cacheResults[j];
 
                 if (!(j inside {0, 2}) || readRes.way == -1) return;
 
@@ -68,7 +68,7 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
 
             task automatic TMP_locking();
                 Translation tr = tlb.translationsH[j];
-                ReadResult_N selectedResult = selectWayResult(ar0, ar1, tr);
+                ReadResult selectedResult = selectWayResult(ar0, ar1, tr);
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
 
                     if (aq) begin

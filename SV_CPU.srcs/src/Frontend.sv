@@ -14,7 +14,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     localparam logic FETCH_SINGLE = 0;
 
-    typedef Word FetchGroup[FETCH_WIDTH];
+    //typedef Word FetchGroup[FETCH_WIDTH];
     typedef OpSlotF FetchStage[FETCH_WIDTH];
     localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
     

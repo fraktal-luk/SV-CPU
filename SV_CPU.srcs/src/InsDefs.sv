@@ -11,8 +11,8 @@ package Base;
     typedef logic logic3[3];
 
 
-    
-    
+
+
     function automatic Word multiplyW(Word a, Word b);
         return a * b;
     endfunction
