@@ -815,5 +815,10 @@ package InsDefs;
         return res;
     endfunction
 
+    function automatic Dword adrLowD(input Dword adr);
+        Dword res = adr;
+        res[63:V_INDEX_BITS] = 0;
+        return res;
+    endfunction
 
 endpackage

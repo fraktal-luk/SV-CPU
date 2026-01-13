@@ -21,7 +21,7 @@ module DataL1(
 );
 
     // TLB
-    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
+    //localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
 
     typedef logic LogicA[N_MEM_PORTS];
 
@@ -36,6 +36,18 @@ module DataL1(
     DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);
 
     ReadResult cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
+
+
+    always_comb dataFillEnA = dataFillEnables();
+    always_comb tlbFillEnA = tlbFillEnables();
+
+    always @(posedge clk) begin
+        handleReads();
+    end
+
+    assign translationsOut = tlb.translationsH;
+
+
 
 
     function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
@@ -59,7 +71,7 @@ module DataL1(
         else if (!tr.desc.canRead)
             res = '{1, CR_NOT_ALLOWED, 'x, 'x};
         else if (aDesc.store && !tr.desc.canWrite)
-            res = '{1, CR_INVALID, 'x, 'x};
+            res = '{1, CR_NOT_ALLOWED, 'x, 'x};
         else if (!tr.desc.cached)
             res = '{1, CR_UNCACHED, 'x, 'x}; // Just detected uncached access, tr.desc indicates uncached
 
@@ -95,12 +107,28 @@ module DataL1(
     endtask
 
 
-    // FUTURE: support for block crossing and page crossing accesses
     task automatic handleReads();
         foreach (theExecBlock.accessDescs_E0[p]) begin
             handleSingleRead(p);
         end
     endtask
+
+
+    function automatic LogicA dataFillEnables();
+        LogicA res = '{default: 0};
+        foreach (cacheReadOut[p])
+            res[p] = (cacheReadOut[p].status == CR_TAG_MISS);
+        return res;
+    endfunction
+
+    function automatic LogicA tlbFillEnables();
+        LogicA res = '{default: 0};
+        foreach (cacheReadOut[p])
+            res[p] = (cacheReadOut[p].status == CR_TLB_MISS);
+        return res;
+    endfunction
+
+
 
 
     ////////////////////////
@@ -148,38 +176,10 @@ module DataL1(
         return res;
     endfunction
 
-////////////////////////
-
-    ////////////////////////////////////
-    function automatic LogicA dataFillEnables();
-        LogicA res = '{default: 0};
-        foreach (cacheReadOut[p])
-            res[p] = (cacheReadOut[p].status == CR_TAG_MISS);
-        return res;
-    endfunction
-
-    function automatic LogicA tlbFillEnables();
-        LogicA res = '{default: 0};
-        foreach (cacheReadOut[p])
-            res[p] = (cacheReadOut[p].status == CR_TLB_MISS);
-        return res;
-    endfunction
-
-
-
-    always_comb dataFillEnA = dataFillEnables();
-    always_comb tlbFillEnA = tlbFillEnables();
-
 
     always @(posedge clk) begin
         handleReadsUnc();
     end
-
-    always @(posedge clk) begin
-        handleReads();
-    end
-
-    assign translationsOut = tlb.translationsH;
 
 /////////////////
 // Init and DB

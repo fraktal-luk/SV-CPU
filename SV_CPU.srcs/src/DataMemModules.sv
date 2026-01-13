@@ -311,6 +311,23 @@ module UncachedSubsystem(
     input MemWriteInfo TMP_writeReqs[2]
 );
 
+
+    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
+        static
+        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
+            Mbyte wval[ESIZE] = {>>{val}};
+            arr[(adr - BASE) +: ESIZE] = wval;
+        endfunction
+
+        static
+        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
+            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
+            Elem wval = {>>{chosen}};
+            return wval;
+        endfunction
+    endclass
+
+
     typedef struct {
         logic ready = 0;
         logic ongoing = 0;

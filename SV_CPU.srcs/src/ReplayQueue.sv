@@ -177,7 +177,8 @@ module ReplayQueue(
             foreach (content[i]) begin
                 if (content[i].execStatus != ES_DATA_MISS) continue;
 
-                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
+                //if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
+                if (getBlockBaseD(Dword'(content[i].adr)) === getBlockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
                     content[i].ready_N = 1;
                 end
             end
@@ -188,7 +189,8 @@ module ReplayQueue(
             foreach (content[i]) begin
                 if (content[i].execStatus != ES_TLB_MISS) continue;
 
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
+                //if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
+                if (getPageBaseM(content[i].adr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                     content[i].ready_N = 1;                    
                 end
             end

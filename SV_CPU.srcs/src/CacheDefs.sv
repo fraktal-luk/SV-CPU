@@ -11,89 +11,25 @@ package CacheDefs;
     import Insmap::*;
 
 
-
-    ///////////////////////////////////////////////
-    // General
-
-    typedef Dword EffectiveAddress;
-
-    localparam int V_ADR_HIGH_BITS = $size(EffectiveAddress) - V_INDEX_BITS;
-    
-    typedef logic[V_INDEX_BITS-1:0] VirtualAddressLow;
-    typedef logic[$size(EffectiveAddress)-1:V_INDEX_BITS] VirtualAddressHigh;
-
-    localparam int PHYS_ADR_BITS = 40;
-
-    typedef logic[PHYS_ADR_BITS-1:V_INDEX_BITS] PhysicalAddressHigh;
-    typedef VirtualAddressLow PhysicalAddressLow;
-
     // Impl specific
     localparam int BLOCK_SIZE = 64;
-    
     localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
-    
-    typedef logic[$size(EffectiveAddress)-1:BLOCK_OFFSET_BITS] BlockBaseD;
-    
     localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
-    
-    typedef Mbyte DataBlock[BLOCK_SIZE];
-
-    
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
-
-    function automatic VirtualAddressLow adrLow(input EffectiveAddress adr);
-        return adr[V_INDEX_BITS-1:0];
-    endfunction
-
-    function automatic VirtualAddressHigh adrHigh(input EffectiveAddress adr);
-        return adr[$size(EffectiveAddress)-1:V_INDEX_BITS];
-    endfunction
-
-
 
 
 
     typedef enum {
+        CR_UNCACHED,
         CR_INVALID, // Address illegal
-        CR_NOT_MAPPED, // page table walk finds no mapping entry
         CR_TLB_MISS,
         CR_NOT_ALLOWED,
         CR_TAG_MISS,
-        CR_HIT,
-        CR_MULTIPLE,
-        CR_UNCACHED
+        CR_HIT
     } CacheReadStatus;
 
 
-
-    ////////////////////////////////////////////////////////////
-    // General - translation
-
     typedef Translation TranslationA[N_MEM_PORTS];
-
-
-
-    ////////////////////////////////////
-    // Depending on block
-
-    function automatic BlockBaseD blockBaseD(input Dword adr);
-        return adr[$size(Dword)-1:BLOCK_OFFSET_BITS];
-    endfunction
-
-
-    function automatic Dword getBlockBaseD(input Dword adr);
-        Dword res = adr;
-        res[BLOCK_OFFSET_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    function automatic Mword getBlockBaseM(input Mword adr);
-        Mword res = adr;
-        res[BLOCK_OFFSET_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-
 
 
     typedef struct {
@@ -106,8 +42,17 @@ package CacheDefs;
         logic pageCross;
     } AccessInfo;
 
+    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
+        adr: 'x,
+        size: SIZE_NONE,
+        block: -1,
+        blockOffset: -1,
+        unaligned: 'x,
+        blockCross: 'x,
+        pageCross: 'x 
+    };
 
-     // basic info
+
      typedef struct {
         logic active;
 
@@ -130,30 +75,6 @@ package CacheDefs;
      } AccessDesc;
 
     localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
-
-
-
-    typedef struct {
-        logic req;
-        Mword adr;
-        Dword padr;
-        Mword value;
-        AccessSize size;
-        logic uncached;
-    } MemWriteInfo;
-
-
-    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-        adr: 'x,
-        size: SIZE_NONE,
-        block: -1,
-        blockOffset: -1,
-        unaligned: 'x,
-        blockCross: 'x,
-        pageCross: 'x 
-    };
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
-
 
 
     function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
@@ -182,15 +103,26 @@ package CacheDefs;
     endfunction
 
 
-
-
-
+    ////////////////////////////////////
     // Dep on BLOCK_SIZE
+
+    function automatic Dword getBlockBaseD(input Dword adr);
+        Dword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
+
+    function automatic Mword getBlockBaseM(input Mword adr);
+        Mword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
+
 
     function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
         AccessInfo res;
         
-        VirtualAddressLow aLow = adrLow(adr);
+        Dword aLow = adrLowD(adr);
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
         
@@ -213,6 +145,19 @@ package CacheDefs;
 
 
     // DCache specific
+
+    typedef struct {
+        logic req;
+        Mword adr;
+        Dword padr;
+        Mword value;
+        AccessSize size;
+        logic uncached;
+    } MemWriteInfo;
+
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+
+
     typedef struct {
         logic active;
         CacheReadStatus status;
@@ -234,11 +179,6 @@ package CacheDefs;
         logic locked;
         Mword value;
     } ReadResult;
-
-
-
-    //////////////////////////////////////
-    // Dcache
 
 
     class DataCacheBlock;
@@ -342,62 +282,60 @@ package CacheDefs;
     endclass
 
 
-        /////////////////////////////////////////////////
-        // Data cache reading functions
+    typedef Mbyte DataBlock[BLOCK_SIZE];
 
     localparam DataBlock CLEAN_BLOCK = '{default: 0};
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
 
-        function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
-            DataCacheBlock block = way[aDesc.blockIndex];
+    function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
+        DataCacheBlock block = way[aDesc.blockIndex];
 
-            if (block == null) return '{0, -1, 'x, 'x, 'x};
-            else begin
-                Dword tag0 = block.pbase;
-                Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);    
-                return '{1, -1, tag0, block.getLock(), val0};
-            end
-        endfunction
+        if (block == null) return '{0, -1, 'x, 'x, 'x};
+        else begin
+            Dword tag0 = block.pbase;
+            Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);    
+            return '{1, -1, tag0, block.getLock(), val0};
+        end
+    endfunction
 
-        function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1, input Translation tr);
-            Dword trBase = getBlockBaseD(tr.padr);
-            ReadResult res = '{0, -1, 'x, 'x, 'x};
-            if (res0.valid && getBlockBaseD(res0.tag) === trBase) begin
-                res = res0;
-                res.way = 0;
-            end
-            if (res1.valid && getBlockBaseD(res1.tag) === trBase) begin
-                res = res1;
-                res.way = 1;
-            end
-            return res;
-        endfunction
-        //////////////////////////////////////////
+    function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1, input Translation tr);
+        Dword trBase = getBlockBaseD(tr.padr);
+        ReadResult res = '{0, -1, 'x, 'x, 'x};
+        if (res0.valid && getBlockBaseD(res0.tag) === trBase) begin
+            res = res0;
+            res.way = 0;
+        end
+        if (res1.valid && getBlockBaseD(res1.tag) === trBase) begin
+            res = res1;
+            res.way = 1;
+        end
+        return res;
+    endfunction
 
-        function automatic void TMP_lockWay(input DataCacheBlock way[], input AccessDesc aDesc);
-            DataCacheBlock block = way[aDesc.blockIndex];
+    function automatic void TMP_lockWay(input DataCacheBlock way[], input AccessDesc aDesc);
+        DataCacheBlock block = way[aDesc.blockIndex];
 
-            if (block == null) return;// '{0, -1, 'x, 'x, 'x};
-            else begin
-                Dword tag0 = block.pbase;
+        if (block == null) return;// '{0, -1, 'x, 'x, 'x};
+        else begin
+            Dword tag0 = block.pbase;
 
-                if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
-                else block.setLock();
-            end
-        endfunction
+            if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
+            else block.setLock();
+        end
+    endfunction
 
-        function automatic void TMP_unlockWay(input DataCacheBlock way[], input AccessDesc aDesc);
-            DataCacheBlock block = way[aDesc.blockIndex];
+    function automatic void TMP_unlockWay(input DataCacheBlock way[], input AccessDesc aDesc);
+        DataCacheBlock block = way[aDesc.blockIndex];
 
-            if (block == null) return;// '{0, -1, 'x, 'x, 'x};
-            else begin
-                Dword tag0 = block.pbase;
+        if (block == null) return;// '{0, -1, 'x, 'x, 'x};
+        else begin
+            Dword tag0 = block.pbase;
 
-                block.clearLock(); // If already locked, clear it and fail locking
-            end
-        endfunction
+            block.clearLock(); // If already locked, clear it and fail locking
+        end
+    endfunction
 
 
     function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
@@ -448,8 +386,7 @@ package CacheDefs;
 
 
 
-
-
+    ///////////////////////////////////////////////////////////////
     // ICache specific
     typedef Word FetchGroup[FETCH_WIDTH];
 
@@ -487,17 +424,6 @@ package CacheDefs;
         endfunction
     endclass
 
-    function automatic Mword readSized(input Mword val, input AccessSize size);
-        if (size == SIZE_1) begin
-            Mbyte byteVal = val;
-            return Mword'(byteVal);
-        end
-        else if (size == SIZE_4) return val;
-        else $error("Wrong access size");
-
-        return 'x;
-    endfunction
-
 
     typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
     
@@ -518,28 +444,5 @@ package CacheDefs;
             return '{hit0, block.pbase, val0};
         end
     endfunction
- 
-    //////////////////////////
-
-
-
-
-
-    // TODO: for uncached. Move elsewhere
-    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
-        static
-        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
-            Mbyte wval[ESIZE] = {>>{val}};
-            arr[(adr - BASE) +: ESIZE] = wval;
-        endfunction
-
-        static
-        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
-            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
-            Elem wval = {>>{chosen}};
-            return wval;
-        endfunction
-    endclass
-
 
 endpackage
