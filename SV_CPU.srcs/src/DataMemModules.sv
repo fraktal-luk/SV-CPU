@@ -143,6 +143,8 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
 
     always @(posedge clk) begin
         if (dataFillEngine.notifyFill) begin
+              //  $error("Fill block\n%p", dataFillEngine.notifiedTr);
+
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
         end
 

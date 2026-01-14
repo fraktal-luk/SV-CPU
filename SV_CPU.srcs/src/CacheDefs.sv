@@ -5,6 +5,7 @@ package CacheDefs;
     import InsDefs::*;
     import Asm::*;
     import Emulation::*;
+    import EmulationMemories::*;
     import EmulationDefs::*;
     
     import AbstractSim::*;
@@ -119,13 +120,18 @@ package CacheDefs;
     endfunction
 
 
+    function automatic int getBlockIndex(input Dword adr);
+        return (adr % WAY_SIZE)/BLOCK_SIZE;
+    endfunction
+
     function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
         AccessInfo res;
-        
-        Dword aLow = adrLowD(adr);
+
+        Dword aLow = //adrLowD(adr);
+                     adr % WAY_SIZE;
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
-        
+
         if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
 
         res.adr = adr;
@@ -183,89 +189,68 @@ package CacheDefs;
 
     class DataCacheBlock;
         logic valid;
-        Mword vbase;
+        //Mword vbase;
         Dword pbase;
         logic lock;
         Mbyte array[BLOCK_SIZE];
-        
-        function automatic Word readWord(input int offset);
-            localparam int ACCESS_SIZE = 4;
-            
-            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
-                                                //'{default: 0};
-                Word wval;
 
-                foreach (chosenWord[i]) begin
-                    if (offset + i >= BLOCK_SIZE) break;
-                    chosenWord[i] = array[offset + i];
-                end 
-                
-                wval = {>>{chosenWord}};
+        function automatic Dword readDword(input int offset);
+            localparam int ACCESS_SIZE = 8;
+            
+            assert (offset >= 0 && offset < BLOCK_SIZE) else $fatal("Block offset outside block");
+
+            if (offset + ACCESS_SIZE - 1 >= BLOCK_SIZE) begin
+                Mbyte lastDword[ACCESS_SIZE] = array[BLOCK_SIZE-ACCESS_SIZE : BLOCK_SIZE-1];
+                Mbyte pastDword[ACCESS_SIZE] = '{default: 'x};
+                Mbyte crossingQword[2*ACCESS_SIZE] = {lastDword, pastDword}; 
+                int internalOffset = offset - (BLOCK_SIZE-ACCESS_SIZE);
+                Mbyte chosenDword[ACCESS_SIZE] = crossingQword[internalOffset +: ACCESS_SIZE];
+                Dword wval = {>>{chosenDword}};
                 return (wval);
             end
             begin
-                Mbyte chosenWord[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
-                Word wval = {>>{chosenWord}};
+                Mbyte chosenDword[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
+                Dword wval = {>>{chosenDword}};
                 return (wval);
             end
         endfunction
 
-        function automatic Word readByte(input int offset);
-            localparam int ACCESS_SIZE = 1;
-            
-            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                Mbyte chosenWord[ACCESS_SIZE] = '{default: 'x};
-                Mbyte wval;
+        function automatic Mword readWord(input int offset);
+            Dword tmp = readDword(offset);
+            return Word'(tmp >> 32);
+        endfunction
 
-                foreach (chosenWord[i]) begin
-                    if (offset + i >= BLOCK_SIZE) break;
-                    chosenWord[i] = array[offset + i];
-                end 
-                
-                wval = {>>{chosenWord}};
-                return (wval);
-            end
-            begin
-                Mbyte chosenWord[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
-                Mbyte wval = {>>{chosenWord}};
-                return (wval);
+        function automatic Mword readByte(input int offset);
+            Dword tmp = readDword(offset);
+            return Mbyte'(tmp >> 8*7);
+        endfunction
+
+
+        function automatic void writeDword(input int offset, input Dword value, input Dword mask);
+            localparam int ACCESS_SIZE = 8;
+            Mbyte val[ACCESS_SIZE] = {>>{value}};
+            Mbyte msk[ACCESS_SIZE] = {>>{mask}};
+            
+            foreach (val[i]) begin
+                if (offset + i >= BLOCK_SIZE) break;
+                if (msk[i] != 0) array[offset + i] = val[i];
             end
         endfunction
 
         function automatic void writeWord(input int offset, input Word value);
-            localparam int ACCESS_SIZE = 4;
-            
-            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                Mbyte wval[ACCESS_SIZE] = {>>{value}};
-                
-                foreach (wval[i]) begin
-                    if (offset + i >= BLOCK_SIZE) break;
-                    array[offset + i] = wval[i];
-                end
-            end
-            begin
-                Mbyte wval[ACCESS_SIZE] = {>>{value}};
-                array[offset +: ACCESS_SIZE] = wval;
-            end
+            Dword val = {value,         32'h00000000};
+            Dword mask =        'hffffffff00000000;
+            writeDword(offset, val, mask);
+            return;
         endfunction
-        
+
         function automatic void writeByte(input int offset, input Mbyte value);
-            localparam int ACCESS_SIZE = 1;
-            
-            if (offset + ACCESS_SIZE - 1 > BLOCK_SIZE) begin
-                Mbyte wval[ACCESS_SIZE] = {>>{value}};
-                
-                foreach (wval[i]) begin
-                    if (offset + i >= BLOCK_SIZE) break;
-                    array[offset + i] = wval[i];
-                end
-            end
-            begin
-                Mbyte wval[ACCESS_SIZE] = {>>{value}};
-                array[offset +: ACCESS_SIZE] = wval;
-            end
+            Dword val = {value,   56'h00000000000000};
+            Dword mask =        'hff00000000000000;
+            writeDword(offset, val, mask);
+            return;
         endfunction
+
 
         function automatic logic getLock();
             return lock;
@@ -282,9 +267,8 @@ package CacheDefs;
     endclass
 
 
-    typedef Mbyte DataBlock[BLOCK_SIZE];
 
-    localparam DataBlock CLEAN_BLOCK = '{default: 0};
+    localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
 
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
@@ -317,43 +301,35 @@ package CacheDefs;
     function automatic void TMP_lockWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.blockIndex];
 
-        if (block == null) return;// '{0, -1, 'x, 'x, 'x};
-        else begin
-            Dword tag0 = block.pbase;
+        if (block == null) return;
 
-            if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
-            else block.setLock();
-        end
+        if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
+        else block.setLock();
     endfunction
 
     function automatic void TMP_unlockWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.blockIndex];
-
-        if (block == null) return;// '{0, -1, 'x, 'x, 'x};
-        else begin
-            Dword tag0 = block.pbase;
-
-            block.clearLock(); // If already locked, clear it and fail locking
-        end
+        if (block == null) return;
+        block.clearLock(); // If already locked, clear it and fail locking
     endfunction
 
 
     function automatic logic tryWriteWay(ref DataWay way, input MemWriteInfo wrInfo);
-        AccessInfo aInfo = analyzeAccess(wrInfo.padr, wrInfo.size);
-        DataCacheBlock block = way[aInfo.block];
+        DataCacheBlock block = way[getBlockIndex(wrInfo.padr)];
         Dword accessPbase = getBlockBaseD(wrInfo.padr);
+        int offset = wrInfo.padr - accessPbase;
 
-        if (block != null && accessPbase === block.pbase) begin
-            if (aInfo.size == SIZE_1) way[aInfo.block].writeByte(aInfo.blockOffset, wrInfo.value);
-            if (aInfo.size == SIZE_4) way[aInfo.block].writeWord(aInfo.blockOffset, wrInfo.value);
-            return 1;
-        end
-        return 0;
+        if (block == null || block.pbase !== accessPbase) return 0;
+
+        if (wrInfo.size == SIZE_1) block.writeByte(offset, wrInfo.value);
+        if (wrInfo.size == SIZE_4) block.writeWord(offset, wrInfo.value);
+        return 1;
     endfunction
 
     function automatic logic tryFillWay(ref DataWay way, input Dword adr);
-        AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
-        DataCacheBlock block = way[aInfo.block];
+        int blockIndex = getBlockIndex(adr);
+
+        DataCacheBlock block = way[blockIndex];
         Dword fillPbase = getBlockBaseD(adr);
 
         if (block != null) begin
@@ -361,26 +337,30 @@ package CacheDefs;
             return 0;
         end
 
-        way[aInfo.block] = new();
-        way[aInfo.block].valid = 1;
-        way[aInfo.block].pbase = fillPbase;
-        way[aInfo.block].array = '{default: 0};
+        block = new();
+
+        way[blockIndex] = block;
+
+        block.valid = 1;
+        block.pbase = fillPbase;
+        block.lock = 0;
+        block.array = '{default: 0};
 
         return 1;
     endfunction
 
 
-    function automatic void initBlocksWay(ref DataWay way, input Mword baseVadr);
+    function automatic void initBlocksWay(ref DataWay way, input Dword baseVadr);
         foreach (way[i]) begin
-            Mword vadr = baseVadr + i*BLOCK_SIZE;
-            Dword padr = vadr;
+            Dword padr = baseVadr + i*BLOCK_SIZE;
 
-            way[i] = new();
-            way[i].valid = 1;
-            way[i].vbase = vadr;
-            way[i].pbase = padr;
-            way[i].lock = 0;
-            way[i].array = CLEAN_BLOCK;
+            DataCacheBlock newBlock = new();
+
+            way[i] = newBlock;
+            newBlock.valid = 1;
+            newBlock.pbase = padr;
+            newBlock.lock = 0;
+            newBlock.array = CLEAN_BLOCK;
         end
     endfunction
 
@@ -409,7 +389,6 @@ package CacheDefs;
 
     class InstructionCacheBlock;
         logic valid;
-        Mword vbase;
         Dword pbase;
         Word array[BLOCK_SIZE/4];
 
@@ -442,6 +421,47 @@ package CacheDefs;
             FetchLine val0 = block.readLine(aDesc.blockOffset);                    
             if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
             return '{hit0, block.pbase, val0};
+        end
+    endfunction
+
+   function automatic logic tryFillWay_I(ref InsWay way, input Dword adr, input PageBasedProgramMemory::Page page);
+        int blockIndex = getBlockIndex(adr);
+        InstructionCacheBlock block = way[blockIndex];
+        Dword fillPbase = getBlockBaseD(adr);
+        Dword fillPageBase = getPageBaseD(adr);
+
+        assert (adr === getBlockBaseD(adr)) else $error("Allocating unaligned ins block: %x", adr);
+
+        if (block != null) begin
+            $error("Block already filled at %x", fillPbase);
+            return 0;
+        end
+
+        block = new();
+
+        way[blockIndex] = block;
+        block.valid = 1;
+        block.pbase = fillPbase;
+        block.array = page[(fillPbase-fillPageBase)/4 +: BLOCK_SIZE/4];
+
+        return 1;
+    endfunction
+
+
+    function automatic void initBlocksWay_I(ref InsWay way, input Mword baseVadr, input PageBasedProgramMemory::Page page);
+        Dword basePadr = baseVadr;
+
+        foreach (way[i]) begin
+            Mword vadr = baseVadr + i*BLOCK_SIZE;
+            Dword padr = vadr;
+            
+            InstructionCacheBlock block = new();
+
+            way[i] = block;
+
+            block.valid = 1;
+            block.pbase = padr;
+            block.array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
         end
     endfunction
 

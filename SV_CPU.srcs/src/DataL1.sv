@@ -20,9 +20,6 @@ module DataL1(
             output DataCacheOutput uncachedReadOut[N_MEM_PORTS]
 );
 
-    // TLB
-    //localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;
-
     typedef logic LogicA[N_MEM_PORTS];
 
     LogicA dataFillEnA, tlbFillEnA;
@@ -46,8 +43,6 @@ module DataL1(
     end
 
     assign translationsOut = tlb.translationsH;
-
-
 
 
     function automatic DataCacheOutput doReadAccess(input Translation tr, input AccessDesc aDesc, input ReadResult readRes);
@@ -83,7 +78,6 @@ module DataL1(
 
         return res;
     endfunction
-
 
 
     task automatic handleSingleRead(input int p);

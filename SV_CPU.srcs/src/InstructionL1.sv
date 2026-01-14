@@ -29,9 +29,6 @@ module InstructionL1(
 
 
     typedef logic LogicA[1];
-    typedef Mword MwordA[1];
-    typedef Dword DwordA[1];
-
 
     AccessDesc aDesc_T;
 
@@ -82,8 +79,6 @@ module InstructionL1(
     endtask
 
 
-
-
     function automatic ReadResult_I matchWay_I(input ReadResult_I rr, input AccessDesc aDesc, input Translation tr);
         ReadResult_I res = rr;
         Dword accessPbase = getBlockBaseD(tr.padr);       
@@ -109,11 +104,11 @@ module InstructionL1(
 
             res.size = SIZE_INS_LINE;
 
-            res.store = 1;//isStoreUop(uname);
-            res.sys = 0;//isLoadSysUop(uname) || isStoreSysUop(uname);
-            res.uncachedReq = 0;//(p.status == ES_UNCACHED_1) && !res.store;
-            res.uncachedCollect = 0;//(p.status == ES_UNCACHED_2) && !res.store;
-            res.uncachedStore = 0;//(p.status == ES_UNCACHED_2) && res.store;
+            res.store = 1;
+            res.sys = 0;
+            res.uncachedReq = 0;
+            res.uncachedCollect = 0;
+            res.uncachedStore = 0;
             
             res.vadr = adr;
             
@@ -243,9 +238,6 @@ module InstructionCacheArray(
     InsWay blocksWay2a;
     InsWay blocksWay3a;
 
-    typedef logic LogicA[1];
-    typedef Mword MwordA[1];
-    typedef Dword DwordA[1];
 
     // Read interfaces
     generate
@@ -270,28 +262,21 @@ module InstructionCacheArray(
 
     // Filling
     function automatic void allocInDynamicRange(input Dword adr);
-        tryFillWay_I(blocksWay3a, adr);
+        tryFillWay_I(blocksWay3a, adr, AbstractCore.programMem.getPage(getPageBaseD(adr)));
     endfunction
 
-    function automatic logic tryFillWay_I(ref InsWay way, input Dword adr);
-        AccessInfo aInfo = analyzeAccess(adr, SIZE_1); // Dummy size
-        InstructionCacheBlock block = way[aInfo.block];
-        Dword fillPbase = getBlockBaseD(adr);
-        Dword fillPageBase = getPageBaseD(adr);
-        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(fillPageBase);
+    function automatic void copyToWay_I(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
 
-        if (block != null) begin
-            $error("Block already filled at %x", fillPbase);
-            return 0;
-        end
-
-        way[aInfo.block] = new();
-        way[aInfo.block].valid = 1;
-        way[aInfo.block].pbase = fillPbase;
-        way[aInfo.block].array = page[(fillPbase-fillPageBase)/4 +: BLOCK_SIZE/4];
-
-        return 1;
+        case (pageBase)
+            0:              initBlocksWay_I(blocksWay0a, 0, AbstractCore.programMem.getPage(0));
+            PAGE_SIZE:      initBlocksWay_I(blocksWay1a, PAGE_SIZE, AbstractCore.programMem.getPage(PAGE_SIZE));
+            2*PAGE_SIZE:    initBlocksWay_I(blocksWay2a, 2*PAGE_SIZE, AbstractCore.programMem.getPage(2*PAGE_SIZE));
+            3*PAGE_SIZE:    initBlocksWay_I(blocksWay3a, 3*PAGE_SIZE, AbstractCore.programMem.getPage(3*PAGE_SIZE));
+            default: $error("Incorrect page to init cache: %x", pageBase);
+        endcase
     endfunction
+
 
 
     // Init/DB
@@ -305,36 +290,6 @@ module InstructionCacheArray(
     function automatic void preloadForTest();        
         foreach (AbstractCore.globalParams.preloadedInsWays[i])
             copyToWay_I(AbstractCore.globalParams.preloadedInsWays[i]);
-    endfunction
-
-
-    function automatic void initBlocksWay_I(ref InsWay way, input Mword baseVadr);
-        Dword basePadr = baseVadr;
-
-        PageBasedProgramMemory::Page page = AbstractCore.programMem.getPage(basePadr);
-
-        foreach (way[i]) begin
-            Mword vadr = baseVadr + i*BLOCK_SIZE;
-            Dword padr = vadr;
-
-            way[i] = new();
-            way[i].valid = 1;
-            way[i].vbase = vadr;
-            way[i].pbase = padr;
-            way[i].array = page[(padr-basePadr)/4 +: BLOCK_SIZE/4];
-        end
-    endfunction
-
-    function automatic void copyToWay_I(Dword pageAdr);
-        Dword pageBase = getPageBaseD(pageAdr);
-        
-        case (pageBase)
-            0:              initBlocksWay_I(blocksWay0a, 0);
-            PAGE_SIZE:      initBlocksWay_I(blocksWay1a, PAGE_SIZE);
-            2*PAGE_SIZE:    initBlocksWay_I(blocksWay2a, 2*PAGE_SIZE);
-            3*PAGE_SIZE:    initBlocksWay_I(blocksWay3a, 3*PAGE_SIZE);
-            default: $error("Incorrect page to init cache: %x", pageBase);
-        endcase
     endfunction
 
 
