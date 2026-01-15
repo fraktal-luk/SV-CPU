@@ -315,8 +315,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             expectedTargetF2 <= redirectedTarget();
         end
         else begin
-            performF2();
-            performF2_Unc();
+
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            else performF2();
+
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            else performF2_Unc();
+
             performPostF2();
         end
 
@@ -340,19 +345,20 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         // If previous stage is empty, expectedTargetF2 stays unchanged 
     endtask
 
-    task automatic performF2_Unc();
-        if (frontRedUnc) begin
-            stageFetch2_U <= DEFAULT_FRONT_STAGE;
-            return;
-        end
 
-        stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
+        task automatic performF2_Unc();
+            if (frontRedUnc) begin
+                stageFetch2_U <= DEFAULT_FRONT_STAGE;
+                return;
+            end
 
-        if (stageFetchUncLast.active)
-            expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
-        else
-           expectedTargetF2_U <= 'x;
-    endtask
+            stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
+
+            if (stageFetchUncLast.active)
+                expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
+            else
+               expectedTargetF2_U <= 'x;
+        endtask
 
 
     task automatic performPostF2();
@@ -560,7 +566,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         res.status = CR_HIT;
         res.vadr = target;
 
-        //for (int i = 0; i < FETCH_WIDTH; i++) begin
         foreach (res.arr[i]) begin
             Mword adr = baseAdr + 4*i;
             logic elemActive = !$isunknown(target) && (adr >= target) && !already;
