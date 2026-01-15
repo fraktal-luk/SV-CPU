@@ -117,7 +117,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 if (!FETCH_UNC) stage_IP.active <= 1; // Resume fetching after miss
             end
 
-            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+                //expectedTargetF2 <= 'x;
+                stageFetch2 <= DEFAULT_FRONT_STAGE;
+                expectedTargetF2 <= redirectedTarget(); // TODO: ALARM, this shouldbe set in Cached process
+            end
             else begin 
                 if (frontRedCa || frontRedOnMiss) begin
                     stageFetch2 <= DEFAULT_FRONT_STAGE;
@@ -284,6 +288,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), FETCH_UNC, stageUnc_IP.vadr, 0);
+
+                    expectedTargetF2_U <= 'x;
+                    stageFetch2_U <= DEFAULT_FRONT_STAGE;
             end
             else if (frontRedUnc) begin
                 flushUncachedPipe();
@@ -442,7 +449,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     task automatic runDownstream();
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
             flushFrontendFromF2();       
-            expectedTargetF2 <= redirectedTarget();
+            //expectedTargetF2 <= redirectedTarget();
         end
         else performPostF2();
 
@@ -474,13 +481,16 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     task automatic flushFrontendFromF2();
         markKilledFrontStage(stageFetch2.arr);
-        expectedTargetF2 <= 'x;
-        stageFetch2 <= DEFAULT_FRONT_STAGE;
+            // expectedTargetF2 <= 'x;
+            // stageFetch2 <= DEFAULT_FRONT_STAGE;
+            // expectedTargetF2 <= redirectedTarget(); // TODO: ALARM, this shouldbe set in Cached process
 
         // Unc
         markKilledFrontStage(stageFetch2_U.arr);
-        expectedTargetF2_U <= 'x;
-        stageFetch2_U <= DEFAULT_FRONT_STAGE;
+
+
+            // expectedTargetF2_U <= 'x;
+            // stageFetch2_U <= DEFAULT_FRONT_STAGE;
 
         foreach (fetchQueue[i])
             markKilledFrontStage(fetchQueue[i]);
@@ -496,6 +506,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         markKilledFrontStage(stageRename0);
 
         stageRename0 <= '{default: EMPTY_SLOT_F};
+
+
     endtask
 
 
