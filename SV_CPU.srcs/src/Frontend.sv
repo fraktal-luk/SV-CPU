@@ -100,11 +100,98 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
         assign stageIpSig = stage_IP;
         assign stageFetch1sig = stageFetch1;
-        
-        
+
+
+            // ONE USE
+            function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
+                OpSlotAF res = st;
+
+                foreach (res[i])
+                    res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+                
+                return res;       
+            endfunction
+
+            // ONE USE
+            function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
+                OpSlotAF res = st;
+                
+                if (branchSlot == -1) return res;
+                
+                foreach (res[i])
+                    if (i > branchSlot) res[i].active = 0;
+
+                return res;        
+            endfunction
+
+
+           /////////////////////////////////////////////////////
+            // Cached
+                function automatic OpSlotAF TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
+                    if (!fs.active) return fs.arr;
+                    return clearBeforeStart(fs.arr, expectedTarget);        
+                endfunction
+
+                // ONE USE
+                function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
+                    OpSlotAF arrayF2 = TMP_getStageF2(fs, expectedTarget);
+                    int brSlot = scanBranches(arrayF2);
+                    
+                    arrayF2 = clearAfterBranch(arrayF2, brSlot);
+
+                    // Set prediction info
+                    if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+                   
+                    return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
+                endfunction
+
+                // ONE USE
+                function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
+                    // If no taken branches, increment base adr. Otherwise get taken target
+                    OpSlotAF res = TMP_getStageF2(fs, expectedTarget);
+                    Mword adr = res[FETCH_WIDTH-1].adr + 4;
+                    
+                    foreach (res[i]) 
+                        if (res[i].active) begin
+                            AbstractInstruction ins = decodeAbstract(res[i].bits);
+                            
+                            adr = res[i].adr + 4;   // Last active
+                            
+                            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                                if (isBranchAlwaysIns(ins)) begin
+                                    adr = res[i].adr + Mword'(ins.sources[1]);
+                                    break;
+                                end
+                            end
+                        end
+                    
+                    return adr;
+                endfunction
+
+
+            task automatic performF2();
+                if (frontRedCa || frontRedOnMiss) begin
+                    stageFetch2 <= DEFAULT_FRONT_STAGE;
+                    return;
+                end
+
+                stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
+
+                if (stageFetch1.active) begin
+                    assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
+                    expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
+                end
+                // If previous stage is empty, expectedTargetF2 stays unchanged 
+            endtask
+
+
         always @(posedge AbstractCore.clk) begin
             assert (!stage_IP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
             runCached();
+
+            // if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            // else performF2();
+
         end
     
         task automatic runCached();
@@ -123,8 +210,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
                 if (!FETCH_UNC) stage_IP.active <= 1; // Resume fetching after miss
             end
+
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            else performF2();
         endtask
-    
+
+
         task automatic fetchNormalCached();
             Mword nextTrg = FETCH_SINGLE ? stage_IP.vadr + 4 : fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
     
@@ -194,8 +285,60 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         assign stageUncIpSig = stageUnc_IP;
         assign stageFetchUncLast = stageFetchUncArr[MAX_STAGE_UNCACHED];
 
+
+            //////////////////////////////////////////////
+            // Uncached, 
+            // ONE USE
+            function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
+                OpSlotAF arrayF2 = fs.arr;
+                
+                int brSlot = scanBranches(arrayF2);
+                            
+                // Set prediction info
+                if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+
+                return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
+            endfunction
+
+            // ONE USE
+            function automatic Mword getNextTargetF2_U(input FrontStage fs);
+                OpSlotAF res = fs.arr;
+                Mword adr = res[0].adr + 4;
+
+                if (res[0].active) begin
+                    AbstractInstruction ins = decodeAbstract(res[0].bits);
+                    
+                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                        if (isBranchAlwaysIns(ins)) begin
+                            adr = res[0].adr + Mword'(ins.sources[1]);
+                        end
+                    end
+                end
+
+                return adr;
+            endfunction
+
+
+            task automatic performF2_Unc();
+                if (frontRedUnc) begin
+                    stageFetch2_U <= DEFAULT_FRONT_STAGE;
+                    return;
+                end
+
+                stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
+
+                if (stageFetchUncLast.active)
+                    expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
+                else
+                   expectedTargetF2_U <= 'x;
+            endtask
+
+
         always @(posedge AbstractCore.clk) begin
             runUncached();
+
+            // if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            // else performF2_Unc();
         end
 
 
@@ -221,6 +364,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             ) begin
                 stageUnc_IP.active <= 1; // Resume fetching after miss
             end
+
+            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            else performF2_Unc();
         endtask
 
         task automatic fetchNormalUncached();
@@ -301,6 +447,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endgenerate
     
 
+
    ////////////////////////////////
 
 
@@ -316,11 +463,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         end
         else begin
 
-            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
-            else performF2();
+            // if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            // else performF2();
 
-            if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
-            else performF2_Unc();
+            // if (lateEventInfo.redirect || branchEventInfo.redirect) begin end
+            // else performF2_Unc();
 
             performPostF2();
         end
@@ -330,35 +477,35 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endtask
 
 
-    task automatic performF2();
-        if (frontRedCa || frontRedOnMiss) begin
-            stageFetch2 <= DEFAULT_FRONT_STAGE;
-            return;
-        end
+    // task automatic performF2();
+    //     if (frontRedCa || frontRedOnMiss) begin
+    //         stageFetch2 <= DEFAULT_FRONT_STAGE;
+    //         return;
+    //     end
 
-        stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
+    //     stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
 
-        if (stageFetch1.active) begin
-            assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
-            expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
-        end
-        // If previous stage is empty, expectedTargetF2 stays unchanged 
-    endtask
+    //     if (stageFetch1.active) begin
+    //         assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
+    //         expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
+    //     end
+    //     // If previous stage is empty, expectedTargetF2 stays unchanged 
+    // endtask
 
 
-        task automatic performF2_Unc();
-            if (frontRedUnc) begin
-                stageFetch2_U <= DEFAULT_FRONT_STAGE;
-                return;
-            end
+        // task automatic performF2_Unc();
+        //     if (frontRedUnc) begin
+        //         stageFetch2_U <= DEFAULT_FRONT_STAGE;
+        //         return;
+        //     end
 
-            stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
+        //     stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
 
-            if (stageFetchUncLast.active)
-                expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
-            else
-               expectedTargetF2_U <= 'x;
-        endtask
+        //     if (stageFetchUncLast.active)
+        //         expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
+        //     else
+        //        expectedTargetF2_U <= 'x;
+        // endtask
 
 
     task automatic performPostF2();
@@ -409,29 +556,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
 
-    function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
-        OpSlotAF res = st;
-
-        foreach (res[i])
-            res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
-        
-        return res;       
-    endfunction
-
-
-    function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
-        OpSlotAF res = st;
-        
-        if (branchSlot == -1) return res;
-        
-        foreach (res[i])
-            if (i > branchSlot) res[i].active = 0;
-
-        return res;        
-    endfunction
-
-
-
     function automatic int scanBranches(input OpSlotAF st);
         OpSlotAF res = st;
         
@@ -473,75 +597,81 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-    function automatic OpSlotAF TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
-        if (!fs.active) return fs.arr;
-        return clearBeforeStart(fs.arr, expectedTarget);        
-    endfunction
+    // /////////////////////////////////////////////////////
+    // // Cached
+    //     function automatic OpSlotAF TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
+    //         if (!fs.active) return fs.arr;
+    //         return clearBeforeStart(fs.arr, expectedTarget);        
+    //     endfunction
 
-
-    function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
-        OpSlotAF arrayF2 = TMP_getStageF2(fs, expectedTarget);
-        int brSlot = scanBranches(arrayF2);
-        
-        arrayF2 = clearAfterBranch(arrayF2, brSlot);
-
-        // Set prediction info
-        if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
-       
-        return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
-    endfunction
-
-
-    function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
-        // If no taken branches, increment base adr. Otherwise get taken target
-        OpSlotAF res = TMP_getStageF2(fs, expectedTarget);
-        Mword adr = res[FETCH_WIDTH-1].adr + 4;
-        
-        foreach (res[i]) 
-            if (res[i].active) begin
-                AbstractInstruction ins = decodeAbstract(res[i].bits);
-                
-                adr = res[i].adr + 4;   // Last active
-                
-                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                    if (isBranchAlwaysIns(ins)) begin
-                        adr = res[i].adr + Mword'(ins.sources[1]);
-                        break;
-                    end
-                end
-            end
-        
-        return adr;
-    endfunction
-
-
-    function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
-        OpSlotAF arrayF2 = fs.arr;
-        
-        int brSlot = scanBranches(arrayF2);
-                    
-        // Set prediction info
-        if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
-
-        return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
-    endfunction
-
-    function automatic Mword getNextTargetF2_U(input FrontStage fs);
-        OpSlotAF res = fs.arr;
-        Mword adr = res[0].adr + 4;
-
-        if (res[0].active) begin
-            AbstractInstruction ins = decodeAbstract(res[0].bits);
+    //     // ONE USE
+    //     function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
+    //         OpSlotAF arrayF2 = TMP_getStageF2(fs, expectedTarget);
+    //         int brSlot = scanBranches(arrayF2);
             
-            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                if (isBranchAlwaysIns(ins)) begin
-                    adr = res[0].adr + Mword'(ins.sources[1]);
-                end
-            end
-        end
+    //         arrayF2 = clearAfterBranch(arrayF2, brSlot);
 
-        return adr;
-    endfunction
+    //         // Set prediction info
+    //         if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+           
+    //         return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
+    //     endfunction
+
+    //     // ONE USE
+    //     function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
+    //         // If no taken branches, increment base adr. Otherwise get taken target
+    //         OpSlotAF res = TMP_getStageF2(fs, expectedTarget);
+    //         Mword adr = res[FETCH_WIDTH-1].adr + 4;
+            
+    //         foreach (res[i]) 
+    //             if (res[i].active) begin
+    //                 AbstractInstruction ins = decodeAbstract(res[i].bits);
+                    
+    //                 adr = res[i].adr + 4;   // Last active
+                    
+    //                 if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+    //                     if (isBranchAlwaysIns(ins)) begin
+    //                         adr = res[i].adr + Mword'(ins.sources[1]);
+    //                         break;
+    //                     end
+    //                 end
+    //             end
+            
+    //         return adr;
+    //     endfunction
+
+    // //////////////////////////////////////////////
+    // // Uncached, 
+    // // ONE USE
+    // function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
+    //     OpSlotAF arrayF2 = fs.arr;
+        
+    //     int brSlot = scanBranches(arrayF2);
+                    
+    //     // Set prediction info
+    //     if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+
+    //     return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
+    // endfunction
+
+    // // ONE USE
+    // function automatic Mword getNextTargetF2_U(input FrontStage fs);
+    //     OpSlotAF res = fs.arr;
+    //     Mword adr = res[0].adr + 4;
+
+    //     if (res[0].active) begin
+    //         AbstractInstruction ins = decodeAbstract(res[0].bits);
+            
+    //         if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+    //             if (isBranchAlwaysIns(ins)) begin
+    //                 adr = res[0].adr + Mword'(ins.sources[1]);
+    //             end
+    //         end
+    //     end
+
+    //     return adr;
+    // endfunction
+
 
 
 
