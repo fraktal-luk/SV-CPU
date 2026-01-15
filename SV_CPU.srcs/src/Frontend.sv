@@ -13,13 +13,9 @@ import CacheDefs::*;
 module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
     localparam logic FETCH_SINGLE = 0;
-
-    //typedef Word FetchGroup[FETCH_WIDTH];
-    typedef OpSlotF FetchStage[FETCH_WIDTH];
-    localparam FetchStage EMPTY_STAGE = '{default: EMPTY_SLOT_F};
-    
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
+    localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
     localparam int MAX_STAGE_UNCACHED = 4 + 12;
 
 
@@ -28,7 +24,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         CacheReadStatus status;
         Mword vadr;
         Dword padr;
-        FetchStage arr;
+        OpSlotAF arr;
     } FrontStage;
     
     localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, 'x, 'x, EMPTY_STAGE};
@@ -46,24 +42,17 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
     localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 1;
-
     localparam int UFQ_SIZE = UFQ_SLACK + 20;
-
 
 
     logic fetchAllowCa;
 
-    logic fetchEnable;
-    Mword fetchAdr;
 
     FrontStage stageIpSig, stageUncIpSig;
 
     Mword expectedTargetF2 = 'x, expectedTargetF2_U = 'x;
-    FetchStage fetchQueue[$:FETCH_QUEUE_SIZE];
-    
-
-    
-    FetchStage uncachedFetchQueue[$:UFQ_SIZE];
+    OpSlotAF fetchQueue[$:FETCH_QUEUE_SIZE];
+    OpSlotAF uncachedFetchQueue[$:UFQ_SIZE];
 
     int fqSize = 0, ufqSize = 0;
 
@@ -71,7 +60,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     FrontStage stageFetch2 = DEFAULT_FRONT_STAGE, stageFetch2_U = DEFAULT_FRONT_STAGE;
-    FrontStage stageFetch1sig, stageFetchUncLast;
+    FrontStage stageFetch1sig,
+                stageFetchUncLast;
+
+
+
+            logic fetchEnable; // DB
+            Mword fetchAdr; // DB
+
 
 
         assign fetchAllowCa = (fqSize < FETCH_QUEUE_SIZE - FQ_SLACK);
@@ -98,7 +94,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     generate
         InstructionCacheOutput cacheOut;
-        InstructionL1 instructionCache(clk, stageIpSig.active, fetchLineBase(stageIpSig.vadr), cacheOut);
+        InstructionL1 instructionCache(clk, stage_IP.active, fetchLineBase(stage_IP.vadr), cacheOut);
 
         FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE;
     
@@ -152,17 +148,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageFetch0 <= DEFAULT_FRONT_STAGE;
             stageFetch1 <= DEFAULT_FRONT_STAGE;
         endtask    
-    
+
+
+
         // ONE USE
-        function automatic FetchStage setWords(input logic active, input CacheReadStatus status, input FetchStage s, input InstructionCacheOutput cacheOut);
-            FetchStage res = s;
+        function automatic OpSlotAF setWords(input logic active, input CacheReadStatus status, input OpSlotAF s, input InstructionCacheOutput cacheOut);
+            OpSlotAF res = s;
     
             if (!active || status != CR_HIT) return res;
     
             foreach (res[i]) begin
                 Word realBits = cacheOut.words[i];
     
-                if (res[i].active) begin
+                if (res[i].active) begin // Verify correct fetch
                     Translation tr = AbstractCore.retiredEmul.translateProgramAddress(res[i].adr);
                     Word bits = AbstractCore.programMem.fetch(tr.padr);
     
@@ -183,14 +181,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
 
-
-
     ////////////////////////////////////
     // UNC
 
     generate
         InstructionCacheOutput uncachedOut;
-        InstructionUncached instructionUncached(clk, stageUncIpSig.active, stageUncIpSig.vadr, uncachedOut);
+        InstructionUncached instructionUncached(clk, stageUnc_IP.active, stageUnc_IP.vadr, uncachedOut);
 
         FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE, stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE;
         FrontStage stageFetchUncArr[2:MAX_STAGE_UNCACHED] = '{default: DEFAULT_FRONT_STAGE};
@@ -256,23 +252,24 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
         // ONE USE
-        function automatic FetchStage setWordsUnc(input FetchStage s, input InstructionCacheOutput uncachedOut);
-            FetchStage res = EMPTY_STAGE;
+        function automatic OpSlotAF setWordsUnc(input OpSlotAF s, input InstructionCacheOutput uncachedOut);
+            OpSlotAF res = EMPTY_STAGE;
             if (!s[0].active) return EMPTY_STAGE; 
 
-            if (uncachedOut.status == CR_HIT) begin
+            if (uncachedOut.status == CR_HIT) begin // Verify correct fetch
                 Word bits = AbstractCore.programMem.fetch(s[0].adr);
                 assert (bits === uncachedOut.words[0]) else $fatal(2, "Not this");
             end
             res[0] = s[0];
             res[0].bits = uncachedOut.words[0];
-            
+
             return res;
         endfunction
 
         function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);            
             return '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, setWordsUnc(stage.arr, uncachedOut)};
         endfunction
+
 
         function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
             FrontStage res = DEFAULT_FRONT_STAGE;
@@ -285,26 +282,25 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             res.padr = target;
 
             res.arr[0] = '{1, -1, target, 'x, 0, 'x};
-            
+
             return res;
         endfunction
 
 
-            function automatic logic frontUncachedEmpty();
-                if (stageFetchUnc0.active || stageFetchUnc1.active) return 0;
+        function automatic logic frontUncachedEmpty();
+            if (stageFetchUnc0.active || stageFetchUnc1.active) return 0;
+        
+            foreach (stageFetchUncArr[i])
+                if (stageFetchUncArr[i].active) return 0;
             
-                foreach (stageFetchUncArr[i])
-                    if (stageFetchUncArr[i].active) return 0;
-                
-                return
-                    ufqSize == 0
-                && !stageFetch2_U.active
-                && !stageUnc_IP.active;
-            endfunction
+            return
+                ufqSize == 0
+            && !stageFetch2_U.active
+            && !stageUnc_IP.active;
+        endfunction
     endgenerate
     
 
-   //////////////////////////
    ////////////////////////////////
 
 
@@ -388,7 +384,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         markKilledFrontStage(stageFetch2_U.arr);
         expectedTargetF2_U <= 'x;
         stageFetch2_U <= DEFAULT_FRONT_STAGE;
-        //
 
         foreach (fetchQueue[i])
             markKilledFrontStage(fetchQueue[i]);
@@ -408,9 +403,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
 
-
-    function automatic FetchStage clearBeforeStart(input FetchStage st, input Mword expectedTarget);
-        FetchStage res = st;
+    function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
+        OpSlotAF res = st;
 
         foreach (res[i])
             res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
@@ -419,8 +413,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-    function automatic FetchStage clearAfterBranch(input FetchStage st, input int branchSlot);
-        FetchStage res = st;
+    function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
+        OpSlotAF res = st;
         
         if (branchSlot == -1) return res;
         
@@ -432,21 +426,18 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
 
-    function automatic int scanBranches(input FetchStage st);
-        FetchStage res = st;
+    function automatic int scanBranches(input OpSlotAF st);
+        OpSlotAF res = st;
         
-        Mword nextAdr = res[FETCH_WIDTH-1].adr + 4;
         int branchSlot = -1;
         
         Mword takenTargets[FETCH_WIDTH] = '{default: 'x};
-        logic active[FETCH_WIDTH] = '{default: 'x};
         logic constantBranches[FETCH_WIDTH] = '{default: 'x};
         logic predictedBranches[FETCH_WIDTH] = '{default: 'x};
         
         // Decode branches and decide if taken.
         foreach (res[i]) begin
             AbstractInstruction ins = decodeAbstract(res[i].bits);
-            active[i] = res[i].active;
             constantBranches[i] = 0;
             
             if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
@@ -467,7 +458,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (!res[i].active) continue;
             
             if (constantBranches[i] && predictedBranches[i]) begin
-                nextAdr = takenTargets[i];
                 branchSlot = i;
                 break;
             end
@@ -477,14 +467,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-    function automatic FetchStage TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
+    function automatic OpSlotAF TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
         if (!fs.active) return fs.arr;
         return clearBeforeStart(fs.arr, expectedTarget);        
     endfunction
 
 
     function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
-        FetchStage arrayF2 = TMP_getStageF2(fs, expectedTarget);
+        OpSlotAF arrayF2 = TMP_getStageF2(fs, expectedTarget);
         int brSlot = scanBranches(arrayF2);
         
         arrayF2 = clearAfterBranch(arrayF2, brSlot);
@@ -494,11 +484,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
        
         return '{fs.active, fs.status, fs.vadr, 'x, arrayF2};
     endfunction
-        
-    
+
+
     function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
         // If no taken branches, increment base adr. Otherwise get taken target
-        FetchStage res = TMP_getStageF2(fs, expectedTarget);
+        OpSlotAF res = TMP_getStageF2(fs, expectedTarget);
         Mword adr = res[FETCH_WIDTH-1].adr + 4;
         
         foreach (res[i]) 
@@ -519,9 +509,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-
     function automatic FrontStage getFrontStageF2_U(input FrontStage fs);
-        FetchStage arrayF2 = fs.arr;
+        OpSlotAF arrayF2 = fs.arr;
         
         int brSlot = scanBranches(arrayF2);
                     
@@ -532,7 +521,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
     function automatic Mword getNextTargetF2_U(input FrontStage fs);
-        FetchStage res = fs.arr;
+        OpSlotAF res = fs.arr;
         Mword adr = res[0].adr + 4;
 
         if (res[0].active) begin
@@ -548,11 +537,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return adr;
     endfunction
 
-///////////////////////////////
 
 
     // FUTURE: split along with split between FETCH_WIDTH and RENAME_WIDTH
-    task automatic markKilledFrontStage(ref FetchStage stage);
+    task automatic markKilledFrontStage(ref OpSlotAF stage);
         foreach (stage[i])
             if (stage[i].active) putMilestoneF(stage[i].id, InstructionMap::FlushFront);
     endtask
@@ -572,7 +560,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         res.status = CR_HIT;
         res.vadr = target;
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
+        //for (int i = 0; i < FETCH_WIDTH; i++) begin
+        foreach (res.arr[i]) begin
             Mword adr = baseAdr + 4*i;
             logic elemActive = !$isunknown(target) && (adr >= target) && !already;
             
@@ -590,7 +579,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         if (fqSize > 0 && AbstractCore.renameAllow)
             return fetchQueue.pop_front();
         else
-            return '{default: EMPTY_SLOT_F};
+            return EMPTY_STAGE;
     endfunction
 
     function automatic OpSlotAF readFromUFQ();
