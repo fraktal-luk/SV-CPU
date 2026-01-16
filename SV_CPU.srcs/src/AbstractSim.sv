@@ -750,4 +750,25 @@ package AbstractSim;
         return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 
+
+            function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
+                OpSlotAF res = st;
+
+                foreach (res[i])
+                    res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+
+                return res;       
+            endfunction
+
+            function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
+                OpSlotAF res = st;
+
+                if (branchSlot == -1) return res;
+
+                foreach (res[i])
+                    if (i > branchSlot) res[i].active = 0;
+
+                return res;        
+            endfunction
+
 endpackage
