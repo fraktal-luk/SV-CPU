@@ -20,15 +20,6 @@ package CacheDefs;
 
 
 
-    typedef enum {
-        CR_UNCACHED,
-        CR_INVALID, // Address illegal
-        CR_TLB_MISS,
-        CR_NOT_ALLOWED,
-        CR_TAG_MISS,
-        CR_HIT
-    } CacheReadStatus;
-
 
     typedef Translation TranslationA[N_MEM_PORTS];
 

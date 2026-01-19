@@ -248,7 +248,7 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotAF opsF = theFrontend.stageRename0;
+        OpSlotAF opsF = theFrontend.stageRename0.arr;
         OpSlotAB ops = TMP_front2rename(opsF);
 
         // ops: .active, .mid, .adr, .bits,

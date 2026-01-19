@@ -8,6 +8,7 @@ package AbstractSim;
     import Emulation::*;
     import UopList::*;
 
+
     /////////////////////////////////////////
     // Implementation settings
 
@@ -170,6 +171,29 @@ package AbstractSim;
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
     typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
+
+    localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
+
+
+    typedef enum {
+        CR_UNCACHED,
+        CR_INVALID, // Address illegal
+        CR_TLB_MISS,
+        CR_NOT_ALLOWED,
+        CR_TAG_MISS,
+        CR_HIT
+    } CacheReadStatus;
+
+    typedef struct {
+        logic active;
+        CacheReadStatus status;
+        Mword vadr;
+        Dword padr;
+        OpSlotAF arr;
+    } FrontStage;
+
+    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, 'x, 'x, EMPTY_STAGE};
+
 
 
     //////////////////////////////////////
@@ -751,24 +775,24 @@ package AbstractSim;
     endfunction
 
 
-            function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
-                OpSlotAF res = st;
+        function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
+            OpSlotAF res = st;
 
-                foreach (res[i])
-                    res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+            foreach (res[i])
+                res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
 
-                return res;       
-            endfunction
+            return res;       
+        endfunction
 
-            function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
-                OpSlotAF res = st;
+        function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
+            OpSlotAF res = st;
 
-                if (branchSlot == -1) return res;
+            if (branchSlot == -1) return res;
 
-                foreach (res[i])
-                    if (i > branchSlot) res[i].active = 0;
+            foreach (res[i])
+                if (i > branchSlot) res[i].active = 0;
 
-                return res;        
-            endfunction
+            return res;        
+        endfunction
 
 endpackage
