@@ -45,7 +45,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     int fqSize = 0, ufqSize = 0;
     OpSlotAF stageRename0 = '{default: EMPTY_SLOT_F};
 
-    Mword expectedTargetF2 = 'x, expectedTargetF2_U = 'x;
+    Mword expectedTargetF2 = 'x;
     FrontStage stageFetch2 = DEFAULT_FRONT_STAGE, stageFetch2_U = DEFAULT_FRONT_STAGE;
     FrontStage stageIpSig, stageUncIpSig;
 
@@ -94,6 +94,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushFrontendBeforeF2();
                 stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC, FETCH_SINGLE);
+
+                expectedTargetF2 <= redirectedTarget();
             end
             else if (frontRedCa || frontRedOnMiss) begin
                 flushFrontendBeforeF2();
@@ -105,24 +107,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
                 if (!FETCH_UNC) stage_IP.active <= 1; // Resume fetching after miss
-            end
-
-            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-                markKilledFrontStage(stageFetch2.arr);
-                stageFetch2 <= DEFAULT_FRONT_STAGE;
-                expectedTargetF2 <= redirectedTarget(); // TODO: ALARM, this shouldbe set in Cached process
-            end
-            else if (frontRedCa || frontRedOnMiss) begin
-                stageFetch2 <= DEFAULT_FRONT_STAGE;
-            end
-            else begin
-                stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
-
-                if (stageFetch1.active) begin
-                    assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
-                    expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
-                end
-                // If previous stage is empty, expectedTargetF2 stays unchanged
             end
         endtask
 
@@ -138,6 +122,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 stageFetch0 <= DEFAULT_FRONT_STAGE;
     
             stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
+            stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
+
+            if (stageFetch1.active) begin
+                assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
+                expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
+            end
         endtask
 
 
@@ -149,7 +139,31 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stage_IP <= DEFAULT_FRONT_STAGE;
             stageFetch0 <= DEFAULT_FRONT_STAGE;
             stageFetch1 <= DEFAULT_FRONT_STAGE;
+
+            markKilledFrontStage(stageFetch2.arr);
+            stageFetch2 <= DEFAULT_FRONT_STAGE;
         endtask    
+
+        function automatic FrontStage makeStage_IP(input Mword target, input logic on, input logic SINGLE);
+            FrontStage res = DEFAULT_FRONT_STAGE;
+            Mword baseAdr = fetchLineBase(target);
+            logic already = 0;
+
+            res.active = on;
+            res.status = CR_HIT;
+            res.vadr = target;
+
+            foreach (res.arr[i]) begin
+                Mword adr = baseAdr + 4*i;
+                logic elemActive = !$isunknown(target) && (adr >= target) && !already;
+                
+                if (SINGLE && elemActive) already = 1; 
+                
+                res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+            end
+            
+            return res;
+        endfunction
 
 
         function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cacheOut, input Dword padr);
@@ -234,12 +248,15 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         FrontStage stageUnc_IP = DEFAULT_FRONT_STAGE, stageFetchUnc0 = DEFAULT_FRONT_STAGE, stageFetchUnc1 = DEFAULT_FRONT_STAGE;
         FrontStage stageFetchUncArr[2:MAX_STAGE_UNCACHED] = '{default: DEFAULT_FRONT_STAGE};
-        FrontStage  stageFetchUncLast;
+        FrontStage stageFetchUncLast;
 
+        Mword expectedTargetF2_U;
         logic frontRedUnc;
 
 
         assign frontRedUnc = stageFetch2_U.active && stageFetch2_U.arr[0].takenBranch;
+        assign expectedTargetF2_U = stageFetch2_U.arr[0].predictedTarget;
+
         assign stageUncIpSig = stageUnc_IP;
         assign stageFetchUncLast = stageFetchUncArr[MAX_STAGE_UNCACHED];
 
@@ -253,24 +270,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), FETCH_UNC, stageUnc_IP.vadr, 0);
-
-                    // markKilledFrontStage(stageFetch2_U.arr); // TODO: incorporate into flushUncacedPipe?
-                    // stageFetch2_U <= DEFAULT_FRONT_STAGE;
-                    // expectedTargetF2_U <= 'x;
             end
             else if (frontRedUnc) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, FETCH_UNC, stageUnc_IP.vadr, 1);
-
-                    // markKilledFrontStage(stageFetch2_U.arr); // TODO: incorporate ...?
-                    // stageFetch2_U <= DEFAULT_FRONT_STAGE;
-                    // expectedTargetF2_U <= 'x;
             end
             else begin
                 fetchNormalUncached();
-
-                // stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);  // TODO: incorporate into fetch normal ucached?
-                // expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
             end
 
 
@@ -299,8 +305,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageFetchUncArr[2] <= stageFetchUnc1;
             stageFetchUncArr[3:MAX_STAGE_UNCACHED] <= stageFetchUncArr[2:MAX_STAGE_UNCACHED-1];
 
-                stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);  // TODO: incorporate into fetch normal ucached?
-                expectedTargetF2_U <= getNextTargetF2_U(stageFetchUncLast);
+            stageFetch2_U <= getFrontStageF2_U(stageFetchUncLast);
         endtask
 
 
@@ -316,9 +321,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             foreach (stageFetchUncArr[i]) markKilledFrontStage(stageFetchUncArr[i].arr);
             stageFetchUncArr <= '{default: DEFAULT_FRONT_STAGE};
 
-                markKilledFrontStage(stageFetch2_U.arr); // TODO: incorporate into flushUncacedPipe?
-                stageFetch2_U <= DEFAULT_FRONT_STAGE;
-                expectedTargetF2_U <= 'x;
+            markKilledFrontStage(stageFetch2_U.arr);
+            stageFetch2_U <= DEFAULT_FRONT_STAGE;
         endtask
 
 
@@ -363,31 +367,23 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             int brSlot = scanBranches(arrayF2);
 
-            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1; // Set prediction info
+                AbstractInstruction ins = decodeAbstract(arrayF2[0].bits);
 
-            res.padr = 'x; // ???
+                logic takeBranch = fs.active && fs.arr[0].active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
+
+                arrayF2[0].predictedTarget = arrayF2[0].adr + 4;
+
+            if (brSlot != -1) begin
+                AbstractInstruction ins = decodeAbstract(arrayF2[0].bits);
+
+                arrayF2[brSlot].takenBranch = 1; // Set prediction info
+                arrayF2[brSlot].predictedTarget = arrayF2[brSlot].adr + Mword'(ins.sources[1]);
+            end
+
+            res.padr = 'x;
             res.arr = arrayF2;
 
             return res;
-        endfunction
-
-        // ONE USE
-        function automatic Mword getNextTargetF2_U(input FrontStage fs);
-            OpSlotAF res = fs.arr;
-            Mword adr = res[0].adr + 4;
-            AbstractInstruction ins = decodeAbstract(res[0].bits);
-
-                if (!fs.active) return 'x;
-
-            if (!res[0].active) return adr;
-
-            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                if (isBranchAlwaysIns(ins)) begin
-                    adr = res[0].adr + Mword'(ins.sources[1]);
-                end
-            end
-
-            return adr;
         endfunction
 
 
@@ -449,17 +445,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     task automatic flushFrontendFromF2();
         foreach (fetchQueue[i])
             markKilledFrontStage(fetchQueue[i]);
-
         fetchQueue.delete();
 
         // Unc
         foreach (uncachedFetchQueue[i])
             markKilledFrontStage(uncachedFetchQueue[i]);
-
         uncachedFetchQueue.delete();
 
         markKilledFrontStage(stageRename0);
-
         stageRename0 <= '{default: EMPTY_SLOT_F};
     endtask
 
@@ -512,27 +505,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         if (lateEventInfo.redirect)         return lateEventInfo.target;
         else if (branchEventInfo.redirect)  return branchEventInfo.target;
         else return 'x;
-    endfunction
-
-    function automatic FrontStage makeStage_IP(input Mword target, input logic on, input logic SINGLE);
-        FrontStage res = DEFAULT_FRONT_STAGE;
-        Mword baseAdr = fetchLineBase(target);
-        logic already = 0;
-
-        res.active = on;
-        res.status = CR_HIT;
-        res.vadr = target;
-
-        foreach (res.arr[i]) begin
-            Mword adr = baseAdr + 4*i;
-            logic elemActive = !$isunknown(target) && (adr >= target) && !already;
-            
-            if (SINGLE && elemActive) already = 1; 
-            
-            res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
-        end
-        
-        return res;
     endfunction
 
 

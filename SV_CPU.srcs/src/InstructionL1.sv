@@ -184,46 +184,6 @@ endmodule
 
 
 
-module InstructionUncached(
-                input logic clk,                
-                input logic readEnUnc,
-                input Mword readAddressUnc,
-                output InstructionCacheOutput readOutUnc
-              );
-
-    InstructionCacheOutput readOutUncached;
-
-    assign readOutUnc = readOutUncached;
-
-
-    always @(posedge clk) begin
-        readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
-    end
-
-    // TODO: make more general memory read definitions, no to use InstructionCacheOutput for uncached
-    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Dword adr);
-        InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
-
-        if (!readEnable) return res;
-
-        if (!physicalAddressValid(adr) || (adr % 4 != 0)) begin
-            res.status = CR_INVALID;
-        end
-        else begin
-            res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend
-            res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
-        end
-
-        res.active = 1;
-        res.desc = '{1, 1, 1, 1, 0};
-
-        return res;
-    endfunction
-
-endmodule
-
-
-
 
 module InstructionCacheArray(
     input logic clk,
@@ -298,5 +258,47 @@ module InstructionCacheArray(
             allocInDynamicRange(fillTr.padr);
         end
     end
+
+endmodule
+
+
+
+
+
+module InstructionUncached(
+                input logic clk,                
+                input logic readEnUnc,
+                input Mword readAddressUnc,
+                output InstructionCacheOutput readOutUnc
+              );
+
+    InstructionCacheOutput readOutUncached;
+
+    assign readOutUnc = readOutUncached;
+
+
+    always @(posedge clk) begin
+        readOutUncached <= readUncached(readEnUnc, Dword'(readAddressUnc));
+    end
+
+    // TODO: make more general memory read definitions, no to use InstructionCacheOutput for uncached
+    function automatic InstructionCacheOutput readUncached(input logic readEnable, input Dword adr);
+        InstructionCacheOutput res = EMPTY_INS_CACHE_OUTPUT;
+
+        if (!readEnable) return res;
+
+        if (!physicalAddressValid(adr) || (adr % 4 != 0)) begin
+            res.status = CR_INVALID;
+        end
+        else begin
+            res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend
+            res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
+        end
+
+        res.active = 1;
+        res.desc = '{1, 1, 1, 1, 0};
+
+        return res;
+    endfunction
 
 endmodule
