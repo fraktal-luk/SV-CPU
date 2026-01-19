@@ -191,17 +191,21 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endfunction
 
 
-            function automatic OpSlotAF TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
-                if (!fs.active) return fs.arr;
-                return clearBeforeStart(fs.arr, expectedTarget);        
-            endfunction
+            // function automatic OpSlotAF TMP_getStageF2(input FrontStage fs, input Mword expectedTarget);
+            //     if (!fs.active) return fs.arr;
+            //     return clearBeforeStart(fs.arr, expectedTarget);        
+            // endfunction
 
             // ONE USE
             function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
                 FrontStage res = fs;
-                OpSlotAF arrayF2 = TMP_getStageF2(fs, expectedTarget);
+                OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+
+
 
                 int brSlot = scanBranches(arrayF2);
+
+                    if (!fs.active) return DEFAULT_FRONT_STAGE;
 
                 arrayF2 = clearAfterBranch(arrayF2, brSlot);
 
@@ -217,9 +221,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             // ONE USE
             function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
                 // If no taken branches, increment base adr. Otherwise get taken target
-                OpSlotAF res = TMP_getStageF2(fs, expectedTarget);
+                OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
                 Mword adr = res[FETCH_WIDTH-1].adr + 4;
                 
+                    if (!fs.active) return 'x;
+
                 foreach (res[i]) 
                     if (res[i].active) begin
                         AbstractInstruction ins = decodeAbstract(res[i].bits);
