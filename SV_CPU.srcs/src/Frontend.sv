@@ -316,7 +316,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             OpSlotAF arr = EMPTY_STAGE;
             FrontStage resFS = '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, arr};
 
-            if (!stage.arr[0].active) return resFS; 
+            if (!stage.arr[0].active) return DEFAULT_FRONT_STAGE; 
 
             if (uncachedOut.status == CR_HIT) begin // Verify correct fetch
                 Word bits = AbstractCore.programMem.fetch(stage.arr[0].adr);
@@ -325,7 +325,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             arr[0] = stage.arr[0];
             arr[0].bits = uncachedOut.words[0];
 
-            resFS = '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, arr};
+            resFS.arr = arr;
+            //resFS = '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, arr};
 
             return resFS;
         endfunction
@@ -351,7 +352,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             OpSlotF slot0 = fs.arr[0];
 
             AbstractInstruction ins = decodeAbstract(slot0.bits);
-            logic takeBranch = fs.active && slot0.active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
+            logic takeBranch = fs.active && (fs.status == CR_HIT) && slot0.active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
 
             if (takeBranch) slot0.predictedTarget = slot0.adr + Mword'(ins.sources[1]);
             else slot0.predictedTarget = slot0.adr + 4;
