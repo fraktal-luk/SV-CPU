@@ -157,9 +157,23 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cacheOut, input Dword padr);
             OpSlotAF arr = stage.arr;
-            FrontStage resFS = '{stage.active, cacheOut.status, stage.vadr, padr, arr};
+            FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr};
+            ProgramEvent pe = PE_NONE;
 
-            if (!stage.active || cacheOut.status != CR_HIT) return resFS;
+                if (cacheOut.status == CR_INVALID) pe = PE_FETCH_INVALID_ADDRESS;
+                else if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
+                else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
+                else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
+                else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
+                else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
+
+                resFS.evt = pe;
+
+
+            if (!stage.active) return DEFAULT_FRONT_STAGE;
+            //if (cacheOut.status != CR_HIT) return resFS;
+
+                if (resFS.evt != PE_NONE) return resFS;
 
             foreach (arr[i]) begin
                 Word realBits = cacheOut.words[i];
@@ -268,7 +282,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
             if (FETCH_UNC
-                    && stageEmptyAF(stageRename0.arr)
+                    && stageEmptyAF(stageRename0.arr) // TODO: check for .active, not .arr?
                     && fqSize == 0
                     && AbstractCore.pipesEmpty()
                     && frontUncachedEmpty()
@@ -312,11 +326,47 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
 
+
+            // OpSlotAF arr = stage.arr;
+            // FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr};
+            // ProgramEvent pe = PE_NONE;
+
+            //     if (cacheOut.status == CR_INVALID) pe = PE_FETCH_INVALID_ADDRESS;
+            //     else if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
+            //     else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
+            //     else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
+            //     else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
+            //     else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
+
+            //     resFS.evt = pe;
+
+
+            // if (!stage.active) return DEFAULT_FRONT_STAGE;
+            // //if (cacheOut.status != CR_HIT) return resFS;
+
+            //     if (resFS.evt != PE_NONE) return resFS;
+
         function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
             OpSlotAF arr = EMPTY_STAGE;
-            FrontStage resFS = '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, arr};
+            FrontStage resFS = '{stage.active, uncachedOut.status, PE_NONE, stage.vadr, stage.vadr, stage.arr};
+            ProgramEvent pe = PE_NONE;
 
-            if (!stage.arr[0].active) return DEFAULT_FRONT_STAGE; 
+                if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
+                else if (!physicalAddressValid(stage.vadr)) pe = PE_FETCH_INVALID_ADDRESS;
+               // else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
+               // else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
+               // else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
+               // else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
+
+               resFS.evt = pe;
+
+            if (!stage.active) return DEFAULT_FRONT_STAGE; 
+            //if (!stage.arr[0].active) return DEFAULT_FRONT_STAGE; 
+
+                 
+
+                 if (resFS.evt != PE_NONE) return resFS;
+
 
             if (uncachedOut.status == CR_HIT) begin // Verify correct fetch
                 Word bits = AbstractCore.programMem.fetch(stage.arr[0].adr);

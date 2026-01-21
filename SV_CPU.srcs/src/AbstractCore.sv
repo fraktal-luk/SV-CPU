@@ -260,7 +260,7 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch);
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt);
         end
 
         stageRename1 <= ops;
@@ -330,8 +330,9 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir);
-        AbstractInstruction ins = decodeWithAddress(bits, adr);
+    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input ProgramEvent evt);
+        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+
         UopInfo mainUinfo;
         UopInfo uInfos[$];
         Mword target;
@@ -342,6 +343,12 @@ module AbstractCore
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+            // if (    !virtualAddressValid(adr)
+            //        || ins == FETCH_ERROR_INS || evt != PE_NONE) begin
+            //     //assert (evt != PE_NONE) else $error("where evt?");
+            //     $error("Sth wrong  fetched: %p, %p", ins, evt);
+            // end
 
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();

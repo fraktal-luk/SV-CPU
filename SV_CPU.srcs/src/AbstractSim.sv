@@ -187,12 +187,13 @@ package AbstractSim;
     typedef struct {
         logic active;
         CacheReadStatus status;
+            ProgramEvent evt;
         Mword vadr;
         Dword padr;
         OpSlotAF arr;
     } FrontStage;
 
-    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, 'x, 'x, EMPTY_STAGE};
+    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE};
 
 
 
