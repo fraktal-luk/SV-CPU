@@ -16,9 +16,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
 
-    localparam int MAX_STAGE_UNCACHED = 4 + 12;
     localparam int FQ_SLACK = 3;    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
 
+    
+    localparam int MAX_STAGE_UNCACHED = 4 + 12;
     // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
     localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 1;
     localparam int UFQ_SIZE = UFQ_SLACK + 20;
@@ -35,7 +36,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     FrontStage stageRename0 = DEFAULT_FRONT_STAGE; //'{default: EMPTY_SLOT_F};
 
     Mword expectedTargetF2 = 'x;
-    FrontStage stageFetch2 = DEFAULT_FRONT_STAGE, stageFetch2_U = DEFAULT_FRONT_STAGE;
+    FrontStage finalFetchStage, finalFetchStageUncached;
     FrontStage stageIpSig, stageUncIpSig;
 
         logic fetchEnable; // DB
@@ -45,19 +46,23 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         logic chk, chk_2, chk_3, chk_4;
 
 
+
+
     assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
 
     assign fetchAllowCa = (fqSize < FETCH_QUEUE_SIZE - FQ_SLACK);
 
     // GENERAL
     assign fetchEnable = FETCH_UNC ? stageUncIpSig.active : stageIpSig.active;
-    assign fetchAdr = FETCH_UNC ? fetchLineBase(stageUncIpSig.vadr) : fetchLineBase(stageIpSig.vadr);
+    assign fetchAdr = FETCH_UNC ? stageUncIpSig.vadr : fetchLineBase(stageIpSig.vadr);
 
 
     /////////////////////////////////////
     // CACHED
 
     generate
+        FrontStage stageFetch2 = DEFAULT_FRONT_STAGE;
+
         InstructionCacheOutput cacheOut;
         InstructionL1 instructionCache(clk, stage_IP.active, fetchLineBase(stage_IP.vadr), cacheOut);
 
@@ -69,16 +74,17 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         assign frontRedCa = stageFetch1.active && groupMismatchF2;
         assign frontRedOnMiss = (stageFetch1.active && stageFetch1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
             // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
+        
         assign stageIpSig = stage_IP;
+        assign finalFetchStage = stageFetch2;
 
-
-        always @(posedge AbstractCore.clk) begin
+        always @(posedge clk) begin
             // Move to common part
             assert (!stage_IP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
 
             runCached();
         end
-    
+
         task automatic runCached();
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushFrontendBeforeF2();
@@ -240,7 +246,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     ////////////////////////////////////
     // UNC
 
+    UncachedFetchUnit uncachedUnit(clk);
+
     generate
+        logic uncachedOn;
+
+        FrontStage stageFetch2_U = DEFAULT_FRONT_STAGE;
+
         InstructionCacheOutput uncachedOut;
         InstructionUncached instructionUncached(clk, stageUnc_IP.active, stageUnc_IP.vadr, uncachedOut);
 
@@ -252,14 +264,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         logic frontRedUnc;
 
 
+        assign uncachedOn = FETCH_UNC; // UP in
+
+
+        assign stageFetchUncLast = stageFetchUncArr[MAX_STAGE_UNCACHED];
+
         assign frontRedUnc = stageFetch2_U.active && stageFetch2_U.arr[0].takenBranch;
         assign expectedTargetF2_U = stageFetch2_U.arr[0].predictedTarget;
 
-        assign stageUncIpSig = stageUnc_IP;
-        assign stageFetchUncLast = stageFetchUncArr[MAX_STAGE_UNCACHED];
+            assign stageUncIpSig = stageUnc_IP; // UP out
+            assign finalFetchStageUncached = stageFetch2_U; // UP out
 
 
-        always @(posedge AbstractCore.clk) begin
+        always @(posedge clk) begin
             runUncached();
         end
 
@@ -267,20 +284,22 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic runUncached();
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
-                stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), FETCH_UNC, stageUnc_IP.vadr, 0);
+                stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), uncachedOn, stageUnc_IP.vadr, 0);
             end
             else if (frontRedUnc) begin
                 flushUncachedPipe();
-                stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, FETCH_UNC, stageUnc_IP.vadr, 1);
+                stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, uncachedOn, stageUnc_IP.vadr, 1);
             end
             else begin
                 fetchNormalUncached();
             end
 
             // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
-            if (FETCH_UNC
-                    && stageEmptyAF(stageRename0.arr) // TODO: check for .active, not .arr?
-                    && fqSize == 0
+            if (uncachedOn
+                    && //stageEmptyAF(stageRename0.arr) // TODO: check for .active, not .arr?
+                    stageRenamed0Empty()
+                    //&& fqSize == 0
+                    && fqEmpty()
                     && AbstractCore.pipesEmpty()
                     && frontUncachedEmpty()
             ) begin
@@ -346,7 +365,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             arr[0].bits = uncachedOut.words[0];
 
             resFS.arr = arr;
-            //resFS = '{stage.active, uncachedOut.status, stage.vadr, stage.vadr, arr};
 
             return resFS;
         endfunction
@@ -388,23 +406,20 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         function automatic logic frontUncachedEmpty();
             if (stageFetchUnc0.active || stageFetchUnc1.active) return 0;
-        
+
             foreach (stageFetchUncArr[i])
                 if (stageFetchUncArr[i].active) return 0;
 
-            return
-                ufqSize == 0
-            && !stageFetch2_U.active
-            && !stageUnc_IP.active;
+            return !stageFetch2_U.active && !stageUnc_IP.active
+                && ufqEmpty();
         endfunction
 
     endgenerate
 
 
-
    ////////////////////////////////
 
-    always @(posedge AbstractCore.clk) begin
+    always @(posedge clk) begin
         runDownstream();
     end
 
@@ -421,14 +436,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     task automatic performPostF2();
-        if (!FETCH_UNC && stageFetch2.active) begin
+        if (!FETCH_UNC && finalFetchStage.active) begin
             assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
-            fetchQueue.push_back(stageFetch2);
+            fetchQueue.push_back(finalFetchStage);
         end
         else if (FETCH_UNC) begin
-            if (stageFetch2_U.active) begin
+            if (finalFetchStageUncached.active) begin
                 assert (uncachedFetchQueue.size() <= UFQ_SIZE - UFQ_SLACK) else $fatal(2, "Writing to full UncachedFetchQueue");
-                uncachedFetchQueue.push_back(stageFetch2_U);
+                uncachedFetchQueue.push_back(finalFetchStageUncached);
             end
 
             if (ufqSize > 0 && FETCH_UNC && fetchAllowCa) begin // fetchAllowCa can be relaxed to having 1 free slot in FQ
@@ -525,5 +540,17 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         return uncachedFetchQueue.pop_front();
     endfunction
 
+
+    function automatic logic fqEmpty();
+        return fqSize == 0;
+    endfunction
+
+    function automatic logic ufqEmpty();
+        return ufqSize == 0;
+    endfunction
+
+    function automatic logic stageRenamed0Empty();
+        return !stageRename0.active;
+    endfunction
 
 endmodule

@@ -35,6 +35,8 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/ReplayQueue.sv" \
 "../../../../SV_CPU.srcs/src/SystemRegisterUnit.sv" \
 "../../../../SV_CPU.srcs/src/ArchDesc0.sv" \
+"../../../../SV_CPU.srcs/src/UncachedDataUnit.sv" \
+"../../../../SV_CPU.srcs/src/UncachedFetchUnit.sv"
 
 
 # compile glbl module

@@ -12,11 +12,13 @@ import ExecDefs::*;
 import CacheDefs::*;
 
 
-module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
+module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
 (
     input logic clk,
     input MemWriteInfo writeReqs[2]
 );
+
+    DataWay ways[N_WAYS];
 
     DataWay blocksWay0;
     DataWay blocksWay1;
@@ -25,12 +27,17 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     generate
         genvar j;
         for (j = 0; j < WIDTH; j++) begin: rdInterface
+            ReadResult aResults[N_WAYS] = '{default: '{0, -1, 'x, 'x, 'x}};
             ReadResult ar0 = '{0, -1, 'x, 'x, 'x}, ar1 = '{0, -1, 'x, 'x, 'x};
             logic aq = 0;
             AccessDesc prevDesc = DEFAULT_ACCESS_DESC;
 
             task automatic readArray();
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
+
+
+                foreach (ways[i]) aResults[i] = readWay(ways[i], aDesc);
+
                 ar0 <= readWay(blocksWay0, aDesc);
                 ar1 <= readWay(blocksWay1, aDesc);
 
@@ -38,28 +45,9 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
                 aq <= aDesc.active && aDesc.acq;
             endtask
 
-            task automatic TMP_afterRead();
-                ReadResult readRes = DataL1.cacheResults[j];
-
-                if (!(j inside {0, 2}) || readRes.way == -1) return;
-
-                if (aq) begin
-                    $error("Aq for (%d) way %d", prevDesc.vadr, readRes.way);
-
-                    //if (readRes.way == 0) TMP_lockWay(blocksWay0, prevDesc);
-                    //if (readRes.way == 1) TMP_lockWay(blocksWay1, prevDesc);
-                end
-                else begin
-                    //if (readRes.way == 0) TMP_unlockWay(blocksWay0, prevDesc);
-                    //if (readRes.way == 1) TMP_unlockWay(blocksWay1, prevDesc);
-                end
-
-            endtask
 
             always @(negedge clk) begin
                 readArray();
-
-                //TMP_afterRead();
             end
 
             always @(posedge clk) begin
@@ -72,8 +60,6 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
 
                     if (aq) begin
-                        //$error("Aq for (%d) way %d", aDesc.vadr, readRes.way);
-
                         if (selectedResult.way == 0) TMP_lockWay(blocksWay0, aDesc);
                         if (selectedResult.way == 1) TMP_lockWay(blocksWay1, aDesc);
                     end
@@ -82,12 +68,8 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
                         if (selectedResult.way == 1) TMP_unlockWay(blocksWay1, aDesc);
                     end
 
-                if (aq != 1 || selectedResult.way == -1) return;
-
-                //$error("pos ack for way %d", selectedResult.way);
-
-                //if (selectedResult.way == 0) $error();
-                //if (selectedResult.way == 1) $error();
+                if (aq) TMP_lockWay(ways[selectedResult.way], aDesc);
+                else    TMP_unlockWay(ways[selectedResult.way], aDesc);
             endtask
 
         end
@@ -97,6 +79,7 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     // Filling
     function automatic void allocInDynamicRange(input Dword adr);
         tryFillWay(blocksWay1, adr);
+            tryFillWay(ways[1], adr); // TODO - temporary filling always way 1
     endfunction
     
     // Write
@@ -105,6 +88,8 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
 
         void'(tryWriteWay(blocksWay0, wrInfo));
         void'(tryWriteWay(blocksWay1, wrInfo));
+
+        foreach (ways[i]) void'(tryWriteWay(ways[i], wrInfo));
     endtask
 
 
@@ -113,12 +98,19 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
         blocksWay0 = '{default: null};
         blocksWay1 = '{default: null};
 
+            ways = '{default: '{default: null}};
+
         clearLocks();
     endtask
 
     task automatic clearLocks();
         foreach (blocksWay0[i]) if (blocksWay0[i] != null) blocksWay0[i].clearLock();
         foreach (blocksWay1[i]) if (blocksWay1[i] != null) blocksWay1[i].clearLock();
+
+        foreach (ways[i]) begin
+            DataWay way = ways[i];
+            foreach (way[b]) if (way[b] != null) way[b].clearLock();
+        end
     endtask
 
 
@@ -130,12 +122,18 @@ module DataCacheArray#(parameter WIDTH = N_MEM_PORTS)
     // CAREFUL: this sets all data to default values
     function automatic void copyToWay(Dword pageAdr);
         Dword pageBase = getPageBaseD(pageAdr);
+        int wayNum = pageBase/PAGE_SIZE;
 
         case (pageBase)
             0:              initBlocksWay(blocksWay0, 0);
             PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
             default: $error("Incorrect page to init cache: %x", pageBase);
         endcase
+
+        assert (wayNum >= 0 && wayNum < N_WAYS) else $fatal(2, "Wrong way num");
+
+            initBlocksWay(ways[wayNum], pageBase);
+
     endfunction
 
 
@@ -301,155 +299,6 @@ module DataFillEngine#(parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 
     always @(posedge clk) begin
         handleBlockFills();
         scheduleBlockFills();
-    end
-
-endmodule
-
-
-
-//**********************************************************************************************************************************//
-module UncachedSubsystem(
-    input logic clk,
-    input MemWriteInfo TMP_writeReqs[2]
-);
-
-
-    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
-        static
-        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
-            Mbyte wval[ESIZE] = {>>{val}};
-            arr[(adr - BASE) +: ESIZE] = wval;
-        endfunction
-
-        static
-        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
-            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
-            Elem wval = {>>{chosen}};
-            return wval;
-        endfunction
-    endclass
-
-
-    typedef struct {
-        logic ready = 0;
-        logic ongoing = 0;
-        Mword adr = 'x;
-        AccessSize size = SIZE_NONE;
-        int counter = -1;
-    } UncachedRead;
-
-    UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
-
-    int uncachedCounter = -1;
-    logic uncachedBusy = 0;
-    DataCacheOutput readResult = EMPTY_DATA_CACHE_OUTPUT;
-
-    localparam Mword UNCACHED_BASE = 'h0000000040000000;
-    Mbyte uncachedArea[PAGE_SIZE];
-
-
-    task automatic UNC_reset();
-        uncachedCounter = -1;
-        uncachedBusy <= 0;
-        readResult <= EMPTY_DATA_CACHE_OUTPUT;
-        
-        uncachedArea = '{default: 0};
-    endtask
-
-
-    function automatic void UNC_scheduleUncachedRead(input AccessDesc aDesc);
-        uncachedReads[0].ongoing = 1;
-        uncachedReads[0].counter = 8;
-        uncachedReads[0].adr = aDesc.vadr;
-        uncachedReads[0].size = aDesc.size;
-    endfunction
-    
-    function automatic void UNC_clearUncachedRead();
-        uncachedReads[0].ready = 0;
-        uncachedReads[0].adr = 'x;
-        readResult <= EMPTY_DATA_CACHE_OUTPUT;
-    endfunction
-
-    function automatic DataCacheOutput readFromUncachedRange(input Mword adr, input AccessSize size);
-        Mword value = 'x;
-        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
-        
-        if (!physicalAddressValid(adr)) begin
-            res.active = 1;
-            res.status = CR_INVALID;
-            res.data = 0;
-            return res;
-        end
-
-        if (size == SIZE_1) value = readByteUncached(adr);
-        else if (size == SIZE_4) value = readWordUncached(adr);
-        else $error("Wrong access size");
-
-        res.active = 1;
-        res.status = CR_HIT;
-        res.data = value;
-
-        return res;
-    endfunction
-    
-    /////////////////
-    function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
-        PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
-    endfunction
-
-    function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
-        PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
-    endfunction
-
-    function automatic Mword readWordUncached(input Mword adr);
-        return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
-    endfunction
-
-    function automatic Mword readByteUncached(input Mword adr);
-        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
-    endfunction
-    //////////////////////
-
-    task automatic UNC_write(input MemWriteInfo wrInfo);
-        Dword padr = wrInfo.padr;
-        Mword val = wrInfo.value;
-
-        uncachedCounter = 15;
-        uncachedBusy <= 1;
-
-        if (wrInfo.size == SIZE_1) writeToUncachedRangeB(padr, val);
-        if (wrInfo.size == SIZE_4) writeToUncachedRangeW(padr, val);
-    endtask
-
-
-    // uncached read pipe
-    task automatic UNC_handleUncachedData();
-        if (uncachedCounter == 0) uncachedBusy <= 0;
-        if (uncachedCounter >= 0) uncachedCounter--;
-
-        if (uncachedReads[0].ongoing) begin
-            if (--uncachedReads[0].counter == 0) begin
-                uncachedReads[0].ongoing = 0;
-                uncachedReads[0].ready = 1;
-                readResult <= readFromUncachedRange(uncachedReads[0].adr, uncachedReads[0].size);
-            end
-        end
-
-        foreach (theExecBlock.accessDescs_E0[p]) begin
-            AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-            if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
-            else if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aDesc); // request for uncached read
-            else if (aDesc.uncachedCollect) UNC_clearUncachedRead();
-        end
-    endtask
-
-
-    always @(posedge clk) begin
-        UNC_handleUncachedData();        
-
-        if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
-            UNC_write(TMP_writeReqs[0]);
-        end
     end
 
 endmodule

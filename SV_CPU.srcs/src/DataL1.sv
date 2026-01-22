@@ -20,14 +20,16 @@ module DataL1(
             output DataCacheOutput uncachedReadOut[N_MEM_PORTS]
 );
 
+    localparam int N_WAYS_DATA = 4;
+
     typedef logic LogicA[N_MEM_PORTS];
 
     LogicA dataFillEnA, tlbFillEnA;
 
-    UncachedSubsystem uncachedSubsystem(clk, writeReqs);
+    UncachedDataUnit uncachedSubsystem(clk, writeReqs);
 
     DataTlb tlb(clk, theExecBlock.accessDescs_E0, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
-    DataCacheArray dataArray(clk, writeReqs);
+    DataCacheArray#(.N_WAYS(N_WAYS_DATA)) dataArray(clk, writeReqs);
 
     DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, theExecBlock.dcacheTranslations_E1);
     DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, theExecBlock.dcacheTranslations_E1);

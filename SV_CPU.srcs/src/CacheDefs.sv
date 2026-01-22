@@ -396,7 +396,7 @@ package CacheDefs;
 
 
     typedef InstructionCacheBlock InsWay[BLOCKS_PER_WAY];
-    
+
     typedef struct {
         logic valid;
         Dword tag;
