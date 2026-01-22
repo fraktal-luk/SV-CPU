@@ -20,27 +20,17 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
 
     DataWay ways[N_WAYS];
 
-    DataWay blocksWay0;
-    DataWay blocksWay1;
-
     // Read interfaces
     generate
         genvar j;
         for (j = 0; j < WIDTH; j++) begin: rdInterface
             ReadResult aResults[N_WAYS] = '{default: '{0, -1, 'x, 'x, 'x}};
-            ReadResult ar0 = '{0, -1, 'x, 'x, 'x}, ar1 = '{0, -1, 'x, 'x, 'x};
             logic aq = 0;
             AccessDesc prevDesc = DEFAULT_ACCESS_DESC;
 
             task automatic readArray();
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
-
-
                 foreach (ways[i]) aResults[i] = readWay(ways[i], aDesc);
-
-                ar0 <= readWay(blocksWay0, aDesc);
-                ar1 <= readWay(blocksWay1, aDesc);
-
                 prevDesc <= aDesc;
                 aq <= aDesc.active && aDesc.acq;
             endtask
@@ -51,25 +41,18 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
             end
 
             always @(posedge clk) begin
-                TMP_locking();
+                handleLocks();
             end
 
-            task automatic TMP_locking();
+            task automatic handleLocks();
                 Translation tr = tlb.translationsH[j];
-                ReadResult selectedResult = selectWayResult(ar0, ar1, tr);
+                ReadResult selectedResult = selectWayResultArray(tr, aResults);
                 AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
 
-                    if (aq) begin
-                        if (selectedResult.way == 0) TMP_lockWay(blocksWay0, aDesc);
-                        if (selectedResult.way == 1) TMP_lockWay(blocksWay1, aDesc);
-                    end
-                    else begin
-                        if (selectedResult.way == 0) TMP_unlockWay(blocksWay0, aDesc);
-                        if (selectedResult.way == 1) TMP_unlockWay(blocksWay1, aDesc);
-                    end
+                if (selectedResult.way < 0 || selectedResult.way >= N_WAYS) return;
 
-                if (aq) TMP_lockWay(ways[selectedResult.way], aDesc);
-                else    TMP_unlockWay(ways[selectedResult.way], aDesc);
+                if (aq) lockInWay(ways[selectedResult.way], aDesc);
+                else    unlockInWay(ways[selectedResult.way], aDesc);
             endtask
 
         end
@@ -78,35 +61,23 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
 
     // Filling
     function automatic void allocInDynamicRange(input Dword adr);
-        tryFillWay(blocksWay1, adr);
-            tryFillWay(ways[1], adr); // TODO - temporary filling always way 1
+        tryFillWay(ways[1], adr); // TODO - temporary filling always way 1
     endfunction
     
     // Write
     task automatic doCachedWrite(input MemWriteInfo wrInfo);
         if (!wrInfo.req || wrInfo.uncached) return;
-
-        void'(tryWriteWay(blocksWay0, wrInfo));
-        void'(tryWriteWay(blocksWay1, wrInfo));
-
         foreach (ways[i]) void'(tryWriteWay(ways[i], wrInfo));
     endtask
 
 
     // Init/DB
     task automatic resetArray();
-        blocksWay0 = '{default: null};
-        blocksWay1 = '{default: null};
-
-            ways = '{default: '{default: null}};
-
-        clearLocks();
+        ways = '{default: '{default: null}};
+        //clearLocks(); // No need to clear locks on nulls
     endtask
 
     task automatic clearLocks();
-        foreach (blocksWay0[i]) if (blocksWay0[i] != null) blocksWay0[i].clearLock();
-        foreach (blocksWay1[i]) if (blocksWay1[i] != null) blocksWay1[i].clearLock();
-
         foreach (ways[i]) begin
             DataWay way = ways[i];
             foreach (way[b]) if (way[b] != null) way[b].clearLock();
@@ -123,36 +94,90 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
     function automatic void copyToWay(Dword pageAdr);
         Dword pageBase = getPageBaseD(pageAdr);
         int wayNum = pageBase/PAGE_SIZE;
-
-        case (pageBase)
-            0:              initBlocksWay(blocksWay0, 0);
-            PAGE_SIZE:      initBlocksWay(blocksWay1, PAGE_SIZE);
-            default: $error("Incorrect page to init cache: %x", pageBase);
-        endcase
-
         assert (wayNum >= 0 && wayNum < N_WAYS) else $fatal(2, "Wrong way num");
-
-            initBlocksWay(ways[wayNum], pageBase);
-
+        initBlocksWay(ways[wayNum], pageBase);
     endfunction
-
 
 
 
     always @(posedge clk) begin
         if (dataFillEngine.notifyFill) begin
-              //  $error("Fill block\n%p", dataFillEngine.notifiedTr);
-
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
         end
 
-            // ?
-            if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
+        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
 
         doCachedWrite(writeReqs[0]);
     end
 
 endmodule
+
+
+
+
+
+module InstructionCacheArray
+#(
+    parameter int N_WAYS
+)
+(
+    input logic clk,
+    input logic notify,
+    input Translation fillTr
+);
+    InsWay ways[N_WAYS];
+
+    // Read interfaces
+    generate
+        genvar j;
+        for (j = 0; j < 1; j++) begin: rdInterface
+            ReadResult_I aResults[N_WAYS] = '{default: '{0, 'x, '{default: 'x}}};
+
+            task automatic readArray();
+                AccessDesc aDesc = instructionCache.aDesc_T;
+                foreach (aResults[i])
+                    aResults[i] <= readWay_I(ways[i], aDesc);
+            endtask
+
+            always @(negedge clk) begin
+                readArray();
+            end
+        end
+    endgenerate
+
+
+    // Init/DB
+    task automatic resetArray();
+        foreach (ways[i]) ways[i] = '{default: null};
+    endtask
+
+    function automatic void preloadForTest();
+        foreach (AbstractCore.globalParams.preloadedInsWays[i]) copyToWay_I(AbstractCore.globalParams.preloadedInsWays[i]);
+    endfunction
+
+    // Filling
+    function automatic void allocInDynamicRange(input Dword adr);
+        // TODO: way 3 for all fills - temporary
+        tryFillWay_I(ways[3], adr, AbstractCore.programMem.getPage(getPageBaseD(adr)));
+    endfunction
+
+    function automatic void copyToWay_I(Dword pageAdr);
+        Dword pageBase = getPageBaseD(pageAdr);
+        int pageNum = pageBase/PAGE_SIZE;
+        assert (pageNum >= 0 && pageNum < N_WAYS) else $fatal(2, "Wrong page number %d", pageNum);
+        initBlocksWay_I(ways[pageNum], pageBase, AbstractCore.programMem.getPage(pageBase));
+    endfunction
+
+
+    always @(posedge clk) begin
+        if (notify) begin
+            allocInDynamicRange(fillTr.padr);
+        end
+    end
+
+endmodule
+
+
 
 
 /******************************************************************/
@@ -273,7 +298,7 @@ module DataFillEngine#(parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 
         if (readyBlocksToFill.size() == 0) return;
 
         tr = readyBlocksToFill.pop_front();
-        blockFillCounters.delete(tr); //
+        blockFillCounters.delete(tr);
 
         notifyFill <= 1;
         notifiedTr <= tr;

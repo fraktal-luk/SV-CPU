@@ -334,7 +334,7 @@ module MemSubpipe#()
         return res;
     endfunction
 
-    // TODO: sqResp - change to DataCacheOutput?
+
     function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp, input UopPacket sqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;

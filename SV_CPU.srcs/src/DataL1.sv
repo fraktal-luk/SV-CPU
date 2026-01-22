@@ -20,13 +20,13 @@ module DataL1(
             output DataCacheOutput uncachedReadOut[N_MEM_PORTS]
 );
 
-    localparam int N_WAYS_DATA = 4;
 
     typedef logic LogicA[N_MEM_PORTS];
 
     LogicA dataFillEnA, tlbFillEnA;
 
     UncachedDataUnit uncachedSubsystem(clk, writeReqs);
+
 
     DataTlb tlb(clk, theExecBlock.accessDescs_E0, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
     DataCacheArray#(.N_WAYS(N_WAYS_DATA)) dataArray(clk, writeReqs);
@@ -91,14 +91,13 @@ module DataL1(
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
             Translation tr = tlb.translationsH[p];
-            ReadResult selectedResult;
+            ReadResult selectedResult, selectedResult_N;
 
-            // TODO: signal back to array which way was selected (or none)
-            if (p == 0)      selectedResult = selectWayResult(dataArray.rdInterface[0].ar0, dataArray.rdInterface[0].ar1, tr);
-            else if (p == 2) selectedResult = selectWayResult(dataArray.rdInterface[2].ar0, dataArray.rdInterface[2].ar1, tr);
+            if (p == 0) selectedResult_N = selectWayResultArray(tr, dataArray.rdInterface[0].aResults);
+            else if (p == 2) selectedResult_N = selectWayResultArray(tr, dataArray.rdInterface[2].aResults);
 
-            cacheResults[p] <= selectedResult;
-            cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
+            cacheResults[p] <= selectedResult_N;
+            cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult_N);
         end
     endtask
 
@@ -108,7 +107,6 @@ module DataL1(
             handleSingleRead(p);
         end
     endtask
-
 
     function automatic LogicA dataFillEnables();
         LogicA res = '{default: 0};
@@ -123,7 +121,6 @@ module DataL1(
             res[p] = (cacheReadOut[p].status == CR_TLB_MISS);
         return res;
     endfunction
-
 
 
 

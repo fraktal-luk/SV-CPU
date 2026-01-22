@@ -44,6 +44,10 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
+
+    localparam int N_WAYS_INS = 4;
+    localparam int N_WAYS_DATA = 4;
+
     ///////////////////////////////////
 
 

@@ -275,30 +275,31 @@ package CacheDefs;
         end
     endfunction
 
-    function automatic ReadResult selectWayResult(input ReadResult res0, input ReadResult res1, input Translation tr);
+    function automatic ReadResult selectWayResultArray(input Translation tr, input ReadResult results[]);
         Dword trBase = getBlockBaseD(tr.padr);
         ReadResult res = '{0, -1, 'x, 'x, 'x};
-        if (res0.valid && getBlockBaseD(res0.tag) === trBase) begin
-            res = res0;
-            res.way = 0;
+        int chosen = -1;//results.size() - 1;
+
+        foreach (results[i]) begin
+            if (results[i].valid && getBlockBaseD(results[i].tag) === trBase) begin
+                chosen = i;
+                res = results[i];
+                res.way = i;
+                return res;
+            end
         end
-        if (res1.valid && getBlockBaseD(res1.tag) === trBase) begin
-            res = res1;
-            res.way = 1;
-        end
+
         return res;
     endfunction
 
-    function automatic void TMP_lockWay(input DataCacheBlock way[], input AccessDesc aDesc);
+    function automatic void lockInWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.blockIndex];
-
         if (block == null) return;
-
         if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
         else block.setLock();
     endfunction
 
-    function automatic void TMP_unlockWay(input DataCacheBlock way[], input AccessDesc aDesc);
+    function automatic void unlockInWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.blockIndex];
         if (block == null) return;
         block.clearLock(); // If already locked, clear it and fail locking

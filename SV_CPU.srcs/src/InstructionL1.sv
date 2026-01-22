@@ -22,9 +22,6 @@ module InstructionL1(
                 output InstructionCacheOutput readOut
               );
 
-    localparam int N_WAYS_INS = 4;
-
-
     Translation translationSig = DEFAULT_TRANSLATION;
 
     Translation tr_Reg[1];
@@ -174,69 +171,5 @@ module InstructionL1(
         res[0] = (readOutCached.status == CR_TLB_MISS);
         return res;
     endfunction
-
-endmodule
-
-
-
-
-module InstructionCacheArray
-#(
-    parameter int N_WAYS
-)
-(
-    input logic clk,
-    input logic notify,
-    input Translation fillTr
-);
-    InsWay ways[N_WAYS];
-
-    // Read interfaces
-    generate
-        genvar j;
-        for (j = 0; j < 1; j++) begin: rdInterface
-            ReadResult_I aResults[N_WAYS] = '{default: '{0, 'x, '{default: 'x}}};
-
-            task automatic readArray();
-                AccessDesc aDesc = instructionCache.aDesc_T;
-                foreach (aResults[i])
-                    aResults[i] <= readWay_I(ways[i], aDesc);
-            endtask
-
-            always @(negedge clk) begin
-                readArray();
-            end
-        end
-    endgenerate
-
-
-    // Init/DB
-    task automatic resetArray();
-        foreach (ways[i]) ways[i] = '{default: null};
-    endtask
-
-    function automatic void preloadForTest();
-        foreach (AbstractCore.globalParams.preloadedInsWays[i]) copyToWay_I(AbstractCore.globalParams.preloadedInsWays[i]);
-    endfunction
-
-    // Filling
-    function automatic void allocInDynamicRange(input Dword adr);
-        // TODO: way 3 for all fills - temporary
-        tryFillWay_I(ways[3], adr, AbstractCore.programMem.getPage(getPageBaseD(adr)));
-    endfunction
-
-    function automatic void copyToWay_I(Dword pageAdr);
-        Dword pageBase = getPageBaseD(pageAdr);
-        int pageNum = pageBase/PAGE_SIZE;
-        assert (pageNum >= 0 && pageNum < N_WAYS) else $fatal(2, "Wrong page number %d", pageNum);
-        initBlocksWay_I(ways[pageNum], pageBase, AbstractCore.programMem.getPage(pageBase));
-    endfunction
-
-
-    always @(posedge clk) begin
-        if (notify) begin
-            allocInDynamicRange(fillTr.padr);
-        end
-    end
 
 endmodule

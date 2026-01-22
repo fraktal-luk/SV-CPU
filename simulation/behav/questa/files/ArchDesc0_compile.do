@@ -22,7 +22,7 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/Testing.sv" \
 "../../../../SV_CPU.srcs/src/AbstractCore.sv" \
 "../../../../SV_CPU.srcs/src/DataL1.sv" \
-"../../../../SV_CPU.srcs/src/DataMemModules.sv" \
+"../../../../SV_CPU.srcs/src/MemModules.sv" \
 "../../../../SV_CPU.srcs/src/EmulTest.sv" \
 "../../../../SV_CPU.srcs/src/ExecBlock.sv" \
 "../../../../SV_CPU.srcs/src/Frontend.sv" \
