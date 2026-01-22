@@ -344,12 +344,6 @@ module AbstractCore
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-            // if (    !virtualAddressValid(adr)
-            //        || ins == FETCH_ERROR_INS || evt != PE_NONE) begin
-            //     //assert (evt != PE_NONE) else $error("where evt?");
-            //     $error("Sth wrong  fetched: %p, %p", ins, evt);
-            // end
-
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
 

@@ -160,20 +160,18 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr};
             ProgramEvent pe = PE_NONE;
 
-                if (cacheOut.status == CR_INVALID) pe = PE_FETCH_INVALID_ADDRESS;
-                else if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
-                else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
-                else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
-                else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
-                else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
+            if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
+            else if (cacheOut.status == CR_INVALID) pe = PE_FETCH_INVALID_ADDRESS;
+            else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
+            else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
+            else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
+            else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
 
-                resFS.evt = pe;
-
+            resFS.evt = pe;
 
             if (!stage.active) return DEFAULT_FRONT_STAGE;
-            //if (cacheOut.status != CR_HIT) return resFS;
 
-                if (resFS.evt != PE_NONE) return resFS;
+            if (resFS.evt != PE_NONE) return resFS;
 
             foreach (arr[i]) begin
                 Word realBits = cacheOut.words[i];
@@ -194,47 +192,47 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endfunction
 
 
-            function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
-                FrontStage res = fs;
-                OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+        function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
+            FrontStage res = fs;
+            OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
 
-                int brSlot = scanBranches(arrayF2);
+            int brSlot = scanBranches(arrayF2);
 
-                    if (!fs.active) return DEFAULT_FRONT_STAGE;
+            if (!fs.active) return DEFAULT_FRONT_STAGE;
 
-                arrayF2 = clearAfterBranch(arrayF2, brSlot);
+            arrayF2 = clearAfterBranch(arrayF2, brSlot);
 
-                // Set prediction info
-                if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+            // Set prediction info
+            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
 
-                res.padr = 'x;
-                res.arr = arrayF2;
+            res.padr = 'x;
+            res.arr = arrayF2;
 
-                return res;
-            endfunction
+            return res;
+        endfunction
 
-            function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
-                // If no taken branches, increment base adr. Otherwise get taken target
-                OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
-                Mword adr = res[FETCH_WIDTH-1].adr + 4;
-                
-                    if (!fs.active) return 'x;
+        function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
+            // If no taken branches, increment base adr. Otherwise get taken target
+            OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
+            Mword adr = res[FETCH_WIDTH-1].adr + 4;
+            
+            if (!fs.active) return 'x;
 
-                foreach (res[i]) 
-                    if (res[i].active) begin
-                        AbstractInstruction ins = decodeAbstract(res[i].bits);
-                        adr = res[i].adr + 4;   // Last active
-                        
-                        if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                            if (isBranchAlwaysIns(ins)) begin
-                                adr = res[i].adr + Mword'(ins.sources[1]);
-                                break;
-                            end
+            foreach (res[i]) 
+                if (res[i].active) begin
+                    AbstractInstruction ins = decodeAbstract(res[i].bits);
+                    adr = res[i].adr + 4;   // Last active
+                    
+                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                        if (isBranchAlwaysIns(ins)) begin
+                            adr = res[i].adr + Mword'(ins.sources[1]);
+                            break;
                         end
                     end
-                
-                return adr;
-            endfunction
+                end
+            
+            return adr;
+        endfunction
 
     endgenerate
 
@@ -278,7 +276,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             else begin
                 fetchNormalUncached();
             end
-
 
             // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
             if (FETCH_UNC
@@ -326,46 +323,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
 
-
-            // OpSlotAF arr = stage.arr;
-            // FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr};
-            // ProgramEvent pe = PE_NONE;
-
-            //     if (cacheOut.status == CR_INVALID) pe = PE_FETCH_INVALID_ADDRESS;
-            //     else if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
-            //     else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
-            //     else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
-            //     else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
-            //     else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
-
-            //     resFS.evt = pe;
-
-
-            // if (!stage.active) return DEFAULT_FRONT_STAGE;
-            // //if (cacheOut.status != CR_HIT) return resFS;
-
-            //     if (resFS.evt != PE_NONE) return resFS;
-
         function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
             OpSlotAF arr = EMPTY_STAGE;
             FrontStage resFS = '{stage.active, uncachedOut.status, PE_NONE, stage.vadr, stage.vadr, stage.arr};
             ProgramEvent pe = PE_NONE;
 
-                if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
-                else if (!physicalAddressValid(stage.vadr)) pe = PE_FETCH_INVALID_ADDRESS;
-               // else if (cacheOut.status == CR_UNCACHED) pe = PE_FETCH_DISALLOWED_ACCESS;
-               // else if (cacheOut.status == CR_TLB_MISS) pe = PE_FETCH_TLB_MISS;
-               // else if (cacheOut.status == CR_NOT_ALLOWED) pe = PE_FETCH_DISALLOWED_ACCESS;
-               // else if (cacheOut.status == CR_TAG_MISS) pe = PE_FETCH_CACHE_MISS;
+            if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
+            else if (!physicalAddressValid(stage.vadr)) pe = PE_FETCH_INVALID_ADDRESS;
 
-               resFS.evt = pe;
+            resFS.evt = pe;
 
-            if (!stage.active) return DEFAULT_FRONT_STAGE; 
-            //if (!stage.arr[0].active) return DEFAULT_FRONT_STAGE; 
+            if (!stage.active) return DEFAULT_FRONT_STAGE;                 
 
-                 
-
-                 if (resFS.evt != PE_NONE) return resFS;
+            if (resFS.evt != PE_NONE) return resFS;
 
 
             if (uncachedOut.status == CR_HIT) begin // Verify correct fetch

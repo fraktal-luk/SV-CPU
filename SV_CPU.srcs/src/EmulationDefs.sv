@@ -295,13 +295,6 @@ package EmulationDefs;
 
     localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};
 
-        function automatic AbstractInstruction decodeWithAddress(input Word bits, input Mword adr);    
-            if (!physicalAddressValid(adr) || (adr % 4 != 0)) return FETCH_ERROR_INS;
-            else return decodeAbstract(bits);
-        endfunction
-
-
-
 
     typedef struct {
         Mword intRegs[32], floatRegs[32], sysRegs[32];
