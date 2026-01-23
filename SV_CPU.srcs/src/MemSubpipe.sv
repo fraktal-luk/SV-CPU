@@ -33,12 +33,17 @@ module MemSubpipe#()
 
 
     UopMemPacket stage0, stage0_E;
-    
+    Translation tr0;
+    AccessDesc ad0;
+
     AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
 
     assign accessDescOut = accessDescE0;
 
     always_comb stage0_E = pE2_E;
+    assign tr0 = trE2;
+    assign ad0 = accessDescE2;
+
     always_comb p0 = TMP_toMemPacket(opP);
 
     assign trE0 = cacheTranslation;

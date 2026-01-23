@@ -33,7 +33,7 @@ module ExecBlock(ref InstructionMap insMap,
     UopMemPacket toReplayQueue0, toReplayQueue2;
     UopMemPacket toReplayQueue[N_MEM_PORTS];
 
-    
+
     UopMemPacket toLqE0[N_MEM_PORTS];
     UopMemPacket toLqE1[N_MEM_PORTS];
     UopMemPacket toLqE2[N_MEM_PORTS];
@@ -44,6 +44,9 @@ module ExecBlock(ref InstructionMap insMap,
     Translation dcacheTranslations_EE0[N_MEM_PORTS]; // source: DataL1
     Translation dcacheTranslations_E1[N_MEM_PORTS];
     Translation dcacheTranslations_E2[N_MEM_PORTS];
+
+    Translation trsReplayQueue[N_MEM_PORTS];
+    AccessDesc adsReplayQueue[N_MEM_PORTS];
 
 
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
@@ -207,7 +210,9 @@ module ExecBlock(ref InstructionMap insMap,
     assign toReplayQueue2 = memToReplay(mem2.stage0_E);
     
     assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
-    
+    assign trsReplayQueue = '{0: mem0.tr0, 2: mem2.tr0, default: DEFAULT_TRANSLATION};
+    assign adsReplayQueue = '{0: mem0.ad0, 2: mem2.ad0, default: DEFAULT_ACCESS_DESC};
+
 
     assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};

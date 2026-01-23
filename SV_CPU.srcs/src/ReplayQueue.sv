@@ -23,25 +23,23 @@ module ReplayQueue(
     typedef struct {
         // Scheduling state
         logic used;
-        logic active;
-
         int readyCnt;
-        logic ready;
         logic ready_N;
-    
-        MemClass memClass;
-        
-        ExecStatus execStatus; 
-        
-        UidT uid;       // constant
-            Mword adr;        // transaction desc
-            AccessSize size;  // t.d.
+
+
+            logic active;
+            UidT uid;
+            MemClass memClass;
+            ExecStatus execStatus;
+            
             Mword value;
-            AccessDesc accessDesc;
-            Translation translation;
+
+
+        AccessDesc accessDesc;
+        Translation translation;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, -1, 0, 0, MC_NONE, ES_OK, UIDT_NONE, 'x, SIZE_NONE, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
+    localparam Entry EMPTY_ENTRY = '{0, -1, 0, 0, UIDT_NONE,  MC_NONE, ES_OK, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
     int numUsed = 0;
@@ -51,7 +49,6 @@ module ReplayQueue(
 
 
     typedef int InputLocs[N_MEM_PORTS];
-    //InputLocs inLocs = '{default: -1};
 
     function automatic InputLocs getInputLocs();
         InputLocs res = '{default: -1};
@@ -86,19 +83,13 @@ module ReplayQueue(
         InputLocs inLocs = getInputLocs();
         
         foreach (inPackets[i]) begin
-            Mword effAdr;
-            AccessSize trSize;
-            
-            //if (!inPackets[i].active) continue;
-            
             if (inPackets[i].active) begin
                 assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
                 
-                effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
-                trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
-                
-                content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 15, 0,  0, inPackets[i].memClass, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                        inPackets[i].result, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
+                content[inLocs[i]] = '{inPackets[i].active, 15, 0,
+                                        inPackets[i].active, inPackets[i].TMP_oid,
+                                        inPackets[i].memClass, inPackets[i].status, inPackets[i].result,
+                                        theExecBlock.adsReplayQueue[i], theExecBlock.trsReplayQueue[i]
                                         };
                 putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
             end
@@ -109,8 +100,8 @@ module ReplayQueue(
     task automatic removeIssued();
         foreach (content[i]) begin
             if (content[i].used && !content[i].active) begin
-                putMilestone(content[i].uid, InstructionMap::RqExit);
                 content[i] = EMPTY_ENTRY;
+                putMilestone(content[i].uid, InstructionMap::RqExit);
             end
         end
     endtask
@@ -118,77 +109,50 @@ module ReplayQueue(
 
     task automatic wakeup();
         UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
+        logic storeDataActive = wrInput.active && (decUname(wrInput.TMP_oid) inside {UOP_data_int, UOP_data_fp});
 
-        // Temporary wakeup on timer for cases under development
         foreach (content[i]) begin
-            // Exclude cases already implemented, leave only dev ones
-            if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1}) continue;
-        
-            if (content[i].active && content[i].readyCnt > 0) begin
-                content[i].readyCnt--;
-                content[i].ready = (content[i].readyCnt == 0);
-            end
-        end
+            case (content[i].execStatus)
+                ES_TLB_MISS: begin
+                    if (getPageBaseM(content[i].accessDesc.vadr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
+                        content[i].ready_N = 1;                    
+                    end
+                end
 
-        // Entries waiting for SQ data fill
-        for (int i = 0; i < 1; i++) begin // Dummy loop to enable continue
-            UopName uname;
+                ES_DATA_MISS: begin
+                    if (getBlockBaseD(content[i].translation.padr) === getBlockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
+                        content[i].ready_N = 1;
+                    end
+                end
 
-            if (wrInput.active !== 1) continue;
+                ES_UNCACHED_2: begin
+                    if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready || isStoreMemUop(decUname(content[i].uid))) begin
+                        content[i].ready_N = 1;
+                    end
+                end
 
-            uname = decUname(wrInput.TMP_oid);            
-            if (!(uname inside {UOP_data_int, UOP_data_fp})) continue;
+                ES_SQ_MISS: begin
+                    if (storeDataActive && U2M(content[i].uid) > U2M(wrInput.TMP_oid))
+                        content[i].ready_N = 1;
+                end
 
-            begin
-               // FUTURE: Here we wake on every store data that is older than waiting op. Wait only for the latest store, already identified at FW scan?
-               int found[$] = content.find_index with ((item.execStatus == ES_SQ_MISS) && (U2M(item.uid) > U2M(wrInput.TMP_oid)));
-               foreach (found[j]) begin
-                   content[found[j]].ready_N = 1;
-               end
-            end
-        end
-        
-        // Entry waiting for uncached read data
-        if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready) begin
-            foreach (content[i]) begin
-                if (content[i].execStatus == ES_UNCACHED_2) begin
+                ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1: begin
+                    if (U2M(content[i].uid) == theRob.indToCommitSig.mid && AbstractCore.wqFree)
+                        content[i].ready_N = 1;
+                end
+
+                ES_LOWER_DONE:
                     content[i].ready_N = 1;
+
+                default: begin
+                    if (content[i].active && content[i].readyCnt > 0) begin
+                        content[i].readyCnt--;
+                        content[i].ready_N = (content[i].readyCnt == 0);
+                    end
                 end
-            end
+            endcase
         end
 
-        // Entry waiting to be nonspeculative
-        if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
-            int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1}
-                                                    && U2M(item.uid) == theRob.indToCommitSig.mid);            
-            assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
-            
-            if (found.size() != 0) begin
-                content[found[0]].ready_N = 1;
-            end
-        end
-        
-        // Wakeup data misses
-        if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
-            foreach (content[i]) begin
-                if (content[i].execStatus != ES_DATA_MISS) continue;
-
-                if (getBlockBaseD(Dword'(content[i].adr)) === getBlockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
-                    content[i].ready_N = 1;
-                end
-            end
-        end
-        
-        // Wakeup TLB misses
-        if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
-            foreach (content[i]) begin
-                if (content[i].execStatus != ES_TLB_MISS) continue;
-
-                if (getPageBaseM(content[i].adr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
-                    content[i].ready_N = 1;                    
-                end
-            end
-        end
     endtask
 
 
@@ -198,7 +162,7 @@ module ReplayQueue(
         selected <= EMPTY_ENTRY;
 
         foreach (content[i]) begin
-            if (content[i].active && (content[i].ready_N || content[i].ready)) begin
+            if (content[i].active && (content[i].ready_N)) begin
                 selected <= content[i];
                 
                 newPacket = '{1, content[i].uid, content[i].memClass, content[i].execStatus, EMPTY_POISON, content[i].value};
@@ -215,13 +179,13 @@ module ReplayQueue(
 
     task automatic flush();
         foreach (content[i]) begin
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(content[i].uid) > branchEventInfo.eventMid)) begin
+            if (shouldFlushId(U2M(content[i].uid))) begin
                 if (content[i].used) putMilestone(content[i].uid, InstructionMap::RqFlush);
                 content[i] = EMPTY_ENTRY;
             end
         end
-        
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(selected.uid) > branchEventInfo.eventMid)) begin
+
+        if (shouldFlushId(U2M(selected.uid))) begin
             selected <= EMPTY_ENTRY;
         end
     endtask
