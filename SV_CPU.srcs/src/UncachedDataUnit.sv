@@ -53,6 +53,7 @@ module UncachedDataUnit(
     logic uncachedBusy = 0;
     DataCacheOutput readResult = EMPTY_DATA_CACHE_OUTPUT;
 
+    // TODO: note in impl definitions
     localparam Mword UNCACHED_BASE = 'h0000000040000000;
     Mbyte uncachedArea[PAGE_SIZE];
 

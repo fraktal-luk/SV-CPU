@@ -24,36 +24,34 @@ module ReplayQueue(
         // Scheduling state
         logic used;
         logic active;
+
+        int readyCnt;
         logic ready;
-          int readyCnt;
-          logic ready_N;
-        
+        logic ready_N;
+    
         MemClass memClass;
-        // uop status
+        
         ExecStatus execStatus; 
         
         UidT uid;       // constant
             Mword adr;        // transaction desc
             AccessSize size;  // t.d.
-            
             Mword value;
-
             AccessDesc accessDesc;
             Translation translation;
     } Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, MC_NONE, ES_OK, UIDT_NONE, 'x, SIZE_NONE, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
+    localparam Entry EMPTY_ENTRY = '{0, 0, -1, 0, 0, MC_NONE, ES_OK, UIDT_NONE, 'x, SIZE_NONE, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
     int numUsed = 0;
     logic accept;
     Entry content[SIZE] = '{default: EMPTY_ENTRY};
-
     Entry selected = EMPTY_ENTRY;
 
 
     typedef int InputLocs[N_MEM_PORTS];
-    InputLocs inLocs = '{default: -1};
+    //InputLocs inLocs = '{default: -1};
 
     function automatic InputLocs getInputLocs();
         InputLocs res = '{default: -1};
@@ -73,39 +71,39 @@ module ReplayQueue(
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flush();
         end
-              
+
         issue();
         wakeup();
         writeInput();
         removeIssued();
 
         issued1 <= tickP(issued0);
-        
         numUsed <= getNumUsed();
     end
 
 
     task automatic writeInput();
-        inLocs = getInputLocs();
+        InputLocs inLocs = getInputLocs();
         
         foreach (inPackets[i]) begin
             Mword effAdr;
             AccessSize trSize;
             
-            if (!inPackets[i].active) continue;
+            //if (!inPackets[i].active) continue;
             
-            assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
-            
-            effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
-            trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
-            
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].memClass, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                    inPackets[i].result, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
-                                    };
-            putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
+            if (inPackets[i].active) begin
+                assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
+                
+                effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
+                trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
+                
+                content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 15, 0,  0, inPackets[i].memClass, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
+                                        inPackets[i].result, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
+                                        };
+                putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
+            end
         end
     endtask
-
 
 
     task automatic removeIssued();
@@ -118,30 +116,29 @@ module ReplayQueue(
     endtask
 
 
-
     task automatic wakeup();
         UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
-            
-            // Temporary wakeup on timer for cases under development
-            foreach (content[i]) begin
-                // Exclude cases already implemented, leave only dev ones
-                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1}) continue;
-            
-                if (content[i].active && content[i].readyCnt > 0) begin
-                    content[i].readyCnt--;
-                    content[i].ready = (content[i].readyCnt == 0);
-                end
+
+        // Temporary wakeup on timer for cases under development
+        foreach (content[i]) begin
+            // Exclude cases already implemented, leave only dev ones
+            if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1}) continue;
+        
+            if (content[i].active && content[i].readyCnt > 0) begin
+                content[i].readyCnt--;
+                content[i].ready = (content[i].readyCnt == 0);
             end
+        end
 
         // Entries waiting for SQ data fill
         for (int i = 0; i < 1; i++) begin // Dummy loop to enable continue
             UopName uname;
-            
+
             if (wrInput.active !== 1) continue;
-        
+
             uname = decUname(wrInput.TMP_oid);            
             if (!(uname inside {UOP_data_int, UOP_data_fp})) continue;
-           
+
             begin
                // FUTURE: Here we wake on every store data that is older than waiting op. Wait only for the latest store, already identified at FW scan?
                int found[$] = content.find_index with ((item.execStatus == ES_SQ_MISS) && (U2M(item.uid) > U2M(wrInput.TMP_oid)));
@@ -159,8 +156,7 @@ module ReplayQueue(
                 end
             end
         end
-        
-        
+
         // Entry waiting to be nonspeculative
         if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
             int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1}
@@ -177,7 +173,6 @@ module ReplayQueue(
             foreach (content[i]) begin
                 if (content[i].execStatus != ES_DATA_MISS) continue;
 
-                //if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
                 if (getBlockBaseD(Dword'(content[i].adr)) === getBlockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
                     content[i].ready_N = 1;
                 end
@@ -189,18 +184,17 @@ module ReplayQueue(
             foreach (content[i]) begin
                 if (content[i].execStatus != ES_TLB_MISS) continue;
 
-                //if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                 if (getPageBaseM(content[i].adr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                     content[i].ready_N = 1;                    
                 end
             end
         end
     endtask
-    
-    
+
+
     task automatic issue();
         UopPacket newPacket = EMPTY_UOP_PACKET;
-    
+
         selected <= EMPTY_ENTRY;
 
         foreach (content[i]) begin
@@ -214,7 +208,7 @@ module ReplayQueue(
                 break;
             end
         end
-           
+
         issued0 <= tickP(newPacket);
     endtask
 
@@ -228,18 +222,16 @@ module ReplayQueue(
         end
         
         if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(selected.uid) > branchEventInfo.eventMid)) begin
-            selected = EMPTY_ENTRY;
+            selected <= EMPTY_ENTRY;
         end
     endtask
 
+
     function automatic int getNumUsed();
         int res = 0;
-        
         foreach (content[i]) if (content[i].used) res++;
-        
         return res;
     endfunction
-
 
 
     assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
