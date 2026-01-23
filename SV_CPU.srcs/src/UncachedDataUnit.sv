@@ -43,6 +43,10 @@ module UncachedDataUnit(
         int counter = -1;
     } UncachedRead;
 
+
+    DataCacheOutput uncachedResults[N_MEM_PORTS] = '{default: EMPTY_DATA_CACHE_OUTPUT};
+
+
     UncachedRead uncachedReads[N_MEM_PORTS]; // Should be one (ignore other than [0])
 
     int uncachedCounter = -1;
@@ -58,6 +62,10 @@ module UncachedDataUnit(
         uncachedBusy <= 0;
         readResult <= EMPTY_DATA_CACHE_OUTPUT;
         
+            uncachedReads = '{default: '{0, 0, 'x, SIZE_NONE, -1}};
+
+            uncachedResults = '{default: EMPTY_DATA_CACHE_OUTPUT};
+
         uncachedArea = '{default: 0};
     endtask
 
@@ -155,6 +163,57 @@ module UncachedDataUnit(
         if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
             UNC_write(TMP_writeReqs[0]);
         end
+
+        handleReadsUnc();
     end
+
+
+
+    task automatic handleReadsUnc();
+        foreach (theExecBlock.accessDescs_E0[p]) begin
+            handleSingleReadUnc(p);
+        end
+    endtask
+
+    task automatic handleSingleReadUnc(input int p);
+        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+
+        uncachedResults[p] <= EMPTY_DATA_CACHE_OUTPUT;
+
+        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
+        else begin
+            uncachedResults[p] <= doReadAccessUnc(aDesc);
+        end
+    endtask
+
+
+    function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);
+        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
+
+        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
+        if (0) begin end
+        // sys regs
+        else if (aDesc.sys) begin end
+
+        // uncached access
+        else if (aDesc.uncachedReq) begin end
+        else if (aDesc.uncachedCollect) begin // Completion of uncached read              
+            if (readResult.status == CR_HIT)
+                res = '{1, CR_HIT, 'x, readResult.data};
+            else if (readResult.status == CR_INVALID)
+                res = '{1, CR_INVALID, 'x, 0};
+            else $error("Wrong status returned by uncached");
+        end
+        else if (aDesc.uncachedStore) begin
+            res = '{1, CR_HIT, 'x, 'x};
+        end
+
+        return res;
+    endfunction
+
+
+
+
+
 
 endmodule

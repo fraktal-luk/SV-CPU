@@ -296,9 +296,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             // If stopped by page cross guard, and pipeline becomes empty, it means that fetching is no longer specultive and can be resumed
             if (uncachedOn
-                    && //stageEmptyAF(stageRename0.arr) // TODO: check for .active, not .arr?
-                    stageRenamed0Empty()
-                    //&& fqSize == 0
+                    && stageRenamed0Empty()
                     && fqEmpty()
                     && AbstractCore.pipesEmpty()
                     && frontUncachedEmpty()

@@ -15,7 +15,7 @@ $start
 	sts   r1, r0, 3		; add_r r0, r0, r0
 
 
-	jz_i r0, $setflag ; sts r8, r0, 1    ; TODO: should this work? 
+	jz_i r0, $setflag ; sts r8, r0, 1
 
 $startsteps
 	add_i r20, r10, -5

@@ -107,7 +107,6 @@ module MemSubpipe#()
         if (!p.active) return res;
 
         res.active = 1;
-
         res.size = getTransactionSize(uname);
 
         res.store = isStoreUop(uname);
@@ -116,11 +115,11 @@ module MemSubpipe#()
         res.uncachedCollect = (p.status == ES_UNCACHED_2) && !res.store;
         res.uncachedStore = (p.status == ES_UNCACHED_2) && res.store;
 
-            res.acq = isLoadAqUop(uname) && p.status == ES_AQ_REL_1;
-            res.rel = isStoreRelUop(uname) && p.status == ES_AQ_REL_1;
+        res.acq = isLoadAqUop(uname) && p.status == ES_AQ_REL_1;
+        res.rel = isStoreRelUop(uname) && p.status == ES_AQ_REL_1;
 
-            if (isStoreRelUop(uname) && p.status == ES_BEGIN) res.active = 0; // Don't cause lock clearing by idle run
-            if (isMemBarrierUop(uname) && !isLoadAqUop(uname)) res.active = 0; // Pure barriers don't make access
+        if (isStoreRelUop(uname) && p.status == ES_BEGIN) res.active = 0; // Don't cause lock clearing by idle run
+        if (isMemBarrierUop(uname) && !isLoadAqUop(uname)) res.active = 0; // Pure barriers don't make access
 
         res.vadr = vadr;
 
@@ -141,11 +140,6 @@ module MemSubpipe#()
     task automatic performE0();    
         UopMemPacket stateE0 = tickP(p1);
         Mword adr = getEffectiveAddress(stateE0.TMP_oid);
-
-            // if (p1.memClass == MC_UPPER_B) begin
-            //     integer ending = adr % 4;
-            //     adr = adr - ending + 4; // next word. TODO: do for Dword transfer size
-            // end
         accessDescE0 <= getAccessDesc(stateE0, adr, (p1.memClass == MC_UPPER_B));
         pE0 <= updateE0(stateE0, adr);
     endtask
@@ -188,7 +182,6 @@ module MemSubpipe#()
                 else begin
                     res.memClass = MC_NORMAL;
                 end
-
             end
         
         return res; 
@@ -229,12 +222,12 @@ module MemSubpipe#()
             MC_AQ_REL: begin
                 case (p.status)
                     ES_BEGIN: begin
-                            if (ad.unaligned) $fatal(2, "aq-rel uncached!");
+                        if (ad.unaligned) $fatal(2, "aq-rel uncached!");
 
                         res.status = ES_AQ_REL_1;
                         return res;
                     end
-                    default: ; // GO ON
+                    default: ; // Go on
                 endcase
             end
 
@@ -293,11 +286,14 @@ module MemSubpipe#()
             return res;
         end
         else if (cacheResp.status == CR_UNCACHED) begin
-
-            // TODO: change fatal to arch exceptions
-            if (p.memClass != MC_NORMAL) $fatal(2, "Wrong use of uncached memory!");
-            // TODO: detect unaligned and raise exc
-            if (ad.unaligned) $fatal(2, "unaligned uncached!");
+            if (p.memClass != MC_NORMAL) begin
+                res.status = ES_ILLEGAL;
+                return res;
+            end
+            if (ad.unaligned) begin
+                res.status = ES_ILLEGAL;
+                return res;
+            end
 
             res.memClass = MC_UNCACHED;   // other flow
             if (p.status == ES_BEGIN) res.status = ES_UNCACHED_1;
@@ -306,12 +302,10 @@ module MemSubpipe#()
         end
         // else: _Regular
 
-
         assert (!uncachedResp.active) else $error("Why uncched\n%p\n%p", uncachedResp, cacheResp);
         
         return updateE2_Regular(p, ad, cacheResp, sqResp);
     endfunction
-
 
 
     function automatic UopMemPacket TMP_updateSysTransfer(input UopMemPacket p, input DataCacheOutput sysResp);
@@ -339,26 +333,15 @@ module MemSubpipe#()
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
-            assert (!(p.memClass inside {MC_UNCACHED, MC_SYS, MC_BARRIER})) else $fatal(2, "Wrong class for %p", p.memClass);
+        assert (!(p.memClass inside {MC_UNCACHED, MC_SYS, MC_BARRIER})) else $fatal(2, "Wrong class for %p", p.memClass);
 
         // No misses or special actions, typical load/store
         if (isLoadMemUop(decUname(uid))) begin
-
             // First run of block-crossing load?
             if (ad.blockCross && res.memClass != MC_UPPER_B) begin
-
-                    begin
-                        Mword cacheVal = cacheResp.data;
-                        //Mword uopVal = p.result;
-                        //$error("\nLower (%p): @%x: %x\nshift: %d", U2M(uid), ad.vadr, cacheVal, ad.shift);
-                    end
-
-                // TODO:
-
                 res.memClass = MC_UPPER_B;
                 res.status = ES_LOWER_DONE;
                 res.result = cacheResp.data;
-
             end
             // Not block-crossing, or first run of block-crossing
             else begin

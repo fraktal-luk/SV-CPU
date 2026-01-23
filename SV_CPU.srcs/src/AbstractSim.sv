@@ -709,7 +709,7 @@ package AbstractSim;
             UOP_mem_stf,
             UOP_mem_sts: return 0;
 
-            UOP_mem_stc: return 0; // TODO
+            UOP_mem_stc: return 0;
 
             default: $fatal(2, "Wrong op");
         endcase

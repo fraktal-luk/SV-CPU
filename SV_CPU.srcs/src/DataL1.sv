@@ -17,9 +17,10 @@ module DataL1(
             input MemWriteInfo writeReqs[2],
             output Translation translationsOut[N_MEM_PORTS],
             output DataCacheOutput cacheReadOut[N_MEM_PORTS],
+
+
             output DataCacheOutput uncachedReadOut[N_MEM_PORTS]
 );
-
 
     typedef logic LogicA[N_MEM_PORTS];
 
@@ -36,6 +37,8 @@ module DataL1(
 
     ReadResult cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
 
+
+    assign uncachedReadOut = uncachedSubsystem.uncachedResults;
 
     always_comb dataFillEnA = dataFillEnables();
     always_comb tlbFillEnA = tlbFillEnables();
@@ -123,63 +126,12 @@ module DataL1(
     endfunction
 
 
-
-    ////////////////////////
-    // Unc
-    
-    task automatic handleReadsUnc();
-        foreach (theExecBlock.accessDescs_E0[p]) begin
-            handleSingleReadUnc(p);
-        end
-    endtask
-
-    task automatic handleSingleReadUnc(input int p);
-        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
-
-        uncachedReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
-
-        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
-        else begin
-            uncachedReadOut[p] <= doReadAccessUnc(aDesc);
-        end
-    endtask
-
-
-    function automatic DataCacheOutput doReadAccessUnc(input AccessDesc aDesc);
-        DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;        
-
-        // Actions from replay or sys read (access checks don't apply, no need to lookup TLB) - they are not handled by cache
-        if (0) begin end
-        // sys regs
-        else if (aDesc.sys) begin end
-
-        // uncached access
-        else if (aDesc.uncachedReq) begin end
-        else if (aDesc.uncachedCollect) begin // Completion of uncached read              
-            if (uncachedSubsystem.readResult.status == CR_HIT)
-                res = '{1, CR_HIT, 'x, uncachedSubsystem.readResult.data};
-            else if (uncachedSubsystem.readResult.status == CR_INVALID)
-                res = '{1, CR_INVALID, 'x, 0};
-            else $error("Wrong status returned by uncached");
-        end
-        else if (aDesc.uncachedStore) begin
-            res = '{1, CR_HIT, 'x, 'x};
-        end
-
-        return res;
-    endfunction
-
-
-    always @(posedge clk) begin
-        handleReadsUnc();
-    end
-
 /////////////////
 // Init and DB
 
     task automatic reset();
         cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
-        uncachedReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
+        //uncachedReads <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
         uncachedSubsystem.UNC_reset();
 
