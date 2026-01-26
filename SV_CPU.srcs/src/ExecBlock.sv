@@ -195,7 +195,7 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        toReplayQueue,
+        //toReplayQueue,
             memImagesTr[-3],
             memImagesTr[0],
         issuedReplayQueue
