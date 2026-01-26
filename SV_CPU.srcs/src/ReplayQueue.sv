@@ -44,7 +44,6 @@ module ReplayQueue(
     } Entry;
 
 
-
     localparam Entry EMPTY_ENTRY = '{0, -1, 0, 0, UIDT_NONE,  MC_NONE, ES_OK, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
@@ -52,11 +51,21 @@ module ReplayQueue(
         logic used;
         UidT uid;
         logic issued;
-            logic cancel;
-        int cnt;
+        logic cancel;
+        int outCnt;
+
+            logic ready;
+            int readyCnt;
+
+
+        UopPacket p;
+        AccessDesc ad;
+        Translation tr;
     } TMP_Entry;
 
-    localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UIDT_NONE, 0, 0, -1};
+    localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UIDT_NONE, 0, 0, -1,
+                                                0, -1,
+                                            EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
     int numUsed = 0, New_numUsed = 0;
@@ -102,13 +111,12 @@ module ReplayQueue(
 
         issue();
         wakeup();
+            New_wakeup();
+
         writeInput();
-
-
 
             New_writeInput();
             removeCanceled();
-
 
         removeIssued();
 
@@ -139,16 +147,19 @@ module ReplayQueue(
     task automatic New_writeInput();
         InputLocs inLocs = New_getInputLocs();
 
+        AccessDesc adsE2[N_MEM_PORTS] = theExecBlock.accessDescs_E2;
+        Translation trsE2[N_MEM_PORTS] = theExecBlock.dcacheTranslations_E2;
+
         foreach (inputUops[i]) begin
             if (inputUops[i].active) begin 
                 // Already present?
                 int inds[$] = entries.find_first_index with (item.uid == inputUops[i].TMP_oid);
                 if (inds.size() > 0) begin
-                    // entries[inds[0]].issued = 0;
-                    // entries[inds[0]].cnt = -1;
                     continue;
                 end
-                entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, 0, -1}; 
+                entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, 0, -1,
+                                        0, 15,
+                                        EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION}; 
             end
         end
 
@@ -159,30 +170,27 @@ module ReplayQueue(
                 if (!(inputUopsE2[i].status inside {ES_OK, ES_REFETCH})) begin
                     entries[inds[0]].cancel = 0;
                     entries[inds[0]].issued = 0;
-                    entries[inds[0]].cnt = -1;
+                    entries[inds[0]].outCnt = -1;
+
+                    entries[inds[0]].ready = 0;
+                    entries[inds[0]].readyCnt = -1;
+
+                        entries[inds[0]].p = inputUopsE2[i];
+                        entries[inds[0]].ad = adsE2[i];
+                        entries[inds[0]].tr = trsE2[i];
                     continue;
                 end
 
                 if (inds.size() > 0) begin
                     entries[inds[0]].cancel = 1;
                     entries[inds[0]].issued = 0;
-                    entries[inds[0]].cnt = -1;
-                    //continue;
+                    entries[inds[0]].outCnt = -1;
+
+                    entries[inds[0]].ready = 0;
+                    entries[inds[0]].readyCnt = -1;
                 end
-                //entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, -1}; 
-            end//
+            end
 
-
-            // if (inPackets[i].active) begin
-            //     assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
-                
-            //     content[inLocs[i]] = '{inPackets[i].active, 15, 0,
-            //                             inPackets[i].active, inPackets[i].TMP_oid,
-            //                             inPackets[i].memClass, inPackets[i].status, inPackets[i].result,
-            //                             theExecBlock.adsReplayQueue[i], theExecBlock.trsReplayQueue[i]
-            //                             };
-            //     putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
-            // end
         end
     endtask
 
@@ -246,6 +254,63 @@ module ReplayQueue(
     endtask
 
 
+
+
+        task automatic New_wakeup();
+            UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
+            logic storeDataActive = wrInput.active && (decUname(wrInput.TMP_oid) inside {UOP_data_int, UOP_data_fp});
+
+            foreach (entries[i]) begin
+                if (!entries[i].used || !entries[i].p.active || entries[i].ready || entries[i].cancel) continue;
+
+                case (entries[i].p.status)
+                    ES_TLB_MISS: begin
+                        if (getPageBaseM(entries[i].ad.vadr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
+                            entries[i].ready = 1;                    
+                        end
+                    end
+
+                    ES_DATA_MISS: begin
+                        if (getBlockBaseD(entries[i].tr.padr) === getBlockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
+                            entries[i].ready = 1;
+                        end
+                    end
+
+                    ES_UNCACHED_2: begin
+                        if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready || isStoreMemUop(decUname(entries[i].uid))) begin
+                            entries[i].ready = 1;
+                        end
+                    end
+
+                    ES_SQ_MISS: begin
+                        if (storeDataActive && U2M(entries[i].uid) > U2M(wrInput.TMP_oid))
+                            entries[i].ready = 1;
+                    end
+
+                    ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1: begin
+                        if (U2M(entries[i].uid) == theRob.indToCommitSig.mid && AbstractCore.wqFree)
+                            entries[i].ready = 1;
+                    end
+
+                    ES_LOWER_DONE:
+                        entries[i].ready = 1;
+
+                    default: begin
+                        if (entries[i].used && entries[i].p.active && entries[i].readyCnt > 0) begin
+                            entries[i].readyCnt--;
+                            entries[i].ready = (entries[i].readyCnt == 0);
+                        end
+                    end
+                endcase
+            end
+
+        endtask
+
+
+
+
+
+
     task automatic issue();
         UopPacket newPacket = EMPTY_UOP_PACKET;
         int found[$];
@@ -265,7 +330,7 @@ module ReplayQueue(
                     assert (found.size() == 1) else $error("wtf %d", found.size()); 
 
                     entries[found[0]].issued = 1;
-                    entries[found[0]].cnt = 0;
+                    entries[found[0]].outCnt = 0;
                 break;
             end
         end
@@ -289,7 +354,6 @@ module ReplayQueue(
 
         foreach (entries[i]) begin
             if (shouldFlushId(U2M(entries[i].uid))) begin
-                //if (entries[i].used) putMilestone(content[i].uid, InstructionMap::RqFlush);
                 entries[i] = TMP_EMPTY_ENTRY;
             end
         end
@@ -312,18 +376,15 @@ module ReplayQueue(
 
     task automatic removeCanceled();
         foreach (entries[i]) begin
-            // if (entries[i].cancel && entries[i].cnt == -1) begin
-            //     //entries[i] = TMP_EMPTY_ENTRY;
-            //     entries[i].cnt = 0;
-            // end
             if (0) ;
-            else if (entries[i].cnt == 2) entries[i] = TMP_EMPTY_ENTRY;
-            else if (entries[i].used && entries[i].cancel) entries[i].cnt++;
+            else if (entries[i].outCnt == 2) entries[i] = TMP_EMPTY_ENTRY;
+            else if (entries[i].used && entries[i].cancel) entries[i].outCnt++;
         end    
     endtask
 
 
-    assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
+    assign accept =     (New_numUsed <= TOTAL_SIZE - N_MEM_PORTS) &&
+                        (numUsed < SIZE - 10)   ; // TODO: make a sensible condition
     always_comb outPacket = effP(issued0);
 
 endmodule
