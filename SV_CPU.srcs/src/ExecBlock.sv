@@ -60,6 +60,21 @@ module ExecBlock(ref InstructionMap insMap,
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
 
+
+
+
+
+    ForwardingElement intImages[N_INT_PORTS][-3:1];
+    ForwardingElement memImages[N_MEM_PORTS][-3:1];
+    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
+
+    IntByStage intImagesTr;
+    MemByStage memImagesTr;
+    VecByStage floatImagesTr;
+
+    ForwardsByStage_0 allByStage;
+
+
     
 
     // Int 0
@@ -181,6 +196,8 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         toReplayQueue,
+            memImagesTr[-3],
+            memImagesTr[0],
         issuedReplayQueue
     );
     
@@ -221,16 +238,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
-
-    ForwardingElement intImages[N_INT_PORTS][-3:1];
-    ForwardingElement memImages[N_MEM_PORTS][-3:1];
-    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
-
-    IntByStage intImagesTr;
-    MemByStage memImagesTr;
-    VecByStage floatImagesTr;
-
-    ForwardsByStage_0 allByStage;
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};

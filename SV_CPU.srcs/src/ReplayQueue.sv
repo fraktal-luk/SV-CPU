@@ -15,10 +15,14 @@ module ReplayQueue(
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input UopPacket inPackets[N_MEM_PORTS],
+        input UopPacket inputUops[N_MEM_PORTS],
+        input UopPacket inputUopsE2[N_MEM_PORTS],
+
     output UopPacket outPacket
 );
 
     localparam int SIZE = 16;
+    localparam int TOTAL_SIZE = 32;
 
     typedef struct {
         // Scheduling state
@@ -39,13 +43,29 @@ module ReplayQueue(
         Translation translation;
     } Entry;
 
+
+
     localparam Entry EMPTY_ENTRY = '{0, -1, 0, 0, UIDT_NONE,  MC_NONE, ES_OK, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
 
-    int numUsed = 0;
+    typedef struct {
+        logic used;
+        UidT uid;
+        logic issued;
+            logic cancel;
+        int cnt;
+    } TMP_Entry;
+
+    localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UIDT_NONE, 0, 0, -1};
+
+
+    int numUsed = 0, New_numUsed = 0;
     logic accept;
     Entry content[SIZE] = '{default: EMPTY_ENTRY};
     Entry selected = EMPTY_ENTRY;
+
+
+    TMP_Entry entries[TOTAL_SIZE] = {default: TMP_EMPTY_ENTRY};
 
 
     typedef int InputLocs[N_MEM_PORTS];
@@ -60,6 +80,17 @@ module ReplayQueue(
         return res;
     endfunction
 
+    function automatic InputLocs New_getInputLocs();
+        InputLocs res = '{default: -1};
+        int nFound = 0;
+
+        foreach (entries[i])
+            if (!entries[i].used) res[nFound++] = i;
+
+        return res;
+    endfunction
+
+
 
     UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET;
 
@@ -72,10 +103,18 @@ module ReplayQueue(
         issue();
         wakeup();
         writeInput();
+
+
+
+            New_writeInput();
+            removeCanceled();
+
+
         removeIssued();
 
         issued1 <= tickP(issued0);
         numUsed <= getNumUsed();
+            New_numUsed = New_getNumUsed();
     end
 
 
@@ -93,6 +132,57 @@ module ReplayQueue(
                                         };
                 putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
             end
+        end
+    endtask
+
+
+    task automatic New_writeInput();
+        InputLocs inLocs = New_getInputLocs();
+
+        foreach (inputUops[i]) begin
+            if (inputUops[i].active) begin 
+                // Already present?
+                int inds[$] = entries.find_first_index with (item.uid == inputUops[i].TMP_oid);
+                if (inds.size() > 0) begin
+                    // entries[inds[0]].issued = 0;
+                    // entries[inds[0]].cnt = -1;
+                    continue;
+                end
+                entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, 0, -1}; 
+            end
+        end
+
+        foreach (inputUopsE2[i]) begin
+            if (inputUopsE2[i].active) begin 
+                int inds[$] = entries.find_first_index with (item.uid == inputUopsE2[i].TMP_oid);
+
+                if (!(inputUopsE2[i].status inside {ES_OK, ES_REFETCH})) begin
+                    entries[inds[0]].cancel = 0;
+                    entries[inds[0]].issued = 0;
+                    entries[inds[0]].cnt = -1;
+                    continue;
+                end
+
+                if (inds.size() > 0) begin
+                    entries[inds[0]].cancel = 1;
+                    entries[inds[0]].issued = 0;
+                    entries[inds[0]].cnt = -1;
+                    //continue;
+                end
+                //entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, -1}; 
+            end//
+
+
+            // if (inPackets[i].active) begin
+            //     assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
+                
+            //     content[inLocs[i]] = '{inPackets[i].active, 15, 0,
+            //                             inPackets[i].active, inPackets[i].TMP_oid,
+            //                             inPackets[i].memClass, inPackets[i].status, inPackets[i].result,
+            //                             theExecBlock.adsReplayQueue[i], theExecBlock.trsReplayQueue[i]
+            //                             };
+            //     putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
+            // end
         end
     endtask
 
@@ -158,6 +248,7 @@ module ReplayQueue(
 
     task automatic issue();
         UopPacket newPacket = EMPTY_UOP_PACKET;
+        int found[$];
 
         selected <= EMPTY_ENTRY;
 
@@ -169,6 +260,12 @@ module ReplayQueue(
                 
                 putMilestone(content[i].uid, InstructionMap::RqIssue);
                 content[i].active = 0;
+
+                    found = entries.find_first_index with (item.used && item.uid == content[i].uid);
+                    assert (found.size() == 1) else $error("wtf %d", found.size()); 
+
+                    entries[found[0]].issued = 1;
+                    entries[found[0]].cnt = 0;
                 break;
             end
         end
@@ -188,6 +285,14 @@ module ReplayQueue(
         if (shouldFlushId(U2M(selected.uid))) begin
             selected <= EMPTY_ENTRY;
         end
+
+
+        foreach (entries[i]) begin
+            if (shouldFlushId(U2M(entries[i].uid))) begin
+                //if (entries[i].used) putMilestone(content[i].uid, InstructionMap::RqFlush);
+                entries[i] = TMP_EMPTY_ENTRY;
+            end
+        end
     endtask
 
 
@@ -196,6 +301,26 @@ module ReplayQueue(
         foreach (content[i]) if (content[i].used) res++;
         return res;
     endfunction
+
+
+    function automatic int New_getNumUsed();
+        int res = 0;
+        foreach (entries[i]) if (entries[i].used) res++;
+        return res;
+    endfunction
+
+
+    task automatic removeCanceled();
+        foreach (entries[i]) begin
+            // if (entries[i].cancel && entries[i].cnt == -1) begin
+            //     //entries[i] = TMP_EMPTY_ENTRY;
+            //     entries[i].cnt = 0;
+            // end
+            if (0) ;
+            else if (entries[i].cnt == 2) entries[i] = TMP_EMPTY_ENTRY;
+            else if (entries[i].used && entries[i].cancel) entries[i].cnt++;
+        end    
+    endtask
 
 
     assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
