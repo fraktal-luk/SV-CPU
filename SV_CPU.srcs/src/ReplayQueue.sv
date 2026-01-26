@@ -101,7 +101,9 @@ module ReplayQueue(
 
 
 
-    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET;
+    UopPacket issued0 = EMPTY_UOP_PACKET,
+              issued0_N = EMPTY_UOP_PACKET,
+              issued1 = EMPTY_UOP_PACKET;
 
 
     always @(posedge clk) begin
@@ -329,13 +331,29 @@ module ReplayQueue(
                     found = entries.find_first_index with (item.used && item.uid == content[i].uid);
                     assert (found.size() == 1) else $error("wtf %d", found.size()); 
 
-                    entries[found[0]].issued = 1;
+                    //entries[found[0]].issued = 1;
                     entries[found[0]].outCnt = 0;
                 break;
             end
         end
 
-        issued0 <= tickP(newPacket);
+        issued0_N <= tickP(newPacket);
+
+
+        issued0 <= EMPTY_UOP_PACKET;
+        
+        foreach (entries[i]) begin
+            if (entries[i].used && entries[i].ready && !entries[i].issued) begin                
+                entries[i].issued = 1;
+
+                issued0 <= tickP(entries[i].p);
+                break;
+            end
+        end
+
+
+                assert (issued0 === issued0_N) else $error("Differig\n%p\n%p", issued0, issued0_N);
+
     endtask
 
 
