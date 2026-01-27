@@ -17,8 +17,6 @@ module DataL1(
             input MemWriteInfo writeReqs[2],
             output Translation translationsOut[N_MEM_PORTS],
             output DataCacheOutput cacheReadOut[N_MEM_PORTS],
-
-
             output DataCacheOutput uncachedReadOut[N_MEM_PORTS]
 );
 
@@ -94,13 +92,13 @@ module DataL1(
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
         else begin
             Translation tr = tlb.translationsH[p];
-            ReadResult selectedResult, selectedResult_N;
+            ReadResult selectedResult;
 
-            if (p == 0) selectedResult_N = selectWayResultArray(tr, dataArray.rdInterface[0].aResults);
-            else if (p == 2) selectedResult_N = selectWayResultArray(tr, dataArray.rdInterface[2].aResults);
+            if (p == 0) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[0].aResults);
+            else if (p == 2) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[2].aResults);
 
-            cacheResults[p] <= selectedResult_N;
-            cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult_N);
+            cacheResults[p] <= selectedResult;
+            cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
     endtask
 
@@ -131,7 +129,6 @@ module DataL1(
 
     task automatic reset();
         cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
-        //uncachedReads <= '{default: EMPTY_DATA_CACHE_OUTPUT};
 
         uncachedSubsystem.UNC_reset();
 

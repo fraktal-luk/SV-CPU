@@ -25,14 +25,9 @@ module ExecBlock(ref InstructionMap insMap,
 
     UopPacket storeDataE0, storeDataE0_E;
 
-
     logic memIssueAllow;
     
     UopMemPacket issuedReplayQueue;
-    
-    UopMemPacket toReplayQueue0, toReplayQueue2;
-    UopMemPacket toReplayQueue[N_MEM_PORTS];
-
 
     UopMemPacket toLqE0[N_MEM_PORTS];
     UopMemPacket toLqE1[N_MEM_PORTS];
@@ -48,21 +43,13 @@ module ExecBlock(ref InstructionMap insMap,
     Translation trsReplayQueue[N_MEM_PORTS];
     AccessDesc adsReplayQueue[N_MEM_PORTS];
 
-
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
     DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
     DataCacheOutput sysOuts_E1[N_MEM_PORTS];
     
     UopMemPacket sqResponse_E1[N_MEM_PORTS];
 
-
-
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
-
-
-
-
-
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
     ForwardingElement memImages[N_MEM_PORTS][-3:1];
@@ -73,8 +60,6 @@ module ExecBlock(ref InstructionMap insMap,
     VecByStage floatImagesTr;
 
     ForwardsByStage_0 allByStage;
-
-
     
 
     // Int 0
@@ -219,17 +204,12 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign storeDataE0_E = storeData0.stage0_E;
 
-        assign accessDescs_E2 = '{0: mem0.accessDescE2, 1: DEFAULT_ACCESS_DESC, 2: mem2.accessDescE2, 3: DEFAULT_ACCESS_DESC};
-        assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
-        assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
-
-    assign toReplayQueue0 = memToReplay(mem0.stage0_E);
-    assign toReplayQueue2 = memToReplay(mem2.stage0_E);
+    assign accessDescs_E2 = '{0: mem0.accessDescE2, 1: DEFAULT_ACCESS_DESC, 2: mem2.accessDescE2, 3: DEFAULT_ACCESS_DESC};
+    assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
+    assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
     
-    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
     assign trsReplayQueue = '{0: mem0.tr0, 2: mem2.tr0, default: DEFAULT_TRANSLATION};
     assign adsReplayQueue = '{0: mem0.ad0, 2: mem2.ad0, default: DEFAULT_ACCESS_DESC};
-
 
     assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
@@ -382,9 +362,7 @@ module ExecBlock(ref InstructionMap insMap,
             return tmp;
         endfunction
 
-
     endgenerate
-
 
 
 
@@ -397,7 +375,7 @@ module ExecBlock(ref InstructionMap insMap,
         end
     endfunction
     
-    // TOPLEVEL
+
     function automatic Mword calcRegularOp(input UidT uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
@@ -435,7 +413,6 @@ module ExecBlock(ref InstructionMap insMap,
 
         return res;
     endfunction
-
 
 endmodule
 
