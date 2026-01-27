@@ -337,7 +337,6 @@ module ExecBlock(ref InstructionMap insMap,
 
                 assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
 
-
             if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
             else return older;
         endfunction
@@ -353,8 +352,48 @@ module ExecBlock(ref InstructionMap insMap,
 
 
         function automatic UopPacket findOldestMemWithState(input ExecStatus refSt);
-            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement found[$] = memStages0.find with (item.active && item.status == refSt);
+            ForwardingElement stages[N_MEM_PORTS] = memImagesTr[0];
+            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+
+                UopPacket oldest_N = findOldestWithState(refSt, memImagesTr[0]);
+
+
+            if (found.size() == 0) begin
+                assert (oldest_N === EMPTY_UOP_PACKET) else $error("Mismatched");
+                return EMPTY_UOP_PACKET;
+            end            
+
+                            assert (oldest_N === oldest[0]) else $error("Mismatched");
+
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+
+
+            return oldest[0];
+        endfunction
+
+        function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
+            ForwardingElement stages[N_MEM_PORTS] = floatImagesTr[0];
+            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            
+                UopPacket oldest_N = findOldestWithState(refSt, floatImagesTr[0]);
+
+
+            if (found.size() == 0) begin
+                assert (oldest_N === EMPTY_UOP_PACKET) else $error("Mismatched");
+                return EMPTY_UOP_PACKET;
+            end
+                            assert (oldest_N === oldest[0]) else $error("Mismatched");
+
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+
+            return oldest[0];
+        endfunction
+
+
+        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
             ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
             
             if (found.size() == 0) return EMPTY_UOP_PACKET;
@@ -363,37 +402,28 @@ module ExecBlock(ref InstructionMap insMap,
             return oldest[0];
         endfunction
 
-        function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
-            ForwardingElement fpStages0[N_MEM_PORTS] = floatImagesTr[0];
-            ForwardingElement found[$] = fpStages0.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
-        
         
         always @(negedge AbstractCore.clk) begin
-            staticEventNewH <= (getOldestRenameEvSlot());
-            memEventNewH <= (findOldestMemWithState(ES_ILLEGAL));
-            memRefetchNewH <= (findOldestMemWithState(ES_REFETCH));
+            fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);//(findOldestFpWithState(ES_FP_INVALID));
+            fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);//(findOldestFpWithState(ES_FP_OVERFLOW));
+
+            memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);//(findOldestMemWithState(ES_ILLEGAL));
+            memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);//(findOldestMemWithState(ES_REFETCH));
+
+
             lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
-            
-            fpInvNewH <= (findOldestFpWithState(ES_FP_INVALID));
-            fpOvNewH <= (findOldestFpWithState(ES_FP_OVERFLOW));
+            staticEventNewH <= (getOldestRenameEvSlot());
         end
         
         
         always @(posedge AbstractCore.clk) begin
-            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
+            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+
             memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
             memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
             lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
-            
-            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
-            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
             
             currentEventReg <= getCurrentEventId();        
         end
