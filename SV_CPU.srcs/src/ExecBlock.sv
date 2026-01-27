@@ -94,24 +94,24 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedDividerP[0]
     );
 
-        // Int 4
-        MultiplierSubpipe multiplier0(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            theIssueQueues.issuedMultiplierP[0]
-        );
-        
-        // Int 5
-        MultiplierSubpipe multiplier1(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            theIssueQueues.issuedMultiplierP[1]
-        );
+    // Int 4
+    MultiplierSubpipe multiplier0(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedMultiplierP[0]
+    );
     
+    // Int 5
+    MultiplierSubpipe multiplier1(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedMultiplierP[1]
+    );
 
-    
+
+
     // Mem 0
     MemSubpipe#()
     mem0(
@@ -158,12 +158,12 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedFloatP[1]
     );
 
-        DividerSubpipe#(.IS_FP(1)) fdiv(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            theIssueQueues.issuedFdivP[0]
-        );
+    DividerSubpipe#(.IS_FP(1)) fdiv(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedFdivP[0]
+    );
 
 
     StoreDataSubpipe storeData0(
@@ -174,15 +174,13 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
 
-
     ReplayQueue replayQueue(
         insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        //toReplayQueue,
-            memImagesTr[-3],
-            memImagesTr[0],
+        memImagesTr[-3],
+        memImagesTr[0],
         issuedReplayQueue
     );
     
@@ -190,9 +188,9 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
-        assign doneMultiplier0_E = multiplier0.stage0_E;
-        assign doneMultiplier1_E = multiplier1.stage0_E;
-    
+    assign doneMultiplier0_E = multiplier0.stage0_E;
+    assign doneMultiplier1_E = multiplier1.stage0_E;
+
     assign doneBranch_E = branch0.stage0_E;
     assign doneDivider_E = divider.stage0_E;
     assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
@@ -233,6 +231,56 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
+    function automatic UopPacket performRegularE0(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
+        begin
+            UopPacket res = p;
+            res.result = calcRegularOp(p.TMP_oid);
+            return res;
+        end
+    endfunction
+    
+
+    function automatic Mword calcRegularOp(input UidT uid);
+        Mword3 args = getAndVerifyArgs(uid);
+        Mword lk = getAdr(U2M(uid)) + 4;
+        Mword result = calcArith(decUname(uid), args, lk);  
+        insMap.setActualResult(uid, result);
+        
+        return result;
+    endfunction
+
+
+        // FUTURE: Introduce forwarding of FP args
+        // FUTURE: 1c longer load pipe on FP side? 
+    // Used before Exec0 to get final values
+    function automatic Mword3 getAndVerifyArgs(input UidT uid);
+        InsDependencies deps = insMap.getU(uid).deps;
+        Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
+        insMap.setActualArgs(uid, argsP);
+        return argsP;
+    endfunction;
+
+
+    // Used once
+    function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+        Mword res[3];
+        logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+                    
+        foreach (deps.types[i]) begin
+            case (deps.types[i])
+                SRC_ZERO:  res[i] = 0;
+                SRC_CONST: res[i] = deps.sources[i];
+                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
+            endcase
+        end
+
+        return res;
+    endfunction
+
+
+
     generate
         logic chp, chq;
     
@@ -253,24 +301,26 @@ module ExecBlock(ref InstructionMap insMap,
 
 
         function automatic InsId replaceEvId_N(input InsId prev, input InsId next);
-            InsId older = prev;
-            
-            if (prev == -1) older = next;
-            else if (next != -1 && prev > next) older = next;
-            
+            InsId older = replaceEvId(prev, next);
+
             if (shouldFlushId(older) || AbstractCore.lastRetired > older) return -1;
             else return older;
         endfunction
-            
+
+
         function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
             OpSlotB older = prev;
             InsId prevId = prev.mid;
             InsId nextId = next.mid;
 
+                InsId olderId = replaceEvId(prevId, nextId);
+
             if (prevId == -1) older = next;
             else if (nextId != -1 && prevId > nextId) older = next;
 
-            if (shouldFlushId(older.mid) || AbstractCore.lastRetired > older.mid) return EMPTY_SLOT_B;
+                assert (olderId == older.mid) else $error("Ids differ");
+
+            if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_SLOT_B;
             else return older;
         endfunction
 
@@ -279,11 +329,16 @@ module ExecBlock(ref InstructionMap insMap,
             UopPacket older = prev;
             InsId prevId = U2M(prev.TMP_oid);
             InsId nextId = U2M(next.TMP_oid);
-        
+
+                InsId olderId = replaceEvId(prevId, nextId);
+
             if (prevId == -1) older = next;
             else if (nextId != -1 && prevId > nextId) older = next;
 
-            if (shouldFlushId(U2M(older.TMP_oid)) || AbstractCore.lastRetired > U2M(older.TMP_oid)) return EMPTY_UOP_PACKET;
+                assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
+
+
+            if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
             else return older;
         endfunction
 
@@ -308,7 +363,7 @@ module ExecBlock(ref InstructionMap insMap,
             return oldest[0];
         endfunction
 
-         function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
+        function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
             ForwardingElement fpStages0[N_MEM_PORTS] = floatImagesTr[0];
             ForwardingElement found[$] = fpStages0.find with (item.active && item.status == refSt);
             ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
@@ -364,55 +419,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     endgenerate
 
-
-
-    function automatic UopPacket performRegularE0(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
-        begin
-            UopPacket res = p;
-            res.result = calcRegularOp(p.TMP_oid);
-            return res;
-        end
-    endfunction
-    
-
-    function automatic Mword calcRegularOp(input UidT uid);
-        Mword3 args = getAndVerifyArgs(uid);
-        Mword lk = getAdr(U2M(uid)) + 4;
-        Mword result = calcArith(decUname(uid), args, lk);  
-        insMap.setActualResult(uid, result);
-        
-        return result;
-    endfunction
-
-
-        // FUTURE: Introduce forwarding of FP args
-        // FUTURE: 1c longer load pipe on FP side? 
-    // Used before Exec0 to get final values
-    function automatic Mword3 getAndVerifyArgs(input UidT uid);
-        InsDependencies deps = insMap.getU(uid).deps;
-        Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        insMap.setActualArgs(uid, argsP);
-        return argsP;
-    endfunction;
-
-
-    // Used once
-    function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-        Mword res[3];
-        logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-                    
-        foreach (deps.types[i]) begin
-            case (deps.types[i])
-                SRC_ZERO:  res[i] = 0;
-                SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
-                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
-            endcase
-        end
-
-        return res;
-    endfunction
 
 endmodule
 
