@@ -414,17 +414,17 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin
-            sysUnit.saveStateAsync(retiredTarget);
+            sysUnit.saveStateAsync(retiredTarget, CO_reset);
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
-            sysUnit.saveStateAsync(retiredTarget);
+            sysUnit.saveStateAsync(retiredTarget, CO_int);
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_break) begin
-            sysUnit.saveStateAsync(retiredTarget);
+            sysUnit.saveStateAsync(retiredTarget, CO_break);
             retiredTarget <= IP_DB_BREAK;
             lateEventInfo <= DB_EVENT;
         end
@@ -432,8 +432,8 @@ module AbstractCore
             Mword sr2 = sysUnit.sysRegs[2];
             Mword sr3 = sysUnit.sysRegs[3];
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
-           
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);
+
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr, theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end

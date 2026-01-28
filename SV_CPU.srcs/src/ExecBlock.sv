@@ -286,6 +286,9 @@ module ExecBlock(ref InstructionMap insMap,
     
         InsId currentEventReg = -1, lqRefetchReg = -1, lqRefetchNewH = -1;
 
+        AccessDesc lastEvtAD;
+        Translation lastEvtTr;
+
         OpSlotB staticEventReg = EMPTY_SLOT_B, staticEventNewH = EMPTY_SLOT_B;
         UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
         UopPacket memRefetchReg = EMPTY_UOP_PACKET, memRefetchNewH = EMPTY_UOP_PACKET;
@@ -351,46 +354,6 @@ module ExecBlock(ref InstructionMap insMap,
         endfunction
 
 
-        function automatic UopPacket findOldestMemWithState(input ExecStatus refSt);
-            ForwardingElement stages[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-
-                UopPacket oldest_N = findOldestWithState(refSt, memImagesTr[0]);
-
-
-            if (found.size() == 0) begin
-                assert (oldest_N === EMPTY_UOP_PACKET) else $error("Mismatched");
-                return EMPTY_UOP_PACKET;
-            end            
-
-                            assert (oldest_N === oldest[0]) else $error("Mismatched");
-
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-
-
-            return oldest[0];
-        endfunction
-
-        function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
-            ForwardingElement stages[N_MEM_PORTS] = floatImagesTr[0];
-            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-                UopPacket oldest_N = findOldestWithState(refSt, floatImagesTr[0]);
-
-
-            if (found.size() == 0) begin
-                assert (oldest_N === EMPTY_UOP_PACKET) else $error("Mismatched");
-                return EMPTY_UOP_PACKET;
-            end
-                            assert (oldest_N === oldest[0]) else $error("Mismatched");
-
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-
-            return oldest[0];
-        endfunction
-
 
         function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
             ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
@@ -404,11 +367,11 @@ module ExecBlock(ref InstructionMap insMap,
 
         
         always @(negedge AbstractCore.clk) begin
-            fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);//(findOldestFpWithState(ES_FP_INVALID));
-            fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);//(findOldestFpWithState(ES_FP_OVERFLOW));
+            fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);
+            fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);
 
-            memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);//(findOldestMemWithState(ES_ILLEGAL));
-            memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);//(findOldestMemWithState(ES_REFETCH));
+            memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);
+            memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);
 
 
             lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
@@ -417,15 +380,22 @@ module ExecBlock(ref InstructionMap insMap,
         
         
         always @(posedge AbstractCore.clk) begin
+            // Needs: ?
             fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
             fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
 
+            // Needs: kind of event, mem access address (V only?)
             memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+
+            // Refetch events don't need diagnostic info
             memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
             lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
+
+            // Needs: kind of event
             staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
             
-            currentEventReg <= getCurrentEventId();        
+            updateCurrentEventReg();
+
         end
 
 
@@ -438,7 +408,7 @@ module ExecBlock(ref InstructionMap insMap,
             end
             
             tmp = replaceEvId(tmp, U2M(memEventNewH.TMP_oid));
-            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));           
+            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));
             tmp = replaceEvId(tmp, lqRefetchNewH);
             tmp = replaceEvId(tmp, staticEventNewH.mid);
             
@@ -446,6 +416,26 @@ module ExecBlock(ref InstructionMap insMap,
             
             return tmp;
         endfunction
+
+        task automatic updateCurrentEventReg();
+            InsId tmp = getCurrentEventId();
+            int inds[$] = memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == tmp); 
+
+            currentEventReg <= tmp;
+
+            // Is the new ID one of mem uops?
+            if (inds.size() > 0) begin
+                int ind = inds[0];
+                lastEvtAD <= accessDescs_E2[ind];
+                lastEvtTr <= dcacheTranslations_E2[ind];
+            end
+            else if (tmp != currentEventReg) begin // If changes to non-memory
+                lastEvtAD <= DEFAULT_ACCESS_DESC;
+                lastEvtTr <= DEFAULT_TRANSLATION;
+            end
+
+        endtask
+
 
     endgenerate
 
