@@ -9,6 +9,9 @@ package AbstractSim;
     import UopList::*;
 
 
+    /////////////////////////////////////////
+    // Implementation settings
+
     // Uarch specific
     localparam int FETCH_QUEUE_SIZE = 16;
     localparam int BC_QUEUE_SIZE = 128;
@@ -41,9 +44,44 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
-////////////////////////////
-    // Core structures
 
+    localparam int N_WAYS_INS = 4;
+    localparam int N_WAYS_DATA = 4;
+
+    ///////////////////////////////////
+
+
+
+    typedef enum {
+        CO_none,
+        
+        CO_reset,
+        CO_int,
+
+        CO_fetchError,
+
+        CO_undef,
+        
+        CO_error,
+        CO_send,
+        CO_call,
+            CO_dbcall,
+
+        CO_exception,
+            CO_specificException, // 
+        
+        CO_sync,
+        CO_refetch,
+        
+        CO_retE,
+        CO_retI,
+        
+        CO_break
+
+    } ControlOp;
+
+
+////////////////////////////
     typedef int InsId;  // Implem detail
 
     typedef struct {
@@ -52,7 +90,6 @@ package AbstractSim;
     } UopId;
     
     localparam UopId UID_NONE = '{-1, -1};
-
 
     typedef UopId UidT; // FUTURE change to UopId
     localparam UidT UIDT_NONE = UID_NONE;
@@ -69,11 +106,25 @@ package AbstractSim;
         return uid.s;
     endfunction
 
-    
+
     typedef UidT UidQueueT[$];
     
     typedef UidT WriterId;
     localparam WriterId WID_NONE = UIDT_NONE;
+
+    // Defs for tracking, insMap
+    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
+    } SourceType;
+    
+    typedef struct {
+        int sources[3];
+        SourceType types[3];
+        WriterId producers[3];
+    } InsDependencies;
+
+    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
+
+
 
 
     // Transfer size in bytes
@@ -84,12 +135,6 @@ package AbstractSim;
         SIZE_8 = 8,
         SIZE_INS_LINE = FETCH_WIDTH*4
     } AccessSize;
-    
-    function automatic AccessSize getTransactionSize(input UopName uname);
-        if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
-        else if (isMemUop(uname)) return SIZE_4;
-        else return SIZE_NONE;
-    endfunction
 
 
     typedef struct {
@@ -97,7 +142,6 @@ package AbstractSim;
         InsId id;
         Mword adr;
         Word bits;
-        
         logic takenBranch;
         Mword predictedTarget;
     } OpSlotF;
@@ -132,50 +176,33 @@ package AbstractSim;
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
     typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
 
-
-    function automatic logic stageEmptyAF(input OpSlotAF stage);
-        foreach (stage[i])
-            if (stage[i].active) return 0;
-        
-        return 1; 
-    endfunction 
-    
-    function automatic logic stageEmptyAB(input OpSlotAB stage);
-        foreach (stage[i])
-            if (stage[i].active) return 0;
-        
-        return 1; 
-    endfunction 
+    localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
     typedef enum {
-        CO_none,
-        
-        CO_reset,
-        CO_int,
+        CR_UNCACHED,
+        CR_INVALID, // Address illegal
+        CR_TLB_MISS,
+        CR_NOT_ALLOWED,
+        CR_TAG_MISS,
+        CR_HIT
+    } CacheReadStatus;
 
-        CO_fetchError,
+    typedef struct {
+        logic active;
+        CacheReadStatus status;
+            ProgramEvent evt;
+        Mword vadr;
+        Dword padr;
+        OpSlotAF arr;
+    } FrontStage;
 
-        CO_undef,
-        
-        CO_error,
-        CO_send,
-        CO_call,
-            CO_dbcall,
+    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE};
 
-        CO_exception,
-            CO_specificException, // 
-        
-        CO_sync,
-        CO_refetch,
-        
-        CO_retE,
-        CO_retI,
-        
-        CO_break
 
-    } ControlOp;
-    
+
+    //////////////////////////////////////
+
     typedef struct {
         logic active;
         InsId eventMid;
@@ -224,22 +251,6 @@ package AbstractSim;
     } MarkerSet;
 
 
-    //////////////////////////////////////
-
-    
-    // Defs for tracking, insMap
-    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
-    } SourceType;
-    
-    typedef struct {
-        int sources[3];
-        SourceType types[3];
-        WriterId producers[3];
-    } InsDependencies;
-
-    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
-
-
     class BranchCheckpoint;
         function new(input InsId id,
                     input WriterId intWr[32], input WriterId floatWr[32],
@@ -269,7 +280,7 @@ package AbstractSim;
 
 
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
-            
+
         // FUTURE: move to RegisterDomain after moving functiona for num free etc.
         typedef enum {FREE, SPECULATIVE, STABLE
         } PhysRegState;
@@ -286,7 +297,6 @@ package AbstractSim;
             localparam PhysRegInfo REG_INFO_FREE = '{state: FREE, owner: WID_NONE};
             localparam PhysRegInfo REG_INFO_STABLE = '{state: STABLE, owner: WID_NONE};
     
-        
             PhysRegInfo info[N_REGS] = '{0: REG_INFO_STABLE, default: REG_INFO_FREE};        
             Mword regs[N_REGS] = '{0: 0, default: 'x};
             logic ready[N_REGS] = '{0: 1, default: '0};
@@ -303,7 +313,7 @@ package AbstractSim;
             
             function automatic int reserve(input int vDest, input WriterId id);
                 int pDest = findFree();
-                 
+
                 if (!ignoreV(vDest)) begin
                     writersR[vDest] = id;
                     info[pDest] = '{SPECULATIVE, id};
@@ -311,7 +321,6 @@ package AbstractSim;
                 end
                 return findDest(id);
             endfunction
-    
 
             function automatic void releaseRegister(input int p);                
                 if (p == 0) return;
@@ -319,7 +328,7 @@ package AbstractSim;
                 ready[p] = 0;
                 regs[p] = 'x;
             endfunction
-  
+
             function automatic void commit(input int vDest, input WriterId id, input logic normal);
                 int ind[$] = info.find_first_index with (item.owner == id);
                 int pDest = ind[0];
@@ -331,13 +340,11 @@ package AbstractSim;
                     writersC[vDest] = id;
                     MapC[vDest] = pDest;
                     info[pDest] = '{STABLE, WID_NONE};
-                    
                     releaseRegister(pDestPrev);
                 end
                 else begin
                     releaseRegister(pDest);
                 end
-
             endfunction
 
             function automatic void setReady(input WriterId id);
@@ -360,7 +367,6 @@ package AbstractSim;
                 int inds[$] = info.find_first_index with (item.owner == id);
                 return inds.size() > 0 ? inds[0] : -1;
             endfunction;
-
 
             function automatic void flush(input InsId id);
                 int inds[$] = info.find_index with (item.state == SPECULATIVE && U2M(item.owner) > id);
@@ -386,7 +392,6 @@ package AbstractSim;
                 // Restoring map is separate
             endfunction
 
-
             function automatic void restoreCP(input int intM[32], input WriterId intWriters[32]);
                 MapR = intM;
                 writersR = intWriters;
@@ -406,17 +411,14 @@ package AbstractSim;
             endfunction           
         endclass
 
-
         RegisterDomain#(N_REGS_INT, 1) ints = new();
         RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
-
 
         function automatic int reserve(input UopName name, input int dest, input WriterId id);            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);
             if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
             return -1;
         endfunction
-
 
         function automatic void commit(input UopName name, input int dest, input WriterId id, input abnormal);            
             if (uopHasIntDest(name)) ints.commit(dest, id, !abnormal);      
@@ -465,8 +467,7 @@ package AbstractSim;
     
             return '{sources, types, producers};
         endfunction
-        
- 
+
  
         function automatic void flush(input InsId id);
             ints.flush(id);
@@ -477,7 +478,6 @@ package AbstractSim;
             ints.flushAll();
             floats.flushAll();
         endfunction
- 
  
         function automatic void restoreCP(input int intM[32], input int floatM[32], input WriterId intWriters[32], input WriterId floatWriters[32]);
             ints.restoreCP(intM, intWriters);
@@ -494,7 +494,6 @@ package AbstractSim;
             floats.restoreReset();
         endfunction
 
-
         function automatic int getNumFreeInt();
             int freeInds[$] = ints.info.find_index with (item.state == FREE);   
             return freeInds.size();
@@ -504,10 +503,8 @@ package AbstractSim;
             int freeInds[$] = floats.info.find_index with (item.state == FREE);           
             return freeInds.size();
         endfunction
-
     endclass
 
-    
 
     typedef struct {
         InsId owner;
@@ -532,11 +529,10 @@ package AbstractSim;
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             AccessSize size = getTransactionSize(uname);
 
-                if (isLoadAqIns(ins)) begin
-                    addLoadAq(id, effAdr, padr, 'x, size);
-                    return;
-                end
-
+            if (isLoadAqIns(ins)) begin
+                addLoadAq(id, effAdr, padr, 'x, size);
+                return;
+            end
 
             if (isMemBarrierIns(ins)) begin
                 addBarrier(id, 'x, 'x, 'x, SIZE_NONE, isMemBarrierFwIns(ins));
@@ -654,7 +650,6 @@ package AbstractSim;
     endclass
 
 
-
 //////////////////
 // General
 
@@ -663,12 +658,6 @@ package AbstractSim;
         return 0;
     endfunction
 
-    function automatic logic anyActiveF(input OpSlotAF s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-    
-    
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
         return '{
             active: op.active,
@@ -683,30 +672,6 @@ package AbstractSim;
         foreach (ops[i]) res[i] = TMP_translateFrontToRename(ops[i]);
         return res;
     endfunction;
-
-
-    // Mem handling
-
-    function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
-        Dword aEnd = wa + Dword'(sizeA); // Exclusive end
-        Dword bEnd = wb + Dword'(sizeB); // Exclusive end
-        
-        if ($isunknown(wa) || $isunknown(wb)) return 0;
-
-        return (wa < bEnd && wb < aEnd);
-    endfunction
-    
-    // is a inside b
-    function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
-        Mword aEnd = wa + Dword'(sizeA); // Exclusive end
-        Mword bEnd = wb + Dword'(sizeB); // Exclusive end
-        
-        if ($isunknown(wa) || $isunknown(wb)) return 0;
-       
-        return (wa >= wb && aEnd <= bEnd);
-    endfunction
-
-
 
 
     function automatic IqLevels getBufferAccepts(input IqLevels levels);
@@ -729,6 +694,7 @@ package AbstractSim;
                 && acc.iqStoreData;
     endfunction
 
+
     function automatic Mword loadValue(input Mword w, input UopName uop);
         case (uop)
             UOP_mem_ldi: return w;
@@ -743,7 +709,7 @@ package AbstractSim;
             UOP_mem_stf,
             UOP_mem_sts: return 0;
 
-            UOP_mem_stc: return 0; // TODO
+            UOP_mem_stc: return 0;
 
             default: $fatal(2, "Wrong op");
         endcase
@@ -756,31 +722,54 @@ package AbstractSim;
         Dword cd = {wsaved, w};
         cw = cd[63-(8*shift) -: 32];
 
-          //  $error("\ncombined: %x -> %x", cd, cw);
-
-        case (uop)
-            UOP_mem_ldi: return cw;
-            UOP_mem_ldib: return Mword'(cw[7:0]);
-            UOP_mem_ldf: return cw;
-            UOP_mem_lds: return cw;
-            
-            UOP_mem_lda: return cw;
-
-            UOP_mem_sti,
-            UOP_mem_stib,
-            UOP_mem_stf,
-            UOP_mem_sts: return 0;
-
-            UOP_mem_stc: return 0; // TODO
-
-            default: $fatal(2, "Wrong op");
-        endcase
+        return loadValue(cw, uop);
     endfunction
 
 
-    function automatic Mword fetchLineBase(input Mword adr);
-        return adr & ~(4*FETCH_WIDTH-1);
-    endfunction;
+    // Mem handling
+
+        function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
+            
+            if ($isunknown(wa) || $isunknown(wb)) return 0;
+            return (wa < bEnd && wb < aEnd);
+        endfunction
+        
+        // is a inside b
+        function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
+            
+            if ($isunknown(wa) || $isunknown(wb)) return 0;
+            return (wa >= wb && aEnd <= bEnd);
+        endfunction
+
+        function automatic Mword fetchLineBase(input Mword adr);
+            return adr & ~(4*FETCH_WIDTH-1);
+        endfunction;
+
+
+
+    function automatic logic stageEmptyAF(input OpSlotAF stage);
+        foreach (stage[i])
+            if (stage[i].active) return 0;
+        
+        return 1; 
+    endfunction
+
+    function automatic logic stageEmptyAB(input OpSlotAB stage);
+        foreach (stage[i])
+            if (stage[i].active) return 0;
+        
+        return 1; 
+    endfunction
+
+    function automatic AccessSize getTransactionSize(input UopName uname);
+        if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+        else if (isMemUop(uname)) return SIZE_4;
+        else return SIZE_NONE;
+    endfunction
 
 
     function automatic UopName decodeUop(input AbstractInstruction ins);
@@ -790,14 +779,25 @@ package AbstractSim;
         return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 
-    function automatic AbstractInstruction decodeWithAddress(input Word bits, input Mword adr);
-        AbstractInstruction ins = DEFAULT_ABS_INS;
-    
-        if (!physicalAddressValid(adr) || (adr % 4 != 0)) ins.def.o = O_fetchError;
-        else ins = decodeAbstract(bits);
-        
-        return ins;
-    endfunction
 
-            
+        function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
+            OpSlotAF res = st;
+
+            foreach (res[i])
+                res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+
+            return res;       
+        endfunction
+
+        function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
+            OpSlotAF res = st;
+
+            if (branchSlot == -1) return res;
+
+            foreach (res[i])
+                if (i > branchSlot) res[i].active = 0;
+
+            return res;        
+        endfunction
+
 endpackage

@@ -53,15 +53,11 @@ module AbstractCore
     always @(posedge clk) cycleCtr++;
 
     //..............................
-
     struct {
         logic enableMmu = 0;
         logic dbStep = 0;
         logic enArithExc = 0;
     } CurrentConfig;
-
-
-   // DataCacheOutput sysReadOuts[N_MEM_PORTS];
 
     // Overall
     logic renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
@@ -80,7 +76,6 @@ module AbstractCore
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
 
-
     // Store interface
     // Committed
     SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
@@ -96,10 +91,9 @@ module AbstractCore
     // Event control
     Mword retiredTarget = 0;
 
-        logic barrierUnlocking;
-        InsId barrierUnlockingMid;
-        InsId latestUnlockingMid = -1;
-
+    logic barrierUnlocking;
+    InsId barrierUnlockingMid;
+    InsId latestUnlockingMid = -1;
 
     ///////////////////////////
 
@@ -109,7 +103,6 @@ module AbstractCore
 
     // Rename
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
-    //OpSlotAB sqOut, lqOut, bqOut; // UNUSED so far
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
@@ -128,26 +121,31 @@ module AbstractCore
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
     //////////////////////////////////////////
-        assign barrierUnlocking = (drainHead.barrierFw === 1);
-        assign barrierUnlockingMid = barrierUnlocking ? (drainHead.mid) : -1;
-
-
-        assign fetchEnable = theFrontend.fetchEnable;
-        assign insAdr = theFrontend.fetchAdr;
+    assign barrierUnlocking = (drainHead.barrierFw === 1);
+    assign barrierUnlockingMid = barrierUnlocking ? (drainHead.mid) : -1;
 
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
-
-   // assign theExecBlock.sysOuts_E1 = sysReadOuts;
-
     assign dcacheWriteInfos[0] = writeInfo;
     assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
     assign sysWriteInfos[0] = sysWriteInfo;
 
+    assign oooLevels = '{
+        iqRegular:   theIssueQueues.regularQueue.num,
+        iqFloat:     theIssueQueues.floatQueue.num,
+        iqBranch:    theIssueQueues.branchQueue.num,
+        iqMem:       theIssueQueues.memQueue.num,
+        iqStoreData: theIssueQueues.storeDataQueue.num
+    };
 
-    function automatic InsId oldestCsq();
-        SqEntry entry[$] = csq.min with (item.mid);
-        return entry[0].mid;
-    endfunction
+    assign oooAccepts = getBufferAccepts(oooLevels);
+    assign iqsAccepting = iqsAccept(oooAccepts);
+    assign renameAllow = bcQueueAccepts(bcqSize) && iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
+
+    assign fetchEnable = theFrontend.fetchEnable;
+    assign insAdr = theFrontend.fetchAdr;
+
+    assign sig = lateEventInfo.cOp == CO_send;
+    assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
 
 
     always @(posedge clk) begin
@@ -168,16 +166,12 @@ module AbstractCore
         else
             runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
 
-
-          begin
-            releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid);
-            if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
-          end
+        releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid);
+        if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
 
         handleWrites(); // registerTracker
 
         updateBookkeeping();
-
 
         syncCurrentConfigFromRegs();
 
@@ -242,25 +236,10 @@ module AbstractCore
     endtask
 
 
-    assign oooLevels = '{
-        iqRegular:   theIssueQueues.regularQueue.num,
-        iqFloat:     theIssueQueues.floatQueue.num,
-        iqBranch:    theIssueQueues.branchQueue.num,
-        iqMem:       theIssueQueues.memQueue.num,
-        iqStoreData: theIssueQueues.storeDataQueue.num
-    };
-
-    assign oooAccepts = getBufferAccepts(oooLevels);
-    assign iqsAccepting = iqsAccept(oooAccepts);
-
-    assign renameAllow = bcQueueAccepts(bcqSize) && iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
-
-
     // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
         return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
     endfunction
-
 
     function logic bcQueueAccepts(input int k);
         return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH;// - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
@@ -269,7 +248,7 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotAF opsF = theFrontend.stageRename0;
+        OpSlotAF opsF = theFrontend.stageRename0.arr;
         OpSlotAB ops = TMP_front2rename(opsF);
 
         // ops: .active, .mid, .adr, .bits,
@@ -281,7 +260,7 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, opsF[i].predictedTarget);
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt);
         end
 
         stageRename1 <= ops;
@@ -351,27 +330,19 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input Mword predictedTrg /*UNUSED so far*/);
-        AbstractInstruction ins = decodeWithAddress(bits, adr);
+    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input ProgramEvent evt);
+        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+
         UopInfo mainUinfo;
         UopInfo uInfos[$];
         Mword target;
 
         UopName uopName = decodeUop(ins);
-
         InstructionInfo ii = initInsInfo(id, adr, bits, ins);
+        InsDependencies deps = registerTracker.getArgDeps(ins);
 
-        // General, per ins
-        InsDependencies deps = registerTracker.getArgDeps(ins); // For insMap
-
-        // For insMap and mem queues
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
-
-
-                //if (id > 6960 && id < 7000) $error("\n\nmid %d; %d %s", id, adr, disasm(ii.basicData.bits));
-                //if (id >= 7000) $stop(2);
-
 
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
@@ -397,11 +368,10 @@ module AbstractCore
         mainUinfo.physDest = -1;
         mainUinfo.deps = deps;
 
-
-            // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
-            if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin
-                mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
-            end
+        // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
+        if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin
+            mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+        end
 
         mainUinfo.argsE = argVals;
         mainUinfo.resultE = result;
@@ -409,12 +379,6 @@ module AbstractCore
 
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 
-
-
-            // if (id == 93) begin
-            //     $error("id 93\n%p\n%p", uopName, uInfos);//isMemIns(ins));
-
-            // end
 
         for (int u = 0; u < ii.nUops; u++) begin
             UopInfo uInfo = uInfos[u];
@@ -428,7 +392,6 @@ module AbstractCore
         if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             Translation tr = renamedEmul.translateDataAddress(effAdr);
-            
             memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
@@ -451,36 +414,31 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp == CO_reset) begin
-            sysUnit.saveStateAsync(retiredTarget);
-          
+            sysUnit.saveStateAsync(retiredTarget, CO_reset);
             retiredTarget <= IP_RESET;
             lateEventInfo <= RESET_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_int) begin
-            sysUnit.saveStateAsync(retiredTarget);
-            
+            sysUnit.saveStateAsync(retiredTarget, CO_int);
             retiredTarget <= IP_INT;
             lateEventInfo <= INT_EVENT;
         end
         else if (lateEventInfoWaiting.cOp == CO_break) begin
-            sysUnit.saveStateAsync(retiredTarget);
-            
+            sysUnit.saveStateAsync(retiredTarget, CO_break);
             retiredTarget <= IP_DB_BREAK;
             lateEventInfo <= DB_EVENT;
         end
         else begin
-            Mword sr2 = sysUnit.sysRegs[2];//getSysReg(2);
-            Mword sr3 = sysUnit.sysRegs[3];//getSysReg(3);
+            Mword sr2 = sysUnit.sysRegs[2];
+            Mword sr3 = sysUnit.sysRegs[3];
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
-           
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr);
-            
+
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr, theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-
     endtask
 
 
@@ -512,16 +470,14 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
-            begin
-                if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
-                    sysUnit.setFpInv();
-                end
-                if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
-                    sysUnit.setFpOv();
-                end
-                
-                syncCurrentConfigFromRegs();
+            if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
+                sysUnit.setFpInv();
             end
+            if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
+                sysUnit.setFpOv();
+            end
+            
+            syncCurrentConfigFromRegs();
 
             lastRetired <= theId;
 
@@ -533,7 +489,7 @@ module AbstractCore
             end  
         end
 
-            releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
+        releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
     endtask
 
 
@@ -608,10 +564,10 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-            assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
-                                isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-                else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
-                            retInfo.refetch, retInfo.exception);
+        assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
+                            isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
+            else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
+                        retInfo.refetch, retInfo.exception);
                             
         verifyOnCommit(retInfo);
 
@@ -658,20 +614,16 @@ module AbstractCore
     endtask
 
 
-
     function automatic void updateMarkers(ref MarkerSet markers, input InsId id);
         UopName mainUop = decMainUop(id);
-
-        if (isLoadMemUop(mainUop)) markers.load = id;
-        if (isStoreMemUop(mainUop)) markers.store = id;
-        
         if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
         if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
         if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda}) markers.mbF = id;
 
+        if (isLoadMemUop(mainUop)) markers.load = id;
+        if (isStoreMemUop(mainUop)) markers.store = id;
         if (isLoadAqUop(mainUop)) markers.loadAq = id;
         if (isStoreRelUop(mainUop)) markers.storeRel = id;
-
     endfunction
 
 
@@ -687,14 +639,11 @@ module AbstractCore
 
         if (markers.loadAq <= unlockingId) markers.loadAq = -1;
         if (markers.storeRel <= unlockingId) markers.storeRel = -1;
-
     endfunction
 
 
-    // MOVE?
     function automatic void updateInds(ref IndexSet inds, input InsId id);
         UopName mainUop = decMainUop(id);
-
         inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
         if (isBranchUop(mainUop)) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
         if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
@@ -720,7 +669,6 @@ module AbstractCore
         
     //  decId - 1
     //  getAdr - 2
-
     function automatic AbstractInstruction decId(input InsId id);
         return (id == -1) ? DEFAULT_ABS_INS : insMap.get(id).basicData.dec;
     endfunction
@@ -770,16 +718,13 @@ module AbstractCore
     
     function automatic logic shouldFlushId(input InsId id);
         if (id == -1) return 0;
-    
         return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
     endfunction 
 
 
     function automatic logic shouldFlushEventId(input InsId id);
         InsId lastRet = lastRetired;
-    
         if (id == -1) return 0;
-    
         return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid) || (lastRet != -1 && lastRet >= id);
     endfunction
 
@@ -794,10 +739,6 @@ module AbstractCore
             if (needsReplay(memStage0[p].status) && checkMemDep(poison, memStage0[p])) return 1;
         return 0;
     endfunction
-
-
-    assign sig = lateEventInfo.cOp == CO_send;
-    assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
 
 
     // Puts architectural state in a conevient starting point
@@ -825,8 +766,8 @@ module AbstractCore
         dataCache.reset();
         theFrontend.instructionCache.reset();
 
-            theFrontend.stageUnc_IP.active <= 0;
-            theFrontend.stage_IP.active <= 0;
+        theFrontend.stageUnc_IP.active <= 0;
+        theFrontend.stage_IP.active <= 0;
 
         branchCheckpointQueue.delete();
         
@@ -839,12 +780,10 @@ module AbstractCore
         lateEventInfo <= RESET_EVENT;
             
         csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-        
     endtask
 
 
     task automatic preloadForTest();
-
         retiredEmul.initStatus(globalParams.initialCregs);
         renamedEmul.initStatus(globalParams.initialCregs);
 
@@ -862,26 +801,30 @@ module AbstractCore
     endtask
 
 
-        function automatic void syncRegsFromRetiredCregs();
-            syncArrayFromCregs(sysUnit.sysRegs, retiredEmul.cregs);
-        endfunction
+    function automatic void syncRegsFromRetiredCregs();
+        syncArrayFromCregs(sysUnit.sysRegs, retiredEmul.cregs);
+    endfunction
 
-        // Call every time sys regs are set
-        function automatic void syncCurrentConfigFromRegs();
-            CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
-            CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-            CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
-        endfunction
+    // Call every time sys regs are set
+    function automatic void syncCurrentConfigFromRegs();
+        CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
+        CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
+        CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
+    endfunction
 
 
-        
-        function automatic logic pipesEmpty();
-            return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
-        endfunction
+    function automatic logic pipesEmpty();
+        return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
+    endfunction
 
-            function automatic logic hasStaticEvent(InsId id);
-                AbstractInstruction abs = insMap.get(id).basicData.dec;
-                return isStaticEventIns(abs);
-            endfunction
+    function automatic logic hasStaticEvent(InsId id);
+        AbstractInstruction abs = insMap.get(id).basicData.dec;
+        return isStaticEventIns(abs);
+    endfunction
+
+    function automatic InsId oldestCsq();
+        SqEntry entry[$] = csq.min with (item.mid);
+        return entry[0].mid;
+    endfunction
 
 endmodule

@@ -6,60 +6,6 @@ package Emulation;
     import Asm::*;
     import EmulationDefs::*;
     import EmulationMemories::*;
-    
-
-    typedef struct {
-        Mword intRegs[32], floatRegs[32], sysRegs[32];
-        Mword target;
-    } CpuState;
-
-    const Mword SYS_REGS_INITIAL[32] = '{0: -1, 1: 1, default: 0};
-
-
-    function automatic CpuState initialState(input Mword trg);
-        return '{intRegs: '{default: 0}, floatRegs: '{default: 0}, sysRegs: SYS_REGS_INITIAL, target: trg};
-    endfunction
-
-
-    typedef struct {
-        bit active;
-        Mword vadr;
-        Dword padr;
-        Mword value;
-        int size; // in bytes
-    } MemoryWrite;
-
-    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
-
-
-
-    function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);
-        if (regNum == 0) return;
-        assert (!$isunknown(value)) else $error("Writing unknown value! reg %d", regNum);
-        state.intRegs[regNum] = value;
-    endfunction
-
-    function automatic void writeFloatReg(ref CpuState state, input int regNum, input Mword value);
-        assert (!$isunknown(value)) else $error("Writing unknown value!");
-        state.floatRegs[regNum] = value;
-    endfunction
-    
-
-    function automatic void writeSysReg(ref CpuState state, input int regNum, input Mword value);
-        // SR_SET
-        state.sysRegs[regNum] = value;        
-    endfunction
-
-    function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Mword adr);
-        writeIntReg(state, ins.dest, adr + 4);
-    endfunction
-
-
-    function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
-        // syndrome
-        status.eventType = ProgramEvent'(sysRegs[6]);
-    endfunction
-
 
 
     class Emulator;

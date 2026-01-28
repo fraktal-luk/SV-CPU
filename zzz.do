@@ -23,5 +23,10 @@ sim:/ArchDesc0/core/theExecBlock/mem2/accessDescE2
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/dcacheOuts_E1
 
+add wave -position insertpoint sim:/ArchDesc0/core/theExecBlock/replayQueue/*
 add wave -position insertpoint  \
-{sim:/ArchDesc0/core/dataCache/dataArray/blocksWay0[0]}
+sim:/ArchDesc0/core/theExecBlock/replayQueue/entries
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUops \
+sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUopsE2

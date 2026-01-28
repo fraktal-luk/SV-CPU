@@ -14,233 +14,226 @@ module ReplayQueue(
     input logic clk,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input UopPacket inPackets[N_MEM_PORTS],
+    input UopPacket inputUops[N_MEM_PORTS],
+    input UopPacket inputUopsE2[N_MEM_PORTS],
     output UopPacket outPacket
 );
 
-    localparam int SIZE = 16;
+    localparam int SIZE = 32;
+
 
     typedef struct {
-        // Scheduling state
         logic used;
-        logic active;
+        UidT uid;
+        logic issued;
+        logic cancel;
+        int outCnt;
+
         logic ready;
-          int readyCnt;
-          logic ready_N;
-        
-        MemClass memClass;
-        // uop status
-        ExecStatus execStatus; 
-        
-        UidT uid;       // constant
-            Mword adr;        // transaction desc
-            AccessSize size;  // t.d.
-            
-            Mword value;
+        int readyCnt;
 
-            AccessDesc accessDesc;
-            Translation translation;
-    } Entry;
+        UopPacket p;
+        AccessDesc ad;
+        Translation tr;
+    } TMP_Entry;
 
-    localparam Entry EMPTY_ENTRY = '{0, 0, 0, -1, 0, MC_NONE, ES_OK, UIDT_NONE, 'x, SIZE_NONE, 'x, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
-
+    localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UIDT_NONE, 0, 0, -1,
+                                                0, -1,
+                                            EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
     int numUsed = 0;
     logic accept;
-    Entry content[SIZE] = '{default: EMPTY_ENTRY};
 
-    Entry selected = EMPTY_ENTRY;
+
+    TMP_Entry entries[SIZE] = '{default: TMP_EMPTY_ENTRY};
 
 
     typedef int InputLocs[N_MEM_PORTS];
-    InputLocs inLocs = '{default: -1};
-
-    function automatic InputLocs getInputLocs();
-        InputLocs res = '{default: -1};
-        int nFound = 0;
-
-        foreach (content[i])
-            if (!content[i].used) res[nFound++] = i;
-
-        return res;
-    endfunction
 
 
-    UopPacket issued1 = EMPTY_UOP_PACKET, issued0 = EMPTY_UOP_PACKET;
+    UopPacket issued0 = EMPTY_UOP_PACKET,
+              issued1 = EMPTY_UOP_PACKET;
 
 
     always @(posedge clk) begin
         if (lateEventInfo.redirect || branchEventInfo.redirect) begin
            flush();
         end
-              
+
         issue();
         wakeup();
+
         writeInput();
-        removeIssued();
+        removeCanceled();
 
         issued1 <= tickP(issued0);
-        
-        numUsed <= getNumUsed();
+        numUsed = getNumUsed();
     end
 
 
+
     task automatic writeInput();
-        inLocs = getInputLocs();
-        
-        foreach (inPackets[i]) begin
-            Mword effAdr;
-            AccessSize trSize;
-            
-            if (!inPackets[i].active) continue;
-            
-            assert (numUsed < SIZE) else $fatal(2, "RQ full but writing");
-            
-            effAdr = calcEffectiveAddress(insMap.getU(inPackets[i].TMP_oid).argsA);
-            trSize = getTransactionSize(decUname(inPackets[i].TMP_oid));
-            
-            content[inLocs[i]] = '{inPackets[i].active, inPackets[i].active, 0, 15,  0, inPackets[i].memClass, inPackets[i].status, inPackets[i].TMP_oid, effAdr, trSize,
-                                    inPackets[i].result, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION
-                                    };
-            putMilestone(inPackets[i].TMP_oid, InstructionMap::RqEnter);
-        end
-    endtask
+        InputLocs inLocs = getInputLocs();
 
+        AccessDesc adsE2[N_MEM_PORTS] = theExecBlock.accessDescs_E2;
+        Translation trsE2[N_MEM_PORTS] = theExecBlock.dcacheTranslations_E2;
 
+        foreach (inputUops[i]) begin
+            if (inputUops[i].active) begin 
+                // Already present?
+                int inds[$] = entries.find_first_index with (item.uid == inputUops[i].TMP_oid);
+                if (inds.size() > 0) begin
+                    continue;
+                end
+                entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, 0, -1,
+                                        0, 15,
+                                        EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
-    task automatic removeIssued();
-        foreach (content[i]) begin
-            if (content[i].used && !content[i].active) begin
-                putMilestone(content[i].uid, InstructionMap::RqExit);
-                content[i] = EMPTY_ENTRY;
+                putMilestone(inputUops[i].TMP_oid, InstructionMap::RqEnter);
+
             end
         end
-    endtask
 
+        foreach (inputUopsE2[i]) begin
+            if (inputUopsE2[i].active) begin 
+                int inds[$] = entries.find_first_index with (item.uid == inputUopsE2[i].TMP_oid);
+
+                if (needsReplay(inputUopsE2[i].status)) begin
+                    entries[inds[0]].cancel = 0;
+                    entries[inds[0]].issued = 0;
+                    entries[inds[0]].outCnt = -1;
+
+                    entries[inds[0]].ready = 0;
+                    entries[inds[0]].readyCnt = -1;
+
+                    entries[inds[0]].p = inputUopsE2[i];
+                    entries[inds[0]].ad = adsE2[i];
+                    entries[inds[0]].tr = trsE2[i];
+                    continue;
+                end
+
+                if (inds.size() > 0) begin
+                    entries[inds[0]].cancel = 1;
+                    entries[inds[0]].issued = 0;
+                    entries[inds[0]].outCnt = -1;
+
+                    entries[inds[0]].ready = 0;
+                    entries[inds[0]].readyCnt = -1;
+                end
+            end
+
+        end
+    endtask
 
 
     task automatic wakeup();
         UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
-            
-            // Temporary wakeup on timer for cases under development
-            foreach (content[i]) begin
-                // Exclude cases already implemented, leave only dev ones
-                if (content[i].execStatus inside {ES_SQ_MISS, ES_UNCACHED_1, ES_DATA_MISS, ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1}) continue;
-            
-                if (content[i].active && content[i].readyCnt > 0) begin
-                    content[i].readyCnt--;
-                    content[i].ready = (content[i].readyCnt == 0);
-                end
-            end
+        logic storeDataActive = wrInput.active && (decUname(wrInput.TMP_oid) inside {UOP_data_int, UOP_data_fp});
 
-        // Entries waiting for SQ data fill
-        for (int i = 0; i < 1; i++) begin // Dummy loop to enable continue
-            UopName uname;
-            
-            if (wrInput.active !== 1) continue;
-        
-            uname = decUname(wrInput.TMP_oid);            
-            if (!(uname inside {UOP_data_int, UOP_data_fp})) continue;
-           
-            begin
-               // FUTURE: Here we wake on every store data that is older than waiting op. Wait only for the latest store, already identified at FW scan?
-               int found[$] = content.find_index with ((item.execStatus == ES_SQ_MISS) && (U2M(item.uid) > U2M(wrInput.TMP_oid)));
-               foreach (found[j]) begin
-                   content[found[j]].ready_N = 1;
-               end
-            end
-        end
-        
-        // Entry waiting for uncached read data
-        if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready) begin
-            foreach (content[i]) begin
-                if (content[i].execStatus == ES_UNCACHED_2) begin
-                    content[i].ready_N = 1;
-                end
-            end
-        end
-        
-        
-        // Entry waiting to be nonspeculative
-        if (AbstractCore.wqFree) begin // Must wait for uncached writes to complete
-            int found[$] = content.find_index with (!item.ready_N && item.execStatus inside {ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1}
-                                                    && U2M(item.uid) == theRob.indToCommitSig.mid);            
-            assert (found.size() <= 1) else $fatal(2, "Repeated mid in RQ");
-            
-            if (found.size() != 0) begin
-                content[found[0]].ready_N = 1;
-            end
-        end
-        
-        // Wakeup data misses
-        if (AbstractCore.dataCache.dataFillEngine.notifyFill) begin
-            foreach (content[i]) begin
-                if (content[i].execStatus != ES_DATA_MISS) continue;
+        foreach (entries[i]) begin
+            if (!entries[i].used || !entries[i].p.active || entries[i].ready || entries[i].cancel) continue;
 
-                if (blockBaseD(Dword'(content[i].adr)) === blockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
-                    content[i].ready_N = 1;
+            case (entries[i].p.status)
+                ES_TLB_MISS: begin
+                    if (getPageBaseM(entries[i].ad.vadr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
+                        entries[i].ready = 1;                    
+                    end
                 end
-            end
-        end
-        
-        // Wakeup TLB misses
-        if (AbstractCore.dataCache.tlbFillEngine.notifyFill) begin
-            foreach (content[i]) begin
-                if (content[i].execStatus != ES_TLB_MISS) continue;
 
-                if (adrHigh(content[i].adr) === adrHigh(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
-                    content[i].ready_N = 1;                    
+                ES_DATA_MISS: begin
+                    if (getBlockBaseD(entries[i].tr.padr) === getBlockBaseD(AbstractCore.dataCache.dataFillEngine.notifiedTr.padr)) begin
+                        entries[i].ready = 1;
+                    end
                 end
-            end
+
+                ES_UNCACHED_2: begin
+                    if (AbstractCore.dataCache.uncachedSubsystem.uncachedReads[0].ready || isStoreMemUop(decUname(entries[i].uid))) begin
+                        entries[i].ready = 1;
+                    end
+                end
+
+                ES_SQ_MISS: begin
+                    if (storeDataActive && U2M(entries[i].uid) > U2M(wrInput.TMP_oid))
+                        entries[i].ready = 1;
+                end
+
+                ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1: begin
+                    if (U2M(entries[i].uid) == theRob.indToCommitSig.mid && AbstractCore.wqFree)
+                        entries[i].ready = 1;
+                end
+
+                ES_LOWER_DONE:
+                    entries[i].ready = 1;
+
+                default: begin
+                    if (entries[i].used && entries[i].p.active && entries[i].readyCnt > 0) begin
+                        entries[i].readyCnt--;
+                        entries[i].ready = (entries[i].readyCnt == 0);
+                    end
+                end
+            endcase
         end
+
     endtask
-    
-    
+
+
     task automatic issue();
         UopPacket newPacket = EMPTY_UOP_PACKET;
-    
-        selected <= EMPTY_ENTRY;
+        issued0 <= EMPTY_UOP_PACKET;
+        
+        foreach (entries[i]) begin
+            if (entries[i].used && entries[i].ready && !entries[i].issued) begin                
+                entries[i].issued = 1;
 
-        foreach (content[i]) begin
-            if (content[i].active && (content[i].ready_N || content[i].ready)) begin
-                selected <= content[i];
-                
-                newPacket = '{1, content[i].uid, content[i].memClass, content[i].execStatus, EMPTY_POISON, content[i].value};
-                
-                putMilestone(content[i].uid, InstructionMap::RqIssue);
-                content[i].active = 0;
+                putMilestone(entries[i].uid, InstructionMap::RqIssue);
+                issued0 <= tickP(entries[i].p);
                 break;
             end
         end
-           
-        issued0 <= tickP(newPacket);
     endtask
 
 
     task automatic flush();
-        foreach (content[i]) begin
-            if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(content[i].uid) > branchEventInfo.eventMid)) begin
-                if (content[i].used) putMilestone(content[i].uid, InstructionMap::RqFlush);
-                content[i] = EMPTY_ENTRY;
+        foreach (entries[i]) begin
+            if (shouldFlushId(U2M(entries[i].uid))) begin
+                if (entries[i].used) putMilestone(entries[i].uid, InstructionMap::RqFlush);
+                entries[i] = TMP_EMPTY_ENTRY;
             end
-        end
-        
-        if (lateEventInfo.redirect || (branchEventInfo.redirect && U2M(selected.uid) > branchEventInfo.eventMid)) begin
-            selected = EMPTY_ENTRY;
         end
     endtask
 
+
     function automatic int getNumUsed();
         int res = 0;
-        
-        foreach (content[i]) if (content[i].used) res++;
-        
+        foreach (entries[i]) if (entries[i].used) res++;
         return res;
     endfunction
 
 
+    task automatic removeCanceled();
+        foreach (entries[i]) begin
+            if (0) ;
+            else if (entries[i].outCnt == 2) begin
+                entries[i] = TMP_EMPTY_ENTRY;
+                putMilestone(entries[i].uid, InstructionMap::RqExit);
+            end
+            else if (entries[i].used && entries[i].cancel) entries[i].outCnt++;
+        end    
+    endtask
 
-    assign accept = numUsed < SIZE - 10; // TODO: make a sensible condition
+
+    function automatic InputLocs getInputLocs();
+        InputLocs res = '{default: -1};
+        int nFound = 0;
+
+        foreach (entries[i])
+            if (!entries[i].used) res[nFound++] = i;
+
+        return res;
+    endfunction
+
+
+    assign accept = (numUsed <= SIZE - N_MEM_PORTS);
     always_comb outPacket = effP(issued0);
 
 endmodule

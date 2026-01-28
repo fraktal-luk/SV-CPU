@@ -230,9 +230,6 @@ module IssueQueue
                 // * mem: when barrier active 
                 // * mem: when store-load dependecy prediction block a load
             if (isMemUop(decUname(theId))) begin
-
-                  //  if (U2M(theId) inside {6076, 6077}) $error("\n    Issue uop %d: %p\n", U2M(theId), decUname(theId));
-
                 void'(AbstractCore.memTracker.checkIssue(theId));
             end
 
@@ -292,7 +289,7 @@ module IssueQueue
         InsId barrier = insMap.getU(inUop.uid).barrier;
         SlotStatus status = IqActive;
         
-            if (barrier != -1) status = IqSuspended; // TODO: introduce barrier unlocking
+            if (barrier != -1) status = IqSuspended;
         
             if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
 

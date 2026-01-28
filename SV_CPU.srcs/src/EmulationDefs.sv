@@ -1,131 +1,10 @@
 
+// Definitions needed for emulation and analysis of processor state, independent of implementation
+
 package EmulationDefs;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
-
-
-    localparam int V_INDEX_BITS = 12;
-
-
-    //                            byte:  7766554433221100    
-    localparam Mword VADR_LIMIT_LOW =  'h0001000000000000;  // 48b range 
-    localparam Mword VADR_LIMIT_HIGH = 'hffff000000000000;
-
-    localparam Dword PADR_LIMIT = 'h10000000000; // 40b range 
-
-
-    // Architectural defs:
-    typedef enum {
-        PE_NONE = 0,
-        
-        PE_FETCH_INVALID_ADDRESS = 16 + 0,
-        PE_FETCH_UNALIGNED_ADDRESS = 16 + 1,
-        PE_FETCH_TLB_MISS = 16 + 2, // HW
-        PE_FETCH_UNMAPPED_ADDRESS = 16 + 3,
-        PE_FETCH_DISALLOWED_ACCESS = 16 + 4,
-        PE_FETCH_UNCACHED = 16 + 5, // HW
-        PE_FETCH_CACHE_MISS = 16 + 6, // HW
-        PE_FETCH_NONEXISTENT_ADDRESS = 16 + 7,
-
-        PE_MEM_INVALID_ADDRESS = 3*16 + 0,
-        PE_MEM_UNALIGNED_ADDRESS = 3*16 + 1, // when crossing blocks/pages
-        PE_MEM_TLB_MISS = 3*16 + 2, // HW
-        PE_MEM_UNMAPPED_ADDRESS = 3*16 + 3,
-        PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
-        PE_MEM_UNCACHED = 3*16 + 5, // HW
-        PE_MEM_CACHE_MISS = 3*16 + 6, // HW
-        PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
-        
-        PE_ARITH_EXCEPTION = 4*16 + 0,
-        
-        PE_SYS_INVALID_ADDRESS = 5*16 + 0,
-        PE_SYS_DISALLOWED_ACCESS = 5*16 + 1,
-        PE_SYS_UNDEFINED_INSTRUCTION = 5*16 + 2,
-        PE_SYS_ERROR = 5*16 + 3,
-        PE_SYS_CALL = 5*16 + 4,
-        PE_SYS_DISABLED_INSTRUCTION = 5*16 + 5, // FP op when SIMD off, etc
-            PE_SYS_DBCALL = 5*16 + 6,
-
-        PE_EXT_INTERRUPT = 6*16 + 0,
-        PE_EXT_RESET = 6*16 + 1,
-        PE_EXT_DEBUG = 6*16 + 2
-
-    } ProgramEvent;
-
-
-    function automatic Mword programEvent2trg(input ProgramEvent evType);
-        case (evType) inside
-            [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS]:
-                return IP_FETCH_EXC;
-            [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS]:
-                return IP_MEM_EXC;
-            
-            PE_ARITH_EXCEPTION:
-                return IP_ARITH_EXC;
-                
-            PE_SYS_INVALID_ADDRESS:
-                return IP_EXC;
-            
-            PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION:
-                return IP_ERROR;
-            
-            PE_SYS_CALL:
-                return IP_CALL;
-
-            PE_SYS_DBCALL:
-                return IP_DB_CALL;
-
-
-            PE_EXT_DEBUG:
-                return IP_DB_BREAK;
-
-            PE_EXT_INTERRUPT:
-                return IP_INT;
-
-            PE_EXT_RESET:
-                return IP_RESET;
-                
-            default: return 'x;
-        endcase
-    endfunction
-
-
-    /******
-        SECTION = architectural definitions
-    */
-
-    function automatic logic isValidSysReg(Mword adr);
-        return adr >= 0 && adr <= 31;    
-    endfunction       
-
-
-    // For fetch
-    function automatic logic virtualAddressValid(input Mword vadr);
-        return !$isunknown(vadr) && ($signed(vadr) < $signed(VADR_LIMIT_LOW)) && ($signed(vadr) >= $signed(VADR_LIMIT_HIGH));
-    endfunction
-
-    function automatic logic physicalAddressValid(input Dword padr);
-        return !$isunknown(padr) && ($unsigned(padr) < $unsigned(PADR_LIMIT));
-    endfunction
-
-
-    function automatic Dword getPageBaseD(input Dword adr);
-        Dword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    function automatic Mword getPageBaseM(input Mword adr);
-        Mword res = adr;
-        res[V_INDEX_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    /****
-    *** END of section
-    */
-
 
 
     typedef struct {
@@ -152,7 +31,6 @@ package EmulationDefs;
         desc: DEFAULT_DATA_LINE_DESC,
         padr: 'x
     };
-
 
 
     // Not including memory
@@ -222,13 +100,13 @@ package EmulationDefs;
         return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
     endfunction
 
-//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
-//        return (ins.def.o inside {O_floatLoadW});
-//    endfunction
-
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
         return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
     endfunction
+
+//    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
+//        return (ins.def.o inside {O_floatLoadW});
+//    endfunction
 
 //    function automatic logic isFloatStoreMemIns(input AbstractInstruction ins);
 //        return ins.def.o inside {O_floatStoreW};
@@ -255,8 +133,8 @@ package EmulationDefs;
             O_intSub,
             O_intAddH,
             
-                O_intCmpGtU,
-                O_intCmpGtS,
+            O_intCmpGtU,
+            O_intCmpGtS,
             
             O_intMul,
             O_intMulHU,
@@ -273,10 +151,10 @@ package EmulationDefs;
             O_intLoadW,
             O_intLoadD,
                 
-                O_intLoadB,
-                
-                O_intLoadAqW,
-                O_intStoreRelW,
+            O_intLoadB,
+            
+            O_intLoadAqW,
+            O_intStoreRelW,
             
             O_sysLoad
         };
@@ -295,7 +173,6 @@ package EmulationDefs;
         };
     endfunction
 
-
     function automatic Mword getArgValue(input Mword intRegs[32], input Mword floatRegs[32], input int src, input byte spec);
         case (spec)
            "i": return (intRegs[src]);
@@ -303,19 +180,18 @@ package EmulationDefs;
            "c": return Mword'(src);
            "0": return 0;
            default: $fatal("Wrong arg spec");    
-        endcase;    
-    
+        endcase;
     endfunction
 
     function automatic Mword3 getArgs(input Mword intRegs[32], input Mword floatRegs[32], input int sources[3], input string typeSpec);
         Mword3 res;        
         foreach (sources[i]) res[i] = getArgValue(intRegs, floatRegs, sources[i], typeSpec[i+2]);
-        
+
         return res;
     endfunction
 
 
-   function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
+    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
         Mword result;
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
@@ -324,20 +200,14 @@ package EmulationDefs;
             
             O_intAdd:  result = vals[0] + vals[1];
             O_intSub:  result = vals[0] - vals[1];
-            O_intAddH: begin
-                //$error("addh with %x", vals[1]);
-                result = vals[0] + (vals[1] << 16);
-            end
-            
-                O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
-                O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
+            O_intAddH: result = vals[0] + (vals[1] << 16);
+
+            O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
+            O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
             
             O_intMul:   result = w2m( multiplyW(vals[0], vals[1]) ); 
-                                // vals[0] * vals[1];
             O_intMulHU: result = w2m( multiplyHighUnsignedW(vals[0], vals[1]) );
-                                //(Dword'($unsigned(vals[0])) * Dword'($unsigned(vals[1]))) >> 32;
             O_intMulHS: result = w2m( multiplyHighSignedW(vals[0], vals[1]) );
-                                //(Dword'($signed(vals[0])) * Dword'($signed(vals[1]))) >> 32;
             O_intDivU:  result = w2m( divUnsignedW(vals[0], vals[1]) );
             O_intDivS:  result = w2m( divSignedW(vals[0], vals[1]) );
             O_intRemU:  result = w2m( remUnsignedW(vals[0], vals[1]) );
@@ -355,24 +225,24 @@ package EmulationDefs;
                 if ($signed(vals[1]) >= 0) result = {vals[0], vals[0]} << vals[1];
                 else                       result = {vals[0], vals[0]} >> -vals[1];
             end
-            
+
             O_floatMove: result = vals[0];
 
             O_floatXor:   result = vals[0] ^ vals[1];
             O_floatAnd:   result = vals[0] & vals[1];
             O_floatOr:   result = vals[0] | vals[1];
             O_floatAddInt: result = vals[0] + vals[1];
-                O_floatMulInt: result = vals[0] * vals[1];
-                O_floatDivInt: result = vals[0] / vals[1];
-                O_floatGenInv: result = 1;
-                O_floatGenOv: result = 1;
-                    O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
-                    O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
-                    O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
-                    O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
-                    O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
-                    O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
-                    O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
+            O_floatMulInt: result = vals[0] * vals[1];
+            O_floatDivInt: result = vals[0] / vals[1];
+            O_floatGenInv: result = 1;
+            O_floatGenOv: result = 1;
+            O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
+            O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
+            O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
+            O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
+            O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
+            O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
+            O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
@@ -396,7 +266,6 @@ package EmulationDefs;
        logic redirect;
     } ExecEvent;
 
-
     function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);
         Mword3 args = vals;
         logic redirect = 0;
@@ -415,7 +284,6 @@ package EmulationDefs;
     endfunction
 
 
-
     typedef struct {
         logic send;
         logic exceptionRaised;
@@ -426,6 +294,59 @@ package EmulationDefs;
     } CoreStatus;
 
     localparam CoreStatus DEFAULT_CORE_STATUS = '{eventType: PE_NONE, default: 0};
+
+
+    typedef struct {
+        Mword intRegs[32], floatRegs[32], sysRegs[32];
+        Mword target;
+    } CpuState;
+
+    const Mword SYS_REGS_INITIAL[32] = '{0: -1, 1: 1, default: 0};
+
+
+    function automatic CpuState initialState(input Mword trg);
+        return '{intRegs: '{default: 0}, floatRegs: '{default: 0}, sysRegs: SYS_REGS_INITIAL, target: trg};
+    endfunction
+
+
+    typedef struct {
+        bit active;
+        Mword vadr;
+        Dword padr;
+        Mword value;
+        int size; // in bytes
+    } MemoryWrite;
+
+    const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
+
+
+
+    function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);
+        if (regNum == 0) return;
+        assert (!$isunknown(value)) else $error("Writing unknown value! reg %d", regNum);
+        state.intRegs[regNum] = value;
+    endfunction
+
+    function automatic void writeFloatReg(ref CpuState state, input int regNum, input Mword value);
+        assert (!$isunknown(value)) else $error("Writing unknown value!");
+        state.floatRegs[regNum] = value;
+    endfunction
+    
+
+    function automatic void writeSysReg(ref CpuState state, input int regNum, input Mword value);
+        // SR_SET
+        state.sysRegs[regNum] = value;        
+    endfunction
+
+    function automatic void performLink(ref CpuState state, input AbstractInstruction ins, input Mword adr);
+        writeIntReg(state, ins.dest, adr + 4);
+    endfunction
+
+
+    function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
+        // syndrome
+        status.eventType = ProgramEvent'(sysRegs[6]);
+    endfunction
 
 
 endpackage

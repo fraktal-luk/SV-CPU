@@ -189,7 +189,7 @@ module StoreQueue
     endfunction
 
 
-                    // .active, .mid
+    // .active, .mid
     task automatic writeInput(input OpSlotAB inGroup);
         if (!anyActiveB(inGroup)) return;
 
@@ -254,8 +254,6 @@ module TmpSubSq();
             UopName uname = decUname(packet.TMP_oid);
             if (!packet.active || !appliesU(uname)) continue;
 
-            //if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL})) continue;
-
             begin
                DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];
                int index = findIndex(packet.TMP_oid);
@@ -297,7 +295,7 @@ module TmpSubSq();
             fwEntry = vmax[0];
         end
 
-        // TODO: in this scheme store-release, if not successful, will block loads forwarding from it until it gets committed and drained
+        // Note: in this scheme store-release, if not successful, will block loads forwarding from it until it gets committed and drained
 
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};

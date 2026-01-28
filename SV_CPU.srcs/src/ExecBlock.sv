@@ -25,15 +25,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     UopPacket storeDataE0, storeDataE0_E;
 
-
     logic memIssueAllow;
     
     UopMemPacket issuedReplayQueue;
-    
-    UopMemPacket toReplayQueue0, toReplayQueue2;
-    UopMemPacket toReplayQueue[N_MEM_PORTS];
 
-    
     UopMemPacket toLqE0[N_MEM_PORTS];
     UopMemPacket toLqE1[N_MEM_PORTS];
     UopMemPacket toLqE2[N_MEM_PORTS];
@@ -45,6 +40,8 @@ module ExecBlock(ref InstructionMap insMap,
     Translation dcacheTranslations_E1[N_MEM_PORTS];
     Translation dcacheTranslations_E2[N_MEM_PORTS];
 
+    Translation trsReplayQueue[N_MEM_PORTS];
+    AccessDesc adsReplayQueue[N_MEM_PORTS];
 
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
     DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
@@ -52,11 +49,17 @@ module ExecBlock(ref InstructionMap insMap,
     
     UopMemPacket sqResponse_E1[N_MEM_PORTS];
 
-
-
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
+    ForwardingElement intImages[N_INT_PORTS][-3:1];
+    ForwardingElement memImages[N_MEM_PORTS][-3:1];
+    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
 
+    IntByStage intImagesTr;
+    MemByStage memImagesTr;
+    VecByStage floatImagesTr;
+
+    ForwardsByStage_0 allByStage;
     
 
     // Int 0
@@ -91,24 +94,24 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedDividerP[0]
     );
 
-        // Int 4
-        MultiplierSubpipe multiplier0(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            theIssueQueues.issuedMultiplierP[0]
-        );
-        
-        // Int 5
-        MultiplierSubpipe multiplier1(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            theIssueQueues.issuedMultiplierP[1]
-        );
+    // Int 4
+    MultiplierSubpipe multiplier0(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedMultiplierP[0]
+    );
     
+    // Int 5
+    MultiplierSubpipe multiplier1(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedMultiplierP[1]
+    );
 
-    
+
+
     // Mem 0
     MemSubpipe#()
     mem0(
@@ -155,12 +158,12 @@ module ExecBlock(ref InstructionMap insMap,
         theIssueQueues.issuedFloatP[1]
     );
 
-        DividerSubpipe#(.IS_FP(1)) fdiv(
-            insMap,
-            branchEventInfo,
-            lateEventInfo,
-            theIssueQueues.issuedFdivP[0]
-        );
+    DividerSubpipe#(.IS_FP(1)) fdiv(
+        insMap,
+        branchEventInfo,
+        lateEventInfo,
+        theIssueQueues.issuedFdivP[0]
+    );
 
 
     StoreDataSubpipe storeData0(
@@ -171,13 +174,13 @@ module ExecBlock(ref InstructionMap insMap,
     );
 
 
-
     ReplayQueue replayQueue(
         insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        toReplayQueue,
+        memImagesTr[-3],
+        memImagesTr[0],
         issuedReplayQueue
     );
     
@@ -185,9 +188,9 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneRegular0_E = regular0.stage0_E;
     assign doneRegular1_E = regular1.stage0_E;
-        assign doneMultiplier0_E = multiplier0.stage0_E;
-        assign doneMultiplier1_E = multiplier1.stage0_E;
-    
+    assign doneMultiplier0_E = multiplier0.stage0_E;
+    assign doneMultiplier1_E = multiplier1.stage0_E;
+
     assign doneBranch_E = branch0.stage0_E;
     assign doneDivider_E = divider.stage0_E;
     assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
@@ -199,15 +202,12 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign storeDataE0_E = storeData0.stage0_E;
 
-        assign accessDescs_E2 = '{0: mem0.accessDescE2, 1: DEFAULT_ACCESS_DESC, 2: mem2.accessDescE2, 3: DEFAULT_ACCESS_DESC};
-        assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
-        assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
-
-    assign toReplayQueue0 = memToReplay(mem0.stage0_E);
-    assign toReplayQueue2 = memToReplay(mem2.stage0_E);
+    assign accessDescs_E2 = '{0: mem0.accessDescE2, 1: DEFAULT_ACCESS_DESC, 2: mem2.accessDescE2, 3: DEFAULT_ACCESS_DESC};
+    assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
+    assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
     
-    assign toReplayQueue = '{0: toReplayQueue0, 2: toReplayQueue2, default: EMPTY_UOP_PACKET};
-    
+    assign trsReplayQueue = '{0: mem0.tr0, 2: mem2.tr0, default: DEFAULT_TRANSLATION};
+    assign adsReplayQueue = '{0: mem0.ad0, 2: mem2.ad0, default: DEFAULT_ACCESS_DESC};
 
     assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
@@ -216,16 +216,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
-
-    ForwardingElement intImages[N_INT_PORTS][-3:1];
-    ForwardingElement memImages[N_MEM_PORTS][-3:1];
-    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
-
-    IntByStage intImagesTr;
-    MemByStage memImagesTr;
-    VecByStage floatImagesTr;
-
-    ForwardsByStage_0 allByStage;
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
@@ -241,141 +231,6 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-    generate
-        logic chp, chq;
-    
-        InsId currentEventReg = -1, lqRefetchReg = -1, lqRefetchNewH = -1;
-
-        OpSlotB staticEventReg = EMPTY_SLOT_B, staticEventNewH = EMPTY_SLOT_B;
-        UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
-        UopPacket memRefetchReg = EMPTY_UOP_PACKET, memRefetchNewH = EMPTY_UOP_PACKET;
-        UopPacket fpInvReg = EMPTY_UOP_PACKET, fpInvNewH = EMPTY_UOP_PACKET;
-        UopPacket fpOvReg = EMPTY_UOP_PACKET, fpOvNewH = EMPTY_UOP_PACKET;
-
-
-        function automatic InsId replaceEvId(input InsId prev, input InsId next);
-            if (prev == -1) return next;
-            else if (next != -1 && prev > next) return next;
-            else return prev;
-        endfunction
-
-
-        function automatic InsId replaceEvId_N(input InsId prev, input InsId next);
-            InsId older = prev;
-            
-            if (prev == -1) older = next;
-            else if (next != -1 && prev > next) older = next;
-            
-            if (shouldFlushId(older) || AbstractCore.lastRetired > older) return -1;
-            else return older;
-        endfunction
-            
-        function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
-            OpSlotB older = prev;
-            InsId prevId = prev.mid;
-            InsId nextId = next.mid;
-
-            if (prevId == -1) older = next;
-            else if (nextId != -1 && prevId > nextId) older = next;
-
-            if (shouldFlushId(older.mid) || AbstractCore.lastRetired > older.mid) return EMPTY_SLOT_B;
-            else return older;
-        endfunction
-
-
-        function automatic UopPacket replaceEvP_N(input UopPacket prev, input UopPacket next);
-            UopPacket older = prev;
-            InsId prevId = U2M(prev.TMP_oid);
-            InsId nextId = U2M(next.TMP_oid);
-        
-            if (prevId == -1) older = next;
-            else if (nextId != -1 && prevId > nextId) older = next;
-
-            if (shouldFlushId(U2M(older.TMP_oid)) || AbstractCore.lastRetired > U2M(older.TMP_oid)) return EMPTY_UOP_PACKET;
-            else return older;
-        endfunction
-
-
-        function automatic OpSlotB getOldestRenameEvSlot();
-            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
-            // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-
-            if (found.size() == 0) return EMPTY_SLOT_B;
-            else return found[0];
-        endfunction
-
-
-        function automatic UopPacket findOldestMemWithState(input ExecStatus refSt);
-            ForwardingElement memStages0[N_MEM_PORTS] = memImagesTr[0];
-            ForwardingElement found[$] = memStages0.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
-
-         function automatic UopPacket findOldestFpWithState(input ExecStatus refSt);
-            ForwardingElement fpStages0[N_MEM_PORTS] = floatImagesTr[0];
-            ForwardingElement found[$] = fpStages0.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
-        
-        
-        always @(negedge AbstractCore.clk) begin
-            staticEventNewH <= (getOldestRenameEvSlot());
-            memEventNewH <= (findOldestMemWithState(ES_ILLEGAL));
-            memRefetchNewH <= (findOldestMemWithState(ES_REFETCH));
-            lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
-            
-            fpInvNewH <= (findOldestFpWithState(ES_FP_INVALID));
-            fpOvNewH <= (findOldestFpWithState(ES_FP_OVERFLOW));
-        end
-        
-        
-        always @(posedge AbstractCore.clk) begin
-            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
-            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
-            memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
-            lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
-            
-            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
-            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
-            
-            currentEventReg <= getCurrentEventId();        
-        end
-
-
-        function automatic InsId getCurrentEventId();
-            InsId tmp = currentEventReg;
-                        
-            if (AbstractCore.CurrentConfig.enArithExc) begin
-                tmp = replaceEvId(tmp, U2M(fpInvNewH.TMP_oid));
-                tmp = replaceEvId(tmp, U2M(fpOvNewH.TMP_oid));
-            end
-            
-            tmp = replaceEvId(tmp, U2M(memEventNewH.TMP_oid));
-            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));           
-            tmp = replaceEvId(tmp, lqRefetchNewH);
-            tmp = replaceEvId(tmp, staticEventNewH.mid);
-            
-            tmp = replaceEvId_N(currentEventReg, tmp);
-            
-            return tmp;
-        endfunction
-
-
-    endgenerate
-
-
-
-
     function automatic UopPacket performRegularE0(input UopPacket p);
         if (p.TMP_oid == UIDT_NONE) return p;
         begin
@@ -385,7 +240,7 @@ module ExecBlock(ref InstructionMap insMap,
         end
     endfunction
     
-    // TOPLEVEL
+
     function automatic Mword calcRegularOp(input UidT uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
@@ -423,6 +278,166 @@ module ExecBlock(ref InstructionMap insMap,
 
         return res;
     endfunction
+
+
+
+    generate
+        logic chp, chq;
+    
+        InsId currentEventReg = -1, lqRefetchReg = -1, lqRefetchNewH = -1;
+
+        AccessDesc lastEvtAD;
+        Translation lastEvtTr;
+
+        OpSlotB staticEventReg = EMPTY_SLOT_B, staticEventNewH = EMPTY_SLOT_B;
+        UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
+        UopPacket memRefetchReg = EMPTY_UOP_PACKET, memRefetchNewH = EMPTY_UOP_PACKET;
+        UopPacket fpInvReg = EMPTY_UOP_PACKET, fpInvNewH = EMPTY_UOP_PACKET;
+        UopPacket fpOvReg = EMPTY_UOP_PACKET, fpOvNewH = EMPTY_UOP_PACKET;
+
+
+        function automatic InsId replaceEvId(input InsId prev, input InsId next);
+            if (prev == -1) return next;
+            else if (next != -1 && prev > next) return next;
+            else return prev;
+        endfunction
+
+
+        function automatic InsId replaceEvId_N(input InsId prev, input InsId next);
+            InsId older = replaceEvId(prev, next);
+
+            if (shouldFlushId(older) || AbstractCore.lastRetired > older) return -1;
+            else return older;
+        endfunction
+
+
+        function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
+            OpSlotB older = prev;
+            InsId prevId = prev.mid;
+            InsId nextId = next.mid;
+
+                InsId olderId = replaceEvId(prevId, nextId);
+
+            if (prevId == -1) older = next;
+            else if (nextId != -1 && prevId > nextId) older = next;
+
+                assert (olderId == older.mid) else $error("Ids differ");
+
+            if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_SLOT_B;
+            else return older;
+        endfunction
+
+
+        function automatic UopPacket replaceEvP_N(input UopPacket prev, input UopPacket next);
+            UopPacket older = prev;
+            InsId prevId = U2M(prev.TMP_oid);
+            InsId nextId = U2M(next.TMP_oid);
+
+                InsId olderId = replaceEvId(prevId, nextId);
+
+            if (prevId == -1) older = next;
+            else if (nextId != -1 && prevId > nextId) older = next;
+
+                assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
+
+            if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
+            else return older;
+        endfunction
+
+
+        function automatic OpSlotB getOldestRenameEvSlot();
+            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
+            // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+            if (found.size() == 0) return EMPTY_SLOT_B;
+            else return found[0];
+        endfunction
+
+
+
+        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+
+        
+        always @(negedge AbstractCore.clk) begin
+            fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);
+            fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);
+
+            memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);
+            memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);
+
+
+            lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
+            staticEventNewH <= (getOldestRenameEvSlot());
+        end
+        
+        
+        always @(posedge AbstractCore.clk) begin
+            // Needs: ?
+            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+
+            // Needs: kind of event, mem access address (V only?)
+            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+
+            // Refetch events don't need diagnostic info
+            memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
+            lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
+
+            // Needs: kind of event
+            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
+            
+            updateCurrentEventReg();
+
+        end
+
+
+        function automatic InsId getCurrentEventId();
+            InsId tmp = currentEventReg;
+                        
+            if (AbstractCore.CurrentConfig.enArithExc) begin
+                tmp = replaceEvId(tmp, U2M(fpInvNewH.TMP_oid));
+                tmp = replaceEvId(tmp, U2M(fpOvNewH.TMP_oid));
+            end
+            
+            tmp = replaceEvId(tmp, U2M(memEventNewH.TMP_oid));
+            tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));
+            tmp = replaceEvId(tmp, lqRefetchNewH);
+            tmp = replaceEvId(tmp, staticEventNewH.mid);
+            
+            tmp = replaceEvId_N(currentEventReg, tmp);
+            
+            return tmp;
+        endfunction
+
+        task automatic updateCurrentEventReg();
+            InsId tmp = getCurrentEventId();
+            int inds[$] = memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == tmp); 
+
+            currentEventReg <= tmp;
+
+            // Is the new ID one of mem uops?
+            if (inds.size() > 0) begin
+                int ind = inds[0];
+                lastEvtAD <= accessDescs_E2[ind];
+                lastEvtTr <= dcacheTranslations_E2[ind];
+            end
+            else if (tmp != currentEventReg) begin // If changes to non-memory
+                lastEvtAD <= DEFAULT_ACCESS_DESC;
+                lastEvtTr <= DEFAULT_TRANSLATION;
+            end
+
+        endtask
+
+
+    endgenerate
 
 
 endmodule
