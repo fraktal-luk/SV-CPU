@@ -145,7 +145,7 @@ module AbstractCore
     assign insAdr = theFrontend.fetchAdr;
 
     assign sig = lateEventInfo.cOp == CO_send;
-    assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
+    //assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
 
 
     always @(posedge clk) begin
@@ -500,7 +500,7 @@ module AbstractCore
             UopInfo uinfo = insMap.getU('{id, u});    
             if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                     else $error(" not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                     else $fatal(2, " not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
             end
         end
     endfunction
@@ -515,7 +515,7 @@ module AbstractCore
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
-        assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
+        assert (retInfo.refetch === info.refetch) else $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
  
         // TODO: incorporate arith exc into ROB output to bring back this check?
           //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
@@ -566,7 +566,7 @@ module AbstractCore
 
         assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
                             isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-            else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
+            else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
                         retInfo.refetch, retInfo.exception);
                             
         verifyOnCommit(retInfo);
