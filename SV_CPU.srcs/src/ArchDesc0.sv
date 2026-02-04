@@ -89,7 +89,7 @@ module ArchDesc0();
 
     class EmulRunner extends TestRunner;        
         task automatic runTest(input string suiteName, input string name);
-            runTestEmul(name, emul_N, gp, programMem);
+            runTestEmul(suiteName, name, emul_N, gp, programMem);
             #DELAY;
         endtask
     endclass
@@ -106,13 +106,13 @@ module ArchDesc0();
     endtask
     
     
-    task automatic runTestEmul(input string name, ref Emulator emul, input GlobalParams gp, input PageBasedProgramMemory progMem);
+    task automatic runTestEmul(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp, input PageBasedProgramMemory progMem);
         emulTestName = name;
             
         resetAll(emul);
         emul.progMem = progMem;
 
-        emul.progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+        emul.progMem.assignPage(0, prepareTestPage({"tests/", name}, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
         emul.programMappings = gp.preloadedInsTlbL2;
@@ -214,15 +214,15 @@ module ArchDesc0();
 
     class SimRunner extends TestRunner;
         task automatic runTest(input string suiteName, input string name);            
-            runTestSim(name, gp, programMem);
+            runTestSim(suiteName, name, gp, programMem);
         endtask
     endclass
 
 
 
-    task automatic runTestSim(input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
+    task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
         #CYCLE announce(name);
-        progMem.assignPage(0, prepareTestPage(name, COMMON_ADR));
+        progMem.assignPage(0, prepareTestPage({"tests/", name}, COMMON_ADR));
         progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
 
         core.resetForTest();

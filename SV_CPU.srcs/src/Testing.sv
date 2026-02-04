@@ -68,7 +68,7 @@ package Testing;
 
 
 
-    string codeDir = "../../../../SV_CPU.srcs/code/";
+    localparam string codeDir = "../../../../SV_CPU.srcs/code/";
 
 
     function automatic void writeProgram(ref Word mem[], input Mword adr, input Word prog[]);
