@@ -1,0 +1,30 @@
+;
+$start
+	add_h r1, r0, 0x3f80 ; 1.0
+	sti_i r1, r0, 16
+	ldf_i f1, r0, 16
+	mov_f f2, f1
+	
+	mov_f f3, f1
+	mov_f f4, f1
+	mov_f f8, f1
+	mov_f f9, f1
+
+	addi_f f5, f2, f3
+	addi_f f7, f2, f3
+	divi_f f10, f2, f3
+	muli_f f11, f1, f4
+
+	addf32 f16, f2, f3
+	subf32 f17, f2, f3
+	mulf32 f18, f2, f3
+	divf32 f19, f2, f3
+
+	cmpeqf32 f20, f2, f2
+	cmpgef32 f21, f3, f3
+	cmpgtf32 f22, f16, f17
+
+$check
+	sys_dbcall
+$error
+    sys_error

@@ -114,8 +114,17 @@ module ArchDesc0();
                             "Tests_only_uncached",
                             "Tests_icache_fetch",
 
-                            "Tests_mem_simple"
-                            
+                            "Tests_mem_simple",
+                                
+                                "Tests_mem_advanced",
+                                "Tests_mem_align",
+                                "Tests_sys_transfers",
+                                
+                                "Tests_barriers",
+
+                                "Tests_all" // TODO: Not all, name is misleading
+                                
+                                //"Tests_events"
                             }) prefix = {"dir_", suiteName, "/"};
 
 

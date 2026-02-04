@@ -1,0 +1,14 @@
+
+
+e_ldaq r5, r0, 16
+
+e_stc  r6, r0, 16
+
+
+e_ldaq r7, r0, 80
+ldi_i r7, r0, 84
+
+e_stc r8, r0, 80
+
+
+sys_dbcall

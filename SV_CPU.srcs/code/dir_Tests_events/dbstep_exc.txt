@@ -1,0 +1,74 @@
+$start
+	; set dbstep handler handler
+	jl r31, $setHandler
+
+	;sys_dbcall
+	
+	jl r31, $setDbStep
+	
+	; test sequence
+	
+	add_i r6, r0, 13  ; @0x8
+	add_r r7, r6, r6  ; @0xc
+	
+	; exception
+	lds r10, r0, 41   ; @0x10
+	ldi_i r11, r0, 20 ; @0x14
+	; syscall
+	sys_call		  ; @0x18
+	add_i r8, r7, -1  ; @0x1c
+	
+
+	add_r r0, r0, r0  ; @0x20
+	sys_sync          ; @0x24
+	add_r r0, r0, r0  ; @0x28
+	add_r r0, r0, r0  ; @0x2c
+
+	; end test sequence
+	sys_error	      ; @0x30
+
+
+$setDbStep
+	add_i r17, r0, 8 ; for checking number of calls
+
+	lds r5, r0, 5
+	add_h r5, r5, 0x10
+	sts r5, r0, 5
+	sts r31, r0, 3
+	sys_reti
+
+$setHandler
+	jz_r r30, r0, r31
+$handleDbStep
+		;add_i r26, r0, -1
+		;add_i r27, r0, -2
+
+	add_i r17, r17, 1
+
+	; verify that return address is not after instruction that shouldn't be stepped
+	; if return adr equal to any of those, go to error
+	; sr3 - return adr
+	lds r3, r0, 3
+	add_i r10, r3, -0x14 ;
+	jz_i r10, $error
+	add_i r10, r3, -0x1c ;
+	jz_i r10, $error
+	
+	
+	
+	; if reached end of tested sequence, go to success
+	add_i r10, r3, -0x30
+	jnz_i r10, $return
+
+	add_i r21, r17, -16
+	jnz_i r21, $error
+	
+	sys_dbcall
+
+$return
+	sys_reti
+
+$error
+	sys_error
+$check
+	sys_dbcall
