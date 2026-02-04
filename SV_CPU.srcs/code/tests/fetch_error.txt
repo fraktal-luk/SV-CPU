@@ -1,0 +1,13 @@
+$start
+	ja -0x8000 ; nonexistent address
+	sys_error
+	sys_error
+	sys_error
+
+
+	add_i r2, r1, -88
+	jnz_i r2, $error
+
+	sys_dbcall
+$error
+    sys_error

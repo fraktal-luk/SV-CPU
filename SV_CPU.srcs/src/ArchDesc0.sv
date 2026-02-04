@@ -33,15 +33,15 @@ module ArchDesc0();
 
 
     squeue uncachedSuites = '{
-        "Tests_basic_uncached.txt"//,
-        //"Tests_mem_simple.txt"
+        "Tests_basic.txt",
+        "Tests_only_uncached.txt"
     };
 
     squeue cachedFetchSuites = '{
         "Tests_icache_fetch.txt"
     };
    
-    squeue allSuites = '{
+    squeue normalSuites = '{
         "Tests_basic.txt",
         "Tests_mem_simple.txt",
         
@@ -51,7 +51,7 @@ module ArchDesc0();
         
         "Tests_barriers.txt",
 
-        "Tests_all.txt",
+        "Tests_all.txt", // TODO: Not all, name is misleading
         
         "Tests_events.txt"
     };
@@ -67,9 +67,9 @@ module ArchDesc0();
         Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
         return testProg.words;
     endfunction
-        
+
     
-    /* Emulation */    
+    /* Emulation */
     Emulator emul_N = new();
 
 
@@ -107,12 +107,18 @@ module ArchDesc0();
     
     
     task automatic runTestEmul(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp, input PageBasedProgramMemory progMem);
-        emulTestName = name;
+
+        string prefix = "tests/";
             
+        if (suiteName inside {"Tests_basic", "Tests_only_uncached"}) prefix = suiteName;
+
+
+        emulTestName = name;
+
         resetAll(emul);
         emul.progMem = progMem;
 
-        emul.progMem.assignPage(0, prepareTestPage({"tests/", name}, COMMON_ADR));
+        emul.progMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
         emul.programMappings = gp.preloadedInsTlbL2;
@@ -274,7 +280,7 @@ module ArchDesc0();
         runner.runSuites(cachedFetchSuites); 
 
         #CYCLE $display("Normal suites"); 
-        runner.runSuites(allSuites);  
+        runner.runSuites(normalSuites);  
     endtask
 
 

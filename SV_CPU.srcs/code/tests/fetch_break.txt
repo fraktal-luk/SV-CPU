@@ -1,0 +1,12 @@
+$start
+	jnz_i r1, $done
+	add_i r1, r1, 1
+	and_r r0, r0, r0
+	and_r r0, r0, r0
+
+	ja 12256 ;  -16 + 3 * 4096 - 16  ;
+
+$done
+	sys_dbcall
+$error
+    sys_error

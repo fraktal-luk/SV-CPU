@@ -1,0 +1,14 @@
+$start
+	add_i r1, r1, 1
+	and_r r0, r0, r0
+	and_r r0, r0, r0
+	and_r r0, r0, r0
+
+	shl_i r8, r1, 45
+
+	ldi_i r2, r8, 0
+
+$done
+	sys_dbcall
+$error
+    sys_error
