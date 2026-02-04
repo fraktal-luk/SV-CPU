@@ -183,19 +183,19 @@ package Testing;
                 squeue tests = readFile({codeDir, suites[i]});
                 if (announceSuites)
                     $display("* Suite: %s", suites[i]);
-                runTests(tests);
+                runTests(suites[i], tests);
             end
         endtask
 
-        task automatic runTests(input squeue tests);
+        task automatic runTests(input string suite, input squeue tests);
             foreach (tests[i]) begin
                 squeue lineParts = breakLine(tests[i]);
                 if (!isValidTestName(lineParts)) continue;
-                runTest(lineParts[0]);
+                runTest(suite, lineParts[0]);
             end
         endtask
 
-        virtual task automatic runTest(input string name);
+        virtual task automatic runTest(input string suiteName, input string name);
         endtask
         
     endclass

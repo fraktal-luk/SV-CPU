@@ -88,7 +88,7 @@ module ArchDesc0();
 
 
     class EmulRunner extends TestRunner;        
-        task automatic runTest(input string name);
+        task automatic runTest(input string suiteName, input string name);
             runTestEmul(name, emul_N, gp, programMem);
             #DELAY;
         endtask
@@ -213,7 +213,7 @@ module ArchDesc0();
 
 
     class SimRunner extends TestRunner;
-        task automatic runTest(input string name);            
+        task automatic runTest(input string suiteName, input string name);            
             runTestSim(name, gp, programMem);
         endtask
     endclass
