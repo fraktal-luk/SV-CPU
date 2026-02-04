@@ -180,7 +180,7 @@ package Testing;
 
         task automatic runSuites(input squeue suites);
             foreach (suites[i]) begin
-                squeue tests = readFile({codeDir, suites[i]});
+                squeue tests = readFile({codeDir, suites[i], ".txt"});
                 if (announceSuites)
                     $display("* Suite: %s", suites[i]);
                 runTests(suites[i], tests);

@@ -33,27 +33,27 @@ module ArchDesc0();
 
 
     squeue uncachedSuites = '{
-        "Tests_basic.txt",
-        "Tests_only_uncached.txt"
+        "Tests_basic",
+        "Tests_only_uncached"
     };
 
     squeue cachedFetchSuites = '{
-        "Tests_icache_fetch.txt"
+        "Tests_icache_fetch"
     };
    
     squeue normalSuites = '{
-        "Tests_basic.txt",
-        "Tests_mem_simple.txt",
+        "Tests_basic",
+        "Tests_mem_simple",
         
-        "Tests_mem_advanced.txt",
-        "Tests_mem_align.txt",
-        "Tests_sys_transfers.txt",
+        "Tests_mem_advanced",
+        "Tests_mem_align",
+        "Tests_sys_transfers",
         
-        "Tests_barriers.txt",
+        "Tests_barriers",
 
-        "Tests_all.txt", // TODO: Not all, name is misleading
+        "Tests_all", // TODO: Not all, name is misleading
         
-        "Tests_events.txt"
+        "Tests_events"
     };
 
 
@@ -110,8 +110,16 @@ module ArchDesc0();
 
         string prefix = "tests/";
             
-        if (suiteName inside {"Tests_basic", "Tests_only_uncached"}) prefix = suiteName;
+        if (suiteName inside {"Tests_basic", 
+                            "Tests_only_uncached",
+                            "Tests_icache_fetch",
 
+                            "Tests_mem_simple"
+                            
+                            }) prefix = {"dir_", suiteName, "/"};
+
+
+               //$error({"rrrrr: ", suiteName, "//  /", prefix, name});
 
         emulTestName = name;
 
