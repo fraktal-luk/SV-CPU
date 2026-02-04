@@ -107,28 +107,7 @@ module ArchDesc0();
     
     
     task automatic runTestEmul(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp, input PageBasedProgramMemory progMem);
-
-        string prefix = "tests/";
-            
-        if (suiteName inside {"Tests_basic", 
-                            "Tests_only_uncached",
-                            "Tests_icache_fetch",
-
-                            "Tests_mem_simple",
-                                
-                                "Tests_mem_advanced",
-                                "Tests_mem_align",
-                                "Tests_sys_transfers",
-                                
-                                "Tests_barriers",
-
-                                "Tests_all" // TODO: Not all, name is misleading
-                                
-                                //"Tests_events"
-                            }) prefix = {"dir_", suiteName, "/"};
-
-
-               //$error({"rrrrr: ", suiteName, "//  /", prefix, name});
+        string prefix = {"dir_", suiteName, "/"};
 
         emulTestName = name;
 
@@ -244,8 +223,10 @@ module ArchDesc0();
 
 
     task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
+        string prefix = {"dir_", suiteName, "/"};
+
         #CYCLE announce(name);
-        progMem.assignPage(0, prepareTestPage({"tests/", name}, COMMON_ADR));
+        progMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
         progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
 
         core.resetForTest();
