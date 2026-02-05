@@ -19,7 +19,6 @@ package Testing;
 
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
 
-    //const string DEFAULT_CALL_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
     const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
     
     const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
@@ -48,11 +47,9 @@ package Testing;
 
     const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
 
-    //const Section DEFAULT_CALL_SECTION = processLines(DEFAULT_CALL_HANDLER);
     const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
 
     const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
-    //const Section FAILING_SECTION = processLines(FAILING_HANDLER);
 
     const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
@@ -73,7 +70,6 @@ package Testing;
 
     function automatic void writeProgram(ref Word mem[], input Mword adr, input Word prog[]);
         assert((adr % 4) == 0) else $fatal("Unaligned instruction address not allowed");
-        //mem = '{default: 'x};
         foreach (prog[i]) mem[adr/4 + i] = prog[i];
     endfunction
 
@@ -115,7 +111,6 @@ package Testing;
         if (line.size() > 1) $error("There should be 1 test per line");
         return line.size() == 1;
     endfunction
-
 
 
     task automatic saveProgramToFile(input string fname, input Word progMem[]);

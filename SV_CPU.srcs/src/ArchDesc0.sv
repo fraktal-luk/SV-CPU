@@ -44,7 +44,7 @@ module ArchDesc0();
     squeue normalSuites = '{
         "Tests_basic",
         "Tests_mem_simple",
-        
+
         "Tests_mem_advanced",
         "Tests_mem_align",
         "Tests_sys_transfers",
@@ -161,7 +161,7 @@ module ArchDesc0();
         for (int iter = 0; 1; iter++) begin
             emul.executeStep();
             if (isErrorStatus(emul)) begin
-                    emul.getBasicDbView();
+                emul.getBasicDbView();
                 $fatal(2, ">>>> Emulation in error state\nTest name: %s\n%p", emulTestName, emul);
             end
             if (iter >= ITERATION_LIMIT) $fatal(2, "Exceeded max iterations in test %s", emulTestName);
@@ -343,7 +343,6 @@ module ArchDesc0();
     function automatic GlobalParams Test_fillGpCached();
         GlobalParams gp;
         gp.initialCoreStatus = DEFAULT_CORE_STATUS;
-            //gp.initialCoreStatus.memControl = 7;
         gp.initialCregs.memControl = 7;
         
         Ins_prefetchForTest(gp);
@@ -363,10 +362,10 @@ module ArchDesc0();
         Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
 
         // Mapped to nonexistent memory
-            Translation nonexistentPage = '{present: 1, vadr: 'h5000, desc: cachedDesc, padr: 'h2000000000000000};
+        Translation nonexistentPage = '{present: 1, vadr: 'h5000, desc: cachedDesc, padr: 'h2000000000000000};
         
         // Mapped to correct memory but not allowed to read
-            Translation disallowedPage = '{present: 1, vadr: 'h6000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 'h200000};
+        Translation disallowedPage = '{present: 1, vadr: 'h6000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 'h200000};
 
         params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage};
         params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage, physDataPage20000000};
