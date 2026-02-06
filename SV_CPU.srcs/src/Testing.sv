@@ -195,4 +195,80 @@ package Testing;
         
     endclass
 
+
+
+
+    /*
+        Test setup routines
+    */
+
+    function automatic GlobalParams Test_fillGpUncached();
+        GlobalParams gp;
+        gp.initialCoreStatus = DEFAULT_CORE_STATUS;
+        
+        Ins_prepareForUncachedTest(gp);
+        return gp;
+    endfunction
+
+    function automatic GlobalParams Test_fillGpCached();
+        GlobalParams gp;
+        gp.initialCoreStatus = DEFAULT_CORE_STATUS;
+        gp.initialCregs.memControl = 7;
+        
+        Ins_prefetchForTest(gp);
+        Data_prefetchForTest(gp);
+        return gp;
+    endfunction
+
+
+    function automatic void Data_prefetchForTest(ref GlobalParams params);
+        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
+        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+
+        Translation physDataPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+        Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
+        Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
+        Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+        Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
+
+        // Mapped to nonexistent memory
+        Translation nonexistentPage = '{present: 1, vadr: 'h5000, desc: cachedDesc, padr: 'h2000000000000000};
+        
+        // Mapped to correct memory but not allowed to read
+        Translation disallowedPage = '{present: 1, vadr: 'h6000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 'h200000};
+
+        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage};
+        params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage, physDataPage20000000};
+
+        params.preloadedDataWays = '{0};            
+    endfunction
+
+    function automatic void Ins_prefetchForTest(ref GlobalParams params);
+        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
+        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+
+        Translation physInsPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
+        Translation physInsPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
+        Translation physInsPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
+        Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+        Translation physInsPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+        Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
+
+        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+        params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
+
+        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
+        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage3_alt, physInsPage0_alt};        
+    endfunction
+    
+    function automatic void Ins_prepareForUncachedTest(ref GlobalParams params);
+        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+        params.preloadedInsWays = {};
+
+        params.preloadedInsTlbL1 = '{};
+        params.preloadedInsTlbL2 = '{};        
+    endfunction
+
+
+
 endpackage

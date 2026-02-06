@@ -22,7 +22,7 @@ module ArchDesc0();
     localparam Mword COMMON_ADR = 4 * 1024;
 
 
-    EmulTest emulTest();
+    EmulTest emulTest(); // Checks basic behaviors
 
 
     localparam CYCLE = 10;
@@ -61,7 +61,7 @@ module ArchDesc0();
     string emulTestName, simTestName;
 
     Section common;
-    Mword commonAdr = COMMON_ADR;
+    //Mword commonAdr = COMMON_ADR;
 
     function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
         Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
@@ -181,7 +181,6 @@ module ArchDesc0();
 
     AbstractCore core(
         .clk(clk),
-        
         .interrupt(int0),
         .reset(reset),
         .sig(done),
@@ -219,7 +218,6 @@ module ArchDesc0();
             runTestSim(suiteName, name, gp, programMem);
         endtask
     endclass
-
 
 
     task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
@@ -265,7 +263,7 @@ module ArchDesc0();
         runner.programMem = thisProgMem;
 
         thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());//TESTED_CALL_SECTION));//, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION));
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
         runner.gp = Test_fillGpUncached();
 
@@ -299,19 +297,24 @@ module ArchDesc0();
 
 
     task automatic simMain();
-        SimRunner runner = new();
         EmulRunner emRunner = new();
-        TestRunner trSim = runner;
         TestRunner trEm = emRunner;        
-        
+
+        SimRunner runner = new();
+        TestRunner trSim = runner;
+
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
         if (RUN_EMUL_TESTS) begin
+            DEV_testEmul();
+
             runSim(trEm);
             runEmulEvents();
         end
         
         if (RUN_SIM_TESTS) begin
+            DEV_testSim();
+
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
@@ -327,77 +330,57 @@ module ArchDesc0();
     initial simMain();
 
 
-
-    /*
-        Test setup routines
-    */
-
-    function automatic GlobalParams Test_fillGpUncached();
-        GlobalParams gp;
-        gp.initialCoreStatus = DEFAULT_CORE_STATUS;
-        
-        Ins_prepareForUncachedTest(gp);
-        return gp;
-    endfunction
-
-    function automatic GlobalParams Test_fillGpCached();
-        GlobalParams gp;
-        gp.initialCoreStatus = DEFAULT_CORE_STATUS;
-        gp.initialCregs.memControl = 7;
-        
-        Ins_prefetchForTest(gp);
-        Data_prefetchForTest(gp);
-        return gp;
-    endfunction
+    task automatic DEV_testEmul();
+        EmulRunner devRunner = new();
+        TestRunner runner = devRunner; 
+        DEV_runEmul(runner);
+    endtask
 
 
-    function automatic void Data_prefetchForTest(ref GlobalParams params);
-        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 1};
-        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 0, cached: 0};
+    task automatic DEV_testSim();
+        EmulRunner devRunner = new(); // type of runner is irrelevant here
+        TestRunner runner = devRunner; 
+        DEV_runSim(runner);
+    endtask
 
-        Translation physDataPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-        Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
-        Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
-        Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
-        Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
 
-        // Mapped to nonexistent memory
-        Translation nonexistentPage = '{present: 1, vadr: 'h5000, desc: cachedDesc, padr: 'h2000000000000000};
-        
-        // Mapped to correct memory but not allowed to read
-        Translation disallowedPage = '{present: 1, vadr: 'h6000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 'h200000};
+    task automatic DEV_runEmul(ref TestRunner runner);
+        PageBasedProgramMemory thisProgMem = theProgMem;
+        runner.programMem = thisProgMem;
 
-        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage};
-        params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage, physDataPage20000000};
+        thisProgMem.assignPage(PAGE_SIZE, common.words);
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-        params.preloadedDataWays = '{0};            
-    endfunction
+        runner.gp = Test_fillGpCached();
 
-    function automatic void Ins_prefetchForTest(ref GlobalParams params);
-        DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-        DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
+        $error("DEV run"); 
+        runTestEmul("DEV_tests", "dev_test", emul_N, runner.gp, runner.programMem);
+        // TODO: check output page 
 
-        Translation physInsPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
-        Translation physInsPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
-        Translation physInsPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
-        Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-        Translation physInsPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-        Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
+        $error("DEV run OK");
+        #DELAY;
 
-        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-        params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
 
-        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
-        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage3_alt, physInsPage0_alt};        
-    endfunction
-    
-    function automatic void Ins_prepareForUncachedTest(ref GlobalParams params);
-        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
-        params.preloadedInsWays = {};
+    endtask
 
-        params.preloadedInsTlbL1 = '{};
-        params.preloadedInsTlbL2 = '{};        
-    endfunction
+    task automatic DEV_runSim(ref TestRunner runner);
+        PageBasedProgramMemory thisProgMem = theProgMem;
+        runner.programMem = thisProgMem;
+
+        thisProgMem.assignPage(PAGE_SIZE, common.words);
+        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+
+        runner.gp = Test_fillGpCached();
+
+        $error("DEV sim run"); 
+        runTestSim("DEV_tests", "dev_test", runner.gp, runner.programMem);
+        // TODO: check output page ???
+
+        $error("DEV sim run OK");
+        #DELAY;
+
+
+    endtask
 
 
 endmodule
