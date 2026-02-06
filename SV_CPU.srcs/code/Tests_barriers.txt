@@ -1,8 +1,8 @@
 
-barriers_basic
-barriers_0
+barriers_basic ; different barrirs, ldaq, stc
+barriers_0     ; loads and stores, barriers inbetween
 
-acquire_basic
-acquire_basic1
-acquire_basic2
+acquire_basic   ; ldaq(a), stc(a), ldaq(b), load(b), stc(b)
+acquire_basic1  ; ldaq(a), stc(a), sync, barrier, load(a), check value
+acquire_basic2  ; ldaq(a), ldi(a), stc(a), sync, load(a), verify that stc didn't write the value
 

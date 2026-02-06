@@ -1,5 +1,5 @@
 
-mem_unaligned
-mem_unaligned2
-mem_unaligned3
-mem_unaligned4
+mem_unaligned   ; load word from adr ending with 3, dependent op 
+mem_unaligned2  ; above, but 3 dependent ops
+mem_unaligned3  ; store word at adr ending with 2, sync, load aligned from ovelapping
+mem_unaligned4  ; store word aligned, sync, load adr-2, load adr-3
