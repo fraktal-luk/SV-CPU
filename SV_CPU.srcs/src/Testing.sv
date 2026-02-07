@@ -40,28 +40,28 @@ package Testing;
 
     
     const string NOP_PADDING[$] = {"and_r r0, r0, r0", "and_r r0, r0, r0", "and_r r0, r0, r0", "and_r r0, r0, r0"};
-    
 
 
-    const Section DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
 
-    const Section DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
+    const CodeSec DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
 
-    const Section TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
+    const CodeSec DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
 
-    const Section DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
+    const CodeSec TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
 
-    const Section DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
+    const CodeSec DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
 
-    const Section MEM_EXC_SECTION = processLines(MEM_EXC_HANDLER);
+    const CodeSec DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
 
-    const Section FETCH_EXC_SECTION = processLines(FETCH_EXC_HANDLER);
+    const CodeSec MEM_EXC_SECTION = processLines(MEM_EXC_HANDLER);
 
-    const Section DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
+    const CodeSec FETCH_EXC_SECTION = processLines(FETCH_EXC_HANDLER);
 
-    const Section DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
+    const CodeSec DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
 
-    const Section DEFAULT_ARITH_SECTION = processLines(DEFAULT_ARITH_HANDLER);
+    const CodeSec DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
+
+    const CodeSec DEFAULT_ARITH_SECTION = processLines(DEFAULT_ARITH_HANDLER);
 
 
 
@@ -75,18 +75,18 @@ package Testing;
 
     function automatic void setBasicPrograms(
                               ref Word mem[],
-                              input Section resetSec,
-                              input Section errorSec,
-                              input Section callSec,
-                              input Section intSec,
-                              input Section excSec,
-                              input Section fetchExcSec,
-                              input Section memExcSec,
-                              input Section dbSec,
-                              input Section dbBreakSec,
-                              input Section arithSec
+                              input CodeSec resetSec,
+                              input CodeSec errorSec,
+                              input CodeSec callSec,
+                              input CodeSec intSec,
+                              input CodeSec excSec,
+                              input CodeSec fetchExcSec,
+                              input CodeSec memExcSec,
+                              input CodeSec dbSec,
+                              input CodeSec dbBreakSec,
+                              input CodeSec arithSec
                               );
-        Section nopSec = processLines(NOP_PADDING);
+        CodeSec nopSec = processLines(NOP_PADDING);
 
         mem = '{default: 'x};
 
@@ -136,7 +136,7 @@ package Testing;
     endfunction 
 
 
-    function automatic WordArray prepareHandlersPage();//input Section callSec);//, input Section intSec);//, input Section excSec);
+    function automatic WordArray prepareHandlersPage();
         WordArray mem = new [PAGE_SIZE/4];
         setBasicPrograms(mem, DEFAULT_RESET_SECTION, DEFAULT_ERROR_SECTION, TESTED_CALL_SECTION, DEFAULT_INT_SECTION, DEFAULT_EXC_SECTION,
                                 FETCH_EXC_SECTION, MEM_EXC_SECTION, DEFAULT_DB_SECTION, DEFAULT_DBBREAK_SECTION, DEFAULT_ARITH_SECTION);

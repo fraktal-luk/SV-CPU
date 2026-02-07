@@ -47,7 +47,8 @@ package Asm;
         Word words[];
         ImportRef imports[];
         ExportRef exports[];
-    } Section;
+        int heads[];
+    } CodeSec;
 
     typedef struct {
         string mnemonic;
@@ -442,22 +443,23 @@ package Asm;
     endfunction
 
 
-    function automatic Section processLines(input squeue lines);
-        Section res;
+    function automatic CodeSec processLines(input squeue lines);
+        CodeSec res;
         squeue labels = '{};
         int labelMap[string];
         ImportRef imports[$];
         ExportRef exports[$];
         squeue errors = '{};
         CodeLine instructions[$];
+        int sectionHeads[$];
         Word code[];
-    
+
         int nInstructionLines = 0;
     
+        // scan lines
         foreach (lines[i]) begin
             squeue parts = breakLine({lines[i], 8'h0});
-            if (parts.size() == 0)
-                continue;
+            if (parts.size() == 0)continue;
             else if (parts[0][0] == "$") begin
                 labels.push_back(parts[0]);
                 labelMap[parts[0]] = nInstructionLines + 1;
@@ -467,6 +469,8 @@ package Asm;
                 DirectiveLine dl = analyzeDirective(i, nInstructionLines, parts);
                 if (dl.label.len() != 0)
                     exports.push_back('{nInstructionLines + 1, dl.label});
+
+                if (parts[0] == "@section") sectionHeads.push_back(i+1);
             end
             else begin
                 CodeLine codeLine = analyzeCodeLine(i, nInstructionLines, parts);
@@ -475,6 +479,8 @@ package Asm;
             end
         end
         
+        assert (nInstructionLines == instructions.size()) else $fatal(2, "not agreeing num instructions");
+
         code = new[nInstructionLines];
         
         // Resolve labels
@@ -507,6 +513,7 @@ package Asm;
             int nExports = exports.size();
             res.imports = new[nImports](imports[0:$]);
             res.exports = new[nExports](exports[0:$]);
+            res.heads = new [sectionHeads.size()](sectionHeads[0:$]);
         end
  
         return res;
@@ -527,8 +534,8 @@ package Asm;
     endfunction
 
 
-    function automatic Section fillImports(input Section section, input int startAdr, input Section lib, input int libAdr);
-        Section res = section;
+    function automatic CodeSec fillImports(input CodeSec section, input int startAdr, input CodeSec lib, input int libAdr);
+        CodeSec res = section;
         int adrDiff = libAdr - startAdr;
         
         foreach (section.imports[i]) begin
@@ -601,6 +608,9 @@ package Asm;
                 res.error = SOME;
             end
         end
+        else if (parts[0] == "@section") begin
+
+        end
         else begin
             $error("Unknown directive: %d", line + 1);
             res.error = SOME;
@@ -611,8 +621,19 @@ package Asm;
 
     function automatic Word asm(input string str);
         squeue q = '{str};
-        Section s = processLines(q);
+        CodeSec s = processLines(q);
         return s.words[0];
+    endfunction
+
+
+
+
+    function automatic CodeSec processTest(input squeue lines);
+        // Start with reusing processLines
+        CodeSec s = processLines(lines);
+
+
+        return s;
     endfunction
 
 endpackage

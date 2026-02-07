@@ -60,11 +60,11 @@ module ArchDesc0();
 
     string emulTestName, simTestName;
 
-    Section common;
+    CodeSec common;
     //Mword commonAdr = COMMON_ADR;
 
     function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
-        Section testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
+        CodeSec testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
         return testProg.words;
     endfunction
 
@@ -359,8 +359,6 @@ module ArchDesc0();
 
         $error("DEV run OK");
         #DELAY;
-
-
     endtask
 
     task automatic DEV_runSim(ref TestRunner runner);
