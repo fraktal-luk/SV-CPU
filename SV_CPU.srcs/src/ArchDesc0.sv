@@ -358,6 +358,9 @@ module ArchDesc0();
         // TODO: check output page 
 
         $error("DEV run OK");
+
+              //  processTest(readFile({codeDir, "dir_DEV_tests/dev_test.txt"}));
+
         #DELAY;
     endtask
 
