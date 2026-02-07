@@ -15,6 +15,33 @@ System registers initial state depends on test mode - MMU on or off
 Value checking compares whole pages - one constant definition of output page should be enough. The page is zeroed before test run
 
 
+
+Data page types:
+	* uncached - TLB L1, RW, for testing uncached accesses
+	(others are cacheable)
+    * L1 - preloaded to L1d and TLB L1, RW  - for normal operations
+    * output - like L1, for storing results, is verified after emul tests
+    * data miss - TLB L1, but not in L1d
+    * TLB miss - L1d, not TLB L1      (can be mapped physically equal to L1 page)
+    * double miss - not in L1d, not in TLB L1  (can be mapped physically equal to data miss)
+    * forbidden - TLB L1, access rights not allowing its use. Not needed in cache
+
+    Illegal vadr doesn't need a page at all
+
+    !! for testing page crossing there may be a need for 2 L1 pages (or the same physical mapped into 2 contiguous vpages??)
+
+Code page types:
+	* basic - for handlers
+	* library - for common functions
+	* L1 - as for data (in MMU-off tests obviously not cached)
+	* L1i miss
+	* TLB miss     (can phys equal to L1)
+	* double miss  (can phys equal to L1i miss)
+	* forbidden - not needed in cache
+
+	Non existent padr doesn't need a page
+
+
 ; code
 
 

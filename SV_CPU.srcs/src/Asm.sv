@@ -12,6 +12,69 @@ package Asm;
         string label = "";
     } CodeRef;
 
+    typedef enum {
+        NONE, SOME
+    } ParseError;
+
+    typedef struct {
+        int line;
+        int codeLine;
+        logic data;
+        squeue parts;
+        ParseError error = SOME;
+        Word ins;
+        CodeRef codeRef;
+    } CodeLine;
+
+    typedef struct {
+        int line;
+        int codeLine;
+        squeue parts;
+        ParseError error = SOME;
+        string label;
+    } DirectiveLine;
+
+    typedef struct {
+        int codeLine; string label; int size;
+    } ImportRef;
+
+    typedef struct {
+        int codeLine; string label;
+    } ExportRef;
+
+    typedef struct {
+        string desc;
+        Word words[];
+        ImportRef imports[];
+        ExportRef exports[];
+    } Section;
+
+    typedef struct {
+        string mnemonic;
+        Word encoding;
+        InstructionDef def;
+        int dest;
+        int sources[3];
+    } AbstractInstruction;
+
+    localparam AbstractInstruction DEFAULT_ABS_INS = '{
+        mnemonic: "",
+        encoding: 'x,
+        def: '{F_none, P_none, S_none, T_none, O_undef},
+        dest: 0,
+        sources: '{default: 0}
+    };
+
+    localparam AbstractInstruction FETCH_ERROR_INS = '{
+        mnemonic: "",
+        encoding: 'x,
+        def: '{F_none, P_none, S_none, T_none, O_fetchError},
+        dest: 0,
+        sources: '{default: 0}
+    };
+
+
+
 
     function automatic Word getIns(input string parts[]);
         InstructionDef def = getDef(parts[0]);
@@ -110,11 +173,16 @@ package Asm;
     endfunction; 
 
 
-    function automatic Word4 parseArgs(input string4 args);
+    function automatic Word4 parseArgs(input string args[]);
         Word4 res;
         integer value = 'x;
 
         foreach(args[i]) begin
+            if (i >= 4) begin
+                $error("More than 4 args");
+                break;
+            end
+
             if (args[i].len() == 0) begin
                res[i] = 'x;
                continue;
@@ -187,31 +255,6 @@ package Asm;
     endfunction;
 
 
-    typedef struct {
-        string mnemonic;
-        Word encoding;
-        //InstructionFormat fmt;
-        InstructionDef def;
-        int dest;
-        int sources[3];
-    } AbstractInstruction;
-
-    localparam AbstractInstruction DEFAULT_ABS_INS = '{
-        mnemonic: "",
-        encoding: 'x,
-        def: '{F_none, P_none, S_none, T_none, O_undef},
-        dest: 0,
-        sources: '{default: 0}
-    };
-
-    localparam AbstractInstruction FETCH_ERROR_INS = '{
-        mnemonic: "",
-        encoding: 'x,
-        def: '{F_none, P_none, S_none, T_none, O_fetchError},
-        dest: 0,
-        sources: '{default: 0}
-    };
-
     function automatic string decodeMnem(input Word w);
         Primary p = toPrimary(w[31:26]);
         Secondary s = toSecondary(w[15:10], p);
@@ -269,7 +312,6 @@ package Asm;
         
         res.mnemonic = s;
         res.encoding = w;
-       // res.fmt = f;
         res.def = d;
         res.dest = dest;
         res.sources = sources;
@@ -400,43 +442,6 @@ package Asm;
     endfunction
 
 
-    typedef enum {
-        NONE, SOME
-    } ParseError;
-
-
-    typedef struct {
-        int line;
-        int codeLine;
-        squeue parts;
-        ParseError error = SOME;
-        Word ins;
-        CodeRef codeRef;
-    } CodeLine;
-
-    typedef struct {
-        int line;
-        int codeLine;
-        squeue parts;
-        ParseError error = SOME;
-        string label;
-    } DirectiveLine;
-
-    typedef struct {
-        int codeLine; string label; int size;
-    } ImportRef;
-
-    typedef struct {
-        int codeLine; string label;
-    } ExportRef;
-
-    typedef struct {
-        string desc;
-        Word words[];
-        ImportRef imports[];
-        ExportRef exports[];
-    } Section;
-
     function automatic Section processLines(input squeue lines);
         Section res;
         squeue labels = '{};
@@ -464,7 +469,8 @@ package Asm;
                     exports.push_back('{nInstructionLines + 1, dl.label});
             end
             else begin
-                instructions.push_back(analyzeCodeLine(i, nInstructionLines, parts));
+                CodeLine codeLine = analyzeCodeLine(i, nInstructionLines, parts);
+                instructions.push_back(codeLine);
                 nInstructionLines++;
             end
         end
@@ -544,12 +550,23 @@ package Asm;
  
         res.line = line + 1;
         res.codeLine = codeLine + 1;
+        res.data = 0;
         res.parts = parts;
         res.error = NONE;
         
         if (!isLetter(mnemonic[0])) begin
-            res.error = SOME;
-            return res;
+            if (isDigit(mnemonic[0])) begin
+                Word4 values = parseArgs(parts);
+                res.data = 1;
+                // Parse data
+                // ...
+                res.ins = values[0];
+                return res;
+            end
+            else begin
+                res.error = SOME;
+                return res;
+            end
         end
 
         foreach (partsExt[i])
