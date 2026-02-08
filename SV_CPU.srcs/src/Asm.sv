@@ -35,11 +35,16 @@ package Asm;
     } DirectiveLine;
 
     typedef struct {
-        int codeLine; string label; int size;
+        int line;
+        int codeLine;
+        string label;
+        int size;
     } ImportRef;
 
     typedef struct {
-        int codeLine; string label;
+        int line;
+        int codeLine;
+        string label;
     } ExportRef;
 
     typedef struct {
@@ -443,7 +448,7 @@ package Asm;
 
 
     typedef struct {
-        squeue labels = '{}; // USUSED?
+        //squeue labels = '{}; // USUSED?
         int labelMap[string];
         ImportRef imports[$];
         ExportRef exports[$];
@@ -458,12 +463,13 @@ package Asm;
         ParsedFile pf;
 
         int labelMap[string];
+        int labelMap_Abs[string]; // with file line numbers, not code line numbers
             ImportRef imports[$];
-        ExportRef exports[$];
+        ExportRef exports[$]; // TODO: index with file lines, not instruction lines?
         squeue errors = '{};
         CodeLine instructions[$];
         int sectionHeads[$];
-        Word code[];
+        //Word code[];
 
         int nInstructionLines = 0;
     
@@ -472,14 +478,14 @@ package Asm;
             squeue parts = breakLine({lines[i], 8'h0});
             if (parts.size() == 0) continue;
             else if (parts[0][0] == "$") begin
-                //labels.push_back(parts[0]);
                 labelMap[parts[0]] = nInstructionLines + 1;
+                labelMap_Abs[parts[0]] = i + 1;
                 errors.push_back($sformatf("%d: Something after label", i));
             end
             else if (parts[0][0] == "@") begin
                 DirectiveLine dl = analyzeDirective(i, nInstructionLines, parts);
                 if (dl.label.len() != 0)
-                    exports.push_back('{nInstructionLines + 1, dl.label});
+                    exports.push_back('{i+1, nInstructionLines + 1, dl.label});
 
                 if (parts[0] == "@section") sectionHeads.push_back(i+1);
             end
@@ -490,13 +496,63 @@ package Asm;
             end
         end
         
-            //pf.labels = labels;
-            pf.labelMap = labelMap;
-            pf.imports = imports;
-            pf.exports = exports;
-            pf.errors = errors;
-            pf.instructions = instructions;
-            pf.sectionHeads = sectionHeads;
+        pf.labelMap = labelMap;
+        pf.imports = imports;
+        pf.exports = exports;
+        pf.errors = errors;
+        pf.instructions = instructions;
+        pf.sectionHeads = sectionHeads;
+
+            if (sectionHeads.size() > 0) begin
+                // First section is above first section head
+                int startingInstructions[$] = '{-1};
+
+                $error("sections start: %p", sectionHeads);
+                //$error("%p", instructions);
+
+                foreach (sectionHeads[i]) begin
+                    //int lastBefore[$] = instructions.find_last_index with (item.line < sectionHeads[i]);
+                    int first[$] = instructions.find_first_index with (item.line >= sectionHeads[i]);
+                    if (first.size() > 0) startingInstructions.push_back(first[0]);
+                end
+
+                $error("%p", startingInstructions);
+
+                // Find which instructions, labels and exports are from this section
+                foreach (startingInstructions[i]) begin
+                    CodeLine secIns[$];
+                    ExportRef expRefs[$];
+                    string absLabels[$];
+
+                    if (i == startingInstructions.size()-1) begin // the last one
+
+                        foreach (instructions[j]) begin
+                            if (j >= startingInstructions[i]) secIns.push_back(instructions[j]);
+                        end
+                        foreach (exports[j]) begin
+                            if (exports[j].line >= instructions[startingInstructions[i]].line) expRefs.push_back(exports[j]);
+                        end
+                        foreach (labelMap_Abs[j]) begin
+                            if (labelMap_Abs[j] >= instructions[startingInstructions[i]].line) absLabels.push_back(j);
+                        end
+                    end
+                    else begin//if (i == 0) begin // first, unnamed section
+                        
+                        foreach (instructions[j]) begin
+                            if (j >= startingInstructions[i] && j < startingInstructions[i+1]) secIns.push_back(instructions[j]);
+                        end
+                        foreach (exports[j]) begin
+                            if (exports[j].line >= instructions[startingInstructions[i]].line && exports[j].line < instructions[startingInstructions[i+1]].line) expRefs.push_back(exports[j]);
+                        end
+                        foreach (labelMap_Abs[j]) begin
+                            if (labelMap_Abs[j] >= instructions[startingInstructions[i]].line && labelMap_Abs[j] < instructions[startingInstructions[i+1]].line) absLabels.push_back(j);
+                        end
+                    end
+
+                    $error("Section %d ins:\n%p\nexp:\n%p", i, secIns, expRefs);
+                    $error("Labels:\n%p", absLabels);
+                end
+            end
 
         return pf;
     endfunction
@@ -506,59 +562,12 @@ package Asm;
     function automatic CodeSec processLines(input squeue lines);
         CodeSec res;
 
-            ParsedFile pf;
+        ParsedFile pf = parseLines(lines);
 
-        //squeue labels = '{};
-        int labelMap[string];
-            ImportRef imports[$];
+        ImportRef imports[$];
         ExportRef exports[$];
         squeue errors = '{};
-        CodeLine instructions[$];
-        int sectionHeads[$];
-        Word code[];
-
-        int nInstructionLines = 0;
-    
-        // // scan lines
-        // foreach (lines[i]) begin
-        //     squeue parts = breakLine({lines[i], 8'h0});
-        //     if (parts.size() == 0) continue;
-        //     else if (parts[0][0] == "$") begin
-        //         //labels.push_back(parts[0]);
-        //         labelMap[parts[0]] = nInstructionLines + 1;
-        //         errors.push_back($sformatf("%d: Something after label", i));
-        //     end
-        //     else if (parts[0][0] == "@") begin
-        //         DirectiveLine dl = analyzeDirective(i, nInstructionLines, parts);
-        //         if (dl.label.len() != 0)
-        //             exports.push_back('{nInstructionLines + 1, dl.label});
-
-        //         if (parts[0] == "@section") sectionHeads.push_back(i+1);
-        //     end
-        //     else begin
-        //         CodeLine codeLine = analyzeCodeLine(i, nInstructionLines, parts);
-        //         instructions.push_back(codeLine);
-        //         nInstructionLines++;
-        //     end
-        // end
-        
-        //     //pf.labels = labels;
-        //     pf.labelMap = labelMap;
-        //     pf.imports = imports;
-        //     pf.exports = exports;
-        //     pf.errors = errors;
-        //     pf.instructions = instructions;
-        //     pf.sectionHeads = sectionHeads;
-
-        pf = parseLines(lines);
-
-
-        assert (nInstructionLines == instructions.size()) else $fatal(2, "not agreeing num instructions");
-
-                if (sectionHeads.size() > 0) $error("Sections!");
-
-
-        code = new[pf.instructions.size()];
+        Word code[] = new [pf.instructions.size()];
         
         // Resolve labels
         foreach(pf.instructions[i]) begin
@@ -575,14 +584,13 @@ package Asm;
                     else if (ins.codeRef.ref21 == 1) newWord[20:0] = (targetAdr - usingAdr);
                     
                     ins.ins = newWord;
-                    //instructions[i].ins = newWord;
                 end
                 else begin
                     int size = ins.codeRef.ref26 == 1 ? 26 : 21;                    
-                    imports.push_back('{ins.codeLine, ins.codeRef.label, size});
+                    imports.push_back('{ins.line, ins.codeLine, ins.codeRef.label, size});
                 end             
             end
-            code[i] = ins.ins;//instructions[i].ins;
+            code[i] = ins.ins;
         end
         
         res.words = code;
