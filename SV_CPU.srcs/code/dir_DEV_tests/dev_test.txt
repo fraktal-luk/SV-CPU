@@ -1,9 +1,14 @@
-@section code
-
 	add_i r5, r0, 23
 	add_i r6, r0, -17
 
 	sys_dbcall
+
+@section code
+
+	add_i r5, r0, 88
+	add_i r6, r0, -10
+
+	sys_error
 
 @section data
 
