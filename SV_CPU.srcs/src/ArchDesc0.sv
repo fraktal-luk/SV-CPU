@@ -57,11 +57,9 @@ module ArchDesc0();
     };
 
 
-
     string emulTestName, simTestName;
 
     CodeSec common;
-    //Mword commonAdr = COMMON_ADR;
 
     function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
         CodeSec testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
@@ -117,16 +115,6 @@ module ArchDesc0();
         emul.progMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
-        // emul.programMappings = gp.preloadedInsTlbL2;
-        // emul.dataMappings = gp.preloadedDataTlbL2;
-
-        // if (gp.initialCregs.memControl[0] == 0) begin
-        //     emul.programMappings.delete();
-        //     emul.dataMappings.delete();
-        // end
-
-        // emul.initStatus(gp.initialCregs);
-
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
         performEmul(emul);
@@ -134,25 +122,13 @@ module ArchDesc0();
 
 
     task automatic runIntTestEmul(ref Emulator emul);
-        GlobalParams gp;
+        GlobalParams gp = Test_fillGpCached();
 
         emulTestName = "int";
 
         resetAll(emul);
         emul.progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
-        Ins_prefetchForTest(gp);
-        Data_prefetchForTest(gp);
-        // emul.programMappings = gp.preloadedInsTlbL2;
-        // emul.dataMappings = gp.preloadedDataTlbL2;
-
-        // if (gp.initialCregs.memControl[0] == 0) begin
-        //     emul.programMappings.delete();
-        //     emul.dataMappings.delete();
-        // end
-
-        // emul.initStatus(gp.initialCregs);
-     
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
         for (int iter = 0; 1; iter++) begin
@@ -279,16 +255,13 @@ module ArchDesc0();
         thisProgMem.assignPage(PAGE_SIZE, common.words);
         thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-        //runner.gp = Test_fillGpUncached();
         runner.gp = Test_fillGpCached();
         runner.gp.initialCregs.memControl = 0;
 
         #CYCLE $display("Uncached suites");
         runner.runSuites(uncachedSuites);
 
-        //runner.gp = Test_fillGpCached();
         runner.gp.initialCregs.memControl = 7;
-
 
         #CYCLE $display("Cached fetch suites");
         runner.runSuites(cachedFetchSuites); 
@@ -311,7 +284,7 @@ module ArchDesc0();
 
         #CYCLE $display("Event/int tests");
 
-        runIntTestSim(runner.gp/*Test_fillGpCached()*/, runner.programMem/*thisProgMem*/);
+        runIntTestSim(runner.gp, runner.programMem);
     endtask
 
 
@@ -377,7 +350,7 @@ module ArchDesc0();
         runner.gp = Test_fillGpCached();
 
       //  $error("DEV run"); 
-        runTestEmul("DEV_tests", "dev_test", emul_N, runner.gp, runner.programMem);
+      //  runTestEmul("DEV_tests", "dev_test", emul_N, runner.gp, runner.programMem);
         // TODO: check output page 
 
       //  $error("DEV run OK");
@@ -396,7 +369,7 @@ module ArchDesc0();
         runner.gp = Test_fillGpCached();
 
        // $error("DEV sim run"); 
-        runTestSim("DEV_tests", "dev_test", runner.gp, runner.programMem);
+      //  runTestSim("DEV_tests", "dev_test", runner.gp, runner.programMem);
         // TODO: check output page ???
 
        // $error("DEV sim run OK");
