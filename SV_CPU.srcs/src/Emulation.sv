@@ -613,6 +613,19 @@ package Emulation;
             syncFromCregs();
         endfunction
         
+        function automatic void initCore(input CpuControlRegisters cr, input Translation pMappings[$], input Translation dMappings[$]);
+            initStatus(cr);
+
+            if (!cregs.memControl.enableMMU) begin
+                programMappings.delete();
+                dataMappings.delete();
+            end
+            else begin
+                programMappings = pMappings;
+                dataMappings = dMappings;
+            end
+        endfunction
+
     endclass
 
 

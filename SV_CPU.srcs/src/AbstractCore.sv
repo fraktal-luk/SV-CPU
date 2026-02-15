@@ -784,24 +784,38 @@ module AbstractCore
 
 
     task automatic preloadForTest();
-        retiredEmul.initStatus(globalParams.initialCregs);
-        renamedEmul.initStatus(globalParams.initialCregs);
+        // retiredEmul.initStatus(globalParams.initialCregs);
+        // renamedEmul.initStatus(globalParams.initialCregs);
+
+
+
+        // renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
+        // retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
+        
+        // renamedEmul.dataMappings = globalParams.preloadedDataTlbL2;
+        // retiredEmul.dataMappings = globalParams.preloadedDataTlbL2;
+        
+
+
+        renamedEmul.initCore(globalParams.initialCregs, globalParams.preloadedInsTlbL2, globalParams.preloadedDataTlbL2);
+        retiredEmul.initCore(globalParams.initialCregs, globalParams.preloadedInsTlbL2, globalParams.preloadedDataTlbL2);
+
 
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
 
-        renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
-        retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
-        
-        renamedEmul.dataMappings = globalParams.preloadedDataTlbL2;
-        retiredEmul.dataMappings = globalParams.preloadedDataTlbL2;
-        
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();
 
         if (!sysUnit.sysRegs[10][0]) begin // If MMU off
             theFrontend.instructionCache.reset();
             dataCache.reset();
+
+           // renamedEmul.programMappings.delete();// = globalParams.preloadedInsTlbL2;
+           // retiredEmul.programMappings.delete();// = globalParams.preloadedInsTlbL2;
+            
+            //renamedEmul.dataMappings.delete();// = globalParams.preloadedDataTlbL2;
+           // retiredEmul.dataMappings.delete();// = globalParams.preloadedDataTlbL2;
         end
     endtask
 
