@@ -146,6 +146,12 @@ package EmulationMemories;
                 reservations.delete();
             endfunction
 
+
+        function automatic void writeWordArray(input Dword adr, input Word data[]);
+            foreach (data[i])
+                RW#(Word, 4)::write(adr + 4*i, data[i], content);
+        endfunction
+
     endclass
 
         function automatic Dword TMP_bbase(input Dword adr);
@@ -153,6 +159,8 @@ package EmulationMemories;
             res[5:0] = 0; // 64b block
             return res;
         endfunction
+
+
 
 
 endpackage

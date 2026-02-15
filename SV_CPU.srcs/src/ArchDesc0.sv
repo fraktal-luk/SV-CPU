@@ -339,7 +339,11 @@ module ArchDesc0();
 
     task automatic DEV_testSim();
         EmulRunner devRunner = new(); // type of runner is irrelevant here
-        TestRunner runner = devRunner; 
+        TestRunner runner = devRunner;
+
+
+            processTest(readFile({codeDir, "dir_DEV_tests/dev_test.txt"}));
+
         DEV_runSim(runner);
     endtask
 
@@ -359,7 +363,6 @@ module ArchDesc0();
 
         $error("DEV run OK");
 
-              //  processTest(readFile({codeDir, "dir_DEV_tests/dev_test.txt"}));
 
         #DELAY;
     endtask

@@ -81,6 +81,7 @@ package Asm;
     };
 
     typedef struct {
+        string name;
         ImportRef imports[$];
         ExportRef labels[$];
         ExportRef exports[$];
@@ -488,6 +489,7 @@ package Asm;
                     SectionDesc newSec;
                     pf.sections.push_back(currentSection);
                     currentSection = newSec;
+                    currentSection.name = dl.label;
                         sectionHeads.push_back(i+1);
                     nInstructionLines = 0;
                 end
@@ -582,6 +584,7 @@ package Asm;
             code[i] = ins.ins;
         end
         
+        res.desc = sec.name;
         res.words = code;
         
         exports = pfExports;
@@ -688,7 +691,7 @@ package Asm;
             end
         end
         else if (parts[0] == "@section") begin
-
+            res.label = parts.size() > 1 ? parts[1] : "";
         end
         else begin
             $error("Unknown directive: %d", line + 1);
@@ -707,13 +710,19 @@ package Asm;
 
 
 
-    function automatic CodeSec processTest(input squeue lines);
+    function automatic CodeSecArr processTest(input squeue lines);
         // Start with reusing processLines
-        CodeSec s = processLines(lines);
+        CodeSecArr arr = processFile(lines);
 
-        $error("PROG:\n%p", s);
+        $error("PROG:\n");
 
-        return s;
+        foreach (arr[i]) begin
+            $display("section %s", arr[i].desc);
+        end
+
+        $error("\n");
+
+        return arr;
     endfunction
 
 endpackage

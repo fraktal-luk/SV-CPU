@@ -798,6 +798,11 @@ module AbstractCore
         
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();
+
+        if (!sysUnit.sysRegs[10][0]) begin // If MMU off
+            theFrontend.instructionCache.reset();
+            dataCache.reset();
+        end
     endtask
 
 

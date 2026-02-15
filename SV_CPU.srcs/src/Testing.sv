@@ -205,8 +205,11 @@ package Testing;
     function automatic GlobalParams Test_fillGpUncached();
         GlobalParams gp;
         gp.initialCoreStatus = DEFAULT_CORE_STATUS;
-        
-        Ins_prepareForUncachedTest(gp);
+        gp.initialCregs.memControl = 0;
+
+        //Ins_prepareForUncachedTest(gp);
+            Ins_prefetchForTest(gp);
+            Data_prefetchForTest(gp);
         return gp;
     endfunction
 
@@ -240,7 +243,7 @@ package Testing;
         params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage};
         params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, physDataPageUnc, nonexistentPage, disallowedPage, physDataPage20000000};
 
-        params.preloadedDataWays = '{0};            
+        params.preloadedDataWays = '{0};
     endfunction
 
     function automatic void Ins_prefetchForTest(ref GlobalParams params);
@@ -254,7 +257,7 @@ package Testing;
         Translation physInsPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
         Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
 
-        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+        //params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
         params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
 
         params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
@@ -262,7 +265,7 @@ package Testing;
     endfunction
     
     function automatic void Ins_prepareForUncachedTest(ref GlobalParams params);
-        params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
+        //params.copiedInsPages =   '{0, PAGE_SIZE, 2*PAGE_SIZE, 3*PAGE_SIZE};
         params.preloadedInsWays = {};
 
         params.preloadedInsTlbL1 = '{};
