@@ -37,6 +37,7 @@ module AbstractCore
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
     PageBasedProgramMemory programMem;
+    SparseDataMemory dataMem;
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
@@ -762,6 +763,7 @@ module AbstractCore
         memTracker = new();
 
         programMem = null;
+        dataMem = null;
         
         dataCache.reset();
         theFrontend.instructionCache.reset();
@@ -789,6 +791,9 @@ module AbstractCore
 
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
+
+            //TODO: set data memories for emulators according to core data memory
+
 
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();

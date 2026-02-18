@@ -62,11 +62,25 @@ module ArchDesc0();
     CodeSec common;
 
     function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
-        CodeSec testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
+        CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
+
+        //CodeSec testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
+        CodeSec testProg = fillImports(testSections[0], 0, common, commonAdr);
+
         return testProg.words;
     endfunction
 
-    
+
+    function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
+        CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
+
+        CodeSec testProg = fillImports(testSections[0], 0, common, 0 /*TODO: lib section*/);
+
+
+    endfunction
+
+
+
     /* Emulation */
     Emulator emul_N = new();
 
@@ -219,6 +233,7 @@ module ArchDesc0();
 
         core.resetForTest();
         core.programMem = progMem;
+        core.dataMem = new();
         core.globalParams = gp;
         core.preloadForTest();
 
@@ -234,6 +249,7 @@ module ArchDesc0();
 
         core.resetForTest();
         core.programMem = progMem;
+        core.dataMem = new();
         core.globalParams = gp;
         core.preloadForTest();
 

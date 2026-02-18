@@ -54,7 +54,7 @@ module UncachedDataUnit(
     DataCacheOutput readResult = EMPTY_DATA_CACHE_OUTPUT;
 
     // TODO: note in impl definitions
-    localparam Mword UNCACHED_BASE = 'h0000000040000000;
+    localparam Mword UNCACHED_BASE = 'h0000000040000000; // CAREFUL: sync it with testing settings
     Mbyte uncachedArea[PAGE_SIZE];
 
 

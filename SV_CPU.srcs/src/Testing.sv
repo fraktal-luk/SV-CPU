@@ -14,6 +14,66 @@ package Testing;
     typedef Word WordArray[];
 
 
+
+        localparam Dword PROG_P_MAIN = 0; // physical adr of test code
+        localparam Dword PROG_P_MISS = 'h2000; // page not in instruction L1
+
+        localparam Dword PROG_P_HANDLERS = 'h4000;
+        localparam Dword PROG_P_LIB = 'h5000;
+
+
+        localparam Dword DATA_P_MAIN = 0; // physical adr of input
+        localparam Dword DATA_P_MISS = 'h2000; // page not in data L1
+
+        localparam Dword DATA_P_OUTPUT = 'h4000; // for writing output data 
+
+        localparam Dword DATA_P_UNCACHED = 'h0000000040000000;
+
+        // Section mapping
+        //
+        // "prog_main" -> PROG_P_MAIN
+        // "prog_miss" -> PROG_P_MISS
+
+        // "data0" -> DATA_P_MAIN
+        // "data1" -> DATA_P_MAIN + 'h1000
+        // "data_miss0" -> DATA_P_MISS;
+        // "data_miss1" -> DATA_P_MISS + 'h1000;
+
+        // "output" -> DATA_P_OUTPUT
+
+        // "data_uncached" -> DATA_P_UNCACHED
+
+        function automatic void allocateSections(input CodeSecArr sections, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
+            foreach (sections[i]) begin
+                case (sections[i].desc)
+                    "prog_main": ;
+                    "prog_miss": ;
+
+                    "data0": ;
+                    "data1": ;
+                    "data_miss0": ;
+                    "data_miss1": ;
+
+                    "output": ;
+
+                    "data_uncached": ;
+
+                    default: $error("Wrong section label: %s", sections[i].desc);
+                endcase
+            end
+
+        endfunction 
+
+
+
+        localparam Dword VIRTUAL_OFFSET_TLB_MISS = 'h100000;  // 1 MB
+
+        localparam Dword PROG_V_OFFSET = 0; // Added to all physical adrs of program
+        localparam Dword DATA_V_OFFSET = 0; // Likewise, for data
+
+
+
+
     const string FAILING_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
 
 
