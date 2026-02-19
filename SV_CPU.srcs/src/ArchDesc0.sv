@@ -63,10 +63,7 @@ module ArchDesc0();
 
     function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
-
-        //CodeSec testProg = fillImports(processLines(readFile({codeDir, name, ".txt"})), 0, common, commonAdr);
         CodeSec testProg = fillImports(testSections[0], 0, common, commonAdr);
-
         return testProg.words;
     endfunction
 
@@ -74,9 +71,14 @@ module ArchDesc0();
     function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
 
-        CodeSec testProg = fillImports(testSections[0], 0, common, 0 /*TODO: lib section*/);
+        // TODO: fill imports of every section using lib section (should be provided separately)
+        //CodeSec testProg = fillImports(testSections[0], 0, common, 0 /*TODO: lib section*/);
 
+        //testSections[0] = testProg;
 
+        foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
+
+        allocateSections(testSections, pmem, dmem);
     endfunction
 
 
@@ -133,6 +135,25 @@ module ArchDesc0();
 
         performEmul(emul);
     endtask
+
+        task automatic runTestEmul_N(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp);
+            string prefix = {"dir_", suiteName, "/"};
+
+            emulTestName = name;
+
+            resetAll(emul);
+            emul.progMem = new();
+            emul.dataMem = new();
+
+            setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
+
+            emul.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
+
+            emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
+
+            performEmul(emul);
+        endtask
+
 
 
     task automatic runIntTestEmul(ref Emulator emul);
@@ -318,6 +339,9 @@ module ArchDesc0();
 
             runSim(trEm);
             runEmulEvents();
+
+            runTestEmul_N("DEV_tests", "dev_test", emul_N, Test_fillGpCached());
+
         end
         
         if (RUN_SIM_TESTS) begin
@@ -350,7 +374,7 @@ module ArchDesc0();
         TestRunner runner = devRunner;
 
 
-            processTest(readFile({codeDir, "dir_DEV_tests/dev_test.txt"}));
+         //   processTest(readFile({codeDir, "dir_DEV_tests/dev_test.txt"}));
 
         DEV_runSim(runner);
     endtask

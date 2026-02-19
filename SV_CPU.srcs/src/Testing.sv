@@ -46,17 +46,23 @@ package Testing;
         function automatic void allocateSections(input CodeSecArr sections, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
             foreach (sections[i]) begin
                 case (sections[i].desc)
-                    "prog_main": ;
+                    "prog_main": pmem.assignPage(PROG_P_MAIN, sections[i].words);
                     "prog_miss": ;
 
-                    "data0": ;
+                    "handlers": pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
+                    "lib":      pmem.assignPage(PROG_P_LIB, sections[i].words);
+
+
+                    "data0":      dmem.writeWordArray(DATA_P_MAIN, sections[i].words);
                     "data1": ;
                     "data_miss0": ;
                     "data_miss1": ;
 
                     "output": ;
 
-                    "data_uncached": ;
+                    "data_uncached": dmem.writeWordArray(DATA_P_UNCACHED, sections[i].words);
+
+                    "": /* First, unnamed section: ingnore */;
 
                     default: $error("Wrong section label: %s", sections[i].desc);
                 endcase

@@ -710,19 +710,19 @@ package Asm;
 
 
 
-    function automatic CodeSecArr processTest(input squeue lines);
-        // Start with reusing processLines
-        CodeSecArr arr = processFile(lines);
+        // function automatic CodeSecArr processTest(input squeue lines);
+        //     // Start with reusing processLines
+        //     CodeSecArr arr = processFile(lines);
 
-        $error("PROG:\n");
+        //     $error("PROG:\n");
 
-        foreach (arr[i]) begin
-            $display("section %s", arr[i].desc);
-        end
+        //     foreach (arr[i]) begin
+        //         $display("section %s", arr[i].desc);
+        //     end
 
-        $error("\n");
+        //     $error("\n");
 
-        return arr;
-    endfunction
+        //     return arr;
+        // endfunction
 
 endpackage
