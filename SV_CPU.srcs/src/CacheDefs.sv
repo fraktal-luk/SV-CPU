@@ -342,7 +342,7 @@ package CacheDefs;
     endfunction
 
 
-    function automatic void initBlocksWay(ref DataWay way, input Dword baseVadr);
+    function automatic void initBlocksWay(ref DataWay way, input Dword baseVadr, input SparseDataMemory dataMem);
         foreach (way[i]) begin
             Dword padr = baseVadr + i*BLOCK_SIZE;
 
@@ -352,7 +352,8 @@ package CacheDefs;
             newBlock.valid = 1;
             newBlock.pbase = padr;
             newBlock.lock = 0;
-            newBlock.array = CLEAN_BLOCK;
+            foreach (newBlock.array[a])
+                newBlock.array[a] = dataMem.readByte(i*BLOCK_SIZE + a);
         end
     endfunction
 

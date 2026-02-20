@@ -762,8 +762,8 @@ module AbstractCore
         registerTracker = new();
         memTracker = new();
 
-        programMem = null;
-        dataMem = null;
+        programMem = new();
+        dataMem = new();
         
         dataCache.reset();
         theFrontend.instructionCache.reset();
@@ -793,7 +793,11 @@ module AbstractCore
         syncCurrentConfigFromRegs();
 
             //TODO: set data memories for emulators according to core data memory
+            renamedEmul.progMem.setLike(programMem);
+            renamedEmul.dataMem.setLike(dataMem);
 
+            retiredEmul.progMem.setLike(programMem);
+            retiredEmul.dataMem.setLike(dataMem);
 
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();

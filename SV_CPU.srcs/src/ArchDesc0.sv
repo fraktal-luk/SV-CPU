@@ -264,6 +264,40 @@ module ArchDesc0();
     endtask
 
 
+
+        task automatic runTestSim_N(input string suiteName, input string name, input GlobalParams gp);
+            string prefix = {"dir_", suiteName, "/"};
+
+
+            #CYCLE announce(name);
+            core.resetForTest();
+
+            core.programMem = new();
+            core.dataMem = new();
+
+            setTestMemories({prefix, name}, core.programMem, core.dataMem);
+
+            //core.programMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
+                core.programMem.assignPage(PAGE_SIZE, common.words);
+                core.programMem.assignPage(3*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
+
+            core.programMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+
+
+            //core.programMem = progMem;
+            core.globalParams = gp;
+            core.preloadForTest();
+
+            startSim();
+            
+            awaitResult();
+        endtask
+
+
+
+
+
+
     task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
         #CYCLE announce("int");
         progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
@@ -335,6 +369,7 @@ module ArchDesc0();
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
         if (RUN_EMUL_TESTS) begin
+
             DEV_testEmul();
 
             runSim(trEm);
@@ -345,13 +380,22 @@ module ArchDesc0();
         end
         
         if (RUN_SIM_TESTS) begin
+                   GlobalParams gp_N = Test_fillGpCached();
+                   gp_N.initialCregs.memControl = 7;
+
             DEV_testSim();
+
+
 
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
             
             runEventSim(trSim);
+
+                    // TODO: check why failure when this is before trSim (two fetchers active)
+                    runTestSim_N("DEV_tests","dev_test", gp_N);
+
         end
         
         $display("All tests done;");

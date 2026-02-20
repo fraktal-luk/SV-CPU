@@ -45,6 +45,9 @@ package Testing;
 
         function automatic void allocateSections(input CodeSecArr sections, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
             foreach (sections[i]) begin
+
+                if (sections[i].words.size() > 1024) $error("Section '%s' too big for page: %d", sections[i].desc, sections[i].words.size());
+
                 case (sections[i].desc)
                     "prog_main": pmem.assignPage(PROG_P_MAIN, sections[i].words);
                     "prog_miss": ;
