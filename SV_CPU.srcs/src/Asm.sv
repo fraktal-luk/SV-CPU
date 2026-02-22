@@ -708,21 +708,4 @@ package Asm;
         return s.words[0];
     endfunction
 
-
-
-        // function automatic CodeSecArr processTest(input squeue lines);
-        //     // Start with reusing processLines
-        //     CodeSecArr arr = processFile(lines);
-
-        //     $error("PROG:\n");
-
-        //     foreach (arr[i]) begin
-        //         $display("section %s", arr[i].desc);
-        //     end
-
-        //     $error("\n");
-
-        //     return arr;
-        // endfunction
-
 endpackage

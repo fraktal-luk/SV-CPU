@@ -45,8 +45,8 @@ Code page types:
 	Pages for code:    cache loc when MMU on:
 		prog_main 		-		way 0
 		prog_miss 		-  		way 3
-		handlers    -  		way 1
-		lib 		-  		way 2
+		lib 		-  		way 1
+		handlers    -  		way 2
 
 		prog_main_alt    - phys equal to prog_main, not in L1 TLB
 		prog_miss_alt    - phys equal to prog_miss, not in L1 TLB

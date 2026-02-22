@@ -46,7 +46,7 @@ package AbstractSim;
 
 
     localparam int N_WAYS_INS = 4;
-    localparam int N_WAYS_DATA = 4;
+    localparam int N_WAYS_DATA = 6;
 
     ///////////////////////////////////
 

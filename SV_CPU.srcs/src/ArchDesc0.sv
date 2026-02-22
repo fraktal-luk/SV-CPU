@@ -72,10 +72,6 @@ module ArchDesc0();
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
 
         // TODO: fill imports of every section using lib section (should be provided separately)
-        //CodeSec testProg = fillImports(testSections[0], 0, common, 0 /*TODO: lib section*/);
-
-        //testSections[0] = testProg;
-
         foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
 
         allocateSections(testSections, pmem, dmem);
@@ -138,6 +134,7 @@ module ArchDesc0();
 
         task automatic runTestEmul_N(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp);
             string prefix = {"dir_", suiteName, "/"};
+            CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
 
             emulTestName = name;
 
@@ -145,15 +142,47 @@ module ArchDesc0();
             emul.progMem = new();
             emul.dataMem = new();
 
-            setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
+            //setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
+
+
+            // TODO: fill imports of every section using lib section (should be provided separately)
+            foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
+
+            allocateSections(testSections, emul.progMem, emul.dataMem);
 
             emul.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
 
             emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
             performEmul(emul);
+
+            // Compare outputs
+            // TODO
+
+            checkOutput(emul.dataMem, testSections);
+
         endtask
 
+
+        function automatic void checkOutput(input SparseDataMemory actualMem, input CodeSecArr sections);
+            Dword OUTPUT_BASE = 4*PAGE_SIZE;
+            CodeSec found[$] = sections.find with (item.desc == "output");
+            if (found.size() == 0) return;
+
+            foreach (found[0].words[i]) begin
+                Word expected = found[0].words[i];
+                Word actual = actualMem.readWord(OUTPUT_BASE + 4*i);
+
+                assert (actual === expected) else begin
+                    
+                    $error("Mem compare: actual %x, expected %x", actual, expected);
+
+                    $error("%p", actualMem.content);
+                end
+
+            end
+
+        endfunction
 
 
     task automatic runIntTestEmul(ref Emulator emul);
@@ -268,7 +297,6 @@ module ArchDesc0();
         task automatic runTestSim_N(input string suiteName, input string name, input GlobalParams gp);
             string prefix = {"dir_", suiteName, "/"};
 
-
             #CYCLE announce(name);
             core.resetForTest();
 
@@ -277,23 +305,22 @@ module ArchDesc0();
 
             setTestMemories({prefix, name}, core.programMem, core.dataMem);
 
-            //core.programMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
                 core.programMem.assignPage(PAGE_SIZE, common.words);
                 core.programMem.assignPage(3*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
 
             core.programMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-
-            //core.programMem = progMem;
             core.globalParams = gp;
             core.preloadForTest();
 
             startSim();
             
             awaitResult();
+
+            // Compare outputs
+            // TODO
+
         endtask
-
-
 
 
 
@@ -385,16 +412,14 @@ module ArchDesc0();
 
             DEV_testSim();
 
-
-
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
             
             runEventSim(trSim);
 
-                    // TODO: check why failure when this is before trSim (two fetchers active)
-                    runTestSim_N("DEV_tests","dev_test", gp_N);
+                // TODO: check why failure when this is before trSim (two fetchers active)
+                runTestSim_N("DEV_tests","dev_test", gp_N);
 
         end
         
@@ -406,61 +431,45 @@ module ArchDesc0();
     initial simMain();
 
 
-    task automatic DEV_testEmul();
-        EmulRunner devRunner = new();
-        TestRunner runner = devRunner; 
-        DEV_runEmul(runner);
-    endtask
+        task automatic DEV_testEmul();
+            EmulRunner devRunner = new();
+            TestRunner runner = devRunner; 
+            DEV_runEmul(runner);
+        endtask
 
 
-    task automatic DEV_testSim();
-        EmulRunner devRunner = new(); // type of runner is irrelevant here
-        TestRunner runner = devRunner;
+        task automatic DEV_testSim();
+            EmulRunner devRunner = new(); // type of runner is irrelevant here
+            TestRunner runner = devRunner;
+            DEV_runSim(runner);
+        endtask
 
 
-         //   processTest(readFile({codeDir, "dir_DEV_tests/dev_test.txt"}));
+        task automatic DEV_runEmul(ref TestRunner runner);
+            PageBasedProgramMemory thisProgMem = theProgMem;
+            runner.programMem = thisProgMem;
 
-        DEV_runSim(runner);
-    endtask
+            thisProgMem.assignPage(PAGE_SIZE, common.words);
+            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
+            runner.gp = Test_fillGpCached();
 
-    task automatic DEV_runEmul(ref TestRunner runner);
-        PageBasedProgramMemory thisProgMem = theProgMem;
-        runner.programMem = thisProgMem;
+            #DELAY;
+        endtask
 
-        thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+        task automatic DEV_runSim(ref TestRunner runner);
+            PageBasedProgramMemory thisProgMem = theProgMem;
+            runner.programMem = thisProgMem;
 
-        runner.gp = Test_fillGpCached();
+            thisProgMem.assignPage(PAGE_SIZE, common.words);
+            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-      //  $error("DEV run"); 
-      //  runTestEmul("DEV_tests", "dev_test", emul_N, runner.gp, runner.programMem);
-        // TODO: check output page 
-
-      //  $error("DEV run OK");
-
-
-        #DELAY;
-    endtask
-
-    task automatic DEV_runSim(ref TestRunner runner);
-        PageBasedProgramMemory thisProgMem = theProgMem;
-        runner.programMem = thisProgMem;
-
-        thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
-
-        runner.gp = Test_fillGpCached();
-
-       // $error("DEV sim run"); 
-      //  runTestSim("DEV_tests", "dev_test", runner.gp, runner.programMem);
-        // TODO: check output page ???
-
-       // $error("DEV sim run OK");
-        #DELAY;
+            runner.gp = Test_fillGpCached();
 
 
-    endtask
+            #DELAY;
+
+        endtask
 
 
 endmodule

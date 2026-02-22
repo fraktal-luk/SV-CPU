@@ -12,6 +12,13 @@
 
 	jnz_i r12, $error
 
+
+	add_i r20, r0, 101
+	sti_i r20, r0, 0x4000
+
+	add_i r20, r20, 1
+	sti_i r20, r0, 0x4004
+
 	sys_dbcall
 
 $error
@@ -23,3 +30,7 @@ $someValue
 	5764383,
 	27
 
+
+@section output
+	101,
+	102
