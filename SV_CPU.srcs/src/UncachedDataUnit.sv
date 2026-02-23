@@ -19,20 +19,20 @@ module UncachedDataUnit(
 );
 
 
-    class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
-        static
-        function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
-            Mbyte wval[ESIZE] = {>>{val}};
-            arr[(adr - BASE) +: ESIZE] = wval;
-        endfunction
+    // class PageWriter#(type Elem = Mbyte, int ESIZE = 1, int BASE = 0);
+    //     static
+    //     function automatic void writeTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr, input Elem val);
+    //         Mbyte wval[ESIZE] = {>>{val}};
+    //         arr[(adr - BASE) +: ESIZE] = wval;
+    //     endfunction
 
-        static
-        function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
-            Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
-            Elem wval = {>>{chosen}};
-            return wval;
-        endfunction
-    endclass
+    //     static
+    //     function automatic Elem readTyped(ref Mbyte arr[PAGE_SIZE], input Mword adr);                
+    //         Mbyte chosen[ESIZE] = arr[(adr - BASE) +: ESIZE];
+    //         Elem wval = {>>{chosen}};
+    //         return wval;
+    //     endfunction
+    // endclass
 
 
     typedef struct {
@@ -55,7 +55,7 @@ module UncachedDataUnit(
 
     // TODO: note in impl definitions
     localparam Mword UNCACHED_BASE = 'h0000000040000000; // CAREFUL: sync it with testing settings
-    Mbyte uncachedArea[PAGE_SIZE];
+    //Mbyte uncachedArea[PAGE_SIZE];
 
 
     task automatic UNC_reset();
@@ -67,7 +67,7 @@ module UncachedDataUnit(
 
             uncachedResults = '{default: EMPTY_DATA_CACHE_OUTPUT};
 
-        uncachedArea = '{default: 0};
+       // uncachedArea = '{default: 0};
     endtask
 
 
@@ -108,19 +108,23 @@ module UncachedDataUnit(
     
     /////////////////
     function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
-        PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+        //PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+            AbstractCore.dataMem.writeWord(adr, val);
     endfunction
 
     function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
-        PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+        //PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+            AbstractCore.dataMem.writeByte(adr, val);
     endfunction
 
     function automatic Mword readWordUncached(input Mword adr);
-        return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
+        //return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
+            return AbstractCore.dataMem.readWord(adr);
     endfunction
 
     function automatic Mword readByteUncached(input Mword adr);
-        return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
+        //return Mword'(PageWriter#(Mbyte, 1, UNCACHED_BASE)::readTyped(uncachedArea, adr));
+            return AbstractCore.dataMem.readByte(adr);
     endfunction
     //////////////////////
 
