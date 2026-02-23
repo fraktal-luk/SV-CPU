@@ -30,3 +30,7 @@ sim:/ArchDesc0/core/theExecBlock/replayQueue/entries
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUops \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUopsE2
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/memImages
+

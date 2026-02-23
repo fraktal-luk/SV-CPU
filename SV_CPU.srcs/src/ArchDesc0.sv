@@ -397,12 +397,13 @@ module ArchDesc0();
                 
         if (RUN_EMUL_TESTS) begin
 
-            DEV_testEmul();
+           // DEV_testEmul();
 
             runSim(trEm);
             runEmulEvents();
 
             runTestEmul_N("DEV_tests", "dev_test", emul_N, Test_fillGpCached());
+            runTestEmul_N("DEV_tests", "dev_test_2", emul_N, Test_fillGpCached());
 
         end
         
@@ -410,7 +411,7 @@ module ArchDesc0();
                    GlobalParams gp_N = Test_fillGpCached();
                    gp_N.initialCregs.memControl = 7;
 
-            DEV_testSim();
+          //  DEV_testSim();
 
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
@@ -420,6 +421,7 @@ module ArchDesc0();
 
                 // TODO: check why failure when this is before trSim (two fetchers active)
                 runTestSim_N("DEV_tests","dev_test", gp_N);
+                runTestSim_N("DEV_tests","dev_test_2", gp_N);
 
         end
         
