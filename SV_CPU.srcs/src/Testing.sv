@@ -290,12 +290,11 @@ package Testing;
         Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
         Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
 
-        Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
+        //Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
         Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
 
 
         Translation outputPage0 = '{present: 1, vadr: 'h4000, desc: cachedDesc, padr: 'h4000};
-
 
 
             Translation physDataPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
@@ -303,8 +302,6 @@ package Testing;
             Translation physDataPageAlt2000 = '{present: 1, vadr: 'h2000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h2000};
 
             Translation outputPageAlt0 = '{present: 1, vadr: 'h4000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h4000};
-
-
 
 
         // Mapped to nonexistent memory
@@ -316,13 +313,12 @@ package Testing;
         params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage};
 
         params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage,
-                                        physDataPage20000000,
-
                                         physDataPageAlt0, physDataPageAlt1, physDataPageAlt2000, outputPageAlt0
                                         };
 
         params.preloadedDataWays = '{0, 4*PAGE_SIZE};
     endfunction
+
 
     function automatic void Ins_prefetchForTest(ref GlobalParams params);
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
