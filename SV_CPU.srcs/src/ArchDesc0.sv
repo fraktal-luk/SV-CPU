@@ -56,6 +56,10 @@ module ArchDesc0();
         "Tests_events"
     };
 
+        squeue devTests = '{
+            "Tests_DEV"
+        };
+
 
     string emulTestName, simTestName;
 
@@ -100,6 +104,13 @@ module ArchDesc0();
     class EmulRunner extends TestRunner;        
         task automatic runTest(input string suiteName, input string name);
             runTestEmul(suiteName, name, emul_N, gp, programMem);
+            #DELAY;
+        endtask
+    endclass
+
+    class EmulRunner_N extends TestRunner;        
+        task automatic runTest(input string suiteName, input string name);
+            runTestEmul_N(suiteName, name, emul_N, gp);
             #DELAY;
         endtask
     endclass
@@ -274,6 +285,14 @@ module ArchDesc0();
     endclass
 
 
+    class SimRunner_N extends TestRunner;
+        task automatic runTest(input string suiteName, input string name);            
+            runTestSim_N(suiteName, name, gp);
+        endtask
+    endclass
+
+
+
     task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp, input PageBasedProgramMemory progMem);
         string prefix = {"dir_", suiteName, "/"};
 
@@ -388,10 +407,16 @@ module ArchDesc0();
 
     task automatic simMain();
         EmulRunner emRunner = new();
-        TestRunner trEm = emRunner;        
+        TestRunner trEm = emRunner;
+
+            EmulRunner_N emRunner_N = new();
+            TestRunner trEm_N = emRunner_N;
 
         SimRunner runner = new();
         TestRunner trSim = runner;
+
+            SimRunner_N runner_N = new();
+            TestRunner trSim_N = runner_N;
 
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
@@ -405,8 +430,14 @@ module ArchDesc0();
             runTestEmul_N("DEV_tests", "dev_test", emul_N, Test_fillGpCached());
             runTestEmul_N("DEV_tests", "dev_test_2", emul_N, Test_fillGpCached());
 
+                trEm_N.gp = Test_fillGpCached();
+                trEm_N.gp.initialCregs.memControl = 7;
+                #CYCLE $display(">>>>>> Dev tests");
+                trEm_N.runSuites(devTests);
+
+
         end
-        
+
         if (RUN_SIM_TESTS) begin
                    GlobalParams gp_N = Test_fillGpCached();
                    gp_N.initialCregs.memControl = 7;
@@ -419,9 +450,14 @@ module ArchDesc0();
             
             runEventSim(trSim);
 
-                // TODO: check why failure when this is before trSim (two fetchers active)
-                runTestSim_N("DEV_tests","dev_test", gp_N);
-                runTestSim_N("DEV_tests","dev_test_2", gp_N);
+            // TODO: check why failure when this is before trSim (two fetchers active)
+            runTestSim_N("DEV_tests","dev_test", gp_N);
+            runTestSim_N("DEV_tests","dev_test_2", gp_N);
+
+                trSim_N.gp = Test_fillGpCached();
+                trSim_N.gp.initialCregs.memControl = 7;
+                #CYCLE $display(">>>>>> Dev tests");
+                trSim_N.runSuites(devTests);
 
         end
         
@@ -433,45 +469,45 @@ module ArchDesc0();
     initial simMain();
 
 
-        task automatic DEV_testEmul();
-            EmulRunner devRunner = new();
-            TestRunner runner = devRunner; 
-            DEV_runEmul(runner);
-        endtask
+        // task automatic DEV_testEmul();
+        //     EmulRunner devRunner = new();
+        //     TestRunner runner = devRunner; 
+        //     DEV_runEmul(runner);
+        // endtask
 
 
-        task automatic DEV_testSim();
-            EmulRunner devRunner = new(); // type of runner is irrelevant here
-            TestRunner runner = devRunner;
-            DEV_runSim(runner);
-        endtask
+        // task automatic DEV_testSim();
+        //     EmulRunner devRunner = new(); // type of runner is irrelevant here
+        //     TestRunner runner = devRunner;
+        //     DEV_runSim(runner);
+        // endtask
 
 
-        task automatic DEV_runEmul(ref TestRunner runner);
-            PageBasedProgramMemory thisProgMem = theProgMem;
-            runner.programMem = thisProgMem;
+        // task automatic DEV_runEmul(ref TestRunner runner);
+        //     PageBasedProgramMemory thisProgMem = theProgMem;
+        //     runner.programMem = thisProgMem;
 
-            thisProgMem.assignPage(PAGE_SIZE, common.words);
-            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+        //     thisProgMem.assignPage(PAGE_SIZE, common.words);
+        //     thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-            runner.gp = Test_fillGpCached();
+        //     runner.gp = Test_fillGpCached();
 
-            #DELAY;
-        endtask
+        //     #DELAY;
+        // endtask
 
-        task automatic DEV_runSim(ref TestRunner runner);
-            PageBasedProgramMemory thisProgMem = theProgMem;
-            runner.programMem = thisProgMem;
+        // task automatic DEV_runSim(ref TestRunner runner);
+        //     PageBasedProgramMemory thisProgMem = theProgMem;
+        //     runner.programMem = thisProgMem;
 
-            thisProgMem.assignPage(PAGE_SIZE, common.words);
-            thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+        //     thisProgMem.assignPage(PAGE_SIZE, common.words);
+        //     thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-            runner.gp = Test_fillGpCached();
+        //     runner.gp = Test_fillGpCached();
 
 
-            #DELAY;
+        //     #DELAY;
 
-        endtask
+        // endtask
 
 
 endmodule
