@@ -772,7 +772,7 @@ module AbstractCore
         theFrontend.stage_IP.active <= 0;
 
         branchCheckpointQueue.delete();
-        
+
         sysUnit.reset();
         
         syncRegsFromRetiredCregs();

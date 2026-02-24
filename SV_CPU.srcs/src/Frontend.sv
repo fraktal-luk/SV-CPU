@@ -21,7 +21,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     
     localparam int MAX_STAGE_UNCACHED = 4 + 12;
     // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
-    localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 1;
+    localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 3;
     localparam int UFQ_SIZE = UFQ_SLACK + 20;
 
 
@@ -308,7 +308,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
         task automatic fetchNormalUncached();
-            if (stageUnc_IP.active && ufqSize < UFQ_SLACK) begin
+            if (stageUnc_IP.active && ufqSize < UFQ_SIZE - UFQ_SLACK) begin
                 stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageFetchUnc0 <= stageUnc_IP;
             end
@@ -440,7 +440,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         end
         else if (FETCH_UNC) begin
             if (finalFetchStageUncached.active) begin
-                assert (uncachedFetchQueue.size() <= UFQ_SIZE - UFQ_SLACK) else $fatal(2, "Writing to full UncachedFetchQueue");
+                assert (uncachedFetchQueue.size() < UFQ_SIZE) else $fatal(2, "Writing to full UncachedFetchQueue");
                 uncachedFetchQueue.push_back(finalFetchStageUncached);
             end
 

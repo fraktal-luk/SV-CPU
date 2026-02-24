@@ -372,11 +372,11 @@ module ArchDesc0();
         thisProgMem.assignPage(PAGE_SIZE, common.words);
         thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
 
-        runner.gp = Test_fillGpCached();
-        runner.gp.initialCregs.memControl = 0;
+            runner.gp = Test_fillGpCached();
+            runner.gp.initialCregs.memControl = 0;
 
-        #CYCLE $display("Uncached suites");
-        runner.runSuites(uncachedSuites);
+            #CYCLE $display("Uncached suites");
+            runner.runSuites(uncachedSuites);
 
         runner.gp.initialCregs.memControl = 7;
 
@@ -432,9 +432,13 @@ module ArchDesc0();
 
                 trEm_N.gp = Test_fillGpCached();
                 trEm_N.gp.initialCregs.memControl = 7;
-                #CYCLE $display(">>>>>> Dev tests");
+                #CYCLE $display(">>>>>> Em  Dev tests");
                 trEm_N.runSuites(devTests);
 
+
+                trEm_N.gp.initialCregs.memControl = 0;
+                #CYCLE $display(">>>>>> Em  Dev tests unc");
+                trEm_N.runSuites(devTests);
 
         end
 
@@ -442,7 +446,13 @@ module ArchDesc0();
                    GlobalParams gp_N = Test_fillGpCached();
                    gp_N.initialCregs.memControl = 7;
 
-          //  DEV_testSim();
+
+
+                trSim_N.gp = Test_fillGpCached();
+                trSim_N.gp.initialCregs.memControl = 0;
+
+                #CYCLE $display(">>>>>> Sim  Dev tests unc");
+                trSim_N.runSuites(devTests);
 
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
@@ -450,14 +460,24 @@ module ArchDesc0();
             
             runEventSim(trSim);
 
-            // TODO: check why failure when this is before trSim (two fetchers active)
-            runTestSim_N("DEV_tests","dev_test", gp_N);
-            runTestSim_N("DEV_tests","dev_test_2", gp_N);
+            // // TODO: check why failure when this is before trSim (two fetchers active)
+            // runTestSim_N("DEV_tests","dev_test", gp_N);
+            // runTestSim_N("DEV_tests","dev_test_2", gp_N);
+
+
+                // trSim_N.gp = Test_fillGpCached();
+                // trSim_N.gp.initialCregs.memControl = 0;
+
+                // #CYCLE $display(">>>>>> Dev tests unc");
+                // trSim_N.runSuites(devTests);
+
 
                 trSim_N.gp = Test_fillGpCached();
                 trSim_N.gp.initialCregs.memControl = 7;
-                #CYCLE $display(">>>>>> Dev tests");
+
+                #CYCLE $display(">>>>>> Sim  Dev tests");
                 trSim_N.runSuites(devTests);
+
 
         end
         
