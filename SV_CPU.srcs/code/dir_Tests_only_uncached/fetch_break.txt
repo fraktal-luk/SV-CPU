@@ -4,7 +4,8 @@ $start
 	and_r r0, r0, r0
 	and_r r0, r0, r0
 
-	ja 12256 ;  -16 + 3 * 4096 - 16  ;
+	;ja 12256 ;  -16 + 3 * 4096 - 16  ;
+	ja 0x4fe0 ;  -16 + 5 * 4096 - 16  ;
 
 $done
 	sys_dbcall

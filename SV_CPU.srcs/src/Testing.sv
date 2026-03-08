@@ -61,7 +61,10 @@ package Testing;
                     "prog_main": pmem.assignPage(PROG_P_MAIN, sections[i].words);
                     "prog_miss": ;
 
-                    "handlers": pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
+                    "handlers": begin
+                            $error("Setting handlers");
+                        pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
+                     end
                     "lib":      pmem.assignPage(PROG_P_LIB, sections[i].words);
 
 
@@ -92,7 +95,7 @@ package Testing;
 
     const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
     
-    const string DEFAULT_RESET_HANDLER[$] = {/*"ja -512", /**/"ja -8704",/**/  "ja 0", "sys_error"};
+    const string DEFAULT_RESET_HANDLER[$] = {/**/"ja -0x4200", /*"ja -8704",/**/  "ja 0", "sys_error"};
 
     const string DEFAULT_INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
 
@@ -327,16 +330,18 @@ package Testing;
         Translation physInsPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
         Translation physInsPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
         Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
+        Translation physInsPage4 = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
             Translation physInsPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
             Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
+            Translation physInsPageAlt4 = '{present: 1, vadr: 4*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
 
-        params.preloadedInsWays = '{0, PAGE_SIZE, 2*PAGE_SIZE};
+        params.preloadedInsWays = '{0, PAGE_SIZE,     4*PAGE_SIZE};
 
-        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
-        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3,
-                                        physInsPageAlt0, physInsPageAlt3
+        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4};
+        params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4,
+                                        physInsPageAlt0, physInsPageAlt3, physInsPageAlt4
                                     };        
     endfunction
     

@@ -74,11 +74,14 @@ module ArchDesc0();
 
     function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
+        CodeSecArr handlers = processFile(readFile({codeDir, "handlers.txt"}));
 
         // TODO: fill imports of every section using lib section (should be provided separately)
         foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
 
         allocateSections(testSections, pmem, dmem);
+        allocateSections(handlers, pmem, dmem);
+
     endfunction
 
 
@@ -120,7 +123,7 @@ module ArchDesc0();
         $display("Emulation event/int tests");
 
         emul_N.progMem.assignPage(PAGE_SIZE, common.words);
-        emul_N.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+        emul_N.progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
         #DELAY runIntTestEmul(emul_N);
         #DELAY;
@@ -137,6 +140,7 @@ module ArchDesc0();
 
         emul.progMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
         emul.progMem.assignPage(3*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
+        emul.progMem.assignPage(5*PAGE_SIZE, emul.progMem.getPage(0)); // copy of page 0, not preloaded
 
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
@@ -158,7 +162,7 @@ module ArchDesc0();
 
             allocateSections(testSections, emul.progMem, emul.dataMem);
 
-            emul.progMem.assignPage(2*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
+                emul.progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
 
             emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
@@ -296,6 +300,7 @@ module ArchDesc0();
         #CYCLE announce(name);
         progMem.assignPage(0, prepareTestPage({prefix, name}, COMMON_ADR));
         progMem.assignPage(3*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
+        progMem.assignPage(5*PAGE_SIZE, progMem.getPage(0)); // copy of page 0, not preloaded
 
         core.resetForTest();
         core.programMem = progMem;
@@ -323,8 +328,10 @@ module ArchDesc0();
 
                 core.programMem.assignPage(PAGE_SIZE, common.words);
                 core.programMem.assignPage(3*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
+                core.programMem.assignPage(5*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
 
-            core.programMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+                core.programMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
+
 
             core.globalParams = gp;
             core.preloadForTest();
@@ -365,7 +372,7 @@ module ArchDesc0();
         runner.programMem = thisProgMem;
 
         thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+        thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
             runner.gp = Test_fillGpCached();
             runner.gp.initialCregs.memControl = 0;
@@ -392,7 +399,7 @@ module ArchDesc0();
         thisProgMem.assignPage(PAGE_SIZE, common.words);
 
         startSim(); // Pulse reset to flush old mem content from pipeline
-        thisProgMem.assignPage(2*PAGE_SIZE, prepareHandlersPage());
+        thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
         #CYCLE $display("Event/int tests");
 

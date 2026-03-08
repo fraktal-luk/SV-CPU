@@ -1,3 +1,5 @@
+@section handlers
+
 ; 000
     sys_undef
 ; 004
@@ -126,6 +128,8 @@
     sys_undef
 ; 0fc
     sys_undef
+
+$handle_ERROR
 ; 100
     sys_undef
 ; 104
@@ -190,6 +194,8 @@
     sys_undef
 ; 17c
     sys_undef
+
+$handle_CALL
 ; 180
     sys_undef
 ; 184
@@ -254,10 +260,12 @@
     sys_undef
 ; 1fc
     sys_undef
+
+$handle_RESET
 ; 200
-    sys_undef
+    ja -0x4200  ; temporary: jump to address zero (assume we are at 0x4200)
 ; 204
-    sys_undef
+    ja 0
 ; 208
     sys_undef
 ; 20c
@@ -318,6 +326,8 @@
     sys_undef
 ; 27c
     sys_undef
+
+$handle_INT
 ; 280
     sys_undef
 ; 284
@@ -382,6 +392,8 @@
     sys_undef
 ; 2fc
     sys_undef
+
+$handle_EXC
 ; 300
     sys_undef
 ; 304
@@ -446,6 +458,8 @@
     sys_undef
 ; 37c
     sys_undef
+
+$handle_FETCH_EXC
 ; 380
     sys_undef
 ; 384
@@ -510,6 +524,8 @@
     sys_undef
 ; 3fc
     sys_undef
+
+$handle_MEM_EXC
 ; 400
     sys_undef
 ; 404
@@ -574,6 +590,8 @@
     sys_undef
 ; 47c
     sys_undef
+
+$handle_DB_CALL
 ; 480
     sys_undef
 ; 484
@@ -638,6 +656,8 @@
     sys_undef
 ; 4fc
     sys_undef
+
+$handle_DB_BREAK
 ; 500
     sys_undef
 ; 504
@@ -702,6 +722,8 @@
     sys_undef
 ; 57c
     sys_undef
+
+$handle_ARITH_EXC
 ; 580
     sys_undef
 ; 584
@@ -2031,18 +2053,18 @@
 ; fdc
     sys_undef
 ; fe0
-    sys_undef
+    and_r r0, r0, r0
 ; fe4
-    sys_undef
+    and_r r0, r0, r0
 ; fe8
-    sys_undef
+    and_r r0, r0, r0
 ; fec
-    sys_undef
+    and_r r0, r0, r0
 ; ff0
-    sys_undef
+    and_r r0, r0, r0
 ; ff4
-    sys_undef
+    and_r r0, r0, r0
 ; ff8
-    sys_undef
+    and_r r0, r0, r0
 ; ffc
-    sys_undef
+    and_r r0, r0, r0

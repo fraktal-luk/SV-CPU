@@ -103,7 +103,7 @@ package InsDefs;
 
     localparam int PAGE_SIZE = 4096;
 
-        localparam Mword HANDLER_BASE = 2*PAGE_SIZE; // TMP
+        localparam Mword HANDLER_BASE = 4*PAGE_SIZE; // TMP
 
     // Handler addresses
     localparam Mword IP_ERROR     = HANDLER_BASE + 'h00000100;
