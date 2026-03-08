@@ -290,7 +290,6 @@ package Testing;
         Translation physDataPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: 4096};
         Translation physDataPage2000 = '{present: 1, vadr: 'h2000, desc: cachedDesc, padr: 'h2000};
 
-        //Translation physDataPage20000000 = '{present: 1, vadr: 'h20000000, desc: cachedDesc, padr: 'h20000000};
         Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
 
 
@@ -329,9 +328,6 @@ package Testing;
         Translation physInsPage2 = '{present: 1, vadr: 2*PAGE_SIZE, desc: cachedDesc, padr: 2*PAGE_SIZE};
         Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
 
-        // Translation physInsPage3_alt = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
-        // Translation physInsPage0_alt = '{present: 1, vadr: 8*PAGE_SIZE, desc: cachedDesc, padr: 0};
-
             Translation physInsPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
             Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
 
@@ -340,7 +336,6 @@ package Testing;
 
         params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3};
         params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3,
-                                       // physInsPage3_alt, physInsPage0_alt,
                                         physInsPageAlt0, physInsPageAlt3
                                     };        
     endfunction
