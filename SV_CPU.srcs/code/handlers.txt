@@ -593,9 +593,9 @@ $handle_MEM_EXC
 
 $handle_DB_CALL
 ; 480
-    sys_undef
+    sys_send
 ; 484
-    sys_undef
+    ja 0
 ; 488
     sys_undef
 ; 48c

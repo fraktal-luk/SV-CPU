@@ -62,7 +62,7 @@ package Testing;
                     "prog_miss": ;
 
                     "handlers": begin
-                            $error("Setting handlers");
+                         //   $error("Setting handlers");
                         pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
                      end
                     "lib":      pmem.assignPage(PROG_P_LIB, sections[i].words);

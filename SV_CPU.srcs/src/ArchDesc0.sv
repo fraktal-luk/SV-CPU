@@ -157,12 +157,15 @@ module ArchDesc0();
             emul.progMem = new();
             emul.dataMem = new();
 
-            // TODO: fill imports of every section using lib section (should be provided separately)
-            foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
 
-            allocateSections(testSections, emul.progMem, emul.dataMem);
+            setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
 
-                emul.progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
+            // // TODO: fill imports of every section using lib section (should be provided separately)
+            // foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
+
+            // allocateSections(testSections, emul.progMem, emul.dataMem);
+
+                //emul.progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
 
             emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
@@ -330,7 +333,7 @@ module ArchDesc0();
                 core.programMem.assignPage(3*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
                 core.programMem.assignPage(5*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
 
-                core.programMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
+                //core.programMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
 
             core.globalParams = gp;
@@ -434,12 +437,12 @@ module ArchDesc0();
 
                 trEm_N.gp = Test_fillGpCached();
                 trEm_N.gp.initialCregs.memControl = 7;
-                #CYCLE $display(">>>>>> Em  Dev tests");
+                #CYCLE $display("\n>>>>>> Em  Dev tests");
                 trEm_N.runSuites(devTests);
 
 
                 trEm_N.gp.initialCregs.memControl = 0;
-                #CYCLE $display(">>>>>> Em  Dev tests unc");
+                #CYCLE $display("\n>>>>>> Em  Dev tests unc");
                 trEm_N.runSuites(devTests);
 
         end
@@ -451,7 +454,7 @@ module ArchDesc0();
                 trSim_N.gp = Test_fillGpCached();
                 trSim_N.gp.initialCregs.memControl = 0;
 
-                #CYCLE $display(">>>>>> Sim  Dev tests unc");
+                #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
                 trSim_N.runSuites(devTests);
 
             runSim(trSim);
@@ -463,7 +466,7 @@ module ArchDesc0();
                 trSim_N.gp = Test_fillGpCached();
                 trSim_N.gp.initialCregs.memControl = 7;
 
-                #CYCLE $display(">>>>>> Sim  Dev tests");
+                #CYCLE $display("\n>>>>>> Sim  Dev tests");
                 trSim_N.runSuites(devTests);
 
         end
