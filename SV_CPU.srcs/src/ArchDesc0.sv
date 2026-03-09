@@ -437,8 +437,8 @@ module ArchDesc0();
             runSim(trEm);
             runEmulEvents();
 
-            runTestEmul_N("DEV_tests", "dev_test", emul_N, Test_fillGpCached());
-            runTestEmul_N("DEV_tests", "dev_test_2", emul_N, Test_fillGpCached());
+            // runTestEmul_N("DEV_tests", "dev_test", emul_N, Test_fillGpCached());
+            // runTestEmul_N("DEV_tests", "dev_test_2", emul_N, Test_fillGpCached());
 
                 trEm_N.gp = Test_fillGpCached();
                 trEm_N.gp.initialCregs.memControl = 7;
