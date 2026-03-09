@@ -1,0 +1,36 @@
+
+@section prog_main
+
+	add_i r5, r0, 88
+	add_i r6, r0, -10
+
+	add_i r10, r0, -28
+	ldi_i r9, r0, 4
+	add_r r11, r10, r9
+
+	add_i r12, r11, 1
+
+	jnz_i r12, $error
+
+
+	add_i r20, r0, 101
+	sti_i r20, r0, 0x4000
+
+	add_i r20, r20, 1
+	sti_i r20, r0, 0x4004
+
+	sys_dbcall
+
+$error
+	sys_error
+
+@section data0
+
+$someValue
+	5764383,
+	27
+
+
+@section output
+	101,
+	102

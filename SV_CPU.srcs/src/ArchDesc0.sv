@@ -60,6 +60,11 @@ module ArchDesc0();
             "Tests_DEV"
         };
 
+        squeue newTests = '{
+            "Tests_DEV",
+            "Tests_NEW"
+        };
+
 
     string emulTestName, simTestName;
 
@@ -438,7 +443,7 @@ module ArchDesc0();
                 trEm_N.gp = Test_fillGpCached();
                 trEm_N.gp.initialCregs.memControl = 7;
                 #CYCLE $display("\n>>>>>> Em  Dev tests");
-                trEm_N.runSuites(devTests);
+                trEm_N.runSuites(newTests);
 
 
                 trEm_N.gp.initialCregs.memControl = 0;
@@ -467,7 +472,7 @@ module ArchDesc0();
                 trSim_N.gp.initialCregs.memControl = 7;
 
                 #CYCLE $display("\n>>>>>> Sim  Dev tests");
-                trSim_N.runSuites(devTests);
+                trSim_N.runSuites(newTests);
 
         end
         
