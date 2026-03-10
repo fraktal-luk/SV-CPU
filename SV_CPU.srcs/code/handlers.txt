@@ -527,7 +527,7 @@ $handle_FETCH_EXC
 
 $handle_MEM_EXC
 ; 400
-    sys_undef
+    ja $process_sync_exception
 ; 404
     sys_undef
 ; 408
@@ -1044,102 +1044,82 @@ $handle_ARITH_EXC
     sys_undef
 ; 7fc
     sys_undef
+
+$process_sync_exception
+
 ; 800
-    sys_undef
-; 804
-    sys_undef
-; 808
-    sys_undef
-; 80c
-    sys_undef
+    add_i r1, r0, 0 
+    add_i r2, r0, 0
+    sti_i r1, r20, 0
+    sti_i r2, r20, 4
+
 ; 810
-    sys_undef
-; 814
-    sys_undef
-; 818
-    sys_undef
-; 81c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 1
+    sti_i r1, r20, 8
+    sti_i r0, r20, 12
+
 ; 820
-    sys_undef
-; 824
-    sys_undef
-; 828
-    sys_undef
-; 82c
-    sys_undef
+    add_r r0, r0, r0    
+    lds   r1, r0, 2
+    sti_i r1, r20, 16
+    sti_i r0, r20, 20 
+
 ; 830
-    sys_undef
-; 834
-    sys_undef
-; 838
-    sys_undef
-; 83c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 3     ; store 0
+    sti_i r0, r20, 24
+    sti_i r0, r20, 28
+
 ; 840
-    sys_undef
-; 844
-    sys_undef
-; 848
-    sys_undef
-; 84c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 4
+    sti_i r1, r20, 32
+    sti_i r0, r20, 36 
+
 ; 850
-    sys_undef
-; 854
-    sys_undef
-; 858
-    sys_undef
-; 85c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 5     ; store 0
+    sti_i r0, r20, 40
+    sti_i r0, r20, 44
+
 ; 860
-    sys_undef
-; 864
-    sys_undef
-; 868
-    sys_undef
-; 86c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 6
+    sti_i r1, r20, 48
+    sti_i r0, r20, 52 
+
 ; 870
-    sys_undef
-; 874
-    sys_undef
-; 878
-    sys_undef
-; 87c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 7     ; store 0
+    sti_i r0, r20, 56
+    sti_i r0, r20, 60
+
 ; 880
-    sys_undef
-; 884
-    sys_undef
-; 888
-    sys_undef
-; 88c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 8
+    sti_i r1, r20, 64
+    sti_i r0, r20, 68 
+
 ; 890
-    sys_undef
-; 894
-    sys_undef
-; 898
-    sys_undef
-; 89c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 9
+    sti_i r0, r20, 72
+    sti_i r0, r20, 76
+
 ; 8a0
-    sys_undef
-; 8a4
-    sys_undef
-; 8a8
-    sys_undef
-; 8ac
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 10
+    sti_i r1, r20, 80
+    sti_i r0, r20, 84
+
 ; 8b0
-    sys_undef
-; 8b4
-    sys_undef
-; 8b8
-    sys_undef
-; 8bc
-    sys_undef
+    ; return to next instruction
+    lds     r1, r0, 2
+    add_i   r1, r1, 4
+    sts     r1, r0, 2
+    sys_rete
+
 ; 8c0
     sys_undef
 ; 8c4

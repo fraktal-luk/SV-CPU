@@ -162,15 +162,7 @@ module ArchDesc0();
             emul.progMem = new();
             emul.dataMem = new();
 
-
             setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
-
-            // // TODO: fill imports of every section using lib section (should be provided separately)
-            // foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
-
-            // allocateSections(testSections, emul.progMem, emul.dataMem);
-
-                //emul.progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage()); // TODO: change to new mode
 
             emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
@@ -194,12 +186,9 @@ module ArchDesc0();
                 Word actual = actualMem.readWord(OUTPUT_BASE + 4*i);
 
                 assert (actual === expected) else begin
-                    
-                    $error("Mem compare: actual %x, expected %x", actual, expected);
-
+                    $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
                     $error("%p", actualMem.content);
                 end
-
             end
 
         endfunction
@@ -338,14 +327,10 @@ module ArchDesc0();
                 core.programMem.assignPage(3*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
                 core.programMem.assignPage(5*PAGE_SIZE, core.programMem.getPage(0)); // copy of page 0, not preloaded
 
-                //core.programMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
-
-
             core.globalParams = gp;
             core.preloadForTest();
 
             startSim();
-            
             awaitResult();
 
             // Compare outputs
@@ -382,11 +367,11 @@ module ArchDesc0();
         thisProgMem.assignPage(PAGE_SIZE, common.words);
         thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
-            runner.gp = Test_fillGpCached();
-            runner.gp.initialCregs.memControl = 0;
+        runner.gp = Test_fillGpCached();
+        runner.gp.initialCregs.memControl = 0;
 
-            #CYCLE $display("Uncached suites");
-            runner.runSuites(uncachedSuites);
+        #CYCLE $display("Uncached suites");
+        runner.runSuites(uncachedSuites);
 
         runner.gp.initialCregs.memControl = 7;
 
@@ -431,36 +416,29 @@ module ArchDesc0();
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
         if (RUN_EMUL_TESTS) begin
-
-           // DEV_testEmul();
-
             runSim(trEm);
             runEmulEvents();
 
-            // runTestEmul_N("DEV_tests", "dev_test", emul_N, Test_fillGpCached());
-            // runTestEmul_N("DEV_tests", "dev_test_2", emul_N, Test_fillGpCached());
-
-                trEm_N.gp = Test_fillGpCached();
-                trEm_N.gp.initialCregs.memControl = 7;
-                #CYCLE $display("\n>>>>>> Em  Dev tests");
-                trEm_N.runSuites(newTests);
+            trEm_N.gp = Test_fillGpCached();
+            trEm_N.gp.initialCregs.memControl = 7;
+            #CYCLE $display("\n>>>>>> Em  Dev tests");
+            trEm_N.runSuites(newTests);
 
 
-                trEm_N.gp.initialCregs.memControl = 0;
-                #CYCLE $display("\n>>>>>> Em  Dev tests unc");
-                trEm_N.runSuites(devTests);
-
+            trEm_N.gp.initialCregs.memControl = 0;
+            #CYCLE $display("\n>>>>>> Em  Dev tests unc");
+            trEm_N.runSuites(devTests);
         end
 
         if (RUN_SIM_TESTS) begin
-                   GlobalParams gp_N = Test_fillGpCached();
-                   gp_N.initialCregs.memControl = 7;
+            GlobalParams gp_N = Test_fillGpCached();
+            gp_N.initialCregs.memControl = 7;
 
-                trSim_N.gp = Test_fillGpCached();
-                trSim_N.gp.initialCregs.memControl = 0;
+            trSim_N.gp = Test_fillGpCached();
+            trSim_N.gp.initialCregs.memControl = 0;
 
-                #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
-                trSim_N.runSuites(devTests);
+            #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
+            trSim_N.runSuites(devTests);
 
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
@@ -468,12 +446,11 @@ module ArchDesc0();
             
             runEventSim(trSim);
 
-                trSim_N.gp = Test_fillGpCached();
-                trSim_N.gp.initialCregs.memControl = 7;
+            trSim_N.gp = Test_fillGpCached();
+            trSim_N.gp.initialCregs.memControl = 7;
 
-                #CYCLE $display("\n>>>>>> Sim  Dev tests");
-                trSim_N.runSuites(newTests);
-
+            #CYCLE $display("\n>>>>>> Sim  Dev tests");
+            trSim_N.runSuites(newTests);
         end
         
         $display("All tests done;");

@@ -13,83 +13,79 @@ package Testing;
 
     typedef Word WordArray[];
 
+    localparam Dword PROG_P_MAIN = 0; // physical adr of test code
+    localparam Dword PROG_P_MISS = 'h2000; // page not in instruction L1
 
-        localparam Dword PROG_P_MAIN = 0; // physical adr of test code
-        localparam Dword PROG_P_MISS = 'h2000; // page not in instruction L1
-
-        localparam Dword PROG_P_HANDLERS = 'h4000;
-        localparam Dword PROG_P_LIB = 'h5000;
-
-
-        localparam Dword DATA_P_MAIN = 0; // physical adr of input
-        localparam Dword DATA_P_MISS = 'h2000; // page not in data L1
-
-        localparam Dword DATA_P_OUTPUT = 'h4000; // for writing output data 
-
-        localparam Dword DATA_P_UNCACHED = 'h0000000040000000;
+    localparam Dword PROG_P_HANDLERS = 'h4000;
+    localparam Dword PROG_P_LIB = 'h5000;
 
 
-        localparam Dword VIRTUAL_OFFSET_TLB_MISS = 'h100000;  // 1 MB
+    localparam Dword DATA_P_MAIN = 0; // physical adr of input
+    localparam Dword DATA_P_MISS = 'h2000; // page not in data L1
 
-        localparam Dword PROG_V_OFFSET = 0; // Added to all physical adrs of program
-        localparam Dword DATA_V_OFFSET = 0; // Likewise, for data
+    localparam Dword DATA_P_OUTPUT = 'h4000; // for writing output data 
 
-
-
-
-
-        // Section mapping
-        //
-        // "prog_main" -> PROG_P_MAIN
-        // "prog_miss" -> PROG_P_MISS
-
-        // "data0" -> DATA_P_MAIN
-        // "data1" -> DATA_P_MAIN + 'h1000
-        // "data_miss0" -> DATA_P_MISS;
-        // "data_miss1" -> DATA_P_MISS + 'h1000;
-
-        // "output" -> DATA_P_OUTPUT
-
-        // "data_uncached" -> DATA_P_UNCACHED
-
-        function automatic void allocateSections(input CodeSecArr sections, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
-            foreach (sections[i]) begin
-
-                if (sections[i].words.size() > 1024) $error("Section '%s' too big for page: %d", sections[i].desc, sections[i].words.size());
-
-                case (sections[i].desc)
-                    "prog_main": pmem.assignPage(PROG_P_MAIN, sections[i].words);
-                    "prog_miss": ;
-
-                    "handlers": begin
-                         //   $error("Setting handlers");
-                        pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
-                     end
-                    "lib":      pmem.assignPage(PROG_P_LIB, sections[i].words);
+    localparam Dword DATA_P_UNCACHED = 'h0000000040000000;
 
 
-                    "data0":      dmem.writeWordArray(DATA_P_MAIN, sections[i].words);
-                    "data1": ;
-                    "data_miss0": ;
-                    "data_miss1": ;
+    localparam Dword VIRTUAL_OFFSET_TLB_MISS = 'h100000;  // 1 MB
 
-                    "output": ; // Not loaded, leave default 0's and wait for tested program to fill it
+    localparam Dword PROG_V_OFFSET = 0; // Added to all physical adrs of program
+    localparam Dword DATA_V_OFFSET = 0; // Likewise, for data
 
-                    "data_uncached": dmem.writeWordArray(DATA_P_UNCACHED, sections[i].words);
 
-                    "": /* First, unnamed section: ingnore */;
+    // Section mapping
+    //
+    // "prog_main" -> PROG_P_MAIN
+    // "prog_miss" -> PROG_P_MISS
 
-                    default: $error("Wrong section label: %s", sections[i].desc);
-                endcase
-            end
+    // "data0" -> DATA_P_MAIN
+    // "data1" -> DATA_P_MAIN + 'h1000
+    // "data_miss0" -> DATA_P_MISS;
+    // "data_miss1" -> DATA_P_MISS + 'h1000;
 
-        endfunction 
+    // "output" -> DATA_P_OUTPUT
 
+    // "data_uncached" -> DATA_P_UNCACHED
+
+    function automatic void allocateSections(input CodeSecArr sections, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
+        foreach (sections[i]) begin
+
+            if (sections[i].words.size() > 1024) $error("Section '%s' too big for page: %d", sections[i].desc, sections[i].words.size());
+
+               // $error("-- Section: %s", sections[i].desc);
+
+            case (sections[i].desc)
+                "prog_main": pmem.assignPage(PROG_P_MAIN, sections[i].words);
+                "prog_miss": pmem.assignPage(PROG_P_MISS, sections[i].words);
+
+                "handlers": begin
+                     //   $error("Setting handlers");
+                    pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
+                 end
+                "lib":      pmem.assignPage(PROG_P_LIB, sections[i].words);
+
+
+                "data0":      dmem.writeWordArray(DATA_P_MAIN, sections[i].words);
+                "data1": ;
+                "data_miss0": ;
+                "data_miss1": ;
+
+                "output": ; // Not loaded, leave default 0's and wait for tested program to fill it
+
+                "data_uncached": dmem.writeWordArray(DATA_P_UNCACHED, sections[i].words);
+
+                "": /* First, unnamed section: ingnore */;
+
+                default: $error("Wrong section label: %s", sections[i].desc);
+            endcase
+        end
+
+    endfunction 
 
 
 
     const string FAILING_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
-
 
     const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
 
@@ -136,7 +132,6 @@ package Testing;
     const CodeSec DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
 
     const CodeSec DEFAULT_ARITH_SECTION = processLines(DEFAULT_ARITH_HANDLER);
-
 
 
     localparam string codeDir = "../../../../SV_CPU.srcs/code/";
@@ -270,7 +265,6 @@ package Testing;
     endclass
 
 
-
     /*
         Test setup routines
     */
@@ -295,16 +289,13 @@ package Testing;
 
         Translation physDataPageUnc = '{present: 1, vadr: 'h40000000, desc: uncachedDesc, padr: 'h40000000};
 
-
         Translation outputPage0 = '{present: 1, vadr: 'h4000, desc: cachedDesc, padr: 'h4000};
-
 
             Translation physDataPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
             Translation physDataPageAlt1 = '{present: 1, vadr: PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4096};
             Translation physDataPageAlt2000 = '{present: 1, vadr: 'h2000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h2000};
 
             Translation outputPageAlt0 = '{present: 1, vadr: 'h4000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h4000};
-
 
         // Mapped to nonexistent memory
         Translation nonexistentPage = '{present: 1, vadr: 'h5000, desc: cachedDesc, padr: 'h2000000000000000};
@@ -324,7 +315,6 @@ package Testing;
 
     function automatic void Ins_prefetchForTest(ref GlobalParams params);
         DataLineDesc cachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 1};
-        //DataLineDesc uncachedDesc = '{allowed: 1, canRead: 1, canWrite: 1, canExec: 1, cached: 0};
 
         Translation physInsPage0 = '{present: 1, vadr: 0, desc: cachedDesc, padr: 0};
         Translation physInsPage1 = '{present: 1, vadr: PAGE_SIZE, desc: cachedDesc, padr: PAGE_SIZE};
@@ -335,7 +325,6 @@ package Testing;
             Translation physInsPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
             Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
             Translation physInsPageAlt4 = '{present: 1, vadr: 4*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4*PAGE_SIZE};
-
 
         params.preloadedInsWays = '{0, PAGE_SIZE,     4*PAGE_SIZE};
 
