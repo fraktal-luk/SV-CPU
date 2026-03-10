@@ -166,10 +166,9 @@ module ArchDesc0();
 
             emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
-            performEmul(emul);
+            emul.resetSignal();
 
-            // Compare outputs
-            // TODO
+            performEmul(emul);
 
             checkOutput(emul.dataMem, testSections);
 

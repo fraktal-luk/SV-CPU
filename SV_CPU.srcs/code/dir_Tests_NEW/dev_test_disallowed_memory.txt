@@ -19,7 +19,7 @@ $error
 0
 0
 ; c1 - currentStatus
-1
+0x11
 0 ; hi
 ; c2 - excSavedIP
 8
@@ -28,7 +28,7 @@ $error
 0
 0 ; hi
 ; c4 - excSavedStatus
-0
+0x10
 0 ; hi
 ; c5 - intSavedStatus
 0
