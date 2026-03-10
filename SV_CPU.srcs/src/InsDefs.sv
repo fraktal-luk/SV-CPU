@@ -11,6 +11,8 @@ package Base;
     typedef logic logic3[3];
 
 
+    typedef Word WordArray[];
+
 
 
     function automatic Word multiplyW(Word a, Word b);

@@ -318,6 +318,7 @@ package CacheDefs;
         return 1;
     endfunction
 
+    // TODO: write actual data
     function automatic logic tryFillWay(ref DataWay way, input Dword adr);
         int blockIndex = getBlockIndex(adr);
 
@@ -357,6 +358,17 @@ package CacheDefs;
         end
     endfunction
 
+
+
+    function automatic WordArray readWayContent(input DataWay way);
+        WordArray res = new [1024];
+        foreach (way[i]) begin
+            for (int wi = 0; wi < BLOCK_SIZE/4; wi++)
+                res[BLOCK_SIZE/4 * i + wi] = {>>{way[i].array[4*wi +: 4]}};
+        end
+
+        return res;       
+    endfunction
 
 
     ///////////////////////////////////////////////////////////////

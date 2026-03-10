@@ -100,6 +100,12 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
     endfunction
 
 
+    // For checking cache content
+    function automatic WordArray readWholeWay(input int way);
+        return readWayContent(ways[way]);
+    endfunction
+
+
 
     always @(posedge clk) begin
         if (dataFillEngine.notifyFill) begin

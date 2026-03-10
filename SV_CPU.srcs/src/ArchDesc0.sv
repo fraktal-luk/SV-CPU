@@ -193,6 +193,23 @@ module ArchDesc0();
 
         endfunction
 
+        function automatic void checkOutputWA(input WordArray actualMem, input CodeSecArr sections);
+            Dword OUTPUT_BASE = 4*PAGE_SIZE;
+            CodeSec found[$] = sections.find with (item.desc == "output");
+            if (found.size() == 0) return;
+
+            foreach (found[0].words[i]) begin
+                Word expected = found[0].words[i];
+                Word actual = actualMem[i];
+
+                assert (actual === expected) else begin
+                    $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
+                    $error("%p", actualMem);
+                end
+            end
+
+        endfunction
+
 
     task automatic runIntTestEmul(ref Emulator emul);
         GlobalParams gp = Test_fillGpCached();
@@ -315,6 +332,10 @@ module ArchDesc0();
         task automatic runTestSim_N(input string suiteName, input string name, input GlobalParams gp);
             string prefix = {"dir_", suiteName, "/"};
 
+            CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
+
+            WordArray outputWay;
+
             #CYCLE announce(name);
             core.resetForTest();
 
@@ -333,8 +354,11 @@ module ArchDesc0();
             startSim();
             awaitResult();
 
-            // Compare outputs
-            // TODO
+            // Compare outputs if cache enabled
+            if (gp.initialCregs.memControl == 0) return;
+
+            outputWay = core.dataCache.dataArray.readWholeWay(4);
+            checkOutputWA(outputWay, testSections);
         endtask
 
 

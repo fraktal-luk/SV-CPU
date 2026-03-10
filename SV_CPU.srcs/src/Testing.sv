@@ -11,7 +11,6 @@ package Testing;
     import AbstractSim::*;
     import Insmap::*;    
 
-    typedef Word WordArray[];
 
     localparam Dword PROG_P_MAIN = 0; // physical adr of test code
     localparam Dword PROG_P_MISS = 'h2000; // page not in instruction L1
