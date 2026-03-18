@@ -48,6 +48,8 @@ package CacheDefs;
      typedef struct {
         logic active;
 
+        logic invalid;
+
         logic sys;
         logic store;
         logic uncachedReq;
@@ -66,7 +68,7 @@ package CacheDefs;
         int shift; // Applies to block-crossing: bytes to shift at combining 
      } AccessDesc;
 
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
 
 
     function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    

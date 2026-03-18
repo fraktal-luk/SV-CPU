@@ -79,10 +79,16 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
                 // TODO: assign precise values
                 case (p.status)
+                    ES_INVALID: begin
+                        UopName uname = decUname(p.TMP_oid);
+                        if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
+                        else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
+
+                    end
                     ES_ILLEGAL: begin
                         UopName uname = decUname(p.TMP_oid);
                         if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
-                        else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
+                        else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
 
                     end
 

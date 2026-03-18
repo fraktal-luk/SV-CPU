@@ -10,7 +10,7 @@ dev_test_unc_memory
 
 
 dev_test_disallowed_memory
-;dev_test_invalid_memory  ; TODO: fix HW
+dev_test_invalid_memory  ; TODO: fix HW
 ;dev_test_unmapped_memory ; TODO: fix
 ;dev_test_nonexistent_memory ; FIX
 

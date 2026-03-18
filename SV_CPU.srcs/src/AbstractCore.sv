@@ -500,8 +500,10 @@ module AbstractCore
         for (int u = 0; u < info.nUops; u++) begin
             UopInfo uinfo = insMap.getU('{id, u});    
             if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
-                assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                     else $fatal(2, " not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0) else begin
+                    retiredEmul.getBasicDbView();
+                    $fatal(2, " not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                end
             end
         end
     endfunction
@@ -515,9 +517,15 @@ module AbstractCore
         Mword nextTrg;
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
-        assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
-        assert (retInfo.refetch === info.refetch) else $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
- 
+        assert (trg === info.basicData.adr) else begin
+            retiredEmul.getBasicDbView();
+            $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
+        end
+        assert (retInfo.refetch === info.refetch) else begin
+            retiredEmul.getBasicDbView();
+            $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
+        end
+
         // TODO: incorporate arith exc into ROB output to bring back this check?
           //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
           //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
@@ -538,7 +546,10 @@ module AbstractCore
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
         if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
             if (retInfo.takenBranch === 1) begin
-                assert (retInfo.target === nextTrg) else $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
+                assert (retInfo.target === nextTrg) else begin
+                    retiredEmul.getBasicDbView();
+                    $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
+                end
             end
         end
     endtask
