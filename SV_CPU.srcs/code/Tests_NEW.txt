@@ -6,4 +6,25 @@ dev_test_icache
 
 dev_test_unc_memory
 
+
+
+
 dev_test_disallowed_memory
+;dev_test_invalid_memory  ; TODO: fix HW
+;dev_test_unmapped_memory ; TODO: fix
+;dev_test_nonexistent_memory ; FIX
+
+
+
+;        test_FETCH_INVALID_ADDRESS();		; VADR beyond legal range
+;        test_FETCH_UNALIGNED_ADDRESS();	; VADR unaligned
+;        test_FETCH_UNMAPPED();			  ; VADR not in L2 TLB
+;        test_FETCH_DISALLOWED();        ; VADR set as not executable
+;        test_FETCH_NONEXISTENT();  ; PADR beyond implemented range
+
+;        test_SYS_INVALID_ADR();	; non existing sysreg
+;        test_SYS_UNDEF();			; undefined instruction
+;        test_SYS_ERROR();			; sys_error  ?
+;        test_SYS_CALL();			; sys_call
+
+;        test_INTERRUPT();

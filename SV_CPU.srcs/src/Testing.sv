@@ -33,6 +33,23 @@ package Testing;
     localparam Dword DATA_V_OFFSET = 0; // Likewise, for data
 
 
+        localparam Dword PROG_P_NONEXISTENT = 'h2000000000000000;
+        localparam Dword DATA_P_NONEXISTENT = 'h2000000000000000;
+
+
+        localparam Dword PROG_V_INVALID = 'h8000000000000000;
+        localparam Dword PROG_V_UNMAPPED = 'h8000;
+        localparam Dword PROG_V_DISALLOWED = 'h9000;
+        localparam Dword PROG_V_MAPPED_NONEXISTENT = 'ha000;
+
+        localparam Dword DATA_V_INVALID = 'h8000000000000000;
+        localparam Dword DATA_V_UNMAPPED = 'h8000;
+        localparam Dword DATA_V_DISALLOWED = 'h9000;
+        localparam Dword DATA_V_MAPPED_NONEXISTENT = 'ha000;
+
+
+
+
     // Section mapping
     //
     // "prog_main" -> PROG_P_MAIN
@@ -302,10 +319,25 @@ package Testing;
         // Mapped to correct memory but not allowed to read
         Translation disallowedPage = '{present: 1, vadr: 'h6000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 'h200000};
 
-        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage};
+
+
+        // Mapped to nonexistent memory
+        Translation nonexistentPage_N = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: DATA_P_NONEXISTENT};
+        
+        // Mapped to correct memory but not allowed to read
+        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
+
+        // vadr 'h8000 - not mapped 
+
+
+
+        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage,
+                                            nonexistentPage_N, disallowedPage_N
+                                        };
 
         params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage,
-                                        physDataPageAlt0, physDataPageAlt1, physDataPageAlt2000, outputPageAlt0
+                                        physDataPageAlt0, physDataPageAlt1, physDataPageAlt2000, outputPageAlt0,
+                                            nonexistentPage_N, disallowedPage_N
                                         };
 
         params.preloadedDataWays = '{0, 4*PAGE_SIZE};
@@ -325,12 +357,26 @@ package Testing;
             Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
             Translation physInsPageAlt4 = '{present: 1, vadr: 4*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
-        params.preloadedInsWays = '{0, PAGE_SIZE,     4*PAGE_SIZE};
 
-        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4};
+        // Mapped to nonexistent memory
+        Translation nonexistentPage_N = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: PROG_P_NONEXISTENT};
+        
+        // Mapped to correct memory but not allowed to read
+        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
+
+        // vadr 'h8000 - not mapped 
+
+
+        params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4,
+                                        nonexistentPage_N, disallowedPage_N
+                                    };
+
         params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4,
-                                        physInsPageAlt0, physInsPageAlt3, physInsPageAlt4
+                                        physInsPageAlt0, physInsPageAlt3, physInsPageAlt4,
+                                        nonexistentPage_N, disallowedPage_N
                                     };        
+
+        params.preloadedInsWays = '{0, PAGE_SIZE,     4*PAGE_SIZE};
     endfunction
     
 

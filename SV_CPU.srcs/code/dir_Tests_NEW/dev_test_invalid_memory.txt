@@ -6,9 +6,9 @@ $start
 	
 	add_i r20, r0, 0x4000 ; initialize exc stack
 
-	; 0x6000 DATA_V_DISALLOWED
-	add_i r8, r0, 0x90
-	shl_i r8, r8, 8
+	; 0x8000000000000000 DATA_V_INVALID
+	add_i r8, r0, 0x80
+	shl_i r8, r8, 56
 	ldi_i r9, r8, 40   ; cause exception
 
 $check
@@ -36,7 +36,7 @@ $error
 0
 0 ; hi
 ; c6 - excSyndrome
-0x34
+0x30
 0; hi
 ; c7 - intSyndrome
 0
