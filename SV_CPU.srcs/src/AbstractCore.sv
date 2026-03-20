@@ -262,7 +262,7 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt);
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr);
         end
 
         stageRename1 <= ops;
@@ -334,8 +334,11 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input ProgramEvent evt);
+    task automatic renameOp(input InsId id, input int currentSlot, input Mword iadr, input Word bits, input logic predictedDir,
+                            input ProgramEvent evt, input Mword vadr);
         AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+
+        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : iadr;
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
@@ -347,6 +350,11 @@ module AbstractCore
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+
+            //if (evt != PE_NONE) $error("%p: %p, %p, // %p", ins, adr, vadr, bits);
+
+          //if (evt == PE_FETCH_UNALIGNED_ADDRESS) 
 
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
@@ -520,7 +528,7 @@ module AbstractCore
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
         Mword expectedTargetFloor = trg;
-        expectedTargetFloor[1:0] = 0;
+        //expectedTargetFloor[1:0] = 0;
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert (expectedTargetFloor === info.basicData.adr) else begin

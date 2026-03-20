@@ -107,7 +107,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
                 begin
-                    sysRegs[6] = PE_FETCH_INVALID_ADDRESS;
+                    sysRegs[6] = //PE_FETCH_INVALID_ADDRESS;
+                                    pe;
                 end
             end
             CO_undef: begin
