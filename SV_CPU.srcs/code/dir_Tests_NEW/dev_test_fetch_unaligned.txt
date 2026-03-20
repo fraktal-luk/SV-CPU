@@ -6,10 +6,9 @@ $start
 	
 	add_i r20, r0, 0x4000 ; initialize exc stack
 
-	; 0xa000 DATA_V_MAPPED_NONEXISTENT
-	add_i r8, r0, 0xa0
-	shl_i r8, r8, 8
-	ldi_i r9, r8, 40   ; cause exception
+	ja 3; cause exception
+	and_r r0, r0, r0
+	and_r r0, r0, r0	
 
 $check
 	sys_dbcall

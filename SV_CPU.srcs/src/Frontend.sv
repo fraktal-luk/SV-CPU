@@ -143,6 +143,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             FrontStage res = DEFAULT_FRONT_STAGE;
             Mword baseAdr = fetchLineBase(target);
             logic already = 0;
+            Mword targetFloor = target;
+            targetFloor[1:0] = 0;
 
             res.active = on;
             res.status = CR_HIT;
@@ -150,7 +152,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             foreach (res.arr[i]) begin
                 Mword adr = baseAdr + 4*i;
-                logic elemActive = !$isunknown(target) && (adr >= target) && !already;
+                logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;
                 
                 if (SINGLE && elemActive) already = 1; 
                 

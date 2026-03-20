@@ -103,7 +103,8 @@ module AbstractCore
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
-    OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
+    OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B}; // TODO: change to type of stageRename0 to include evt info
+    FrontStage stageRename1_N = DEFAULT_FRONT_STAGE;
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
@@ -265,12 +266,14 @@ module AbstractCore
         end
 
         stageRename1 <= ops;
+            stageRename1_N <= theFrontend.stageRename0;
     endtask
 
 
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT_B};
         markKilledRenameStage(stageRename1);
+            stageRename1_N <= DEFAULT_FRONT_STAGE;
 
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
@@ -434,7 +437,8 @@ module AbstractCore
             Mword sr3 = sysUnit.sysRegs[3];
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
 
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr, theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg);
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
+                                        theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg, theExecBlock.lastEvtFetch);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -515,11 +519,13 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
+        Mword expectedTargetFloor = trg;
+        expectedTargetFloor[1:0] = 0;
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
-        assert (trg === info.basicData.adr) else begin
+        assert (expectedTargetFloor === info.basicData.adr) else begin
             retiredEmul.getBasicDbView();
-            $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
+            $fatal(2, "Commit: mm adr %h / %h", expectedTargetFloor, info.basicData.adr);
         end
         assert (retInfo.refetch === info.refetch) else begin
             retiredEmul.getBasicDbView();
