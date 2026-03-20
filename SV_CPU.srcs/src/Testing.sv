@@ -325,7 +325,7 @@ package Testing;
         Translation nonexistentPage_N = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: DATA_P_NONEXISTENT};
         
         // Mapped to correct memory but not allowed to read
-        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
+        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 0, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
 
         // vadr 'h8000 - not mapped 
 
@@ -362,7 +362,7 @@ package Testing;
         Translation nonexistentPage_N = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: PROG_P_NONEXISTENT};
         
         // Mapped to correct memory but not allowed to read
-        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
+        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 0, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
 
         // vadr 'h8000 - not mapped 
 
