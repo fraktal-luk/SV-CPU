@@ -331,7 +331,7 @@ module MemSubpipe#()
 
         if (sysResp.status == CR_INVALID) begin
             insMap.setException(U2M(p.TMP_oid), PE_SYS_INVALID_ADDRESS); // Exception on invalid sys reg access: set in relevant of SQ/LQ
-            res.status = ES_ILLEGAL;
+            res.status = ES_INVALID;
         end
         else begin
             res.status = ES_OK;

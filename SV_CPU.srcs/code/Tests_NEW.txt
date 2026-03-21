@@ -20,12 +20,7 @@ dev_test_fetch_disallowed
 ;dev_test_fetch_nonexistent
 
 
-;        test_FETCH_INVALID_ADDRESS();		; VADR beyond legal range
-;        test_FETCH_UNALIGNED_ADDRESS();	; VADR unaligned
-;        test_FETCH_UNMAPPED();			  ; VADR not in L2 TLB
-;        test_FETCH_DISALLOWED();        ; VADR set as not executable
-;        test_FETCH_NONEXISTENT();  ; PADR beyond implemented range
-
+dev_test_sys_invalid_adr
 
 
 ;        test_SYS_INVALID_ADR();	; non existing sysreg

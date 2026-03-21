@@ -395,7 +395,7 @@ $handle_INT
 
 $handle_EXC
 ; 300
-    sys_undef
+    ja $process_sync_exception
 ; 304
     sys_undef
 ; 308
