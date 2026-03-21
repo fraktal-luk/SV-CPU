@@ -9,9 +9,8 @@ $start
 	; 0x8000000000000000 PROG_V_INVALID
 	add_i r8, r0, 0x80
 	shl_i r8, r8, 56
-	;ldi_i r9, r8, 40   ; cause exception
+	jz_r r0, r0, r8   ; cause exception
 
-	jz_r r0, r0, r8
 
 $check
 	sys_dbcall
@@ -26,7 +25,7 @@ $error
 0x11
 0 ; hi
 ; c2 - excSavedIP
-0xc
+0  ; TODO: store higher word too
 0 ; hi
 ; c3 - intSavedIP
 0
@@ -38,7 +37,7 @@ $error
 0
 0 ; hi
 ; c6 - excSyndrome
-0x30
+0x10
 0; hi
 ; c7 - intSyndrome
 0

@@ -13,7 +13,7 @@ dev_test_disallowed_memory
 ;dev_test_nonexistent_memory ; FIX (should happen async by page table walker?)
 
 
-;dev_test_fetch_invalid
+dev_test_fetch_invalid
 dev_test_fetch_unaligned
 ;dev_test_fetch_unmapped
 dev_test_fetch_disallowed
