@@ -24,7 +24,7 @@ dev_test_sys_invalid_adr
 ;dev_test_sys_illegal
 dev_test_sys_undef
 ;dev_test_sys_error	; off, because emulation treats sys_error as crash condition
-;dev_test_sys_call
+dev_test_sys_call
 ;dev_test_sys_disabled
 ; 	dbcall?
 

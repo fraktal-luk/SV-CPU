@@ -197,7 +197,7 @@ $handle_ERROR
 
 $handle_CALL
 ; 180
-    sys_undef
+    ja $process_sync_exception
 ; 184
     sys_undef
 ; 188
