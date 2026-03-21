@@ -168,7 +168,7 @@ module EmulTest();
         emul.executeStep();
 
         // Check
-        check(emul, PE_SYS_UNDEFINED_INSTRUCTION, IP_ERROR, "sys undefined");
+        check(emul, PE_SYS_UNDEFINED_INSTRUCTION, IP_EXC, "sys undefined");
     endtask
 
     task automatic test_SYS_ERROR();

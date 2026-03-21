@@ -31,7 +31,7 @@ package ControlHandling;
                 res.redirect = 1;
             end
             CO_undef: begin
-                res.target = IP_ERROR;
+                res.target = IP_EXC;
                 res.redirect = 1;
             end
             CO_call: begin

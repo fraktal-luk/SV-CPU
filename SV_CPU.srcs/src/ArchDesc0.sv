@@ -96,7 +96,7 @@ module ArchDesc0();
 
 
     function automatic logic isErrorStatus(input Emulator emul);            
-        return emul.status.eventType inside {PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION};
+        return emul.status.eventType inside {PE_SYS_ERROR};
     endfunction
 
     function automatic logic isSendingStatus(input Emulator emul);            

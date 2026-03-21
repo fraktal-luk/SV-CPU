@@ -753,9 +753,12 @@ package InsDefs;
             PE_SYS_INVALID_ADDRESS:
                 return IP_EXC;
             
-            PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION:
+            PE_SYS_ERROR:
                 return IP_ERROR;
-            
+
+            PE_SYS_UNDEFINED_INSTRUCTION:
+                return IP_EXC;
+
             PE_SYS_CALL:
                 return IP_CALL;
 
