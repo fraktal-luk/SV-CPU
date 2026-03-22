@@ -1,3 +1,5 @@
+@section prog_main
+
 ; Check many branches of 1 word offset
 $start
     ja 4

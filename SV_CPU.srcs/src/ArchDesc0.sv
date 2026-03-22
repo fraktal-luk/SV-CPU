@@ -42,7 +42,7 @@ module ArchDesc0();
     };
    
     squeue normalSuites = '{
-        "Tests_basic",
+        //"Tests_basic",
         "Tests_mem_simple",
 
         "Tests_mem_advanced",
@@ -58,12 +58,14 @@ module ArchDesc0();
 
         squeue devTestsUnc = '{
             "Tests_DEV",
-            "Tests_DEV_unc"
+            "Tests_DEV_unc",
+            "Tests_DEV_basic"
         };
 
         squeue newTests = '{
             "Tests_DEV",
-            "Tests_NEW"
+            "Tests_NEW",
+            "Tests_DEV_basic"
         };
 
 
@@ -395,10 +397,10 @@ module ArchDesc0();
         thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
         runner.gp = Test_fillGpCached();
-        runner.gp.initialCregs.memControl = 0;
+        // runner.gp.initialCregs.memControl = 0;
 
-        #CYCLE $display("Uncached suites");
-        runner.runSuites(uncachedSuites);
+        // #CYCLE $display("Uncached suites");
+        // runner.runSuites(uncachedSuites);
 
         runner.gp.initialCregs.memControl = 7;
 

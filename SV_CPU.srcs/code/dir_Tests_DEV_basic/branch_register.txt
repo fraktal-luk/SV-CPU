@@ -1,3 +1,5 @@
+@section prog_main
+
 ;
 $start
 	add_i r20, r0, 0

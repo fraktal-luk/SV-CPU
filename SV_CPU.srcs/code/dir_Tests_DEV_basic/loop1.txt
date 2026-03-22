@@ -1,3 +1,5 @@
+@section prog_main
+
 ; Perform loop with different forwardings
 $start
 	add_i r1, r0, 10

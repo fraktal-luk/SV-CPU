@@ -1,3 +1,5 @@
+@section prog_main
+
 ; Check branches with different locations and targets within groups of 4
 $start
     ja $L1				; 0			0->1
