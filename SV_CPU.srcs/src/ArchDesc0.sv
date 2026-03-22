@@ -355,7 +355,10 @@ module ArchDesc0();
             awaitResult();
 
             // Compare outputs if cache enabled
-            if (gp.initialCregs.memControl == 0) return;
+            if (gp.initialCregs.memControl == 0) begin
+                checkOutput(core.dataMem, testSections);
+                return;
+            end
 
             outputWay = core.dataCache.dataArray.readWholeWay(4);
             checkOutputWA(outputWay, testSections);
