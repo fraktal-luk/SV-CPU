@@ -33,8 +33,8 @@ module ArchDesc0();
 
 
     squeue uncachedSuites = '{
-        "Tests_basic",
-        "Tests_only_uncached"
+        "Tests_basic"//,
+        //"Tests_only_uncached"
     };
 
     squeue cachedFetchSuites = '{

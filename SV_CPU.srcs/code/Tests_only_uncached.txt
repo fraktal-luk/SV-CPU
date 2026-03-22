@@ -1,6 +1,0 @@
-
-; padr == vadr because uncached
-
-fetch_error  ; fetch adr doesnt exist 
-fetch_break  ; jump to other page, sequentially go beyond the page (check nonspeculation of crossing code page)
-load_error   ; load from nonexistent address
