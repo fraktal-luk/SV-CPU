@@ -56,8 +56,9 @@ module ArchDesc0();
         "Tests_events"
     };
 
-        squeue devTests = '{
-            "Tests_DEV"
+        squeue devTestsUnc = '{
+            "Tests_DEV",
+            "Tests_DEV_unc"
         };
 
         squeue newTests = '{
@@ -450,7 +451,7 @@ module ArchDesc0();
 
             trEm_N.gp.initialCregs.memControl = 0;
             #CYCLE $display("\n>>>>>> Em  Dev tests unc");
-            trEm_N.runSuites(devTests);
+            trEm_N.runSuites(devTestsUnc);
         end
 
         if (RUN_SIM_TESTS) begin
@@ -461,7 +462,7 @@ module ArchDesc0();
             trSim_N.gp.initialCregs.memControl = 0;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
-            trSim_N.runSuites(devTests);
+            trSim_N.runSuites(devTestsUnc);
 
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
