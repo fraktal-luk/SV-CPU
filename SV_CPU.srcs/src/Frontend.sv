@@ -348,7 +348,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             ProgramEvent pe = PE_NONE;
 
             if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
-            else if (!physicalAddressValid(stage.vadr)) pe = PE_FETCH_INVALID_ADDRESS;
+            else if (!physicalAddressValid(stage.vadr)) pe = PE_FETCH_NONEXISTENT_ADDRESS;
 
             resFS.evt = pe;
 

@@ -37,7 +37,7 @@ $error
 0
 0 ; hi
 ; c6 - excSyndrome
-0x10
+0x17
 0; hi
 ; c7 - intSyndrome
 0

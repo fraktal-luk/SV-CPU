@@ -272,7 +272,7 @@ package Emulation;
        function automatic logic catchFetchException(input Mword vadr, input Translation tr);
             ProgramEvent evt = PE_NONE;
        
-            if (!virtualAddressValid(vadr))
+            if (!virtualAddressValid(vadr) && cregs.memControl.enableMMU)
                 evt = PE_FETCH_INVALID_ADDRESS;
             else if (vadr % 4 !== 0)
                 evt = PE_FETCH_UNALIGNED_ADDRESS;

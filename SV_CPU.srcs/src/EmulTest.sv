@@ -222,11 +222,11 @@ module EmulTest();
     task automatic test_FETCH_INVALID_ADDRESS();
         emul.resetCoreAndMappings();
 
-        emul.coreState.target = 'x;
+        emul.coreState.target = 'h0100000000000000;
             
         emul.executeStep();
                     
-        check(emul, PE_FETCH_INVALID_ADDRESS, IP_FETCH_EXC, "Invalid fetch adr");
+        check(emul, PE_FETCH_NONEXISTENT_ADDRESS, IP_FETCH_EXC, "Invalid fetch adr");
     endtask
 
     task automatic test_FETCH_UNALIGNED_ADDRESS();
