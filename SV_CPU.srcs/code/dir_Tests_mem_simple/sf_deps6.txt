@@ -1,4 +1,6 @@
 ; Poison deps
+@section prog_main
+
 $start
    add_i r1, r0, 36
    add_i r2, r0, 57

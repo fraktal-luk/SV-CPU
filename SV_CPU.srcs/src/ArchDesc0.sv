@@ -47,7 +47,7 @@ module ArchDesc0();
             "Tests_icache_fetch",
 
 
-        "Tests_mem_simple",
+     //   "Tests_mem_simple",
 
        // "Tests_mem_advanced",
       //  "Tests_mem_align",
@@ -68,9 +68,11 @@ module ArchDesc0();
 
         squeue newTests = '{
             //"Tests_icache_fetch",
-        "Tests_mem_align",
+            "Tests_mem_simple",
 
-            
+            "Tests_mem_align",
+
+
             "Tests_mem_advanced",
 
 

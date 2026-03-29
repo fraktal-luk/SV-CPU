@@ -1,4 +1,6 @@
 ; Load a range of mem previously stored and having waited for sync
+@section prog_main
+
 $start
 	add_i r1, r0, 1
 	add_i r2, r0, 2
