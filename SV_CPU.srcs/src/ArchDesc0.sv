@@ -55,7 +55,7 @@ module ArchDesc0();
         
        // "Tests_barriers",
 
-        "Tests_all", // TODO: Not all, name is misleading
+       // "Tests_all", // TODO: Not all, name is misleading
         
         "Tests_events"
     };
@@ -69,7 +69,7 @@ module ArchDesc0();
         squeue newTests = '{
             //"Tests_icache_fetch",
 
-        //    "Tests_all", // TODO: Not all, name is misleading
+            "Tests_all", // TODO: Not all, name is misleading
 
             "Tests_barriers",
 
