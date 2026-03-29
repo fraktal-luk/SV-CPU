@@ -43,20 +43,7 @@ module ArchDesc0();
     // };
    
     squeue normalSuites = '{
-        //"Tests_basic",
-            "Tests_icache_fetch",
-
-
-     //   "Tests_mem_simple",
-
-       // "Tests_mem_advanced",
-      //  "Tests_mem_align",
-        "Tests_sys_transfers",
-        
-       // "Tests_barriers",
-
-       // "Tests_all", // TODO: Not all, name is misleading
-        
+        "Tests_icache_fetch",
         "Tests_events"
     };
 
@@ -69,6 +56,8 @@ module ArchDesc0();
         squeue newTests = '{
             //"Tests_icache_fetch",
 
+            "Test_events_NEW",
+
             "Tests_all", // TODO: Not all, name is misleading
 
             "Tests_barriers",
@@ -77,9 +66,8 @@ module ArchDesc0();
 
             "Tests_mem_align",
 
-
             "Tests_mem_advanced",
-
+            "Tests_sys_transfers",
 
             "Tests_DEV",
             "Tests_NEW",
