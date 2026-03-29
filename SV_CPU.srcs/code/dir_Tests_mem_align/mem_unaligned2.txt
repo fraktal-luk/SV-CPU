@@ -1,4 +1,6 @@
 ; Unaligned access, then chained 3 dependent ops
+@section prog_main
+
 $start
 
 	ldi_i r10, r0, 3

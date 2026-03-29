@@ -1,4 +1,6 @@
 ; Unaligned access, loaded from previous overlapping store
+@section prog_main
+
 $start
 	
 	add_h r10, r0, 0xFE

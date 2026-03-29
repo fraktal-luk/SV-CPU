@@ -32,21 +32,25 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-    squeue uncachedSuites = '{
-        "Tests_basic"//,
-        //"Tests_only_uncached"
-    };
+    // squeue uncachedSuites = '{
+    //     "Tests_basic"//,
+    //     //"Tests_only_uncached"
+    // };
 
-    squeue cachedFetchSuites = '{
-        "Tests_icache_fetch"
-    };
+    // TODO: merge into normalSuites?
+    // squeue cachedFetchSuites = '{
+    //     "Tests_icache_fetch"
+    // };
    
     squeue normalSuites = '{
         //"Tests_basic",
+            "Tests_icache_fetch",
+
+
         "Tests_mem_simple",
 
-        "Tests_mem_advanced",
-        "Tests_mem_align",
+       // "Tests_mem_advanced",
+      //  "Tests_mem_align",
         "Tests_sys_transfers",
         
         "Tests_barriers",
@@ -63,6 +67,13 @@ module ArchDesc0();
         };
 
         squeue newTests = '{
+            //"Tests_icache_fetch",
+        "Tests_mem_align",
+
+            
+            "Tests_mem_advanced",
+
+
             "Tests_DEV",
             "Tests_NEW",
             "Tests_DEV_basic"
@@ -75,7 +86,11 @@ module ArchDesc0();
 
     function automatic WordArray prepareTestPage(input string name, input Mword commonAdr);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
-        CodeSec testProg = fillImports(testSections[0], 0, common, commonAdr);
+
+        CodeSec foundProgMain[$] = testSections.find with (item.desc == "prog_main");
+        CodeSec progMain = foundProgMain.size() > 0 ? foundProgMain[0] : testSections[0];
+
+        CodeSec testProg = fillImports(progMain, 0, common, commonAdr);
         return testProg.words;
     endfunction
 
@@ -404,8 +419,8 @@ module ArchDesc0();
 
         runner.gp.initialCregs.memControl = 7;
 
-        #CYCLE $display("Cached fetch suites");
-        runner.runSuites(cachedFetchSuites); 
+        // #CYCLE $display("Cached fetch suites");
+        // runner.runSuites(cachedFetchSuites); 
 
         #CYCLE $display("Normal suites"); 
         runner.runSuites(normalSuites);  

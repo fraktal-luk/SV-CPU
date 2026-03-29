@@ -1,4 +1,6 @@
 ; Page with no read permission
+@section prog_main
+
 $start
 	
 	add_i r8, r0, 0x6000  ; base of page with no read access

@@ -1,4 +1,5 @@
 
+@section prog_main
 	
 	add_i r3, r0, 32
 	add_i r4, r0, 5
