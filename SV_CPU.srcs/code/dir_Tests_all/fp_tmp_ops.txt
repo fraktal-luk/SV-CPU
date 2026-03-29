@@ -1,4 +1,6 @@
 ;
+@section prog_main
+
 $start
 	add_h r1, r0, 0x3f80 ; 1.0
 	sti_i r1, r0, 16

@@ -1,4 +1,6 @@
 ;
+@section prog_main
+
 $start
 	add_i r1, r0, 1
 	sti_i r1, r0, 16

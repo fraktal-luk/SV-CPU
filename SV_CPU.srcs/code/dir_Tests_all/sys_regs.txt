@@ -1,4 +1,6 @@
 ;
+@section prog_main
+
 $start
 	add_i r1, r0, 59
 	sts   r1, r0, 2     ; store value into sys reg

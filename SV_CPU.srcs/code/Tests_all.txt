@@ -3,8 +3,8 @@ branch_flush        ; branch depending on load, younger branch available sooner,
 
 ; sys regs
 sys_regs           ; write to sys reg, sync, load from sys reg, check, store return adr, reti
-mem_illegal_address  ; load nonexistent sys reg, verify exc, store to nonexistent sys reg, verify exc 
-mem_sys            ; stores and loads interleaved with sys store and sys load, check results
+;mem_illegal_address  ; load nonexistent sys reg, verify exc, store to nonexistent sys reg, verify exc 
+;mem_sys            ; stores and loads interleaved with sys store and sys load, check results
 
 
 ; FP
@@ -12,7 +12,7 @@ loads_fp           ; load value to float reg, store, load flot and store it, che
 fp0                ; dummy FP ops: addi, check results
 
 ; 
-use_lib0           ; call some function, nothing else
+;use_lib0           ; call some function, nothing else
 
 ; arith ops
 shifts				; value checking

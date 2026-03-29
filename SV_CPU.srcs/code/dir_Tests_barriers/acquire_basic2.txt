@@ -1,3 +1,4 @@
+@section prog_main
 
 
 	add_i r6, r0, 39

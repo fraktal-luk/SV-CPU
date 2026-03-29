@@ -1,3 +1,5 @@
+@section prog_main
+
 $start
 	ja $main
 	add_r r0, r0, r0

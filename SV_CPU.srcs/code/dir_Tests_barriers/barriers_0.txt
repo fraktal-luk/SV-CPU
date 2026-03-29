@@ -1,3 +1,4 @@
+@section prog_main
 
 ; Checking if no errors when using instructions
 

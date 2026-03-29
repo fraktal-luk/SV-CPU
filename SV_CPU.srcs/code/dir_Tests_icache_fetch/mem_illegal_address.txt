@@ -1,4 +1,6 @@
 ; Unaligned access
+@section prog_main
+
 $start
 	
 	add_i r10, r0, 15

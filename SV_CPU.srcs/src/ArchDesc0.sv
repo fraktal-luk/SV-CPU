@@ -53,7 +53,7 @@ module ArchDesc0();
       //  "Tests_mem_align",
         "Tests_sys_transfers",
         
-        "Tests_barriers",
+       // "Tests_barriers",
 
         "Tests_all", // TODO: Not all, name is misleading
         
@@ -68,6 +68,11 @@ module ArchDesc0();
 
         squeue newTests = '{
             //"Tests_icache_fetch",
+
+        //    "Tests_all", // TODO: Not all, name is misleading
+
+            "Tests_barriers",
+
             "Tests_mem_simple",
 
             "Tests_mem_align",

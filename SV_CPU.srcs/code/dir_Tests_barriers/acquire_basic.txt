@@ -1,4 +1,5 @@
 
+@section prog_main
 
 e_ldaq r5, r0, 16
 
