@@ -354,6 +354,7 @@ package Testing;
         Translation physInsPage4 = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
             Translation physInsPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
+            Translation physInsPageAlt2 = '{present: 1, vadr: 2*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 2*PAGE_SIZE};
             Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
             Translation physInsPageAlt4 = '{present: 1, vadr: 4*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
@@ -372,7 +373,7 @@ package Testing;
                                     };
 
         params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4,
-                                        physInsPageAlt0, physInsPageAlt3, physInsPageAlt4,
+                                        physInsPageAlt0, physInsPageAlt2, physInsPageAlt3, physInsPageAlt4,
                                         nonexistentPage_N, disallowedPage_N
                                     };        
 

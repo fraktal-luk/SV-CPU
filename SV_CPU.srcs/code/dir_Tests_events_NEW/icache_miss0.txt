@@ -4,11 +4,21 @@
 	add_i r3, r0, 32
 	add_i r4, r0, 5
 	add_i r5, r0, 0x7ddd
-	ja 0x300c
+	ja 0x200c  ; PROG_P_MISS
 
+	sys_error
+
+
+@section prog_miss
+
+	sys_error
+	sys_error
+	sys_error
+	sys_error
+
+$check
 	sys_dbcall
-$error
+
     sys_error
 
-$anotherPage
-	ja -8
+    ja -8
