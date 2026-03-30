@@ -31,48 +31,36 @@ module ArchDesc0();
 
     always #(CYCLE/2) clk = ~clk; 
 
-
-    // squeue uncachedSuites = '{
-    //     "Tests_basic"//,
-    //     //"Tests_only_uncached"
-    // };
-
-    // TODO: merge into normalSuites?
-    // squeue cachedFetchSuites = '{
-    //     "Tests_icache_fetch"
-    // };
    
     squeue normalSuites = '{
         "Tests_icache_fetch",
         "Tests_events"
     };
 
-        squeue devTestsUnc = '{
-            "Tests_DEV",
-            "Tests_DEV_unc",
-            "Tests_DEV_basic"
-        };
+    squeue devTestsUnc = '{
+        "Tests_DEV",
+        "Tests_DEV_unc",
+        "Tests_DEV_basic"
+    };
 
-        squeue newTests = '{
-            //"Tests_icache_fetch",
+    squeue newTests = '{
+        "Tests_events_NEW",
 
-            "Test_events_NEW",
+        "Tests_all", // TODO: Not all, name is misleading
 
-            "Tests_all", // TODO: Not all, name is misleading
+        "Tests_barriers",
 
-            "Tests_barriers",
+        "Tests_mem_simple",
 
-            "Tests_mem_simple",
+        "Tests_mem_align",
 
-            "Tests_mem_align",
+        "Tests_mem_advanced",
+        "Tests_sys_transfers",
 
-            "Tests_mem_advanced",
-            "Tests_sys_transfers",
-
-            "Tests_DEV",
-            "Tests_NEW",
-            "Tests_DEV_basic"
-        };
+        "Tests_DEV",
+        "Tests_NEW",
+        "Tests_DEV_basic"
+    };
 
 
     string emulTestName, simTestName;
