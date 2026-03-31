@@ -83,7 +83,18 @@ module ArchDesc0();
         CodeSecArr handlers = processFile(readFile({codeDir, "handlers.txt"}));
 
         // TODO: fill imports of every section using lib section (should be provided separately)
-        foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
+        //foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
+
+        foreach (testSections[importer]) begin
+            foreach (testSections[exporter]) begin
+                Dword impStart = sectionStart(testSections[importer].desc);
+                Dword expStart = sectionStart(testSections[exporter].desc);
+
+                if (exporter == importer) continue;
+
+                testSections[importer] = fillImports(testSections[importer], impStart, testSections[exporter], expStart);
+            end
+        end
 
         allocateSections(testSections, pmem, dmem);
         allocateSections(handlers, pmem, dmem);
@@ -179,34 +190,54 @@ module ArchDesc0();
         function automatic void checkOutput(input SparseDataMemory actualMem, input CodeSecArr sections);
             Dword OUTPUT_BASE = 4*PAGE_SIZE;
             CodeSec found[$] = sections.find with (item.desc == "output");
-            if (found.size() == 0) return;
+            //if (found.size() == 0) return;
 
-            foreach (found[0].words[i]) begin
-                Word expected = found[0].words[i];
-                Word actual = actualMem.readWord(OUTPUT_BASE + 4*i);
+            for (int ind = 0; ind < PAGE_SIZE/4; ind++) begin
+                Word expected = (found.size() == 0 || ind >= found[0].words.size()) ? 0 : found[0].words[ind];
+                Word actual = actualMem.readWord(OUTPUT_BASE + 4*ind);
 
                 assert (actual === expected) else begin
-                    $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
+                    $error("Mem compare (word %d): actual %x, expected %x", ind, actual, expected);
                     $error("%p", actualMem.content);
                 end
             end
+
+                // foreach (found[0].words[i]) begin
+                //     Word expected = found[0].words[i];
+                //     Word actual = actualMem.readWord(OUTPUT_BASE + 4*i);
+
+                //     assert (actual === expected) else begin
+                //         $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
+                //         $error("%p", actualMem.content);
+                //     end
+                // end
 
         endfunction
 
         function automatic void checkOutputWA(input WordArray actualMem, input CodeSecArr sections);
             Dword OUTPUT_BASE = 4*PAGE_SIZE;
             CodeSec found[$] = sections.find with (item.desc == "output");
-            if (found.size() == 0) return;
+            //if (found.size() == 0) return;
 
-            foreach (found[0].words[i]) begin
-                Word expected = found[0].words[i];
-                Word actual = actualMem[i];
+            for (int ind = 0; ind < PAGE_SIZE/4; ind++) begin
+                Word expected = (found.size() == 0 || ind >= found[0].words.size()) ? 0 : found[0].words[ind];
+                Word actual = actualMem[ind];
 
                 assert (actual === expected) else begin
-                    $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
+                    $error("Mem compare (word %d): actual %x, expected %x", ind, actual, expected);
                     $error("%p", actualMem);
                 end
             end
+
+            // foreach (found[0].words[i]) begin
+            //     Word expected = found[0].words[i];
+            //     Word actual = actualMem[i];
+
+            //     assert (actual === expected) else begin
+            //         $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
+            //         $error("%p", actualMem);
+            //     end
+            // end
 
         endfunction
 
@@ -467,6 +498,7 @@ module ArchDesc0();
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
             trSim_N.runSuites(devTestsUnc);
 
+            $display("\nNow again old system");
             runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();

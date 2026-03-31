@@ -1,9 +1,6 @@
 ; 
-;itlb_miss0	; jump to another page which needs loading from L2 TLB
-;icache_miss0  ; jump to page which misses in L1i, fills
-;itlb_icache_miss  ; jump to page with TLB miss and then L1i miss, fill
 
 use_lib0
 
 mem_illegal_address
-;mem_sys
+

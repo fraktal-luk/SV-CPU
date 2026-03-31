@@ -64,6 +64,33 @@ package Testing;
 
     // "data_uncached" -> DATA_P_UNCACHED
 
+
+    function automatic Dword sectionStart(input string name);
+        case (name)
+            "prog_main": return PROG_P_MAIN;
+            "prog_miss": return PROG_P_MISS;
+
+            "handlers": return PROG_P_HANDLERS;
+            "lib":      return PROG_P_LIB;
+
+            "data0":      return DATA_P_MAIN;
+            "data1":       ;// return 'x;;
+            "data_miss0": ;//return 'x;
+            "data_miss1": ; //return 'x;
+
+            "output": ; //return 'x; // Not loaded, leave default 0's and wait for tested program to fill it
+
+            "data_uncached": return DATA_P_UNCACHED;
+
+            "": ;// return 'x; /* First, unnamed section: ingnore */
+
+            default: $error("Wrong section label: %s", name);
+        endcase
+
+        return 'x;
+    endfunction
+
+
     function automatic void allocateSections(input CodeSecArr sections, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
         foreach (sections[i]) begin
 
@@ -95,6 +122,8 @@ package Testing;
 
                 default: $error("Wrong section label: %s", sections[i].desc);
             endcase
+
+            //pmem.assignPage(sectionStart(sections[i].desc), sections[i].words);
         end
 
     endfunction 

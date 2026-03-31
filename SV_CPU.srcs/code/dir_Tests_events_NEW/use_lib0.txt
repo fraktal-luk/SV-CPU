@@ -1,6 +1,9 @@
 @section prog_main
-	
-	jl  r31, $func1
+
+	add_i r20, r0, 0x4000 ; initialize exc stack
+
+		;sys_error
+	jl  r31, $library_function1_wrong
 	add_i r0, r0, 0
 	add_i r0, r0, 0
 	add_i r0, r0, 0
@@ -10,3 +13,13 @@
 
 	sys_dbcall
 	sys_error
+
+@section lib
+	sys_error
+	sys_error
+
+$library_function1
+	;add_i r9, r0, 17
+	sys_error
+	jz_r r0, r0, r31
+
