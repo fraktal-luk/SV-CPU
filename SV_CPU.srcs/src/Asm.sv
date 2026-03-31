@@ -481,9 +481,9 @@ package Asm;
             end
             else if (parts[0][0] == "@") begin
                 DirectiveLine dl = analyzeDirective(i, nInstructionLines, parts);
-                if (dl.label.len() != 0) begin
-                    currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
-                end
+                // if (dl.label.len() != 0) begin
+                //     currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
+                // end
 
                 if (parts[0] == "@section") begin
                     SectionDesc newSec;
@@ -492,6 +492,9 @@ package Asm;
                     currentSection.name = dl.label;
                         sectionHeads.push_back(i+1);
                     nInstructionLines = 0;
+                end
+                else if (dl.label.len() != 0) begin
+                    currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
                 end
             end
             else begin
@@ -616,13 +619,14 @@ package Asm;
     endfunction
 
 
-    function automatic CodeSec fillImports(input CodeSec section, input int startAdr, input CodeSec lib, input int libAdr);
+    function automatic CodeSec fillImports(input CodeSec section, input Dword startAdr, input CodeSec lib, input Dword libAdr);
         CodeSec res = section;
-        int adrDiff = libAdr - startAdr;
-        
+        Dword adrDiff = libAdr - startAdr;
+
         foreach (section.imports[i]) begin
             ImportRef imp = section.imports[i];
             ExportRef exps[$] = lib.exports.find with (item.label == imp.label);
+
             if (exps.size() == 0) continue;
 
             res.words[imp.codeLine-1] = fillImport(res.words[imp.codeLine-1], adrDiff, imp, exps[0]); // CAREFUL: will get first found label

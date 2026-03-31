@@ -82,9 +82,6 @@ module ArchDesc0();
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
         CodeSecArr handlers = processFile(readFile({codeDir, "handlers.txt"}));
 
-        // TODO: fill imports of every section using lib section (should be provided separately)
-        //foreach (testSections[i]) testSections[i] = fillImports(testSections[i], 0, common, 0 /*TODO: lib section and proper load addresses*/);
-
         foreach (testSections[importer]) begin
             foreach (testSections[exporter]) begin
                 Dword impStart = sectionStart(testSections[importer].desc);
