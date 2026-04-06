@@ -8,10 +8,9 @@ mem_sys
 use_lib0
 mem_illegal_address
 
+fp_tmp_3
 
 
 ;dbstep          ; verify that db trap works on straight sequential code
 ;dbstep_jump     ; verify dbstep with jump
 ;dbstep_exc      ; verify that exception has priority over dbstep
-
-fp_tmp_3
