@@ -1,6 +1,0 @@
-; 
-
-use_lib0
-
-mem_illegal_address
-

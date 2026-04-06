@@ -446,7 +446,9 @@ module AbstractCore
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
-                                        theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg, theExecBlock.lastEvtFetch);
+                                        theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
+                                        theExecBlock.memEventReg, theExecBlock.fpInvReg, theExecBlock.fpOvReg,
+                                        theExecBlock.lastEvtFetch);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end

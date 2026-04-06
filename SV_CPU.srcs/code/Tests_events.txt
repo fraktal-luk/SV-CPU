@@ -1,8 +1,11 @@
 
 ; Events
-events			; check sys_call 3 times
+;events			; check sys_call 3 times
+
 dbstep          ; verify that db trap works on straight sequential code
 dbstep_jump     ; verify dbstep with jump
 dbstep_exc      ; verify that exception has priority over dbstep
 
 fp_tmp_3
+
+;mem_illegal_address

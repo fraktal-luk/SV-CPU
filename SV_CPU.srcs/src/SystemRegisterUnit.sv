@@ -68,7 +68,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
 
-    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr, input UopPacket p,
+    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr,
+                                            input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
                                                 input ProgramEvent pe);
         case (cOp)
             CO_exception, CO_specificException: begin
@@ -79,25 +80,34 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
                 // TODO: assign precise values
-                case (p.status)
-                    ES_INVALID: begin
-                        UopName uname = decUname(p.TMP_oid);
-                        if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
-                        else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_INVALID_ADDRESS;
+                if (mp.active) begin
+                    case (mp.status)
+                        ES_INVALID: begin
+                            UopName uname = decUname(mp.TMP_oid);
+                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
+                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_INVALID_ADDRESS;
 
-                    end
-                    ES_ILLEGAL: begin
-                        UopName uname = decUname(p.TMP_oid);
-                        if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
-                        else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
+                        end
+                        ES_ILLEGAL: begin
+                            UopName uname = decUname(mp.TMP_oid);
+                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
+                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
 
-                    end
+                        end
 
-                    ES_FP_INVALID, ES_FP_OVERFLOW:
-                        sysRegs[6] = PE_ARITH_EXCEPTION;
+                        // ES_FP_INVALID, ES_FP_OVERFLOW:
+                        //     sysRegs[6] = PE_ARITH_EXCEPTION;
 
-                    default: ;
-                endcase
+                        default: ;
+                    endcase
+                end
+                else if (fpInv.active) begin
+                    sysRegs[6] = PE_ARITH_EXCEPTION;
+
+                end
+                else if (fpOv.active) begin
+                    sysRegs[6] = PE_ARITH_EXCEPTION;
+                end
             end
             CO_fetchError: begin
                 sysRegs[4] = sysRegs[1];

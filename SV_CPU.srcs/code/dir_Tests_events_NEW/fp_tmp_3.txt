@@ -2,6 +2,8 @@
 @section prog_main
 
 $start
+	add_i r20, r0, 0x4000 ; initialize exc stack
+
 	add_i r1, r0, 1
 	shl_i r1, r1, 31  ; INV set
 	add_i r2, r0, 3
@@ -22,13 +24,44 @@ $start
 	addi_f f7, f2, f3
 	
 	inv_f  f11, f5, f5   ; generate exc
-	
-	; Here we should have returned from exception
-	
-	add_i r12, r29, -98
-	jnz_i r12, $error
+
 
 $check
 	sys_dbcall
 $error
     sys_error
+
+@section output
+; here write expected exc info that should be written to exc stack
+0
+0
+; c1 - currentStatus
+0x20011
+0 ; hi
+; c2 - excSavedIP
+0x30
+0 ; hi
+; c3 - intSavedIP
+0
+0 ; hi
+; c4 - excSavedStatus
+0x20010
+0 ; hi
+; c5 - intSavedStatus
+0
+0 ; hi
+; c6 - excSyndrome
+0x40
+0; hi
+; c7 - intSyndrome
+0
+0 ; hi
+; c8 - fpStatus
+0x80000000
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi

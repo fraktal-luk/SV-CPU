@@ -725,7 +725,7 @@ $handle_DB_BREAK
 
 $handle_ARITH_EXC
 ; 580
-    sys_undef
+    ja $process_sync_exception
 ; 584
     sys_undef
 ; 588

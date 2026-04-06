@@ -5,7 +5,13 @@ icache_miss0  ; jump to page which misses in L1i, fills
 itlb_icache_miss  ; jump to page with TLB miss and then L1i miss, fill
 
 mem_sys
-
-;mem_illegal_address
-
 use_lib0
+mem_illegal_address
+
+
+
+;dbstep          ; verify that db trap works on straight sequential code
+;dbstep_jump     ; verify dbstep with jump
+;dbstep_exc      ; verify that exception has priority over dbstep
+
+fp_tmp_3

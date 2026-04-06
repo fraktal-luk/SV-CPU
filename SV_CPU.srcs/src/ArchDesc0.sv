@@ -19,7 +19,7 @@ module ArchDesc0();
     localparam time DELAY = 1;
 
     localparam int ITERATION_LIMIT = 2000;
-    localparam Mword COMMON_ADR = 4 * 1024;
+    localparam Dword COMMON_ADR = 4 * 1024;
 
 
     EmulTest emulTest(); // Checks basic behaviors
@@ -31,9 +31,8 @@ module ArchDesc0();
 
     always #(CYCLE/2) clk = ~clk; 
 
-   
+
     squeue normalSuites = '{
-        "Tests_icache_fetch",
         "Tests_events"
     };
 
