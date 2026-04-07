@@ -10,6 +10,7 @@ mem_illegal_address
 
 fp_tmp_3
 
+dbstep_NEW
 
 ;dbstep          ; verify that db trap works on straight sequential code
 ;dbstep_jump     ; verify dbstep with jump

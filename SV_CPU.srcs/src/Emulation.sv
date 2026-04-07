@@ -186,7 +186,7 @@ package Emulation;
             cregs.currentStatus.dbStep = 0;
 
             cregs.intSyndrome = evType;
-                cregs.excSyndrome = evType; // TODO: temporary
+               // cregs.excSyndrome = evType; // TODO: temporary
 
             syncSysRegsFromCregs();
 

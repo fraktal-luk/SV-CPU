@@ -1,5 +1,4 @@
 $start
-	;jz_i r0, $check ;
 	add_i r10, r0, 5
 	add_i r30, r0, 80 ; adr of $inc
 	add_h r2, r0, 0x10 ; dbstop bit set mask
@@ -11,11 +10,11 @@ $start
 	lds r4, r0, 1
 				;add_h r8, r8, 0x10 ; unnneeded?
 
-	add_i r1, r0, 0x24 ; $startsteps   ; add_r r0, r0, r0
-	sts   r1, r0, 3		; add_r r0, r0, r0
+	add_i r1, r0, 0x24 ; $startsteps   ;
+	sts   r1, r0, 3		;
 
 
-	jz_i r0, $setflag ; sts r8, r0, 1
+	jz_i r0, $setflag ;
 
 $startsteps
 	add_i r20, r10, -5

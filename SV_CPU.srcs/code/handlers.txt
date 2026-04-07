@@ -659,11 +659,11 @@ $handle_DB_CALL
 
 $handle_DB_BREAK
 ; 500
-    sys_undef
+    jl r31, $process_async_exception
 ; 504
-    sys_undef
+    add_i r20, r20, 88 ;
 ; 508
-    sys_undef
+    sys_reti
 ; 50c
     sys_undef
 ; 510
@@ -1153,102 +1153,85 @@ $process_sync_exception
     sys_undef
 ; 8fc
     sys_undef
+
+
+$process_async_exception
+
 ; 900
-    sys_undef
-; 904
-    sys_undef
-; 908
-    sys_undef
-; 90c
-    sys_undef
+    add_i r1, r0, 0 
+    add_i r2, r0, 0
+    sti_i r1, r20, 0
+    sti_i r2, r20, 4
+
 ; 910
-    sys_undef
-; 914
-    sys_undef
-; 918
-    sys_undef
-; 91c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 1
+    sti_i r1, r20, 8
+    sti_i r0, r20, 12
+
 ; 920
-    sys_undef
-; 924
-    sys_undef
-; 928
-    sys_undef
-; 92c
-    sys_undef
+    add_r r0, r0, r0    
+    lds   r1, r0, 2
+    sti_i r0, r20, 16 ; store 0
+    sti_i r0, r20, 20 
+
 ; 930
-    sys_undef
-; 934
-    sys_undef
-; 938
-    sys_undef
-; 93c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 3
+    sti_i r1, r20, 24
+    sti_i r0, r20, 28
+
 ; 940
-    sys_undef
-; 944
-    sys_undef
-; 948
-    sys_undef
-; 94c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 4
+    sti_i r0, r20, 32  ; store 0
+    sti_i r0, r20, 36 
+
 ; 950
-    sys_undef
-; 954
-    sys_undef
-; 958
-    sys_undef
-; 95c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 5
+    sti_i r1, r20, 40
+    sti_i r0, r20, 44
+
 ; 960
-    sys_undef
-; 964
-    sys_undef
-; 968
-    sys_undef
-; 96c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 6
+    sti_i r0, r20, 48   ; store 0
+    sti_i r0, r20, 52 
+
 ; 970
-    sys_undef
-; 974
-    sys_undef
-; 978
-    sys_undef
-; 97c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 7
+    sti_i r1, r20, 56
+    sti_i r0, r20, 60
+
 ; 980
-    sys_undef
-; 984
-    sys_undef
-; 988
-    sys_undef
-; 98c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 8
+    sti_i r1, r20, 64
+    sti_i r0, r20, 68 
+
 ; 990
-    sys_undef
-; 994
-    sys_undef
-; 998
-    sys_undef
-; 99c
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 9
+    sti_i r0, r20, 72
+    sti_i r0, r20, 76
+
 ; 9a0
-    sys_undef
-; 9a4
-    sys_undef
-; 9a8
-    sys_undef
-; 9ac
-    sys_undef
+    add_r r0, r0, r0
+    lds   r1, r0, 10
+    sti_i r1, r20, 80
+    sti_i r0, r20, 84
+
 ; 9b0
-    sys_undef
-; 9b4
-    sys_undef
-; 9b8
-    sys_undef
-; 9bc
-    sys_undef
+    ; return to next instruction
+    lds     r1, r0, 3
+    add_i   r1, r1, 0
+    sts     r1, r0, 3
+    ;sys_reti
+        ;sys_dbcall
+        jz_r r0, r0, r31
+
 ; 9c0
     sys_undef
 ; 9c4
