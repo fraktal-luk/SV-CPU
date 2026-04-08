@@ -361,32 +361,10 @@ module ArchDesc0();
         endtask
 
 
-
-    task automatic runEventSim(ref TestRunner runner);
-        //PageBasedProgramMemory thisProgMem = theProgMem;
+    task automatic runIntTestSim();//input GlobalParams gp, input PageBasedProgramMemory progMem);
+        PageBasedProgramMemory progMem = new(); //theProgMem;
         GlobalParams gp = Test_fillGpCached();
         gp.initialCregs.memControl = 7;
-
-
-        runner.programMem = theProgMem;
-        runner.gp = Test_fillGpCached();
-        runner.gp.initialCregs.memControl = 7;
-
-        //     thisProgMem.assignPage(PAGE_SIZE, common.words);
-
-        // startSim(); // Pulse reset to flush old mem content from pipeline
-
-        // #CYCLE $display("Event/int tests");
-
-
-        //thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
-
-
-        runIntTestSim(gp, theProgMem);//runner.programMem);
-    endtask
-
-    task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
-
 
         progMem.assignPage(PAGE_SIZE, common.words);
 
@@ -418,17 +396,11 @@ module ArchDesc0();
 
 
     task automatic simMain();
-        // EmulRunner emRunner = new();
-        // TestRunner trEm = emRunner;
+        EmulRunner_N emRunner_N = new();
+        TestRunner trEm_N = emRunner_N;
 
-            EmulRunner_N emRunner_N = new();
-            TestRunner trEm_N = emRunner_N;
-
-        SimRunner runner = new();
-        TestRunner trSim = runner;
-
-            SimRunner_N runner_N = new();
-            TestRunner trSim_N = runner_N;
+        SimRunner_N runner_N = new();
+        TestRunner trSim_N = runner_N;
 
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
@@ -455,7 +427,8 @@ module ArchDesc0();
             // TODO: why here?  Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
             
-                runEventSim(trSim);
+                //runEventSim();//trSim);
+            runIntTestSim();
 
             trSim_N.gp = Test_fillGpCached();
             trSim_N.gp.initialCregs.memControl = 7;
