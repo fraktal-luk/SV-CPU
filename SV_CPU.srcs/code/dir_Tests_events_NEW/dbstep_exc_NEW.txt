@@ -17,13 +17,18 @@ $start
 
 
 $startsteps
-	add_i r11, r10, -5
-	add_i r12, r10, -6
-	add_i r13, r10, -7
+	jnz_i r10, $L1              ; 24
+$L2
+	jz_i r10, $error            ; 28
+	lds r12, r0, 34 ; exc       ; 2c
+$L1
+	jz_i r0, $L2                ; 30
 
 $endsteps
 	sys_dbcall
 
+$error
+	sys_error
 
 @section output
 
@@ -37,7 +42,7 @@ $endsteps
 0
 0 ; hi
 ; c3 - intSavedIP
-0x28
+0x30
 0 ; hi
 ; c4 - excSavedStatus
 0
@@ -72,7 +77,7 @@ $endsteps
 0
 0 ; hi
 ; c3 - intSavedIP
-0x2c
+0x28
 0 ; hi
 ; c4 - excSavedStatus
 0
@@ -107,7 +112,7 @@ $endsteps
 0
 0 ; hi
 ; c3 - intSavedIP
-0x30
+0x2c
 0 ; hi
 ; c4 - excSavedStatus
 0
@@ -120,6 +125,40 @@ $endsteps
 0; hi
 ; c7 - intSyndrome
 0x62
+0 ; hi
+; c8 - fpStatus
+0
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi
+
+
+0
+0
+; c1 - currentStatus
+0x11
+0 ; hi
+; c2 - excSavedIP
+0x2c
+0 ; hi
+; c3 - intSavedIP
+0
+0 ; hi
+; c4 - excSavedStatus
+0x100010
+0 ; hi
+; c5 - intSavedStatus
+0
+0 ; hi
+; c6 - excSyndrome
+0x50
+0; hi
+; c7 - intSyndrome
+0
 0 ; hi
 ; c8 - fpStatus
 0

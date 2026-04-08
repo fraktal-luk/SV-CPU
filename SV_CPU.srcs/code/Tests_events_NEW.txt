@@ -11,7 +11,5 @@ mem_illegal_address
 fp_tmp_3
 
 dbstep_NEW
-
-;dbstep          ; verify that db trap works on straight sequential code
-;dbstep_jump     ; verify dbstep with jump
-;dbstep_exc      ; verify that exception has priority over dbstep
+dbstep_jump_NEW
+dbstep_exc_NEW
