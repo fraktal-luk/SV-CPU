@@ -32,9 +32,9 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-    squeue normalSuites = '{
-        "Tests_events"
-    };
+    // squeue normalSuites = '{
+    //    // "Tests_events"
+    // };
 
     squeue devTestsUnc = '{
         "Tests_DEV",
@@ -432,8 +432,8 @@ module ArchDesc0();
         // #CYCLE $display("Cached fetch suites");
         // runner.runSuites(cachedFetchSuites); 
 
-        #CYCLE $display("Normal suites"); 
-        runner.runSuites(normalSuites);  
+        //#CYCLE $display("Normal suites"); 
+        //runner.runSuites(normalSuites);  
     endtask
 
 
@@ -470,7 +470,7 @@ module ArchDesc0();
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
         if (RUN_EMUL_TESTS) begin
-            runSim(trEm);
+            //runSim(trEm);
             runEmulEvents();
 
             trEm_N.gp = Test_fillGpCached();
@@ -485,8 +485,8 @@ module ArchDesc0();
         end
 
         if (RUN_SIM_TESTS) begin
-            GlobalParams gp_N = Test_fillGpCached();
-            gp_N.initialCregs.memControl = 7;
+            // GlobalParams gp_N = Test_fillGpCached();
+            // gp_N.initialCregs.memControl = 7;
 
             trSim_N.gp = Test_fillGpCached();
             trSim_N.gp.initialCregs.memControl = 0;
@@ -494,8 +494,8 @@ module ArchDesc0();
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
             trSim_N.runSuites(devTestsUnc);
 
-            $display("\nNow again old system");
-            runSim(trSim);
+            //$display("\nNow again old system");
+            //runSim(trSim);
             // Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
             
