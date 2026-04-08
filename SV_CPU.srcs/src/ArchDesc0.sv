@@ -32,10 +32,6 @@ module ArchDesc0();
     always #(CYCLE/2) clk = ~clk; 
 
 
-    // squeue normalSuites = '{
-    //    // "Tests_events"
-    // };
-
     squeue devTestsUnc = '{
         "Tests_DEV",
         "Tests_DEV_unc",
@@ -173,20 +169,16 @@ module ArchDesc0();
             setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
 
             emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
-
             emul.resetSignal();
 
             performEmul(emul);
-
             checkOutput(emul.dataMem, testSections);
-
         endtask
 
 
         function automatic void checkOutput(input SparseDataMemory actualMem, input CodeSecArr sections);
             Dword OUTPUT_BASE = 4*PAGE_SIZE;
             CodeSec found[$] = sections.find with (item.desc == "output");
-            //if (found.size() == 0) return;
 
             for (int ind = 0; ind < PAGE_SIZE/4; ind++) begin
                 Word expected = (found.size() == 0 || ind >= found[0].words.size()) ? 0 : found[0].words[ind];
@@ -197,23 +189,11 @@ module ArchDesc0();
                     $error("%p", actualMem.content);
                 end
             end
-
-                // foreach (found[0].words[i]) begin
-                //     Word expected = found[0].words[i];
-                //     Word actual = actualMem.readWord(OUTPUT_BASE + 4*i);
-
-                //     assert (actual === expected) else begin
-                //         $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
-                //         $error("%p", actualMem.content);
-                //     end
-                // end
-
         endfunction
 
         function automatic void checkOutputWA(input WordArray actualMem, input CodeSecArr sections);
             Dword OUTPUT_BASE = 4*PAGE_SIZE;
             CodeSec found[$] = sections.find with (item.desc == "output");
-            //if (found.size() == 0) return;
 
             for (int ind = 0; ind < PAGE_SIZE/4; ind++) begin
                 Word expected = (found.size() == 0 || ind >= found[0].words.size()) ? 0 : found[0].words[ind];
@@ -224,17 +204,6 @@ module ArchDesc0();
                     $error("%p", actualMem);
                 end
             end
-
-            // foreach (found[0].words[i]) begin
-            //     Word expected = found[0].words[i];
-            //     Word actual = actualMem[i];
-
-            //     assert (actual === expected) else begin
-            //         $error("Mem compare (word %d): actual %x, expected %x", i, actual, expected);
-            //         $error("%p", actualMem);
-            //     end
-            // end
-
         endfunction
 
 
@@ -414,28 +383,6 @@ module ArchDesc0();
     endtask
 
 
-    task automatic runSim(ref TestRunner runner);
-        PageBasedProgramMemory thisProgMem = theProgMem;
-        runner.programMem = thisProgMem;
-
-        thisProgMem.assignPage(PAGE_SIZE, common.words);
-        thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
-
-        runner.gp = Test_fillGpCached();
-        // runner.gp.initialCregs.memControl = 0;
-
-        // #CYCLE $display("Uncached suites");
-        // runner.runSuites(uncachedSuites);
-
-        runner.gp.initialCregs.memControl = 7;
-
-        // #CYCLE $display("Cached fetch suites");
-        // runner.runSuites(cachedFetchSuites); 
-
-        //#CYCLE $display("Normal suites"); 
-        //runner.runSuites(normalSuites);  
-    endtask
-
 
     task automatic runEventSim(ref TestRunner runner);
         PageBasedProgramMemory thisProgMem = theProgMem;
@@ -443,7 +390,7 @@ module ArchDesc0();
         runner.gp = Test_fillGpCached();
         runner.gp.initialCregs.memControl = 7;
 
-        thisProgMem.assignPage(PAGE_SIZE, common.words);
+            thisProgMem.assignPage(PAGE_SIZE, common.words);
 
         startSim(); // Pulse reset to flush old mem content from pipeline
         thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
@@ -455,8 +402,8 @@ module ArchDesc0();
 
 
     task automatic simMain();
-        EmulRunner emRunner = new();
-        TestRunner trEm = emRunner;
+        // EmulRunner emRunner = new();
+        // TestRunner trEm = emRunner;
 
             EmulRunner_N emRunner_N = new();
             TestRunner trEm_N = emRunner_N;
@@ -470,7 +417,6 @@ module ArchDesc0();
         common = processLines(readFile({codeDir, "common_asm", ".txt"}));
                 
         if (RUN_EMUL_TESTS) begin
-            //runSim(trEm);
             runEmulEvents();
 
             trEm_N.gp = Test_fillGpCached();
@@ -478,34 +424,29 @@ module ArchDesc0();
             #CYCLE $display("\n>>>>>> Em  Dev tests");
             trEm_N.runSuites(newTests);
 
-
             trEm_N.gp.initialCregs.memControl = 0;
             #CYCLE $display("\n>>>>>> Em  Dev tests unc");
             trEm_N.runSuites(devTestsUnc);
         end
 
         if (RUN_SIM_TESTS) begin
-            // GlobalParams gp_N = Test_fillGpCached();
-            // gp_N.initialCregs.memControl = 7;
-
             trSim_N.gp = Test_fillGpCached();
             trSim_N.gp.initialCregs.memControl = 0;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
             trSim_N.runSuites(devTestsUnc);
 
-            //$display("\nNow again old system");
-            //runSim(trSim);
-            // Now assure that a pullback and reissue has happened because of mem replay
+            // TODO: why here?  Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
             
-            runEventSim(trSim);
+                runEventSim(trSim);
 
             trSim_N.gp = Test_fillGpCached();
             trSim_N.gp.initialCregs.memControl = 7;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests");
             trSim_N.runSuites(newTests);
+
         end
         
         $display("All tests done;");
