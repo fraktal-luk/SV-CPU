@@ -362,8 +362,42 @@ module ArchDesc0();
 
 
 
+    task automatic runEventSim(ref TestRunner runner);
+        //PageBasedProgramMemory thisProgMem = theProgMem;
+        GlobalParams gp = Test_fillGpCached();
+        gp.initialCregs.memControl = 7;
+
+
+        runner.programMem = theProgMem;
+        runner.gp = Test_fillGpCached();
+        runner.gp.initialCregs.memControl = 7;
+
+        //     thisProgMem.assignPage(PAGE_SIZE, common.words);
+
+        // startSim(); // Pulse reset to flush old mem content from pipeline
+
+        // #CYCLE $display("Event/int tests");
+
+
+        //thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
+
+
+        runIntTestSim(gp, theProgMem);//runner.programMem);
+    endtask
+
     task automatic runIntTestSim(input GlobalParams gp, input PageBasedProgramMemory progMem);
+
+
+        progMem.assignPage(PAGE_SIZE, common.words);
+
+        startSim(); // Pulse reset to flush old mem content from pipeline
+
+        #CYCLE $display("Event/int tests");
+
         #CYCLE announce("int");
+
+        progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
+
         progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
         core.resetForTest();
@@ -380,24 +414,6 @@ module ArchDesc0();
         pulseInt0();
 
         awaitResult();
-    endtask
-
-
-
-    task automatic runEventSim(ref TestRunner runner);
-        PageBasedProgramMemory thisProgMem = theProgMem;
-        runner.programMem = thisProgMem;
-        runner.gp = Test_fillGpCached();
-        runner.gp.initialCregs.memControl = 7;
-
-            thisProgMem.assignPage(PAGE_SIZE, common.words);
-
-        startSim(); // Pulse reset to flush old mem content from pipeline
-        thisProgMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
-
-        #CYCLE $display("Event/int tests");
-
-        runIntTestSim(runner.gp, runner.programMem);
     endtask
 
 
