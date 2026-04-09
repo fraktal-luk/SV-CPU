@@ -465,7 +465,6 @@ module AbstractCore
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
             $display(">> Interrupt !!!");
-                $error("-------- Interrupt");
             retiredEmul.interrupt();
         end
 

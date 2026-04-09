@@ -222,7 +222,6 @@ module ArchDesc0();
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
                 emul.interrupt();
-                    $error("Interrupt now");
                 #DELAY;
             end
 
@@ -402,7 +401,6 @@ module ArchDesc0();
        // wait (fetchAdr == 48);
         #(20*CYCLE); // FUTURE: should be wait for clock instead of delay?
         pulseInt0();
-            $error("interrupted");
         awaitResult();
 
             outputWay = core.dataCache.dataArray.readWholeWay(4);
