@@ -16,6 +16,11 @@ package EmulationMemories;
         Page pages[int];
 
 
+        function automatic void setLike(input PageBasedProgramMemory other);
+            pages = other.pages; // TODO: pages are copied as references?
+        endfunction
+
+
         function automatic void resetPage(input Dword startAdr);
             int index = startAdr/PAGE_BYTES;
             pages[index] = '{default: 'x};
@@ -28,6 +33,8 @@ package EmulationMemories;
 
         function automatic Page getPage(input Mword startAdr);
             int index = startAdr/PAGE_BYTES;
+
+                if (!hasPage(startAdr)) $fatal(2, "missing page: %x %d", startAdr, startAdr);
             return pages[index];
         endfunction
 
@@ -38,7 +45,10 @@ package EmulationMemories;
 
         function automatic void assignPage(input Dword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
-            pages[index] = arr;
+
+            //if (!hasPage())
+
+            pages[index] = new[PAGE_WORDS](arr);// arr;
         endfunction
 
         function automatic void writePage(input Dword startAdr, input Word arr[]);
@@ -104,6 +114,11 @@ package EmulationMemories;
             content.delete();
         endfunction
         
+        function automatic void setLike(input SparseDataMemory other);
+            reservations = new [other.reservations.size()](other.reservations);
+            content = other.content;
+        endfunction
+
         
         function automatic void writeWord(input Dword startAdr, input Word value);
                 clearLock(startAdr);
@@ -146,6 +161,12 @@ package EmulationMemories;
                 reservations.delete();
             endfunction
 
+
+        function automatic void writeWordArray(input Dword adr, input Word data[]);
+            foreach (data[i])
+                RW#(Word, 4)::write(adr + 4*i, data[i], content);
+        endfunction
+
     endclass
 
         function automatic Dword TMP_bbase(input Dword adr);
@@ -153,6 +174,8 @@ package EmulationMemories;
             res[5:0] = 0; // 64b block
             return res;
         endfunction
+
+
 
 
 endpackage

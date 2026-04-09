@@ -1,0 +1,8 @@
+; basic operation
+branches ; jumps through different offsets
+branches2 ; rail of jumps by 4 and rail of jumps by -4
+branch_link ; series of jump link and checking saved addresses
+branch_conditional ; verify correcness of jump on 0/non0
+branch_register ; loop with register branches calling procedure, check result
+loop1  ; loop with calculation, check result
+loop2  ; 3 nested loops with calc, check

@@ -78,7 +78,9 @@ module InstructionL1(
 
         if (!readEnable) return res;
 
-        if (!tr.present)          res.status = CR_TLB_MISS; // TLB miss
+        if (!virtualAddressValid(tr.vadr)) res.status = CR_INVALID;
+        else if (!tr.present)          res.status = CR_TLB_MISS; // TLB miss
+        else if (!tr.desc.allowed)          res.status = CR_NOT_ALLOWED;
         else if (!tr.desc.cached) res.status = CR_UNCACHED; // Not cached
         else if (!selected.valid) res.status = CR_TAG_MISS; // Miss
         else begin         // Hit

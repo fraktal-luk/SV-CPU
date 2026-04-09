@@ -186,7 +186,7 @@ package Emulation;
             cregs.currentStatus.dbStep = 0;
 
             cregs.intSyndrome = evType;
-                cregs.excSyndrome = evType; // TODO: temporary
+               // cregs.excSyndrome = evType; // TODO: temporary
 
             syncSysRegsFromCregs();
 
@@ -272,7 +272,7 @@ package Emulation;
        function automatic logic catchFetchException(input Mword vadr, input Translation tr);
             ProgramEvent evt = PE_NONE;
        
-            if (!virtualAddressValid(vadr))
+            if (!virtualAddressValid(vadr) && cregs.memControl.enableMMU)
                 evt = PE_FETCH_INVALID_ADDRESS;
             else if (vadr % 4 !== 0)
                 evt = PE_FETCH_UNALIGNED_ADDRESS;
@@ -613,6 +613,19 @@ package Emulation;
             syncFromCregs();
         endfunction
         
+        function automatic void initCore(input CpuControlRegisters cr, input Translation pMappings[$], input Translation dMappings[$]);
+            initStatus(cr);
+
+            if (!cregs.memControl.enableMMU) begin
+                programMappings.delete();
+                dataMappings.delete();
+            end
+            else begin
+                programMappings = pMappings;
+                dataMappings = dMappings;
+            end
+        endfunction
+
     endclass
 
 

@@ -30,3 +30,29 @@ sim:/ArchDesc0/core/theExecBlock/replayQueue/entries
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUops \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUopsE2
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/memImages
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/lastEvtAD \
+sim:/ArchDesc0/core/theExecBlock/lastEvtFetch \
+sim:/ArchDesc0/core/theExecBlock/lastEvtTr
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/lateEventInfo
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/branchEventInfo
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/lqRefetchNewH \
+sim:/ArchDesc0/core/theExecBlock/lqRefetchReg \
+sim:/ArchDesc0/core/theExecBlock/memEventNewH \
+sim:/ArchDesc0/core/theExecBlock/memEventReg
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/staticEventNewH \
+sim:/ArchDesc0/core/theExecBlock/staticEventReg
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/emul_N
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/emulTestName

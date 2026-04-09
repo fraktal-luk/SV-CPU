@@ -1,17 +1,17 @@
-stores0
-loads0
-loads1
-stores2  ; rename to sf_2?
-sf_0
-sf_1
-sf_deps1
-sf_deps2
-sf_deps3
-sf_deps4
-sf_deps5
-sf_deps6
-sf_deps7
+stores0  ; rail of store r0 to memory range (to fill SQ)
+loads0   ; rail of loads (to fill LQ)
+loads1   ; store sth to memory block, load it and check equality
+stores2  ; rename to sf_2? ;  interleaved stores (to equal adr) and loads, check loading correct value 
+sf_0  ; store to mem range, sync, load from inside the range and check 
+sf_1  ; store different values to equal adr, interleaved wiht loads, check correct values (like stores2?)
+sf_deps1  ; load(a) -> store, immediately load(b) from same adr (force SQ forwarding miss because store value waits for load(a) result)
+sf_deps2  ; as above but another op depends on load(b)
+sf_deps3  ; as above, but load(b) and its consumer is duplicated
+sf_deps4  ; as above but 2 load(b)'s are added together and then 3 further deps 
+sf_deps5  ; as sf_deps1 but store address, not value is waiting fo load(a)
+sf_deps6  ; poison, 2 loads in parallel, dependences, another load and dependence
+sf_deps7  ; load(a), store (adr waits for load(a)), 3 parallel loads from same adr
 
-mem_byte
-mem_byte_store
-mem_byte_forward
+mem_byte  		;  load byte, check
+mem_byte_store  ;  store byte, sync, load containing word
+mem_byte_forward ; a few store bytes, load bytes, some adrs matching

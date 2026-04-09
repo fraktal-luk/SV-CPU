@@ -12,6 +12,90 @@ package Asm;
         string label = "";
     } CodeRef;
 
+    typedef enum {
+        NONE, SOME
+    } ParseError;
+
+    typedef struct {
+        int line;
+        int codeLine;
+        logic data;
+        squeue parts;
+        ParseError error = SOME;
+        Word ins;
+        CodeRef codeRef;
+    } CodeLine;
+
+    typedef struct {
+        int line;
+        int codeLine;
+        squeue parts;
+        ParseError error = SOME;
+        string label;
+    } DirectiveLine;
+
+    typedef struct {
+        int line;
+        int codeLine;
+        string label;
+        int size;
+    } ImportRef;
+
+    typedef struct {
+        int line;
+        int codeLine;
+        string label;
+    } ExportRef;
+
+    typedef struct {
+        string desc;
+        Word words[];
+        ImportRef imports[];
+        ExportRef exports[];
+    } CodeSec;
+
+    typedef CodeSec CodeSecArr[$];
+
+    typedef struct {
+        string mnemonic;
+        Word encoding;
+        InstructionDef def;
+        int dest;
+        int sources[3];
+    } AbstractInstruction;
+
+    localparam AbstractInstruction DEFAULT_ABS_INS = '{
+        mnemonic: "",
+        encoding: 'x,
+        def: '{F_none, P_none, S_none, T_none, O_undef},
+        dest: 0,
+        sources: '{default: 0}
+    };
+
+    localparam AbstractInstruction FETCH_ERROR_INS = '{
+        mnemonic: "",
+        encoding: 'x,
+        def: '{F_none, P_none, S_none, T_none, O_fetchError},
+        dest: 0,
+        sources: '{default: 0}
+    };
+
+    typedef struct {
+        string name;
+        ImportRef imports[$];
+        ExportRef labels[$];
+        ExportRef exports[$];
+        squeue errors = '{};
+        CodeLine instructions[$];
+    } SectionDesc;
+
+    typedef struct {
+        squeue errors = '{};
+        int sectionHeads[$];
+        SectionDesc sections[$];
+    } ParsedFile;
+
+
 
     function automatic Word getIns(input string parts[]);
         InstructionDef def = getDef(parts[0]);
@@ -110,11 +194,16 @@ package Asm;
     endfunction; 
 
 
-    function automatic Word4 parseArgs(input string4 args);
+    function automatic Word4 parseArgs(input string args[]);
         Word4 res;
         integer value = 'x;
 
         foreach(args[i]) begin
+            if (i >= 4) begin
+                $error("More than 4 args");
+                break;
+            end
+
             if (args[i].len() == 0) begin
                res[i] = 'x;
                continue;
@@ -187,31 +276,6 @@ package Asm;
     endfunction;
 
 
-    typedef struct {
-        string mnemonic;
-        Word encoding;
-        //InstructionFormat fmt;
-        InstructionDef def;
-        int dest;
-        int sources[3];
-    } AbstractInstruction;
-
-    localparam AbstractInstruction DEFAULT_ABS_INS = '{
-        mnemonic: "",
-        encoding: 'x,
-        def: '{F_none, P_none, S_none, T_none, O_undef},
-        dest: 0,
-        sources: '{default: 0}
-    };
-
-    localparam AbstractInstruction FETCH_ERROR_INS = '{
-        mnemonic: "",
-        encoding: 'x,
-        def: '{F_none, P_none, S_none, T_none, O_fetchError},
-        dest: 0,
-        sources: '{default: 0}
-    };
-
     function automatic string decodeMnem(input Word w);
         Primary p = toPrimary(w[31:26]);
         Secondary s = toSecondary(w[15:10], p);
@@ -269,7 +333,6 @@ package Asm;
         
         res.mnemonic = s;
         res.encoding = w;
-       // res.fmt = f;
         res.def = d;
         res.dest = dest;
         res.sources = sources;
@@ -400,111 +463,146 @@ package Asm;
     endfunction
 
 
-    typedef enum {
-        NONE, SOME
-    } ParseError;
+    function automatic ParsedFile parseLines(input squeue lines);
+        ParsedFile pf;
+        SectionDesc currentSection;
 
+            squeue errors = '{};
+            int sectionHeads[$];
 
-    typedef struct {
-        int line;
-        int codeLine;
-        squeue parts;
-        ParseError error = SOME;
-        Word ins;
-        CodeRef codeRef;
-    } CodeLine;
-
-    typedef struct {
-        int line;
-        int codeLine;
-        squeue parts;
-        ParseError error = SOME;
-        string label;
-    } DirectiveLine;
-
-    typedef struct {
-        int codeLine; string label; int size;
-    } ImportRef;
-
-    typedef struct {
-        int codeLine; string label;
-    } ExportRef;
-
-    typedef struct {
-        string desc;
-        Word words[];
-        ImportRef imports[];
-        ExportRef exports[];
-    } Section;
-
-    function automatic Section processLines(input squeue lines);
-        Section res;
-        squeue labels = '{};
-        int labelMap[string];
-        ImportRef imports[$];
-        ExportRef exports[$];
-        squeue errors = '{};
-        CodeLine instructions[$];
-        Word code[];
-    
         int nInstructionLines = 0;
     
+        // scan lines
         foreach (lines[i]) begin
             squeue parts = breakLine({lines[i], 8'h0});
-            if (parts.size() == 0)
-                continue;
+            if (parts.size() == 0) continue;
             else if (parts[0][0] == "$") begin
-                labels.push_back(parts[0]);
-                labelMap[parts[0]] = nInstructionLines + 1;
-                errors.push_back($sformatf("%d: Something after label", i));
+                currentSection.labels.push_back('{i+1, nInstructionLines+1, parts[0]});
             end
             else if (parts[0][0] == "@") begin
                 DirectiveLine dl = analyzeDirective(i, nInstructionLines, parts);
-                if (dl.label.len() != 0)
-                    exports.push_back('{nInstructionLines + 1, dl.label});
+                // if (dl.label.len() != 0) begin
+                //     currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
+                // end
+
+                if (parts[0] == "@section") begin
+                    SectionDesc newSec;
+                    pf.sections.push_back(currentSection);
+                    currentSection = newSec;
+                    currentSection.name = dl.label;
+                        sectionHeads.push_back(i+1);
+                    nInstructionLines = 0;
+                end
+                else if (dl.label.len() != 0) begin
+                    currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
+                end
             end
             else begin
-                instructions.push_back(analyzeCodeLine(i, nInstructionLines, parts));
+                CodeLine codeLine = analyzeCodeLine(i, nInstructionLines, parts);
+                currentSection.instructions.push_back(codeLine);
                 nInstructionLines++;
             end
         end
         
-        code = new[nInstructionLines];
+        pf.sections.push_back(currentSection);
+
+            pf.errors = errors;
+            pf.sectionHeads = sectionHeads;
+
+        return pf;
+    endfunction
+
+
+
+    function automatic CodeSec processLines(input squeue lines);
+        CodeSec res;
+        CodeSec sections[];
+
+        ParsedFile pf = parseLines(lines);
+
+        sections = new [pf.sections.size()];
+
+        foreach (pf.sections[i])
+            sections[i] = processOneSection(pf.sections[i]);
+
+        res = sections[0];
+        return res;
+    endfunction
+
+    function automatic CodeSecArr processFile(input squeue lines);
+        CodeSec res;
+        CodeSec sections[];
+
+        ParsedFile pf = parseLines(lines);
+
+        sections = new [pf.sections.size()];
+
+        foreach (pf.sections[i])
+            sections[i] = processOneSection(pf.sections[i]);
+
+        return sections;
+    endfunction
+
+
+
+    function automatic CodeSec processOneSection(/*input ParsedFile pf,*/ input SectionDesc sec);
+        CodeSec res;
+
+        CodeLine pfInstructions[$] = sec.instructions;  
+        ExportRef pfLabels[$] = sec.labels;
+        ExportRef pfExports[$] = sec.exports;
+
+
+        ImportRef imports[$];
+        ExportRef exports[$];
+        squeue errors = '{};
+        Word code[] = new [pfInstructions.size()];
         
+
         // Resolve labels
-        foreach(instructions[i]) begin
-            CodeLine ins = instructions[i];
+        foreach(pfInstructions[i]) begin
+            CodeLine ins = pfInstructions[i];
+
             if (ins.codeRef.label.len() != 0) begin
-                if (labelMap.exists(ins.codeRef.label)) begin
-                    int cline = labelMap[ins.codeRef.label];
+                ExportRef label[$] = pfLabels.find with (item.label == ins.codeRef.label);
+
+                if (label.size() > 0) begin
+                    int cline = label[0].codeLine;
                     int targetAdr = 4*cline;
                     int usingAdr = 4*ins.codeLine;
                     Word newWord = ins.ins;
                     
+                    assert (label.size() == 1) else $error("Label %s repeated!", ins.codeRef.label);
+
                     if (ins.codeRef.ref26 == 1) newWord[25:0] = (targetAdr - usingAdr);
                     else if (ins.codeRef.ref21 == 1) newWord[20:0] = (targetAdr - usingAdr);
                     
-                    instructions[i].ins = newWord;
+                    ins.ins = newWord;
                 end
                 else begin
                     int size = ins.codeRef.ref26 == 1 ? 26 : 21;                    
-                    imports.push_back('{ins.codeLine, ins.codeRef.label, size});
+                    imports.push_back('{ins.line, ins.codeLine, ins.codeRef.label, size});
                 end             
             end
-            code[i] = instructions[i].ins;
+            code[i] = ins.ins;
         end
         
+        res.desc = sec.name;
         res.words = code;
         
+        exports = pfExports;
+
         begin
             int nImports = imports.size();
             int nExports = exports.size();
             res.imports = new[nImports](imports[0:$]);
             res.exports = new[nExports](exports[0:$]);
         end
- 
+
         return res;
-    endfunction
+    endfunction;
+
+
 
 
     function automatic Word fillImport(input Word w, input int adrDiff, input ImportRef imp, input ExportRef exp);
@@ -521,13 +619,14 @@ package Asm;
     endfunction
 
 
-    function automatic Section fillImports(input Section section, input int startAdr, input Section lib, input int libAdr);
-        Section res = section;
-        int adrDiff = libAdr - startAdr;
-        
+    function automatic CodeSec fillImports(input CodeSec section, input Dword startAdr, input CodeSec lib, input Dword libAdr);
+        CodeSec res = section;
+        Dword adrDiff = libAdr - startAdr;
+
         foreach (section.imports[i]) begin
             ImportRef imp = section.imports[i];
             ExportRef exps[$] = lib.exports.find with (item.label == imp.label);
+
             if (exps.size() == 0) continue;
 
             res.words[imp.codeLine-1] = fillImport(res.words[imp.codeLine-1], adrDiff, imp, exps[0]); // CAREFUL: will get first found label
@@ -544,12 +643,23 @@ package Asm;
  
         res.line = line + 1;
         res.codeLine = codeLine + 1;
+        res.data = 0;
         res.parts = parts;
         res.error = NONE;
         
         if (!isLetter(mnemonic[0])) begin
-            res.error = SOME;
-            return res;
+            if (isDigit(mnemonic[0])) begin
+                Word4 values = parseArgs(parts);
+                res.data = 1;
+                // Parse data
+                // ...
+                res.ins = values[0];
+                return res;
+            end
+            else begin
+                res.error = SOME;
+                return res;
+            end
         end
 
         foreach (partsExt[i])
@@ -584,6 +694,9 @@ package Asm;
                 res.error = SOME;
             end
         end
+        else if (parts[0] == "@section") begin
+            res.label = parts.size() > 1 ? parts[1] : "";
+        end
         else begin
             $error("Unknown directive: %d", line + 1);
             res.error = SOME;
@@ -592,9 +705,10 @@ package Asm;
         return res;
     endfunction
 
+
     function automatic Word asm(input string str);
         squeue q = '{str};
-        Section s = processLines(q);
+        CodeSec s = processLines(q);
         return s.words[0];
     endfunction
 

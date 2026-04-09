@@ -112,6 +112,9 @@ module MemSubpipe#()
         if (!p.active) return res;
 
         res.active = 1;
+
+            res.invalid = !isStoreSysUop(uname) && !isLoadSysUop(uname) && !virtualAddressValid(adr);
+
         res.size = getTransactionSize(uname);
 
         res.store = isStoreUop(uname);
@@ -210,6 +213,15 @@ module MemSubpipe#()
 
         uname = decUname(uid);
 
+
+        if (ad.invalid) begin
+            res.status = ES_INVALID;
+            res.result = 0;
+            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
+            return res;
+        end
+
+
         case (p.memClass)
             MC_SYS: begin
                 return TMP_updateSysTransfer(res, sysResp);
@@ -258,7 +270,7 @@ module MemSubpipe#()
                         else if (uncachedResp.status == CR_INVALID) begin
                             res.status = ES_ILLEGAL;
                             res.result = 0;
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS); // TODO: NONEXISTENT_ADDRESS?
                             return res;
                         end
                         else
@@ -319,7 +331,7 @@ module MemSubpipe#()
 
         if (sysResp.status == CR_INVALID) begin
             insMap.setException(U2M(p.TMP_oid), PE_SYS_INVALID_ADDRESS); // Exception on invalid sys reg access: set in relevant of SQ/LQ
-            res.status = ES_ILLEGAL;
+            res.status = ES_INVALID;
         end
         else begin
             res.status = ES_OK;

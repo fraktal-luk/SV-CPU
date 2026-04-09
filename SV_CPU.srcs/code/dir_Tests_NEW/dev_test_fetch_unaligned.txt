@@ -1,0 +1,52 @@
+
+@section prog_main
+
+; Page with no read permission
+$start
+	
+	add_i r20, r0, 0x4000 ; initialize exc stack
+
+	ja 3; cause exception
+	and_r r0, r0, r0
+	and_r r0, r0, r0	
+
+$check
+	sys_dbcall
+$error
+    sys_error
+
+@section output
+; here write expected exc info that should be written to exc stack
+0
+0
+; c1 - currentStatus
+0x11
+0 ; hi
+; c2 - excSavedIP
+0x7
+0 ; hi
+; c3 - intSavedIP
+0
+0 ; hi
+; c4 - excSavedStatus
+0x10
+0 ; hi
+; c5 - intSavedStatus
+0
+0 ; hi
+; c6 - excSyndrome
+0x11
+0; hi
+; c7 - intSyndrome
+0
+0 ; hi
+; c8 - fpStatus
+0
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi
+

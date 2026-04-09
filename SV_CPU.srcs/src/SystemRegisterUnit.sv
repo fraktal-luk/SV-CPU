@@ -68,7 +68,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
 
-    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr, input UopPacket p);
+    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr,
+                                            input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
+                                                input ProgramEvent pe);
         case (cOp)
             CO_exception, CO_specificException: begin
                 sysRegs[4] = sysRegs[1];
@@ -78,19 +80,34 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
                 // TODO: assign precise values
-                case (p.status)
-                    ES_ILLEGAL: begin
-                        UopName uname = decUname(p.TMP_oid);
-                        if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
-                        else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
+                if (mp.active) begin
+                    case (mp.status)
+                        ES_INVALID: begin
+                            UopName uname = decUname(mp.TMP_oid);
+                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
+                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_INVALID_ADDRESS;
 
-                    end
+                        end
+                        ES_ILLEGAL: begin
+                            UopName uname = decUname(mp.TMP_oid);
+                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
+                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
 
-                    ES_FP_INVALID, ES_FP_OVERFLOW:
-                        sysRegs[6] = PE_ARITH_EXCEPTION;
+                        end
 
-                    default: ;
-                endcase
+                        // ES_FP_INVALID, ES_FP_OVERFLOW:
+                        //     sysRegs[6] = PE_ARITH_EXCEPTION;
+
+                        default: ;
+                    endcase
+                end
+                else if (fpInv.active) begin
+                    sysRegs[6] = PE_ARITH_EXCEPTION;
+
+                end
+                else if (fpOv.active) begin
+                    sysRegs[6] = PE_ARITH_EXCEPTION;
+                end
             end
             CO_fetchError: begin
                 sysRegs[4] = sysRegs[1];
@@ -100,7 +117,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
                 begin
-                    sysRegs[6] = PE_FETCH_INVALID_ADDRESS;
+                    sysRegs[6] = //PE_FETCH_INVALID_ADDRESS;
+                                    pe;
                 end
             end
             CO_undef: begin
@@ -145,7 +163,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
             
             CO_refetch, CO_sync, CO_send: ;
             
-            default: $error("Incorrect control op %p", cOp);
+            default: $fatal(2, "Incorrect control op %p", cOp);
         endcase
     endfunction
     

@@ -1,0 +1,171 @@
+@section prog_main
+
+$start
+	add_i r20, r0, 0x4000 ; initialize exc stack
+
+	add_i r10, r0, 10
+	lds r4, r0, 1
+
+	add_h r2, r0, 0x10 ; db flag
+	or_r r4, r4, r2
+
+
+	sts r4, r0, 5
+	add_i r3, r0, 0x24
+	sts r3, r0, 3  ; set return address to $startsteps
+	sys_reti
+
+
+$startsteps
+	jnz_i r10, $L1              ; 24
+$L2
+	jz_i r10, $error            ; 28
+	lds r12, r0, 34 ; exc       ; 2c
+$L1
+	jz_i r0, $L2                ; 30
+
+$endsteps
+	sys_dbcall
+
+$error
+	sys_error
+
+@section output
+
+; First step
+0
+0
+; c1 - currentStatus
+0x00010
+0 ; hi
+; c2 - excSavedIP
+0
+0 ; hi
+; c3 - intSavedIP
+0x30
+0 ; hi
+; c4 - excSavedStatus
+0
+0 ; hi
+; c5 - intSavedStatus
+0x100010
+0 ; hi
+; c6 - excSyndrome
+0
+0; hi
+; c7 - intSyndrome
+0x62
+0 ; hi
+; c8 - fpStatus
+0
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi
+
+
+; Second step
+0
+0
+; c1 - currentStatus
+0x00010
+0 ; hi
+; c2 - excSavedIP
+0
+0 ; hi
+; c3 - intSavedIP
+0x28
+0 ; hi
+; c4 - excSavedStatus
+0
+0 ; hi
+; c5 - intSavedStatus
+0x100010
+0 ; hi
+; c6 - excSyndrome
+0
+0; hi
+; c7 - intSyndrome
+0x62
+0 ; hi
+; c8 - fpStatus
+0
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi
+
+
+; Third step
+0
+0
+; c1 - currentStatus
+0x00010
+0 ; hi
+; c2 - excSavedIP
+0
+0 ; hi
+; c3 - intSavedIP
+0x2c
+0 ; hi
+; c4 - excSavedStatus
+0
+0 ; hi
+; c5 - intSavedStatus
+0x100010
+0 ; hi
+; c6 - excSyndrome
+0
+0; hi
+; c7 - intSyndrome
+0x62
+0 ; hi
+; c8 - fpStatus
+0
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi
+
+
+0
+0
+; c1 - currentStatus
+0x11
+0 ; hi
+; c2 - excSavedIP
+0x2c
+0 ; hi
+; c3 - intSavedIP
+0
+0 ; hi
+; c4 - excSavedStatus
+0x100010
+0 ; hi
+; c5 - intSavedStatus
+0
+0 ; hi
+; c6 - excSyndrome
+0x50
+0; hi
+; c7 - intSyndrome
+0
+0 ; hi
+; c8 - fpStatus
+0
+0 ; hi  
+; c9 -
+0
+0 ; hi  
+; c10 - memControl
+7
+0 ; hi

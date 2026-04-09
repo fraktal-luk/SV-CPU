@@ -45,8 +45,8 @@ package AbstractSim;
 
 
 
-    localparam int N_WAYS_INS = 4;
-    localparam int N_WAYS_DATA = 4;
+    localparam int N_WAYS_INS = 6;
+    localparam int N_WAYS_DATA = 6;
 
     ///////////////////////////////////
 
@@ -782,9 +782,11 @@ package AbstractSim;
 
         function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
             OpSlotAF res = st;
+            Mword expectedTargetFloor = expectedTarget;
+            expectedTargetFloor[1:0] = 0;
 
             foreach (res[i])
-                res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTarget);
+                res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
 
             return res;       
         endfunction

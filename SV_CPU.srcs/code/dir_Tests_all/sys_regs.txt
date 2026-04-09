@@ -1,0 +1,24 @@
+;
+@section prog_main
+
+$start
+	add_i r1, r0, 59
+	sts   r1, r0, 2     ; store value into sys reg
+	sys_sync			; needed to guarantee the write
+	lds   r12, r0, 2	; load into GPR again, should be 59
+
+	add_i r3, r12, -59
+	jnz_i r3, $error
+	add_i r4, r0, 48 ; address to "return" to
+	sts   r4, r0, 3  ; write to int return address
+	
+	sys_reti
+	sys_error
+	sys_error
+	sys_error
+	
+$check
+
+	sys_dbcall
+$error
+    sys_error

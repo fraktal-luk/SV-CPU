@@ -11,6 +11,8 @@ package Base;
     typedef logic logic3[3];
 
 
+    typedef Word WordArray[];
+
 
 
     function automatic Word multiplyW(Word a, Word b);
@@ -103,7 +105,7 @@ package InsDefs;
 
     localparam int PAGE_SIZE = 4096;
 
-        localparam Mword HANDLER_BASE = 2*PAGE_SIZE; // TMP
+        localparam Mword HANDLER_BASE = 4*PAGE_SIZE; // TMP
 
     // Handler addresses
     localparam Mword IP_ERROR     = HANDLER_BASE + 'h00000100;
@@ -751,9 +753,12 @@ package InsDefs;
             PE_SYS_INVALID_ADDRESS:
                 return IP_EXC;
             
-            PE_SYS_ERROR, PE_SYS_UNDEFINED_INSTRUCTION:
+            PE_SYS_ERROR:
                 return IP_ERROR;
-            
+
+            PE_SYS_UNDEFINED_INSTRUCTION:
+                return IP_EXC;
+
             PE_SYS_CALL:
                 return IP_CALL;
 

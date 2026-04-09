@@ -1,4 +1,0 @@
-; 
-itlb_miss0
-icache_miss0
-itlb_icache_miss

@@ -37,6 +37,7 @@ module AbstractCore
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
     PageBasedProgramMemory programMem;
+    SparseDataMemory dataMem;
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
@@ -102,7 +103,8 @@ module AbstractCore
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
-    OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B};
+    OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B}; // TODO: change to type of stageRename0 to include evt info
+    FrontStage stageRename1_N = DEFAULT_FRONT_STAGE;
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
@@ -145,7 +147,7 @@ module AbstractCore
     assign insAdr = theFrontend.fetchAdr;
 
     assign sig = lateEventInfo.cOp == CO_send;
-    assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
+    //assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
 
 
     always @(posedge clk) begin
@@ -260,16 +262,18 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt);
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr);
         end
 
         stageRename1 <= ops;
+            stageRename1_N <= theFrontend.stageRename0;
     endtask
 
 
     task automatic redirectRest();
         stageRename1 <= '{default: EMPTY_SLOT_B};
         markKilledRenameStage(stageRename1);
+            stageRename1_N <= DEFAULT_FRONT_STAGE;
 
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
@@ -330,8 +334,11 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword adr, input Word bits, input logic predictedDir, input ProgramEvent evt);
+    task automatic renameOp(input InsId id, input int currentSlot, input Mword iadr, input Word bits, input logic predictedDir,
+                            input ProgramEvent evt, input Mword vadr);
         AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+
+        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : iadr;
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
@@ -343,6 +350,11 @@ module AbstractCore
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+
+            //if (evt != PE_NONE) $error("%p: %p, %p, // %p", ins, adr, vadr, bits);
+
+          //if (evt == PE_FETCH_UNALIGNED_ADDRESS) 
 
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
@@ -433,7 +445,10 @@ module AbstractCore
             Mword sr3 = sysUnit.sysRegs[3];
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
 
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr, theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg);
+            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
+                                        theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
+                                        theExecBlock.memEventReg, theExecBlock.fpInvReg, theExecBlock.fpOvReg,
+                                        theExecBlock.lastEvtFetch);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -499,8 +514,10 @@ module AbstractCore
         for (int u = 0; u < info.nUops; u++) begin
             UopInfo uinfo = insMap.getU('{id, u});    
             if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
-                assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0)
-                     else $error(" not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0) else begin
+                    retiredEmul.getBasicDbView();
+                    $fatal(2, " not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                end
             end
         end
     endfunction
@@ -512,11 +529,19 @@ module AbstractCore
 
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
+        Mword expectedTargetFloor = trg;
+        //expectedTargetFloor[1:0] = 0;
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
-        assert (trg === info.basicData.adr) else $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
-        assert (retInfo.refetch === info.refetch) else $error("Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
- 
+        assert (expectedTargetFloor === info.basicData.adr) else begin
+            retiredEmul.getBasicDbView();
+            $fatal(2, "Commit: mm adr %h / %h", expectedTargetFloor, info.basicData.adr);
+        end
+        assert (retInfo.refetch === info.refetch) else begin
+            retiredEmul.getBasicDbView();
+            $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
+        end
+
         // TODO: incorporate arith exc into ROB output to bring back this check?
           //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
           //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
@@ -537,7 +562,10 @@ module AbstractCore
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
         if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
             if (retInfo.takenBranch === 1) begin
-                assert (retInfo.target === nextTrg) else $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
+                assert (retInfo.target === nextTrg) else begin
+                    retiredEmul.getBasicDbView();
+                    $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
+                end
             end
         end
     endtask
@@ -566,7 +594,7 @@ module AbstractCore
 
         assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
                             isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-            else $error("Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
+            else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
                         retInfo.refetch, retInfo.exception);
                             
         verifyOnCommit(retInfo);
@@ -598,8 +626,14 @@ module AbstractCore
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
+
+                // if (id >= 'h4b4) begin
+                //     Dword ct = getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
+                //     $error("RetiredTarget <= %d\nEmul target = %d", ct, retiredEmul.coreState.target);
+                // end
+
         // RET: update target
-        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, retInfo.refetch, retInfo.exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
     endtask
 
 
@@ -761,7 +795,8 @@ module AbstractCore
         registerTracker = new();
         memTracker = new();
 
-        programMem = null;
+        programMem = new();
+        dataMem = new();
         
         dataCache.reset();
         theFrontend.instructionCache.reset();
@@ -770,7 +805,7 @@ module AbstractCore
         theFrontend.stage_IP.active <= 0;
 
         branchCheckpointQueue.delete();
-        
+
         sysUnit.reset();
         
         syncRegsFromRetiredCregs();
@@ -784,20 +819,26 @@ module AbstractCore
 
 
     task automatic preloadForTest();
-        retiredEmul.initStatus(globalParams.initialCregs);
-        renamedEmul.initStatus(globalParams.initialCregs);
+        renamedEmul.initCore(globalParams.initialCregs, globalParams.preloadedInsTlbL2, globalParams.preloadedDataTlbL2);
+        retiredEmul.initCore(globalParams.initialCregs, globalParams.preloadedInsTlbL2, globalParams.preloadedDataTlbL2);
 
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
 
-        renamedEmul.programMappings = globalParams.preloadedInsTlbL2;
-        retiredEmul.programMappings = globalParams.preloadedInsTlbL2;
-        
-        renamedEmul.dataMappings = globalParams.preloadedDataTlbL2;
-        retiredEmul.dataMappings = globalParams.preloadedDataTlbL2;
-        
+            //TODO: set data memories for emulators according to core data memory
+            renamedEmul.progMem.setLike(programMem);
+            renamedEmul.dataMem.setLike(dataMem);
+
+            retiredEmul.progMem.setLike(programMem);
+            retiredEmul.dataMem.setLike(dataMem);
+
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();
+
+        if (!sysUnit.sysRegs[10][0]) begin // If MMU off
+            theFrontend.instructionCache.reset();
+            dataCache.reset();
+        end
     endtask
 
 

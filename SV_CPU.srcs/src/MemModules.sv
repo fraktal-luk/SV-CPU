@@ -4,6 +4,7 @@ import InsDefs::*;
 import Asm::*;
 import Emulation::*;
 import EmulationDefs::*;
+import EmulationMemories::*;
 
 import AbstractSim::*;
 import Insmap::*;
@@ -95,7 +96,13 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
         Dword pageBase = getPageBaseD(pageAdr);
         int wayNum = pageBase/PAGE_SIZE;
         assert (wayNum >= 0 && wayNum < N_WAYS) else $fatal(2, "Wrong way num");
-        initBlocksWay(ways[wayNum], pageBase);
+        initBlocksWay(ways[wayNum], pageBase, AbstractCore.dataMem);
+    endfunction
+
+
+    // For checking cache content
+    function automatic WordArray readWholeWay(input int way);
+        return readWayContent(ways[way]);
     endfunction
 
 

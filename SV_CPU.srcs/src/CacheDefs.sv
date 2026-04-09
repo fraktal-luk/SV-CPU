@@ -48,6 +48,8 @@ package CacheDefs;
      typedef struct {
         logic active;
 
+        logic invalid;
+
         logic sys;
         logic store;
         logic uncachedReq;
@@ -66,7 +68,7 @@ package CacheDefs;
         int shift; // Applies to block-crossing: bytes to shift at combining 
      } AccessDesc;
 
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
 
 
     function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
@@ -318,6 +320,7 @@ package CacheDefs;
         return 1;
     endfunction
 
+    // TODO: write actual data
     function automatic logic tryFillWay(ref DataWay way, input Dword adr);
         int blockIndex = getBlockIndex(adr);
 
@@ -342,7 +345,7 @@ package CacheDefs;
     endfunction
 
 
-    function automatic void initBlocksWay(ref DataWay way, input Dword baseVadr);
+    function automatic void initBlocksWay(ref DataWay way, input Dword baseVadr, input SparseDataMemory dataMem);
         foreach (way[i]) begin
             Dword padr = baseVadr + i*BLOCK_SIZE;
 
@@ -352,10 +355,22 @@ package CacheDefs;
             newBlock.valid = 1;
             newBlock.pbase = padr;
             newBlock.lock = 0;
-            newBlock.array = CLEAN_BLOCK;
+            foreach (newBlock.array[a])
+                newBlock.array[a] = dataMem.readByte(i*BLOCK_SIZE + a);
         end
     endfunction
 
+
+
+    function automatic WordArray readWayContent(input DataWay way);
+        WordArray res = new [1024];
+        foreach (way[i]) begin
+            for (int wi = 0; wi < BLOCK_SIZE/4; wi++)
+                res[BLOCK_SIZE/4 * i + wi] = {>>{way[i].array[4*wi +: 4]}};
+        end
+
+        return res;       
+    endfunction
 
 
     ///////////////////////////////////////////////////////////////

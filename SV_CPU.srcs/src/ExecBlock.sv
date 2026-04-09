@@ -286,6 +286,8 @@ module ExecBlock(ref InstructionMap insMap,
     
         InsId currentEventReg = -1, lqRefetchReg = -1, lqRefetchNewH = -1;
 
+        ProgramEvent lastEvtFetch = PE_NONE;
+
         AccessDesc lastEvtAD;
         Translation lastEvtTr;
 
@@ -346,8 +348,18 @@ module ExecBlock(ref InstructionMap insMap,
 
 
         function automatic OpSlotB getOldestRenameEvSlot();
+            // TODO: if stageRename1_N is not empty and has a fetch event, catch it
+
             OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
             // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+
+                // if (AbstractCore.stageRename1_N.active && AbstractCore.stageRename1_N.evt != PE_NONE) begin
+                //     found = AbstractCore.stageRename1.find_first with (item.active);
+                //     assert (found.size() > 0) else $fatal(2, "stageRename1 active but no elements");
+                //     return found[0];
+                // end
+
 
             if (found.size() == 0) return EMPTY_SLOT_B;
             else return found[0];
@@ -365,17 +377,28 @@ module ExecBlock(ref InstructionMap insMap,
             return oldest[0];
         endfunction
 
-        
+        function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+
+ 
         always @(negedge AbstractCore.clk) begin
             fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);
             fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);
 
-            memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);
+            //memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);   // TODO: other mem conditions (ES_INVALID, ...) 
+            memEventNewH <= findOldestMemEvt(memImagesTr[0]);   // TODO: other mem conditions (ES_INVALID, ...) 
             memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);
 
 
             lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
-            staticEventNewH <= (getOldestRenameEvSlot());
+            staticEventNewH <= getOldestRenameEvSlot();
         end
         
         
@@ -434,6 +457,12 @@ module ExecBlock(ref InstructionMap insMap,
                 lastEvtTr <= DEFAULT_TRANSLATION;
             end
 
+            // Is it a fetch event?
+            if (staticEventNewH.mid == tmp) begin
+                lastEvtFetch <= AbstractCore.stageRename1_N.evt;
+            end
+            else if (tmp != currentEventReg)
+                lastEvtFetch <= PE_NONE;
         endtask
 
 

@@ -1,0 +1,12 @@
+; Unaligned access, then 1 dependent op
+@section prog_main
+
+$start
+
+	ldi_i r10, r0, 3
+	add_r r11, r10, r0
+
+$check
+	sys_dbcall
+$error
+    sys_error

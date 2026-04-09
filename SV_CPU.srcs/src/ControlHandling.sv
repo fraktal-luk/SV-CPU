@@ -31,7 +31,7 @@ package ControlHandling;
                 res.redirect = 1;
             end
             CO_undef: begin
-                res.target = IP_ERROR;
+                res.target = IP_EXC;
                 res.redirect = 1;
             end
             CO_call: begin
@@ -113,13 +113,13 @@ package ControlHandling;
     endtask
 
     // core logic
-    function automatic Mword getCommitTarget(input UopName uname, input logic taken, input Mword prev, input Mword executed, input logic refetch, input logic exception);
+    function automatic Mword getCommitTarget(input UopName uname, input logic taken, input Mword own, input Mword executed, input logic refetch, input logic exception);
         if (isBranchUop(uname) && taken) return executed;
         else if (exception) return 'x;
-        else if (uname == UOP_ctrl_sync) return prev + 4;
+        else if (uname == UOP_ctrl_sync) return own + 4;
         else if (isControlUop(uname)) return 'x;
-        else if (refetch) return prev;
-        else return prev + 4;
+        else if (refetch) return own;
+        else return own + 4;
     endfunction;
 
 endpackage
