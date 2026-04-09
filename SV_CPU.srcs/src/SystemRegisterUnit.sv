@@ -163,7 +163,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
             
             CO_refetch, CO_sync, CO_send: ;
             
-            default: $error("Incorrect control op %p", cOp);
+            default: $fatal(2, "Incorrect control op %p", cOp);
         endcase
     endfunction
     

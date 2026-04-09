@@ -51,3 +51,8 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/staticEventNewH \
 sim:/ArchDesc0/core/theExecBlock/staticEventReg
 
+add wave -position insertpoint  \
+sim:/ArchDesc0/emul_N
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/emulTestName

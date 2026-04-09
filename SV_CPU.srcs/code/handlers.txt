@@ -329,11 +329,11 @@ $handle_RESET
 
 $handle_INT
 ; 280
-    sys_undef
+    jl r31, $process_async_exception  ; sys_undef
 ; 284
-    sys_undef
+    add_i r10, r0, 1
 ; 288
-    sys_undef
+    sys_reti
 ; 28c
     sys_undef
 ; 290

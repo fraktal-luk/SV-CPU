@@ -215,11 +215,14 @@ module ArchDesc0();
         resetAll(emul);
         emul.progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
+            setTestMemories("events2", emul.progMem, emul.dataMem);
+
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
         for (int iter = 0; 1; iter++) begin
             if (iter == 3) begin 
                 emul.interrupt();
+                    $error("Interrupt now");
                 #DELAY;
             end
 
@@ -362,9 +365,15 @@ module ArchDesc0();
 
 
     task automatic runIntTestSim();//input GlobalParams gp, input PageBasedProgramMemory progMem);
+            CodeSecArr testSections = processFile(readFile({codeDir, "events_int", ".txt"}));
+            WordArray outputWay;
+
+
         PageBasedProgramMemory progMem = new(); //theProgMem;
         GlobalParams gp = Test_fillGpCached();
         gp.initialCregs.memControl = 7;
+
+
 
         progMem.assignPage(PAGE_SIZE, common.words);
 
@@ -374,12 +383,15 @@ module ArchDesc0();
 
         #CYCLE announce("int");
 
-        progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
+      //  progMem.assignPage(4*PAGE_SIZE, prepareHandlersPage());
 
-        progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
+        //progMem.assignPage(0, prepareTestPage("events2", COMMON_ADR));
 
         core.resetForTest();
+
         core.programMem = progMem;
+                            setTestMemories("events_int", core.programMem, core.dataMem);
+
         core.dataMem = new();
         core.globalParams = gp;
         core.preloadForTest();
@@ -387,11 +399,14 @@ module ArchDesc0();
         startSim();
 
         // The part that differs from regular sim test
-        wait (fetchAdr == IP_CALL);
-        #CYCLE; // FUTURE: should be wait for clock instead of delay?
+       // wait (fetchAdr == 48);
+        #(20*CYCLE); // FUTURE: should be wait for clock instead of delay?
         pulseInt0();
-
+            $error("interrupted");
         awaitResult();
+
+            outputWay = core.dataCache.dataArray.readWholeWay(4);
+            checkOutputWA(outputWay, testSections);
     endtask
 
 

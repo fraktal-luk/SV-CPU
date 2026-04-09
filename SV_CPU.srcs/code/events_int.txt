@@ -2,13 +2,23 @@
 
 $start
 	add_i r20, r0, 0x4000 ; initialize exc stack
-
-	sys_call
+	add_r r0, r0, r0
 	add_i r22, r0, 0
 	jnz_i r22, $error
+
 	add_i r21, r0, 0
 	jnz_i r21, $error
+	ja $L1
+	add_r r0, r0, r0
+
+$L2
+	jz_i r10, 0
 	ja  $check
+
+$L1
+	ja $L2
+	add_r r0, r0, r0
+
 
 $error
 	sys_error
@@ -42,41 +52,6 @@ $check
 0; hi
 ; c7 - intSyndrome
 0x60
-0 ; hi
-; c8 - fpStatus
-0
-0 ; hi  
-; c9 -
-0
-0 ; hi  
-; c10 - memControl
-7
-0 ; hi
-
-
-; sys call
-0
-0
-; c1 - currentStatus
-0x11
-0 ; hi
-; c2 - excSavedIP
-0x8  ; TODO: store higher word too
-0 ; hi
-; c3 - intSavedIP
-0
-0 ; hi
-; c4 - excSavedStatus
-0x10
-0 ; hi
-; c5 - intSavedStatus
-0
-0 ; hi
-; c6 - excSyndrome
-0x54
-0; hi
-; c7 - intSyndrome
-0
 0 ; hi
 ; c8 - fpStatus
 0

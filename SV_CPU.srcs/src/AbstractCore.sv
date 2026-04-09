@@ -465,6 +465,7 @@ module AbstractCore
         else if (interrupt) begin
             lateEventInfoWaiting <= INT_EVENT;
             $display(">> Interrupt !!!");
+                $error("-------- Interrupt");
             retiredEmul.interrupt();
         end
 
@@ -626,8 +627,14 @@ module AbstractCore
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
+
+                // if (id >= 'h4b4) begin
+                //     Dword ct = getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
+                //     $error("RetiredTarget <= %d\nEmul target = %d", ct, retiredEmul.coreState.target);
+                // end
+
         // RET: update target
-        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, retiredTarget, retInfo.target, retInfo.refetch, retInfo.exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
     endtask
 
 
