@@ -410,9 +410,10 @@ package Testing;
     endfunction
 
 
-    function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
+    function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem,
+                                            input CodeSecArr handlerSections);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
-        CodeSecArr handlers = processFile(readFile({codeDir, "handlers.txt"}));
+        CodeSecArr handlers = handlerSections;// processFile(readFile({codeDir, "handlers.txt"}));
 
         foreach (testSections[importer]) begin
             foreach (testSections[exporter]) begin

@@ -56,6 +56,8 @@ module ArchDesc0();
 
     string emulTestName, simTestName;
 
+    CodeSecArr handlers;
+
     Emulator emul_N = new();
 
 
@@ -77,6 +79,7 @@ module ArchDesc0();
     task automatic runIntTestEmul(ref Emulator emul);
         GlobalParams gp = Test_fillGpCached();
         
+
         $display("Emulation event/int tests");
         #DELAY;
 
@@ -84,7 +87,7 @@ module ArchDesc0();
 
         resetAll(emul);
 
-        setTestMemories("events_int", emul.progMem, emul.dataMem);
+        setTestMemories("events_int", emul.progMem, emul.dataMem, handlers);
 
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
@@ -116,7 +119,7 @@ module ArchDesc0();
         resetAll(emul);
         emul.progMem = new();
         emul.dataMem = new();
-        setTestMemories({prefix, name}, emul.progMem, emul.dataMem);
+        setTestMemories({prefix, name}, emul.progMem, emul.dataMem, handlers);
 
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
         emul.resetSignal();
@@ -167,7 +170,7 @@ module ArchDesc0();
         core.resetForTest();
         core.programMem = new();
         core.dataMem = new();
-        setTestMemories({prefix, name}, core.programMem, core.dataMem);
+        setTestMemories({prefix, name}, core.programMem, core.dataMem, handlers);
         core.globalParams = gp;
         core.preloadForTest();
 
@@ -196,7 +199,7 @@ module ArchDesc0();
         #CYCLE $display("Event/int tests");
         #CYCLE announce("int");
         core.resetForTest();
-        setTestMemories("events_int", core.programMem, core.dataMem);
+        setTestMemories("events_int", core.programMem, core.dataMem, handlers);
         core.globalParams = gp;
         core.preloadForTest();
 
@@ -219,7 +222,9 @@ module ArchDesc0();
 
         SimRunner_N runner_N = new();
         TestRunner trSim_N = runner_N;
- 
+
+        handlers = processFile(readFile({codeDir, "handlers.txt"}));;
+
         if (RUN_EMUL_TESTS) begin
             runIntTestEmul(emul_N);
 
