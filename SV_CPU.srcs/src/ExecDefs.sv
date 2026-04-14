@@ -57,7 +57,8 @@ package ExecDefs;
     } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS,   ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1,   ES_LOWER_DONE};
+        return 
+                status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
     endfunction
 
 
@@ -512,8 +513,8 @@ package ExecDefs;
 
     function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
         if (fe.TMP_oid != UIDT_NONE) begin
-            UidT inds[$] = p.find with (item == fe.TMP_oid);
-            return inds.size() != 0;
+            UidT inds[$] = p.find_first with (item == fe.TMP_oid);
+            return inds.size() > 0;
         end
         return 0;
     endfunction

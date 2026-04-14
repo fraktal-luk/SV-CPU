@@ -730,7 +730,9 @@ module AbstractCore
     endfunction
 
 
-    function automatic UopPacket tickP(input UopPacket op);        
+    function automatic UopPacket tickP(input UopPacket op);
+        if (!op.active) return EMPTY_UOP_PACKET;
+
         if (shouldFlushPoison(op.poison)) begin
             putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
             return EMPTY_UOP_PACKET;
@@ -744,6 +746,7 @@ module AbstractCore
     endfunction
 
     function automatic UopPacket effP(input UopPacket op);
+        if (!op.active) return EMPTY_UOP_PACKET;
         if (shouldFlushPoison(op.poison)) return EMPTY_UOP_PACKET;            
         if (shouldFlushEvent(op.TMP_oid)) return EMPTY_UOP_PACKET;
         return op;
@@ -770,7 +773,7 @@ module AbstractCore
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
         foreach (memStage0[p])
-            if (needsReplay(memStage0[p].status) && checkMemDep(poison, memStage0[p])) return 1;
+            if (memStage0[p].active && needsReplay(memStage0[p].status) && checkMemDep(poison, memStage0[p])) return 1;
         return 0;
     endfunction
 
