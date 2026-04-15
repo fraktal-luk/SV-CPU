@@ -465,4 +465,17 @@ package Testing;
     endfunction
 
 
+    function automatic logic isErrorStatus(input Emulator emul);            
+        return emul.status.eventType inside {PE_SYS_ERROR};
+    endfunction
+
+    function automatic logic isSendingStatus(input Emulator emul);            
+        return emul.status.send == 1;
+    endfunction
+
+    task automatic resetAll(ref Emulator emul);
+        emul.resetWithDataMem();
+        //#DELAY;
+    endtask
+
 endpackage

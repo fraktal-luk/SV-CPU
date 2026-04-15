@@ -69,7 +69,7 @@ module EmulTest();
         // Check
         check(emul, PE_SYS_ERROR, IP_ERROR, "sys_error");
     endtask
-    
+
 
     task automatic test_FETCH_UNMAPPED();
         emul.resetCoreAndMappings();

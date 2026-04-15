@@ -17,19 +17,9 @@ module ArchDesc0();
     localparam logic RUN_SIM_TESTS = 1;
 
     localparam time DELAY = 1;
-
     localparam int ITERATION_LIMIT = 2000;
-    localparam Dword COMMON_ADR = 4 * 1024;
 
-
-    EmulTest emulTest(); // Checks basic behaviors
-
-
-    localparam CYCLE = 10;
-
-    logic clk = 1;
-
-    always #(CYCLE/2) clk = ~clk; 
+    localparam time CYCLE = 10;
 
 
     squeue devTestsUnc = '{
@@ -38,7 +28,7 @@ module ArchDesc0();
         "Tests_DEV_basic"
     };
 
-    squeue newTests = '{
+    squeue testsDevCached = '{
         "Tests_events_NEW",
 
         "Tests_all", // TODO: Not all, name is misleading
@@ -54,34 +44,38 @@ module ArchDesc0();
     };
 
 
+    EmulTest emulTest(); // Checks basic behaviors
+
     string emulTestName, simTestName;
 
     CodeSecArr handlers;
 
-    Emulator emul_N = new();
+    Emulator mainEmul = new();
+
+    logic clk = 1;
+
+    always #(CYCLE/2) clk = ~clk; 
 
 
-
-    class EmulRunner_N extends TestRunner;        
+    class EmulRunner extends TestRunner;        
         task automatic runTest(input string suiteName, input string name);
-            runTestEmul_N(suiteName, name, emul_N, gp);
+            runTestEmul(suiteName, name, mainEmul, gp);
             #DELAY;
         endtask
     endclass
 
-    class SimRunner_N extends TestRunner;
+    class SimRunner extends TestRunner;
         task automatic runTest(input string suiteName, input string name);            
-            runTestSim_N(suiteName, name, gp);
+            runTestSim(suiteName, name, gp);
         endtask
     endclass
 
 
     task automatic runIntTestEmul(ref Emulator emul);
         GlobalParams gp = Test_fillGpCached();
-        
 
         $display("Emulation event/int tests");
-        #DELAY;
+        //#DELAY;
 
         emulTestName = "int";
 
@@ -110,7 +104,7 @@ module ArchDesc0();
     endtask
 
 
-    task automatic runTestEmul_N(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp);
+    task automatic runTestEmul(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp);
         string prefix = {"dir_", suiteName, "/"};
         CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
 
@@ -160,7 +154,7 @@ module ArchDesc0();
     assign fetchAdr = core.insAdr; 
 
 
-    task automatic runTestSim_N(input string suiteName, input string name, input GlobalParams gp);
+    task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp);
         string prefix = {"dir_", suiteName, "/"};
 
         CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
@@ -168,14 +162,11 @@ module ArchDesc0();
 
         #CYCLE announce(name);
         core.resetForTest();
-        core.programMem = new();
-        core.dataMem = new();
         setTestMemories({prefix, name}, core.programMem, core.dataMem, handlers);
         core.globalParams = gp;
         core.preloadForTest();
 
         startSim();
-
         awaitResult();
 
         // Compare outputs if cache enabled
@@ -196,7 +187,6 @@ module ArchDesc0();
         GlobalParams gp = Test_fillGpCached();
         gp.initialCregs.memControl = 7;
 
-        #CYCLE $display("Event/int tests");
         #CYCLE announce("int");
         core.resetForTest();
         setTestMemories("events_int", core.programMem, core.dataMem, handlers);
@@ -206,7 +196,6 @@ module ArchDesc0();
         startSim();
 
         // The part that differs from regular sim test
-       // wait (fetchAdr == 48);
         #(20*CYCLE); // FUTURE: should be wait for clock instead of delay?
         pulseInt0();
         awaitResult();
@@ -217,44 +206,45 @@ module ArchDesc0();
 
 
     task automatic simMain();
-        EmulRunner_N emRunner_N = new();
-        TestRunner trEm_N = emRunner_N;
+        EmulRunner emRunner = new();
+        TestRunner trEm = emRunner;
 
-        SimRunner_N runner_N = new();
-        TestRunner trSim_N = runner_N;
+        SimRunner runner = new();
+        TestRunner trSim = runner;
 
         handlers = processFile(readFile({codeDir, "handlers.txt"}));;
 
         if (RUN_EMUL_TESTS) begin
-            runIntTestEmul(emul_N);
+            runIntTestEmul(mainEmul);
 
-            trEm_N.gp = Test_fillGpCached();
-            trEm_N.gp.initialCregs.memControl = 7;
+            trEm.gp = Test_fillGpCached();
+            trEm.gp.initialCregs.memControl = 7;
             #CYCLE $display("\n>>>>>> Em  Dev tests");
-            trEm_N.runSuites(newTests);
+            trEm.runSuites(testsDevCached);
 
-            trEm_N.gp.initialCregs.memControl = 0;
+            trEm.gp.initialCregs.memControl = 0;
             #CYCLE $display("\n>>>>>> Em  Dev tests unc");
-            trEm_N.runSuites(devTestsUnc);
+            trEm.runSuites(devTestsUnc);
         end
 
         if (RUN_SIM_TESTS) begin
-            trSim_N.gp = Test_fillGpCached();
-            trSim_N.gp.initialCregs.memControl = 0;
+            trSim.gp = Test_fillGpCached();
+            trSim.gp.initialCregs.memControl = 0;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
-            trSim_N.runSuites(devTestsUnc);
+            trSim.runSuites(devTestsUnc);
 
             // TODO: why here?  Now assure that a pullback and reissue has happened because of mem replay
             core.insMap.assertReissue();
 
+            #CYCLE $display("\n>>>>>> Event/int tests");
             runIntTestSim();
 
-            trSim_N.gp = Test_fillGpCached();
-            trSim_N.gp.initialCregs.memControl = 7;
+            trSim.gp = Test_fillGpCached();
+            trSim.gp.initialCregs.memControl = 7;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests");
-            trSim_N.runSuites(newTests);
+            trSim.runSuites(testsDevCached);
         end
         
         $display("All tests done;");
@@ -263,21 +253,6 @@ module ArchDesc0();
 
     initial simMain();
 
-
-
-
-    function automatic logic isErrorStatus(input Emulator emul);            
-        return emul.status.eventType inside {PE_SYS_ERROR};
-    endfunction
-
-    function automatic logic isSendingStatus(input Emulator emul);            
-        return emul.status.send == 1;
-    endfunction
-
-    task automatic resetAll(ref Emulator emul);
-        emul.resetWithDataMem();
-        #DELAY;
-    endtask
 
     task automatic startSim();
         #CYCLE reset <= 1;
