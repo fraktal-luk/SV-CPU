@@ -355,8 +355,13 @@ package CacheDefs;
             newBlock.valid = 1;
             newBlock.pbase = padr;
             newBlock.lock = 0;
-            foreach (newBlock.array[a])
-                newBlock.array[a] = dataMem.readByte(i*BLOCK_SIZE + a);
+
+            if (dataMem.usedBlocks.exists(padr)) begin
+                foreach (newBlock.array[a])
+                    newBlock.array[a] = dataMem.readByte(i*BLOCK_SIZE + a);
+            end
+            else
+                newBlock.array = '{default: 0};
         end
     endfunction
 

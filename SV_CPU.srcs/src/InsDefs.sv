@@ -606,11 +606,16 @@ package InsDefs;
     endfunction
 
     function automatic InstructionDef getDef(input string s);
-        Mnemonic m;
-        for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
-            if (s == mi.name()) return defMap[s];
-            if (mi == mi.last()) return '{F_none, P_none, S_none, T_none, O_undef};
-        end  
+        //Mnemonic m;
+
+        if (defMap.exists(s)) return defMap[s];
+
+        return '{F_none, P_none, S_none, T_none, O_undef};
+
+        // for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
+        //     if (s == mi.name()) return defMap[s];
+        //     if (mi == mi.last()) return '{F_none, P_none, S_none, T_none, O_undef};
+        // end  
     endfunction
 
     function automatic string findMnemonic(input InstructionDef def);
