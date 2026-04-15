@@ -1,6 +1,8 @@
 
 mem_forbidden_read  ;  load page with no access, verify exc 
 
+dev_test_unc_memory
+
 mem_uncached0  ; load from uncached, store to other adr at uncached
 mem_uncached1  ; load from uncached, store to other adr at uncached, load from stored adr
 
