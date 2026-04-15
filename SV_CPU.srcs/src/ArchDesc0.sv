@@ -23,7 +23,6 @@ module ArchDesc0();
 
 
     squeue devTestsUnc = '{
-        //"Tests_DEV",
         "Tests_DEV_unc",
         "Tests_DEV_basic"
     };
@@ -31,14 +30,13 @@ module ArchDesc0();
     squeue testsDevCached = '{
         "Tests_events_NEW",
 
-        "Tests_all", // TODO: Not all, name is misleading
+        "Tests_misc",
         "Tests_barriers",
         "Tests_mem_simple",
         "Tests_mem_align",
         "Tests_mem_advanced",
         "Tests_sys_transfers",
 
-        //"Tests_DEV",
         "Tests_NEW",
         "Tests_DEV_basic"
     };
