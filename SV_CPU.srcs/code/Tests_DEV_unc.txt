@@ -1,7 +1,4 @@
 
-dev_test
-dev_test_2
-
 dev_test_fetch_unc_nonexistent
 dev_test_fetch_unc_unaligned
 

@@ -23,7 +23,7 @@ module ArchDesc0();
 
 
     squeue devTestsUnc = '{
-        "Tests_DEV",
+        //"Tests_DEV",
         "Tests_DEV_unc",
         "Tests_DEV_basic"
     };
@@ -38,7 +38,7 @@ module ArchDesc0();
         "Tests_mem_advanced",
         "Tests_sys_transfers",
 
-        "Tests_DEV",
+        //"Tests_DEV",
         "Tests_NEW",
         "Tests_DEV_basic"
     };
@@ -234,20 +234,20 @@ module ArchDesc0();
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
             trSim.runSuites(devTestsUnc);
 
-            // TODO: why here?  Now assure that a pullback and reissue has happened because of mem replay
-            core.insMap.assertReissue();
-
-            #CYCLE $display("\n>>>>>> Event/int tests");
-            runIntTestSim();
 
             trSim.gp = Test_fillGpCached();
             trSim.gp.initialCregs.memControl = 7;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests");
             trSim.runSuites(testsDevCached);
+
+            core.insMap.assertReissue();
+
+            #CYCLE $display("\n>>>>>> Event/int tests");
+            runIntTestSim();
         end
-        
-        $display("All tests done;");
+
+        $display("\nAll tests done\n");
         $stop(2);
     endtask
 

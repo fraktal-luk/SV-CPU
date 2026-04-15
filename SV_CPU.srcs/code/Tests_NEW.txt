@@ -1,7 +1,4 @@
 
-dev_test
-dev_test_2
-
 dev_test_icache
 
 dev_test_unc_memory

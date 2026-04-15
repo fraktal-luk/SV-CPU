@@ -1,3 +1,6 @@
+dev_test
+dev_test_2
+
 stores0  ; rail of store r0 to memory range (to fill SQ)
 loads0   ; rail of loads (to fill LQ)
 loads1   ; store sth to memory block, load it and check equality
