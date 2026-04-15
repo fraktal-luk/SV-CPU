@@ -1,12 +1,10 @@
-dev_test
-dev_test_2
 
 stores0  ; rail of store r0 to memory range (to fill SQ)
 loads0   ; rail of loads (to fill LQ)
 loads1   ; store sth to memory block, load it and check equality
-stores2  ; rename to sf_2? ;  interleaved stores (to equal adr) and loads, check loading correct value 
 sf_0  ; store to mem range, sync, load from inside the range and check 
 sf_1  ; store different values to equal adr, interleaved wiht loads, check correct values (like stores2?)
+sf_2  ; interleaved stores (to equal adr) and loads, check loading correct value 
 sf_deps1  ; load(a) -> store, immediately load(b) from same adr (force SQ forwarding miss because store value waits for load(a) result)
 sf_deps2  ; as above but another op depends on load(b)
 sf_deps3  ; as above, but load(b) and its consumer is duplicated
@@ -18,3 +16,9 @@ sf_deps7  ; load(a), store (adr waits for load(a)), 3 parallel loads from same a
 mem_byte  		;  load byte, check
 mem_byte_store  ;  store byte, sync, load containing word
 mem_byte_forward ; a few store bytes, load bytes, some adrs matching
+
+mem_data_miss_0  ; load from range not in L1, fill
+mem_data_miss_store ; store to range not in L!, fill, then sync and load it
+
+mem_tlb_miss_0  ; load from adr not in L! TLB, fill (!!! probaby mistake, adr like in mem_data_miss_0)
+mem_tlb_data_miss

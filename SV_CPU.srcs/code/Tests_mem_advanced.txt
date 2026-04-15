@@ -5,8 +5,3 @@ dev_test_unc_memory
 
 mem_uncached0  ; load from uncached, store to other adr at uncached
 mem_uncached1  ; load from uncached, store to other adr at uncached, load from stored adr
-
-mem_data_miss_0  ; load from range not in L1, fill
-mem_data_miss_store ; store to range not in L!, fill, then sync and load it
-
-mem_tlb_miss_0  ; load from adr not in L! TLB, fill (!!! probaby mistake, adr like in mem_data_miss_0)

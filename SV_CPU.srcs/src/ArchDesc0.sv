@@ -28,7 +28,7 @@ module ArchDesc0();
     };
 
     squeue testsDevCached = '{
-        "Tests_events_NEW",
+        "Tests_events",
 
         "Tests_misc",
         "Tests_barriers",
