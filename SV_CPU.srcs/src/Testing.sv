@@ -336,37 +336,30 @@ package Testing;
 
         Translation outputPage0 = '{present: 1, vadr: 'h4000, desc: cachedDesc, padr: 'h4000};
 
-            Translation physDataPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
-            Translation physDataPageAlt1 = '{present: 1, vadr: PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4096};
-            Translation physDataPageAlt2000 = '{present: 1, vadr: 'h2000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h2000};
+        Translation physDataPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
+        Translation physDataPageAlt1 = '{present: 1, vadr: PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4096};
+        Translation physDataPageAlt2000 = '{present: 1, vadr: 'h2000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h2000};
 
-            Translation outputPageAlt0 = '{present: 1, vadr: 'h4000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h4000};
-
-        // Mapped to nonexistent memory
-        Translation nonexistentPage = '{present: 1, vadr: 'h5000, desc: cachedDesc, padr: 'h2000000000000000};
-        
-        // Mapped to correct memory but not allowed to read
-        Translation disallowedPage = '{present: 1, vadr: 'h6000, desc: '{allowed: 1, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 'h200000};
-
-
+        Translation outputPageAlt0 = '{present: 1, vadr: 'h4000 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 'h4000};
+    
 
         // Mapped to nonexistent memory
-        Translation nonexistentPage_N = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: DATA_P_NONEXISTENT};
+        Translation nonexistentPage = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: DATA_P_NONEXISTENT};
         
         // Mapped to correct memory but not allowed to read
-        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 0, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
+        Translation disallowedPage = '{present: 1, vadr: 'h9000, desc: '{allowed: 0, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
 
         // vadr 'h8000 - not mapped 
 
 
 
-        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage,
-                                            nonexistentPage_N, disallowedPage_N
+        params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc,
+                                            nonexistentPage, disallowedPage
                                         };
 
-        params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc, nonexistentPage, disallowedPage,
+        params.preloadedDataTlbL2 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc,
                                         physDataPageAlt0, physDataPageAlt1, physDataPageAlt2000, outputPageAlt0,
-                                            nonexistentPage_N, disallowedPage_N
+                                            nonexistentPage, disallowedPage
                                         };
 
         params.preloadedDataWays = '{0, 4*PAGE_SIZE};
@@ -382,37 +375,38 @@ package Testing;
         Translation physInsPage3 = '{present: 1, vadr: 3*PAGE_SIZE, desc: cachedDesc, padr: 3*PAGE_SIZE};
         Translation physInsPage4 = '{present: 1, vadr: 4*PAGE_SIZE, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
-            Translation physInsPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
-            Translation physInsPageAlt2 = '{present: 1, vadr: 2*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 2*PAGE_SIZE};
-            Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
-            Translation physInsPageAlt4 = '{present: 1, vadr: 4*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4*PAGE_SIZE};
+        Translation physInsPageAlt0 = '{present: 1, vadr: 0 + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 0};
+        Translation physInsPageAlt2 = '{present: 1, vadr: 2*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 2*PAGE_SIZE};
+        Translation physInsPageAlt3 = '{present: 1, vadr: 3*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 3*PAGE_SIZE};
+        Translation physInsPageAlt4 = '{present: 1, vadr: 4*PAGE_SIZE + VIRTUAL_OFFSET_TLB_MISS, desc: cachedDesc, padr: 4*PAGE_SIZE};
 
 
         // Mapped to nonexistent memory
-        Translation nonexistentPage_N = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: PROG_P_NONEXISTENT};
+        Translation nonexistentPage = '{present: 1, vadr: 'ha000, desc: cachedDesc, padr: PROG_P_NONEXISTENT};
         
         // Mapped to correct memory but not allowed to read
-        Translation disallowedPage_N = '{present: 1, vadr: 'h9000, desc: '{allowed: 0, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
+        Translation disallowedPage = '{present: 1, vadr: 'h9000, desc: '{allowed: 0, canRead: 0, canWrite: 0, canExec: 0, cached: 1}, padr: 0};
 
         // vadr 'h8000 - not mapped 
 
 
         params.preloadedInsTlbL1 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4,
-                                        nonexistentPage_N, disallowedPage_N
+                                        nonexistentPage, disallowedPage
                                     };
 
         params.preloadedInsTlbL2 = '{physInsPage0, physInsPage1, physInsPage2, physInsPage3, physInsPage4,
                                         physInsPageAlt0, physInsPageAlt2, physInsPageAlt3, physInsPageAlt4,
-                                        nonexistentPage_N, disallowedPage_N
-                                    };        
+                                        nonexistentPage, disallowedPage
+                                    };
 
         params.preloadedInsWays = '{0, PAGE_SIZE,     4*PAGE_SIZE};
     endfunction
 
 
-    function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem);
+    function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem,
+                                            input CodeSecArr handlerSections);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
-        CodeSecArr handlers = processFile(readFile({codeDir, "handlers.txt"}));
+        CodeSecArr handlers = handlerSections;// processFile(readFile({codeDir, "handlers.txt"}));
 
         foreach (testSections[importer]) begin
             foreach (testSections[exporter]) begin
@@ -463,5 +457,18 @@ package Testing;
         end
     endfunction
 
+
+    function automatic logic isErrorStatus(input Emulator emul);            
+        return emul.status.eventType inside {PE_SYS_ERROR};
+    endfunction
+
+    function automatic logic isSendingStatus(input Emulator emul);            
+        return emul.status.send == 1;
+    endfunction
+
+    task automatic resetAll(ref Emulator emul);
+        emul.resetWithDataMem();
+        //#DELAY;
+    endtask
 
 endpackage

@@ -1,15 +1,11 @@
 
-; Events
 itlb_miss0	; jump to another page which needs loading from L2 TLB
 icache_miss0  ; jump to page which misses in L1i, fills
 itlb_icache_miss  ; jump to page with TLB miss and then L1i miss, fill
 
-mem_sys
-use_lib0
-mem_illegal_address
 
-fp_tmp_3
-
-dbstep_NEW
-dbstep_jump_NEW
-dbstep_exc_NEW
+dev_test_fetch_invalid
+dev_test_fetch_unaligned
+;dev_test_fetch_unmapped
+dev_test_fetch_disallowed
+;dev_test_fetch_nonexistent

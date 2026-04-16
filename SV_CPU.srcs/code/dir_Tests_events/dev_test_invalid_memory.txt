@@ -1,7 +1,7 @@
 
 @section prog_main
 
-; Page with no read permission
+; Incorrect virtual adr
 $start
 	
 	add_i r20, r0, 0x4000 ; initialize exc stack

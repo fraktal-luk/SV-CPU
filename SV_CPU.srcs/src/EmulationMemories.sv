@@ -6,6 +6,7 @@ package EmulationMemories;
     import EmulationDefs::*;
     
 
+        localparam int TMP_BLOCK_SIZE = 64;
 
     // 4kB pages
     class PageBasedProgramMemory;
@@ -87,14 +88,14 @@ package EmulationMemories;
 
 
     class SparseDataMemory;
-        
+
         class RW#(type Elem = Mbyte, int ESIZE = 1);
             static
             function automatic void write(input Dword startAdr, input Elem value, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE] = {>>{value}};
                 foreach (bytes[i]) ct[startAdr+i] = bytes[i];
             endfunction
-            
+
             static
             function automatic Elem read(input Dword startAdr, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE];
@@ -102,80 +103,100 @@ package EmulationMemories;
                 return {>>{bytes}};
             endfunction     
         endclass
-        
-        
-            Dword reservations[$];
+
+
+        Dword reservations[$];
 
         Mbyte content[Dword];
-        
+        logic usedBlocks[Dword];
+
 
         function automatic void clear();
             reservations.delete();
             content.delete();
-        endfunction
-        
-        function automatic void setLike(input SparseDataMemory other);
-            reservations = new [other.reservations.size()](other.reservations);
-            content = other.content;
+            usedBlocks.delete();
         endfunction
 
-        
+        function automatic void setLike(input SparseDataMemory other);
+            reservations = //new [other.reservations.size()](other.reservations);
+                            other.reservations;
+            content = other.content;
+            usedBlocks = other.usedBlocks;
+        endfunction
+
+
         function automatic void writeWord(input Dword startAdr, input Word value);
-                clearLock(startAdr);
+            Dword baseAdr = TMP_bbase(startAdr);
+
+            clearLock(startAdr);
+
+            usedBlocks[baseAdr] = 1;
+            usedBlocks[baseAdr + TMP_BLOCK_SIZE] = 1; // not checking for block cross, just in case assume next block too 
+
             RW#(Word, 4)::write(startAdr, value, content);
         endfunction
 
         function automatic void writeByte(input Dword startAdr, input Mbyte value);
-                clearLock(startAdr);
+            Dword baseAdr = TMP_bbase(startAdr);
+
+            clearLock(startAdr);
+
+            usedBlocks[baseAdr] = 1;
+            // Not marking next block because one byte can't cross blocks
+
             RW#(Mbyte, 1)::write(startAdr, value, content);
         endfunction
 
 
         function automatic Word readWord(input Dword startAdr);
-                clearLock(startAdr);
+            clearLock(startAdr);
             return RW#(Word, 4)::read(startAdr, content);
         endfunction
 
         function automatic Mbyte readByte(input Dword startAdr);
-                clearLock(startAdr);
+            clearLock(startAdr);
             return RW#(Mbyte, 1)::read(startAdr, content);
         endfunction
 
 
-            function automatic void setLock(input Dword adr);
-                Dword blockBase = TMP_bbase(adr);
-                if (reservations.size() > 0) begin // Let's fail if any reservations
-                    reservations.delete();
-                    return;
-                end
-                reservations.push_back(blockBase);
-            endfunction
-
-            function automatic logic getLock(input Dword adr);
-                Dword blockBase = TMP_bbase(adr);
-                Dword found[$] = reservations.find with (item == blockBase);
-                return found.size() > 0;
-            endfunction
-
-            function automatic void clearLock(input Dword adr);
+        function automatic void setLock(input Dword adr);
+            Dword blockBase = TMP_bbase(adr);
+            if (reservations.size() > 0) begin // Let's fail if any reservations
                 reservations.delete();
-            endfunction
+                return;
+            end
+            reservations.push_back(blockBase);
+        endfunction
+
+        function automatic logic getLock(input Dword adr);
+            Dword blockBase = TMP_bbase(adr);
+            Dword found[$] = reservations.find with (item == blockBase);
+            return found.size() > 0;
+        endfunction
+
+        function automatic void clearLock(input Dword adr);
+            reservations.delete();
+        endfunction
 
 
         function automatic void writeWordArray(input Dword adr, input Word data[]);
+            Dword baseAdr = TMP_bbase(adr);
+            int nBlocks = 4*data.size()/TMP_BLOCK_SIZE + 2;  // 1 whole block + 2 bytes can span 3 blocks!
+                                                         // So adding 2 to num of whole blocks
+            for (int i = 0; i <= nBlocks; i++)
+                usedBlocks[baseAdr + i*TMP_BLOCK_SIZE] = 1;
+
             foreach (data[i])
                 RW#(Word, 4)::write(adr + 4*i, data[i], content);
         endfunction
 
     endclass
 
-        function automatic Dword TMP_bbase(input Dword adr);
-            Dword res = adr;
-            res[5:0] = 0; // 64b block
-            return res;
-        endfunction
 
-
-
+    function automatic Dword TMP_bbase(input Dword adr);
+        Dword res = adr;
+        res[5:0] = 0; // 64b block
+        return res;
+    endfunction
 
 endpackage

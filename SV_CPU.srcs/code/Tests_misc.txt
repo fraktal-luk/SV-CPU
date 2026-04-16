@@ -1,0 +1,25 @@
+branch_flush        ; branch depending on load, younger branch available sooner, flush 
+
+
+; sys regs
+sys_regs           ; write to sys reg, sync, load from sys reg, check, store return adr, reti
+
+
+; arith ops
+shifts				; value checking
+cmp         		; --
+mul      			; --
+div_s				; --
+div 				; --
+
+
+; FP
+loads_fp           ; load value to float reg, store, load flot and store it, check values
+fp0                ; dummy FP ops: addi, check results
+
+
+fp_tmp          	; setting INV and OV bits with sync after each setting
+fp_tmp_2        	; setting INV and OV quickly, one sync
+;fp_tmp_3        	; enable INV trap, cause it
+fp_tmp_simple_ops 	; some dummy FP ops, no checking
+fp_tmp_ops     		; some FP ops, no checking
