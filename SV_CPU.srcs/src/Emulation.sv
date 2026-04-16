@@ -354,7 +354,7 @@ package Emulation;
             end
             
             // Don't set if exception happened
-             status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
+            status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
             
             status.exceptionRaised = 0;
             
@@ -365,6 +365,7 @@ package Emulation;
                 case (writeToDo.size)
                     1: dataMem.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
                     4: dataMem.writeWord(writeToDo.padr, writeToDo.value);
+                    8: dataMem.writeDword(writeToDo.padr, writeToDo.value);
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end
