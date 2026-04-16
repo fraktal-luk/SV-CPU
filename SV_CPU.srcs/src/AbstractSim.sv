@@ -767,6 +767,7 @@ package AbstractSim;
 
     function automatic AccessSize getTransactionSize(input UopName uname);
         if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+        else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
         else if (isMemUop(uname)) return SIZE_4;
         else return SIZE_NONE;
     endfunction

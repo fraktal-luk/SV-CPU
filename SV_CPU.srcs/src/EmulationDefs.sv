@@ -56,8 +56,11 @@ package EmulationDefs;
 
     function automatic logic isMemIns(input AbstractInstruction ins);
         return ins.def.o inside {
-                O_intLoadW, O_intLoadD, O_intStoreW, O_intStoreD,
-                O_floatLoadW, O_floatStoreW,  O_intLoadB,  O_intStoreB, 
+                O_intLoadW, O_intStoreW, 
+                O_intLoadD, O_intStoreD,
+                O_floatLoadW, O_floatStoreW,
+                O_floatLoadD, O_floatStoreD,
+                O_intLoadB,  O_intStoreB,
                 O_intLoadAqW, O_intStoreRelW,
 
                 O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF
@@ -97,11 +100,11 @@ package EmulationDefs;
     endfunction
 
     function automatic logic isLoadMemIns(input AbstractInstruction ins);
-        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,    O_intLoadB,   O_intLoadAqW});
+        return (ins.def.o inside {O_intLoadW, O_intLoadD, O_floatLoadW,  O_floatLoadD,  O_intLoadB,   O_intLoadAqW});
     endfunction
 
     function automatic logic isStoreMemIns(input AbstractInstruction ins);
-        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,    O_intStoreB,   O_intStoreRelW};
+        return ins.def.o inside {O_intStoreW, O_intStoreD, O_floatStoreW,  O_floatStoreD,  O_intStoreB,   O_intStoreRelW};
     endfunction
 
 //    function automatic logic isFloatLoadMemIns(input AbstractInstruction ins);
@@ -169,7 +172,8 @@ package EmulationDefs;
                 O_floatAdd32, O_floatSub32, O_floatMul32, O_floatDiv32, O_floatCmpEq32,O_floatCmpGe32, O_floatCmpGt32,
                 O_floatAdd64, O_floatSub64, O_floatMul64, O_floatDiv64, O_floatCmpEq64,O_floatCmpGe64, O_floatCmpGt64,
                 
-            O_floatLoadW
+            O_floatLoadW,
+            O_floatLoadD
         };
     endfunction
 

@@ -158,6 +158,8 @@ package InsDefs;
             
             inv_f, ov_f,  // Setting FP exceptions
 
+            ldi_d,
+            sti_d,
 
             ldi_i, ldi_r, //-- int
             sti_i, sti_r,
@@ -167,6 +169,10 @@ package InsDefs;
 
             ldf_i, ldf_r, //-- float
             stf_i, stf_r, 
+
+            ldf_d,
+            stf_d,
+
 
             lds, //-- load sys
 
@@ -236,8 +242,11 @@ package InsDefs;
             P_intLoadB16 = 24,
             P_intStoreB16 = 25,
 
-            //P_intLoadAqW16 = 26,
-            //P_intStoreRelW16 = 27,
+            P_intLoadD16 = 26,
+            P_intStoreD16 = 27,
+
+            P_floatLoadD16 = 28,
+            P_floatStoreD16 = 29,
 
         P_none = -1
     } Primary;
@@ -440,13 +449,17 @@ package InsDefs;
             O_floatCmpGe64,
             O_floatCmpGt64,
 
-        O_intLoadW, O_intLoadD,
-        O_intStoreW, O_intStoreD,
+        O_intLoadW, O_intStoreW,
+        O_intLoadD, O_intStoreD,
         O_floatLoadW, O_floatStoreW,
         
             O_intLoadB, O_intStoreB,
+
+            O_floatLoadD, O_floatStoreD,
+
+
             O_intLoadAqW, O_intStoreRelW,
-        
+
         O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF,
 
         O_sysLoad, O_sysStore
@@ -522,6 +535,13 @@ package InsDefs;
 
             "e_lb":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},
             "e_sb":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},
+
+        "ldi_d":      '{F_intImm16,   P_intLoadD16,  S_none, T_none, O_intLoadD},
+        "sti_d":      '{F_intStore16, P_intStoreD16, S_none, T_none, O_intStoreD},
+
+        "ldf_d":      '{F_floatLoad16,  P_floatLoadD16,  S_none, T_none, O_floatLoadD},
+        "stf_d":      '{F_floatStore16, P_floatStoreD16,  S_none, T_none, O_floatStoreD},
+
 
             "e_ldaq":  '{F_intImm10, P_intMem,   S_loadAq,   T_none, O_intLoadAqW},
             "e_stc":   '{F_intStore10, P_intMem, S_storeRel, T_none, O_intStoreRelW},                           

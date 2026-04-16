@@ -46,7 +46,7 @@ package UopList;
             UOP_fp_divi,
             UOP_fp_inv,
             UOP_fp_ov,
-            
+
             UOP_fp_add32,
             UOP_fp_sub32,
             UOP_fp_mul32,
@@ -54,16 +54,23 @@ package UopList;
             UOP_fp_cmpeq32,
             UOP_fp_cmpge32,
             UOP_fp_cmpgt32,
-            
+
          UOP_mem_ldi,
          UOP_mem_sti,
-        
+
             UOP_mem_ldib,
             UOP_mem_stib,
-        
+
          UOP_mem_ldf,
          UOP_mem_stf,
-    
+
+            UOP_mem_ldid,
+            UOP_mem_stid,
+
+            UOP_mem_ldfd,
+            UOP_mem_stfd,
+
+
             UOP_mem_lda,
             UOP_mem_stc,
 

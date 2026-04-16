@@ -125,6 +125,17 @@ package EmulationMemories;
         endfunction
 
 
+        function automatic void writeDword(input Dword startAdr, input Dword value);
+            Dword baseAdr = TMP_bbase(startAdr);
+
+            clearLock(startAdr);
+
+            usedBlocks[baseAdr] = 1;
+            usedBlocks[baseAdr + TMP_BLOCK_SIZE] = 1; // not checking for block cross, just in case assume next block too 
+
+            RW#(Dword, 8)::write(startAdr, value, content);
+        endfunction
+
         function automatic void writeWord(input Dword startAdr, input Word value);
             Dword baseAdr = TMP_bbase(startAdr);
 
@@ -147,6 +158,11 @@ package EmulationMemories;
             RW#(Mbyte, 1)::write(startAdr, value, content);
         endfunction
 
+
+        function automatic Dword readDword(input Dword startAdr);
+            clearLock(startAdr);
+            return RW#(Dword, 8)::read(startAdr, content);
+        endfunction
 
         function automatic Word readWord(input Dword startAdr);
             clearLock(startAdr);

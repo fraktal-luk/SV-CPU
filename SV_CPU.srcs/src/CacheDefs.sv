@@ -272,7 +272,15 @@ package CacheDefs;
         if (block == null) return '{0, -1, 'x, 'x, 'x};
         else begin
             Dword tag0 = block.pbase;
-            Mword val0 = aDesc.size == SIZE_1 ? block.readByte(aDesc.blockOffset) : block.readWord(aDesc.blockOffset);    
+            Mword val0 = 'x;
+
+            case (aDesc.size)    
+                SIZE_1: val0 = block.readByte(aDesc.blockOffset);
+                SIZE_4: val0 = block.readWord(aDesc.blockOffset);
+                SIZE_8: val0 = block.readDword(aDesc.blockOffset);
+                default: ;
+            endcase
+
             return '{1, -1, tag0, block.getLock(), val0};
         end
     endfunction
@@ -317,6 +325,7 @@ package CacheDefs;
 
         if (wrInfo.size == SIZE_1) block.writeByte(offset, wrInfo.value);
         if (wrInfo.size == SIZE_4) block.writeWord(offset, wrInfo.value);
+        if (wrInfo.size == SIZE_8) block.writeDword(offset, wrInfo.value, 'hffffffffffffffff);
         return 1;
     endfunction
 
