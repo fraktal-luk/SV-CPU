@@ -697,16 +697,20 @@ package AbstractSim;
 
     function automatic Mword loadValue(input Mword w, input UopName uop);
         case (uop)
-            UOP_mem_ldi: return w;
+            UOP_mem_ldi: return (w);
+            UOP_mem_ldid: return w;
             UOP_mem_ldib: return Mword'(w[7:0]);
-            UOP_mem_ldf: return w;
+            UOP_mem_ldf: return (w);
+            UOP_mem_ldfd: return w;
             UOP_mem_lds: return w;
             
             UOP_mem_lda: return w;
 
             UOP_mem_sti,
+            UOP_mem_stid,
             UOP_mem_stib,
             UOP_mem_stf,
+            UOP_mem_stfd,
             UOP_mem_sts: return 0;
 
             UOP_mem_stc: return 0;
