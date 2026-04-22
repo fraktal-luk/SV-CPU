@@ -1,0 +1,37 @@
+; Store zeros
+@section prog_main
+
+	add_i r9, r0, 0x4000 ; output page
+
+	add_i r1, r0, 20
+	add_i r2, r0, 32
+
+	add_i r8, r0, 0  ; base of input page
+
+	ldf_d f10, r8, 0
+	ldf_d f11, r8, 8
+	ldf_d f12, r8, 16
+
+	stf_d f10, r9, 8
+	stf_d f11, r9, 16
+	stf_d f12, r9, 0
+
+$check
+	sys_dbcall
+
+
+@section data0
+6
+5
+3
+7
+11
+22
+
+@section output
+11
+22
+6
+5
+3
+7
