@@ -92,7 +92,7 @@ package EmulationMemories;
         class RW#(type Elem = Mbyte, int ESIZE = 1);
             static
             function automatic void write(input Dword startAdr, input Elem value, ref Mbyte ct[Dword]);
-                Mbyte bytes[ESIZE] = {>>{value}};
+                Mbyte bytes[ESIZE] = {<<8{value}};
                 foreach (bytes[i]) ct[startAdr+i] = bytes[i];
             endfunction
 
@@ -100,7 +100,7 @@ package EmulationMemories;
             function automatic Elem read(input Dword startAdr, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE];
                 foreach (bytes[i]) bytes[i] = ct.exists(startAdr+i) ? ct[startAdr+i] : 0;
-                return {>>{bytes}};
+                return {<<8{bytes}};
             endfunction     
         endclass
 

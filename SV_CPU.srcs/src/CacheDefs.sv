@@ -198,31 +198,31 @@ package CacheDefs;
                 Mbyte crossingQword[2*ACCESS_SIZE] = {lastDword, pastDword}; 
                 int internalOffset = offset - (BLOCK_SIZE-ACCESS_SIZE);
                 Mbyte chosenDword[ACCESS_SIZE] = crossingQword[internalOffset +: ACCESS_SIZE];
-                Dword wval = {>>{chosenDword}};
+                Dword wval = {<<8{chosenDword}};
                 return (wval);
             end
             begin
                 Mbyte chosenDword[ACCESS_SIZE] = array[offset +: ACCESS_SIZE];
-                Dword wval = {>>{chosenDword}};
+                Dword wval = {<<8{chosenDword}};
                 return (wval);
             end
         endfunction
 
         function automatic Mword readWord(input int offset);
             Dword tmp = readDword(offset);
-            return Word'(tmp >> 32);
+            return Word'(tmp >> 0 * 32);
         endfunction
 
         function automatic Mword readByte(input int offset);
             Dword tmp = readDword(offset);
-            return Mbyte'(tmp >> 8*7);
+            return Mbyte'(tmp >> 0 * 8*7);
         endfunction
 
 
         function automatic void writeDword(input int offset, input Dword value, input Dword mask);
             localparam int ACCESS_SIZE = 8;
-            Mbyte val[ACCESS_SIZE] = {>>{value}};
-            Mbyte msk[ACCESS_SIZE] = {>>{mask}};
+            Mbyte val[ACCESS_SIZE] = {<<8{value}};
+            Mbyte msk[ACCESS_SIZE] = {<<8{mask}};
             
             foreach (val[i]) begin
                 if (offset + i >= BLOCK_SIZE) break;
@@ -231,15 +231,22 @@ package CacheDefs;
         endfunction
 
         function automatic void writeWord(input int offset, input Word value);
-            Dword val = {value,         32'h00000000};
-            Dword mask =        'hffffffff00000000;
+            //Dword val = {value,         32'h00000000};
+            //Dword mask =        'hffffffff00000000;
+
+                Dword val = value;
+                Dword mask =        'hffffffff;
             writeDword(offset, val, mask);
             return;
         endfunction
 
         function automatic void writeByte(input int offset, input Mbyte value);
-            Dword val = {value,   56'h00000000000000};
-            Dword mask =        'hff00000000000000;
+            //Dword val = {value,   56'h00000000000000};
+            //Dword mask =        'hff00000000000000;
+
+                Dword val = value;
+                Dword mask = 'hff;
+
             writeDword(offset, val, mask);
             return;
         endfunction
@@ -380,7 +387,7 @@ package CacheDefs;
         WordArray res = new [1024];
         foreach (way[i]) begin
             for (int wi = 0; wi < BLOCK_SIZE/4; wi++)
-                res[BLOCK_SIZE/4 * i + wi] = {>>{way[i].array[4*wi +: 4]}};
+                res[BLOCK_SIZE/4 * i + wi] = {<<8{way[i].array[4*wi +: 4]}};
         end
 
         return res;       
