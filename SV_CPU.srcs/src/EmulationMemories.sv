@@ -90,12 +90,14 @@ package EmulationMemories;
     class SparseDataMemory;
 
         class RW#(type Elem = Mbyte, int ESIZE = 1);
+            // @endian
             static
             function automatic void write(input Dword startAdr, input Elem value, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE] = {<<8{value}};
                 foreach (bytes[i]) ct[startAdr+i] = bytes[i];
             endfunction
 
+            // @endian
             static
             function automatic Elem read(input Dword startAdr, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE];

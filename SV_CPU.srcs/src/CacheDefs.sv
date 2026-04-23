@@ -187,6 +187,7 @@ package CacheDefs;
         logic lock;
         Mbyte array[BLOCK_SIZE];
 
+        // @endian
         function automatic Dword readDword(input int offset);
             localparam int ACCESS_SIZE = 8;
             
@@ -208,17 +209,19 @@ package CacheDefs;
             end
         endfunction
 
+        // @endian
         function automatic Mword readWord(input int offset);
             Dword tmp = readDword(offset);
             return Word'(tmp >> 0 * 32);
         endfunction
 
+        // @endian
         function automatic Mword readByte(input int offset);
             Dword tmp = readDword(offset);
             return Mbyte'(tmp >> 0 * 8*7);
         endfunction
 
-
+        // @endian
         function automatic void writeDword(input int offset, input Dword value, input Dword mask);
             localparam int ACCESS_SIZE = 8;
             Mbyte val[ACCESS_SIZE] = {<<8{value}};
@@ -230,6 +233,7 @@ package CacheDefs;
             end
         endfunction
 
+        // @endian
         function automatic void writeWord(input int offset, input Word value);
             //Dword val = {value,         32'h00000000};
             //Dword mask =        'hffffffff00000000;
@@ -240,6 +244,7 @@ package CacheDefs;
             return;
         endfunction
 
+        // @endian
         function automatic void writeByte(input int offset, input Mbyte value);
             //Dword val = {value,   56'h00000000000000};
             //Dword mask =        'hff00000000000000;
@@ -382,7 +387,7 @@ package CacheDefs;
     endfunction
 
 
-
+    // @endian
     function automatic WordArray readWayContent(input DataWay way);
         WordArray res = new [1024];
         foreach (way[i]) begin
