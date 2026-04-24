@@ -55,4 +55,16 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/mainEmul
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/emulTestName
+sim:/ArchDesc0/emulTestName \
+sim:/ArchDesc0/simTestName
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/dataCache/cacheReadOut \
+sim:/ArchDesc0/core/dataCache/cacheResults
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/memImages
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/replayQueue/issued0 \
+sim:/ArchDesc0/core/theExecBlock/replayQueue/issued1 \
+sim:/ArchDesc0/core/theExecBlock/replayQueue/outPacket

@@ -138,7 +138,7 @@ module MemSubpipe#()
         res.blockCross = aInfo.blockCross;
         res.pageCross = aInfo.pageCross;
     
-        res.shift = isUpper ? (adr % 4) : 0;
+        res.shift = isUpper ? (adr % 8) : 0;
 
         return res;
     endfunction 
@@ -174,23 +174,24 @@ module MemSubpipe#()
       
         uname = decUname(p.TMP_oid);
 
-        res.result = adr;
+        if (p.memClass != MC_UPPER_B)
+            res.result = adr;
 
-            // Classify
-            if (p.memClass == MC_NONE) begin
-                if (isLoadAqUop(uname) || isStoreRelUop(uname)) begin
-                    res.memClass = MC_AQ_REL;
-                end
-                else if (isMemBarrierUop(uname)) begin
-                    res.memClass = MC_BARRIER;
-                end
-                else if (isLoadSysUop(uname) || isStoreSysUop(uname)) begin
-                    res.memClass = MC_SYS;
-                end
-                else begin
-                    res.memClass = MC_NORMAL;
-                end
+        // Classify
+        if (p.memClass == MC_NONE) begin
+            if (isLoadAqUop(uname) || isStoreRelUop(uname)) begin
+                res.memClass = MC_AQ_REL;
             end
+            else if (isMemBarrierUop(uname)) begin
+                res.memClass = MC_BARRIER;
+            end
+            else if (isLoadSysUop(uname) || isStoreSysUop(uname)) begin
+                res.memClass = MC_SYS;
+            end
+            else begin
+                res.memClass = MC_NORMAL;
+            end
+        end
         
         return res; 
     endfunction
@@ -360,7 +361,6 @@ module MemSubpipe#()
                 res.status = ES_LOWER_DONE;
                 res.result = cacheResp.data;
             end
-            // Not block-crossing, or first run of block-crossing
             else begin
                 if (sqResp.active) begin
                     if (sqResp.status == ES_CANT_FORWARD) begin

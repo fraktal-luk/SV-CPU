@@ -719,12 +719,22 @@ package AbstractSim;
         endcase
     endfunction
 
-
+    // @endian
     function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
-        Word cw = w; // combined word
-        Word wsaved = saved;
+        Dword cw = w; // combined word
+            Dword shifted = w << 8*(8-shift);
+        Dword wsaved = saved;
         Dword cd = {wsaved, w};
-        cw = cd[63-(8*shift) -: 32];
+
+           // Dword 
+        //%cw = cd[63-(8*shift) -: 32];
+        foreach (cw[i]) begin
+            if (saved[i] === 'x) cw[i] = shifted[i];
+            else cw[i] = saved[i];
+        end
+
+        //    $error("Loaded %08X. Combining %08X:%08X into %08X", w, shifted, saved, cw);
+
 
         return loadValue(cw, uop);
     endfunction
