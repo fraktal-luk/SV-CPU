@@ -4,3 +4,5 @@ mem_unaligned2  ; above, but 3 dependent ops
 mem_unaligned3  ; store word at adr ending with 2, sync, load aligned from ovelapping
 mem_unaligned4  ; store word aligned, sync, load adr-2, load adr-1
 mem_unaligned5  ; like mem_unaligned_4 but dwords
+mem_unaligned6
+mem_unaligned7
