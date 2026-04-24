@@ -105,7 +105,9 @@ module MemSubpipe#()
         AccessDesc res;
         UopName uname = decUname(p.TMP_oid);
 
-        Mword vadr = isUpper ? adr - (adr % 4) + 4 : adr;
+        AccessSize trSize = getTransactionSize(uname);
+
+        Mword vadr = isUpper ? adr - (adr % trSize) + trSize : adr;
 
         AccessInfo aInfo = analyzeAccess(vadr, getTransactionSize(uname));
 
@@ -115,7 +117,7 @@ module MemSubpipe#()
 
             res.invalid = !isStoreSysUop(uname) && !isLoadSysUop(uname) && !virtualAddressValid(adr);
 
-        res.size = getTransactionSize(uname);
+        res.size = trSize;
 
         res.store = isStoreUop(uname);
         res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);

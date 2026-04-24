@@ -1,27 +1,130 @@
-; Unaligned access, loaded from previous overlapping store
+
 @section prog_main
 
 $start
-	
-	add_i r10, r0, 0xFE
-	shl_i r20, r10, 8	; 8 left
-	sti_d r10, r0, 64
+	add_i r8, r0, 0x4000 ; output page start
 
-	sys_sync
+	add_i r7, r0, 56
 
-		;ja $check
+		;ldi_d r20, r0, 0
+		;ldi_d r1, r0, 1
+		;ldi_d r2, r0, 2
+		;ldi_d r3, r0, 3
+		;ldi_d r4, r0, 4
+		;ldi_d r5, r0, 5
+		;ldi_d r6, r0, 6
+		;ldi_d r7, r0, 7
+		;ldi_d r8, r0, 8
+		;ldi_d r9, r0, 9
+		;ldi_d r10, r0, 10
+		;ldi_d r11, r0, 11
 
-	ldi_d r11, r0, 62 ; Load from location shifted 2b left
+		;sys_error
 
-	add_h r12, r11, -0xFE
-	jnz_i r12, $error
 
-	ldi_d r11, r0, 63 ; Load from location shifted 1b left
+	ldi_d r10, r7, 0
+	sti_d r10, r8, 8
 
-	sub_r r12, r11, r20
-	jnz_i r12, $error
+	ldi_d r10, r7, 1
+	sti_d r10, r8, 16
+
+	ldi_d r10, r7, 2
+	sti_d r10, r8, 24
+
+	ldi_d r10, r7, 3
+	sti_d r10, r8, 32
+
+	ldi_d r10, r7, 4
+	sti_d r10, r8, 40
+
+	ldi_d r10, r7, 5
+	sti_d r10, r8, 48
+
+	ldi_d r10, r7, 6
+	sti_d r10, r8, 56
+
+	ldi_d r10, r7, 7
+	sti_d r10, r8, 64
+
+	ldi_d r10, r7, 8
+	sti_d r10, r8, 72
+
+	ldi_d r10, r7, 9
+	sti_d r10, r8, 80
+
+	ldi_d r10, r7, 10
+	sti_d r10, r8, 88
+
+	ldi_d r10, r7, 11
+	sti_d r10, r8, 96
 
 $check
 	sys_dbcall
 $error
     sys_error
+
+
+@section data0
+; words
+0
+0
+0
+0
+0
+0
+0
+0
+
+0
+0
+0
+0
+0
+0
+0x33221100
+0x77665544
+
+0xbbaa9988
+0xffeeddcc
+0
+0
+
+@section output
+0
+0
+
+0x33221100
+0x77665544
+
+0x44332211
+0x88776655
+
+0x55443322
+0x99887766
+
+0x66554433
+0xaa998877
+
+0x77665544
+0xbbaa9988
+
+0x88776655
+0xccbbaa99
+
+0x99887766
+0xddccbbaa
+
+0xaa998877
+0xeeddccbb
+
+0xbbaa9988
+0xffeeddcc
+
+0xccbbaa99
+0x00ffeedd
+
+0xddccbbaa
+0x0000ffee
+
+0xeeddccbb
+0x000000ff

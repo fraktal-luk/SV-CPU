@@ -1,4 +1,3 @@
-; Unaligned access, loaded from previous overlapping store
 @section prog_main
 
 $start
