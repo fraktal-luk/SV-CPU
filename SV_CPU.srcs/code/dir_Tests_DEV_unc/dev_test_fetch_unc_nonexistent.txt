@@ -23,10 +23,10 @@ $error
 0
 ; c1 - currentStatus
 0x11
-0 ; hi0x
-; c2 - excSavedIP
-0  ; TODO: store higher word too
 0 ; hi
+; c2 - excSavedIP
+0
+0x20000000 ; hi
 ; c3 - intSavedIP
 0
 0 ; hi
