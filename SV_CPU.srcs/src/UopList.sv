@@ -46,7 +46,7 @@ package UopList;
             UOP_fp_divi,
             UOP_fp_inv,
             UOP_fp_ov,
-            
+
             UOP_fp_add32,
             UOP_fp_sub32,
             UOP_fp_mul32,
@@ -54,16 +54,23 @@ package UopList;
             UOP_fp_cmpeq32,
             UOP_fp_cmpge32,
             UOP_fp_cmpgt32,
-            
+
          UOP_mem_ldi,
          UOP_mem_sti,
-        
+
             UOP_mem_ldib,
             UOP_mem_stib,
-        
+
          UOP_mem_ldf,
          UOP_mem_stf,
-    
+
+            UOP_mem_ldid,
+            UOP_mem_stid,
+
+            UOP_mem_ldfd,
+            UOP_mem_stfd,
+
+
             UOP_mem_lda,
             UOP_mem_stc,
 
@@ -159,7 +166,13 @@ package UopList;
         
         "ldf_i":      UOP_mem_ldf,
         "stf_i":      UOP_mem_stf,
-                
+
+        "ldi_d":      UOP_mem_ldid,
+        "sti_d":      UOP_mem_stid,
+        
+        "ldf_d":      UOP_mem_ldfd,
+        "stf_d":      UOP_mem_stfd,
+
             "e_lb":    UOP_mem_ldib,
             "e_sb":    UOP_mem_stib,
 
@@ -291,11 +304,11 @@ package UopList;
     endfunction
 
     function automatic logic isLoadMemUop(input UopName name);
-        return name inside {UOP_mem_ldi, UOP_mem_ldf,    UOP_mem_ldib,   UOP_mem_lda};
+        return name inside {UOP_mem_ldi,  UOP_mem_ldid,  UOP_mem_ldf, UOP_mem_ldfd,   UOP_mem_ldib,   UOP_mem_lda};
     endfunction
 
     function automatic logic isStoreMemUop(input UopName name);
-        return name inside {UOP_mem_sti, UOP_mem_stf,    UOP_mem_stib,  UOP_mem_stc};
+        return name inside {UOP_mem_sti, UOP_mem_stid,   UOP_mem_stf, UOP_mem_stfd,   UOP_mem_stib,  UOP_mem_stc};
     endfunction
 
     function automatic logic isStoreSysUop(input UopName name);
@@ -339,6 +352,7 @@ package UopList;
          UOP_int_remu,
         
          UOP_mem_ldi,
+         UOP_mem_ldid,
             UOP_mem_ldib,
             
          UOP_mem_lda,
@@ -374,9 +388,10 @@ package UopList;
                 UOP_fp_cmpge32,
                 UOP_fp_cmpgt32,
                 
-             UOP_mem_ldf
+             UOP_mem_ldf,
+             UOP_mem_ldfd
         };
-    endfunction    
+    endfunction
 
     localparam int N_UOP_MAX = 2; // Biggest number for uops for any instruction
 

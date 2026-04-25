@@ -697,16 +697,20 @@ package AbstractSim;
 
     function automatic Mword loadValue(input Mword w, input UopName uop);
         case (uop)
-            UOP_mem_ldi: return w;
+            UOP_mem_ldi: return (w);
+            UOP_mem_ldid: return w;
             UOP_mem_ldib: return Mword'(w[7:0]);
-            UOP_mem_ldf: return w;
+            UOP_mem_ldf: return (w);
+            UOP_mem_ldfd: return w;
             UOP_mem_lds: return w;
             
             UOP_mem_lda: return w;
 
             UOP_mem_sti,
+            UOP_mem_stid,
             UOP_mem_stib,
             UOP_mem_stf,
+            UOP_mem_stfd,
             UOP_mem_sts: return 0;
 
             UOP_mem_stc: return 0;
@@ -715,12 +719,22 @@ package AbstractSim;
         endcase
     endfunction
 
-
+    // @endian
     function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
-        Word cw = w; // combined word
-        Word wsaved = saved;
+        Dword cw = w; // combined word
+            Dword shifted = w << 8*(8-shift);
+        Dword wsaved = saved;
         Dword cd = {wsaved, w};
-        cw = cd[63-(8*shift) -: 32];
+
+           // Dword 
+        //%cw = cd[63-(8*shift) -: 32];
+        foreach (cw[i]) begin
+            if (saved[i] === 'x) cw[i] = shifted[i];
+            else cw[i] = saved[i];
+        end
+
+        //    $error("Loaded %08X. Combining %08X:%08X into %08X", w, shifted, saved, cw);
+
 
         return loadValue(cw, uop);
     endfunction
@@ -767,6 +781,7 @@ package AbstractSim;
 
     function automatic AccessSize getTransactionSize(input UopName uname);
         if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+        else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
         else if (isMemUop(uname)) return SIZE_4;
         else return SIZE_NONE;
     endfunction

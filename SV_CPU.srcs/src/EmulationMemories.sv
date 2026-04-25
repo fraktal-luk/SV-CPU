@@ -90,17 +90,19 @@ package EmulationMemories;
     class SparseDataMemory;
 
         class RW#(type Elem = Mbyte, int ESIZE = 1);
+            // @endian
             static
             function automatic void write(input Dword startAdr, input Elem value, ref Mbyte ct[Dword]);
-                Mbyte bytes[ESIZE] = {>>{value}};
+                Mbyte bytes[ESIZE] = {<<8{value}};
                 foreach (bytes[i]) ct[startAdr+i] = bytes[i];
             endfunction
 
+            // @endian
             static
             function automatic Elem read(input Dword startAdr, ref Mbyte ct[Dword]);
                 Mbyte bytes[ESIZE];
                 foreach (bytes[i]) bytes[i] = ct.exists(startAdr+i) ? ct[startAdr+i] : 0;
-                return {>>{bytes}};
+                return {<<8{bytes}};
             endfunction     
         endclass
 
@@ -125,6 +127,17 @@ package EmulationMemories;
         endfunction
 
 
+        function automatic void writeDword(input Dword startAdr, input Dword value);
+            Dword baseAdr = TMP_bbase(startAdr);
+
+            clearLock(startAdr);
+
+            usedBlocks[baseAdr] = 1;
+            usedBlocks[baseAdr + TMP_BLOCK_SIZE] = 1; // not checking for block cross, just in case assume next block too 
+
+            RW#(Dword, 8)::write(startAdr, value, content);
+        endfunction
+
         function automatic void writeWord(input Dword startAdr, input Word value);
             Dword baseAdr = TMP_bbase(startAdr);
 
@@ -147,6 +160,11 @@ package EmulationMemories;
             RW#(Mbyte, 1)::write(startAdr, value, content);
         endfunction
 
+
+        function automatic Dword readDword(input Dword startAdr);
+            clearLock(startAdr);
+            return RW#(Dword, 8)::read(startAdr, content);
+        endfunction
 
         function automatic Word readWord(input Dword startAdr);
             clearLock(startAdr);

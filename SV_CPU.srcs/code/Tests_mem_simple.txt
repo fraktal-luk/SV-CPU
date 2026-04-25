@@ -22,3 +22,6 @@ mem_data_miss_store ; store to range not in L!, fill, then sync and load it
 
 mem_tlb_miss_0  ; load from adr not in L! TLB, fill (!!! probaby mistake, adr like in mem_data_miss_0)
 mem_tlb_data_miss
+
+tmp_loads_double
+tmp_loads_fp_double

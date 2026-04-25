@@ -163,11 +163,13 @@ package Emulation;
                       //  $error("Tried to lcck %x: %d", padr, dataMem.getLock(padr));
                 end
 
-                O_intLoadD: ;
-                O_floatLoadW: begin
-                    result = dataMem.readWord(padr);
-                end
+                O_intLoadD: result = Dword'(dataMem.readDword(padr));
+
+                O_floatLoadW: result = dataMem.readWord(padr);
+                O_floatLoadD: result = dataMem.readDword(padr);
+
                 O_sysLoad: result = coreState.sysRegs[adr];
+
                 default: return result;
             endcase
 
@@ -352,7 +354,7 @@ package Emulation;
             end
             
             // Don't set if exception happened
-             status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
+            status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
             
             status.exceptionRaised = 0;
             
@@ -363,6 +365,7 @@ package Emulation;
                 case (writeToDo.size)
                     1: dataMem.writeByte(writeToDo.padr, Mbyte'(writeToDo.value));
                     4: dataMem.writeWord(writeToDo.padr, writeToDo.value);
+                    8: dataMem.writeDword(writeToDo.padr, writeToDo.value);
                     default: $error("Wrong store size %d/ %p", adr, ins);
                 endcase
             end
@@ -473,8 +476,8 @@ package Emulation;
             int size = -1;
 
             case (ins.def.o)
-                //O_intStoreD: size = 8;
                 O_intStoreW: size = 4;
+                O_intStoreD: size = 8;
                 O_intStoreRelW: begin
                     size = 4;
                        // $error("\nstc to %x: lock %d\n", effAdr, dataMem.getLock(effAdr));
@@ -482,6 +485,7 @@ package Emulation;
                 end
                 O_intStoreB: size = 1;
                 O_floatStoreW: size = 4;
+                O_floatStoreD: size = 8;
                 default: ;
             endcase
             

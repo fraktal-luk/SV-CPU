@@ -97,6 +97,7 @@ module UncachedDataUnit(
 
         if (size == SIZE_1) value = readByteUncached(adr);
         else if (size == SIZE_4) value = readWordUncached(adr);
+        else if (size == SIZE_8) value = readDwordUncached(adr);
         else $error("Wrong access size");
 
         res.active = 1;
@@ -107,6 +108,12 @@ module UncachedDataUnit(
     endfunction
     
     /////////////////
+
+    function automatic void writeToUncachedRangeD(input Mword adr, input Dword val);
+        //PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
+            AbstractCore.dataMem.writeDword(adr, val);
+    endfunction
+
     function automatic void writeToUncachedRangeW(input Mword adr, input Mword val);
         //PageWriter#(Word, 4, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
             AbstractCore.dataMem.writeWord(adr, val);
@@ -115,6 +122,12 @@ module UncachedDataUnit(
     function automatic void writeToUncachedRangeB(input Mword adr, input Mbyte val);
         //PageWriter#(Mbyte, 1, UNCACHED_BASE)::writeTyped(uncachedArea, adr, val);
             AbstractCore.dataMem.writeByte(adr, val);
+    endfunction
+
+
+    function automatic Dword readDwordUncached(input Mword adr);
+        //return PageWriter#(Word, 4, UNCACHED_BASE)::readTyped(uncachedArea, adr);
+            return AbstractCore.dataMem.readDword(adr);
     endfunction
 
     function automatic Mword readWordUncached(input Mword adr);
@@ -137,6 +150,7 @@ module UncachedDataUnit(
 
         if (wrInfo.size == SIZE_1) writeToUncachedRangeB(padr, val);
         if (wrInfo.size == SIZE_4) writeToUncachedRangeW(padr, val);
+        if (wrInfo.size == SIZE_8) writeToUncachedRangeD(padr, val);
     endtask
 
 

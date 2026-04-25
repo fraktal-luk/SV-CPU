@@ -516,7 +516,7 @@ module AbstractCore
             if (uopHasIntDest(uinfo.name) || uopHasFloatDest(uinfo.name)) begin // DB
                 assert (uinfo.resultA === uinfo.resultE && uinfo.argError === 0) else begin
                     retiredEmul.getBasicDbView();
-                    $fatal(2, " not matching result. %s; %d but should be %d", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
+                    $fatal(2, " not matching result. %s; %X but should be %X", disasm(info.basicData.bits), uinfo.resultA, uinfo.resultE);
                 end
             end
         end
