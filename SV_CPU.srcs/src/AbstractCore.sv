@@ -147,7 +147,6 @@ module AbstractCore
     assign insAdr = theFrontend.fetchAdr;
 
     assign sig = lateEventInfo.cOp == CO_send;
-    //assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
 
 
     always @(posedge clk) begin
@@ -351,11 +350,6 @@ module AbstractCore
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-
-            //if (evt != PE_NONE) $error("%p: %p, %p, // %p", ins, adr, vadr, bits);
-
-          //if (evt == PE_FETCH_UNALIGNED_ADDRESS) 
-
         runInEmulator(renamedEmul, adr, bits);
         renamedEmul.drain();
 
@@ -399,7 +393,7 @@ module AbstractCore
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
         end
 
-        insMap.allocate(id, ii, uInfos);  // 
+        insMap.allocate(id, ii, uInfos);
 
         if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
@@ -446,9 +440,9 @@ module AbstractCore
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
-                                        theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
-                                        theExecBlock.memEventReg, theExecBlock.fpInvReg, theExecBlock.fpOvReg,
-                                        theExecBlock.lastEvtFetch);
+                                    theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
+                                    theExecBlock.memEventReg, theExecBlock.fpInvReg, theExecBlock.fpOvReg,
+                                    theExecBlock.lastEvtFetch);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -485,12 +479,8 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
-            if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
-                sysUnit.setFpInv();
-            end
-            if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
-                sysUnit.setFpOv();
-            end
+            if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) sysUnit.setFpInv();
+            if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) sysUnit.setFpOv();
             
             syncCurrentConfigFromRegs();
 
@@ -530,7 +520,6 @@ module AbstractCore
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
         Mword expectedTargetFloor = trg;
-        //expectedTargetFloor[1:0] = 0;
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert (expectedTargetFloor === info.basicData.adr) else begin
@@ -594,8 +583,7 @@ module AbstractCore
 
         assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
                             isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-            else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
-                        retInfo.refetch, retInfo.exception);
+        else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, retInfo.refetch, retInfo.exception);
                             
         verifyOnCommit(retInfo);
 
@@ -625,12 +613,6 @@ module AbstractCore
 
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
-
-
-                // if (id >= 'h4b4) begin
-                //     Dword ct = getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
-                //     $error("RetiredTarget <= %d\nEmul target = %d", ct, retiredEmul.coreState.target);
-                // end
 
         // RET: update target
         retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
@@ -828,12 +810,12 @@ module AbstractCore
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
 
-            //TODO: set data memories for emulators according to core data memory
-            renamedEmul.progMem.setLike(programMem);
-            renamedEmul.dataMem.setLike(dataMem);
+        //TODO: set data memories for emulators according to core data memory
+        renamedEmul.progMem.setLike(programMem);
+        renamedEmul.dataMem.setLike(dataMem);
 
-            retiredEmul.progMem.setLike(programMem);
-            retiredEmul.dataMem.setLike(dataMem);
+        retiredEmul.progMem.setLike(programMem);
+        retiredEmul.dataMem.setLike(dataMem);
 
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();

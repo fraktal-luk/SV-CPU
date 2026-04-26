@@ -12,6 +12,7 @@ package Testing;
     import Insmap::*;    
 
 
+
     localparam Dword PROG_P_MAIN = 0; // physical adr of test code
     localparam Dword PROG_P_MISS = 'h2000; // page not in instruction L1
 
@@ -34,20 +35,19 @@ package Testing;
 
 
 
-        localparam Dword PROG_P_NONEXISTENT = 'h2000000000000000;
-        localparam Dword DATA_P_NONEXISTENT = 'h2000000000000000;
+    localparam Dword PROG_P_NONEXISTENT = 'h2000000000000000;
+    localparam Dword DATA_P_NONEXISTENT = 'h2000000000000000;
 
 
-        localparam Dword PROG_V_INVALID = 'h8000000000000000;
-        localparam Dword PROG_V_UNMAPPED = 'h8000;
-        localparam Dword PROG_V_DISALLOWED = 'h9000;
-        localparam Dword PROG_V_MAPPED_NONEXISTENT = 'ha000;
+    localparam Dword PROG_V_INVALID = 'h8000000000000000;
+    localparam Dword PROG_V_UNMAPPED = 'h8000;
+    localparam Dword PROG_V_DISALLOWED = 'h9000;
+    localparam Dword PROG_V_MAPPED_NONEXISTENT = 'ha000;
 
-        localparam Dword DATA_V_INVALID = 'h8000000000000000;
-        localparam Dword DATA_V_UNMAPPED = 'h8000;
-        localparam Dword DATA_V_DISALLOWED = 'h9000;
-        localparam Dword DATA_V_MAPPED_NONEXISTENT = 'ha000;
-
+    localparam Dword DATA_V_INVALID = 'h8000000000000000;
+    localparam Dword DATA_V_UNMAPPED = 'h8000;
+    localparam Dword DATA_V_DISALLOWED = 'h9000;
+    localparam Dword DATA_V_MAPPED_NONEXISTENT = 'ha000;
 
 
 
@@ -97,20 +97,15 @@ package Testing;
 
             if (sections[i].words.size() > 1024) $error("Section '%s' too big for page: %d", sections[i].desc, sections[i].words.size());
 
-               // $error("-- Section: %s", sections[i].desc);
-
             case (sections[i].desc)
                 "prog_main": pmem.assignPage(PROG_P_MAIN, sections[i].words);
                 "prog_miss": pmem.assignPage(PROG_P_MISS, sections[i].words);
 
-                "handlers": begin
-                     //   $error("Setting handlers");
-                    pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
-                 end
-                "lib":      pmem.assignPage(PROG_P_LIB, sections[i].words);
+                "handlers":  pmem.assignPage(PROG_P_HANDLERS, sections[i].words);
+                "lib":       pmem.assignPage(PROG_P_LIB, sections[i].words);
 
 
-                "data0":      dmem.writeWordArray(DATA_P_MAIN, sections[i].words);
+                "data0":     dmem.writeWordArray(DATA_P_MAIN, sections[i].words);
                 "data1": ;
                 "data_miss0": ;
                 "data_miss1": ;
@@ -123,65 +118,12 @@ package Testing;
 
                 default: $error("Wrong section label: %s", sections[i].desc);
             endcase
-
-            //pmem.assignPage(sectionStart(sections[i].desc), sections[i].words);
         end
 
     endfunction 
 
 
-
-    // const string FAILING_HANDLER[$]  = {"sys_error", "ja 0", "sys_error"};
-
-    // const string DEFAULT_ERROR_HANDLER[$] = {"sys_error", "ja 0", "sys_error"};
-
-    // const string TESTED_CALL_HANDLER[$] = {"add_i r20, r0, 55", "sys_rete", "ja 0"};
-    
-    // const string DEFAULT_RESET_HANDLER[$] = {/**/"ja -0x4200", /*"ja -8704",/**/  "ja 0", "sys_error"};
-
-    // const string DEFAULT_INT_HANDLER[$]  = {"add_i r21, r0, 77", "sys_reti", "ja 0"};
-
-    // const string DEFAULT_EXC_HANDLER[$]  = {"add_i r1, r0, 37", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
-
-    // const string MEM_EXC_HANDLER[$]  = {"add_i r1, r0, 58", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
-
-    // const string FETCH_EXC_HANDLER[$]  = {"add_i r1, r0, 88", /*"lds r20, r0, 2",*/ "add_i r21, r0, 16", "sts r21, r0, 2", "sys_rete", "ja 0"};
-
-
-    // const string DEFAULT_DB_HANDLER[$]  = {"sys_send", "ja 0", "sys_error"};
-
-    // const string DEFAULT_DBBREAK_HANDLER[$]  = {"jz_r r0, r0, r30", "ja 0", "sys_error"};
-
-    // const string DEFAULT_ARITH_HANDLER[$]  = {"add_i r29, r0, 98", "lds r20, r0, 2", "add_i r21, r20, 4", "sts r21, r0, 2", "sys_rete", "ja 0"};
-
-    
-  //  const string NOP_PADDING[$] = {"and_r r0, r0, r0", "and_r r0, r0, r0", "and_r r0, r0, r0", "and_r r0, r0, r0"};
-
-
-
-    // const CodeSec DEFAULT_RESET_SECTION = processLines(DEFAULT_RESET_HANDLER);
-
-    // const CodeSec DEFAULT_ERROR_SECTION = processLines(DEFAULT_ERROR_HANDLER);
-
-    // const CodeSec TESTED_CALL_SECTION = processLines(TESTED_CALL_HANDLER);
-
-    // const CodeSec DEFAULT_INT_SECTION = processLines(DEFAULT_INT_HANDLER);
-
-    // const CodeSec DEFAULT_EXC_SECTION = processLines(DEFAULT_EXC_HANDLER);
-
-    // const CodeSec MEM_EXC_SECTION = processLines(MEM_EXC_HANDLER);
-
-    // const CodeSec FETCH_EXC_SECTION = processLines(FETCH_EXC_HANDLER);
-
-    // const CodeSec DEFAULT_DB_SECTION = processLines(DEFAULT_DB_HANDLER);
-
-    // const CodeSec DEFAULT_DBBREAK_SECTION = processLines(DEFAULT_DBBREAK_HANDLER);
-
-    // const CodeSec DEFAULT_ARITH_SECTION = processLines(DEFAULT_ARITH_HANDLER);
-
-
     localparam string codeDir = "../../../../SV_CPU.srcs/code/";
-
 
 
     function automatic logic isValidTestName(input squeue line);
@@ -194,7 +136,7 @@ package Testing;
         int file = $fopen(fname, "w");
         squeue lines = disasmBlock(progMem);
         foreach (lines[i])
-            $fdisplay(file, lines[i]);
+        $fdisplay(file, lines[i]);
         $fclose(file);
     endtask
 
@@ -307,7 +249,6 @@ package Testing;
         // vadr 'h8000 - not mapped 
 
 
-
         params.preloadedDataTlbL1 = '{physDataPage0, physDataPage1, physDataPage2000, outputPage0, physDataPageUnc,
                                             nonexistentPage, disallowedPage
                                         };
@@ -361,7 +302,6 @@ package Testing;
     function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem,
                                             input CodeSecArr handlerSections);
         CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
-        CodeSecArr handlers = handlerSections;// processFile(readFile({codeDir, "handlers.txt"}));
 
         foreach (testSections[importer]) begin
             foreach (testSections[exporter]) begin
@@ -378,7 +318,7 @@ package Testing;
         pmem.createPage(PAGE_SIZE);
 
         allocateSections(testSections, pmem, dmem);
-        allocateSections(handlers, pmem, dmem);
+        allocateSections(handlerSections, pmem, dmem);
     endfunction
 
 
@@ -423,7 +363,6 @@ package Testing;
 
     task automatic resetAll(ref Emulator emul);
         emul.resetWithDataMem();
-        //#DELAY;
     endtask
 
 endpackage

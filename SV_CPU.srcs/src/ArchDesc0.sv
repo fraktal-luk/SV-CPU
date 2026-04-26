@@ -73,7 +73,6 @@ module ArchDesc0();
         GlobalParams gp = Test_fillGpCached();
 
         $display("Emulation event/int tests");
-        //#DELAY;
 
         emulTestName = "int";
 
