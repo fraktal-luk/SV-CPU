@@ -115,7 +115,7 @@ module MemSubpipe#()
 
         res.active = 1;
 
-            res.invalid = !isStoreSysUop(uname) && !isLoadSysUop(uname) && !virtualAddressValid(adr);
+        res.invalid = !isStoreSysUop(uname) && !isLoadSysUop(uname) && !virtualAddressValid(adr);
 
         res.size = trSize;
 
@@ -181,18 +181,14 @@ module MemSubpipe#()
 
         // Classify
         if (p.memClass == MC_NONE) begin
-            if (isLoadAqUop(uname) || isStoreRelUop(uname)) begin
+            if (isLoadAqUop(uname) || isStoreRelUop(uname))
                 res.memClass = MC_AQ_REL;
-            end
-            else if (isMemBarrierUop(uname)) begin
+            else if (isMemBarrierUop(uname))
                 res.memClass = MC_BARRIER;
-            end
-            else if (isLoadSysUop(uname) || isStoreSysUop(uname)) begin
+            else if (isLoadSysUop(uname) || isStoreSysUop(uname))
                 res.memClass = MC_SYS;
-            end
-            else begin
+            else
                 res.memClass = MC_NORMAL;
-            end
         end
         
         return res; 
@@ -201,13 +197,13 @@ module MemSubpipe#()
 
 
     function automatic UopMemPacket updateE1(input UopMemPacket p);
-        UopMemPacket res = p;
-        return res;
+        return p;
     endfunction
 
 
     function automatic UopMemPacket updateE2(input UopMemPacket p, input AccessDesc ad,
-                                            input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, input DataCacheOutput sysResp, input UopPacket sqResp);
+                                             input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, 
+                                             input DataCacheOutput sysResp, input UopPacket sqResp);
         UopMemPacket res = p;
         UidT uid = p.TMP_oid;
         UopName uname;
@@ -386,7 +382,6 @@ module MemSubpipe#()
                     if (res.memClass == MC_UPPER_B) begin
                         Mword cacheVal = cacheResp.data;
                         Mword uopVal = p.result;
-                        //$error("\nUpper (%p): %x, @%x: %x\nshift: %d", U2M(uid), uopVal, ad.vadr, cacheVal, ad.shift);
                         res.status = ES_OK;
                         res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
                     end
