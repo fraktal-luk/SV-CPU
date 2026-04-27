@@ -352,22 +352,7 @@ module ExecBlock(ref InstructionMap insMap,
             else return prev;
         endfunction
 
-        function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
-            OpSlotB older = prev;
-            InsId prevId = prev.mid;
-            InsId nextId = next.mid;
-            InsId olderId = replaceEvId(prevId, nextId);
-
-            if (prevId == -1) older = next;
-            else if (nextId != -1 && prevId > nextId) older = next;
-
-            assert (olderId == older.mid) else $error("Ids differ");
-
-            if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_SLOT_B;
-            else return older;
-        endfunction
-
-        function automatic UopPacket replaceEvP_N(input UopPacket prev, input UopPacket next);
+        function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
             UopPacket older = prev;
             InsId prevId = U2M(prev.TMP_oid);
             InsId nextId = U2M(next.TMP_oid);
@@ -429,11 +414,11 @@ module ExecBlock(ref InstructionMap insMap,
             currentEventReg <= newValue;
 
             // Needs: ?
-            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
-            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+            fpInvReg <= replaceEvP(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP(fpOvReg, fpOvNewH);
 
             // Needs: kind of event, mem access address (V only?)
-            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+            memEventReg <= replaceEvP(memEventReg, memEventNewH);
 
         endtask
 

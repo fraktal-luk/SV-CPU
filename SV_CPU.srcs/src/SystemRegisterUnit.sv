@@ -70,7 +70,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
     function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr,
                                             input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
-                                                input ProgramEvent pe);
+                                            input ProgramEvent pe);
         case (cOp)
             CO_exception, CO_specificException: begin
                 sysRegs[4] = sysRegs[1];
@@ -81,29 +81,23 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
                 // TODO: assign precise values
                 if (mp.active) begin
+                    UopName uname = decUname(mp.TMP_oid);
+
                     case (mp.status)
                         ES_INVALID: begin
-                            UopName uname = decUname(mp.TMP_oid);
                             if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
                             else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_INVALID_ADDRESS;
-
                         end
                         ES_ILLEGAL: begin
-                            UopName uname = decUname(mp.TMP_oid);
                             if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
                             else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
-
                         end
-
-                        // ES_FP_INVALID, ES_FP_OVERFLOW:
-                        //     sysRegs[6] = PE_ARITH_EXCEPTION;
 
                         default: ;
                     endcase
                 end
                 else if (fpInv.active) begin
                     sysRegs[6] = PE_ARITH_EXCEPTION;
-
                 end
                 else if (fpOv.active) begin
                     sysRegs[6] = PE_ARITH_EXCEPTION;
@@ -111,26 +105,21 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
             end
             CO_fetchError: begin
                 sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr;// + 4;
+                sysRegs[2] = adr;
                 
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                begin
-                    sysRegs[6] = //PE_FETCH_INVALID_ADDRESS;
-                                    pe;
-                end
+                sysRegs[6] = pe;
             end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr;// + 4;
+                sysRegs[2] = adr;
                 
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
                 
-                begin
-                    sysRegs[6] = PE_SYS_UNDEFINED_INSTRUCTION;
-                end
+                sysRegs[6] = PE_SYS_UNDEFINED_INSTRUCTION;
             end
             CO_call: begin                  
                 sysRegs[4] = sysRegs[1];
@@ -139,9 +128,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                begin
-                    sysRegs[6] = PE_SYS_CALL;
-                end
+                sysRegs[6] = PE_SYS_CALL;
             end
             CO_dbcall: begin                  
                 sysRegs[4] = sysRegs[1];
@@ -150,9 +137,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                begin
-                    sysRegs[6] = PE_SYS_DBCALL;
-                end
+                sysRegs[6] = PE_SYS_DBCALL;
             end
             CO_retE: begin
                 sysRegs[1] = sysRegs[4];
@@ -168,18 +153,18 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     endfunction
     
 
-    function automatic void saveStateAsync(input Mword prevTarget, input ControlOp cop);
+    function automatic void saveStateAsync(input Mword prevTarget, input ControlOp cOp);
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
 
         sysRegs[1] |= 16; // FUTURE: handle state register correctly
         sysRegs[1] &= ~('h00100000); // clear dbstep
 
-        case (cop)
+        case (cOp)
             CO_reset: sysRegs[7] = PE_EXT_RESET;
-            CO_int: sysRegs[7] = PE_EXT_INTERRUPT;
+            CO_int:   sysRegs[7] = PE_EXT_INTERRUPT;
             CO_break: sysRegs[7] = PE_EXT_DEBUG;
-            default: ;
+            default: $fatal(2, "Incorrect control op %p", cOp);
         endcase
     endfunction
 

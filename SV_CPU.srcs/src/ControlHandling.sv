@@ -18,10 +18,6 @@ package ControlHandling;
                 res.target = specificTarget;
                 res.redirect = 1;
             end
-            CO_exception: begin
-                res.target = IP_EXC;
-                res.redirect = 1;
-            end
             CO_fetchError: begin
                 res.target = IP_FETCH_EXC;
                 res.redirect = 1;
@@ -66,7 +62,7 @@ package ControlHandling;
                 res.target = IP_DB_BREAK;
                 res.redirect = 1;
             end
-            default: ;                            
+            default: $fatal(2, "Unknown control op");
         endcase
 
         res.active = 1;
@@ -82,12 +78,10 @@ package ControlHandling;
         
         if (refetch) res.cOp = CO_refetch;
         else if (exception) begin
-            if (evtType == PE_NONE)
-                res.cOp = CO_exception;
-            else begin
-                res.cOp = CO_specificException;
-                res.target = programEvent2trg(evtType);
-            end
+            assert (evtType != PE_NONE) else $fatal(2, "Unspecified exception reached Commit");
+
+            res.cOp = CO_specificException;
+            res.target = programEvent2trg(evtType);
         end
         else begin
             case (uname)
