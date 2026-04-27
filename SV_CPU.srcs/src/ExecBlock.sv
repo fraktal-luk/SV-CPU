@@ -283,25 +283,18 @@ module ExecBlock(ref InstructionMap insMap,
 
     generate
         logic chp, chq;
-    
-        InsId currentEventReg = -1, //lqRefetchReg = -1, 
-                lqRefetchNewH = -1;
+
+        InsId currentEventReg = -1, lqRefetchNewH = -1;
 
         AccessDesc lastEvtAD;
         Translation lastEvtTr;
 
         ProgramEvent lastEvtFetch = PE_NONE;
-        //UopPacket memRefetchReg = EMPTY_UOP_PACKET, 
-
-
+        OpSlotB staticEventNewH = EMPTY_SLOT_B;
         UopPacket memRefetchNewH = EMPTY_UOP_PACKET;
         UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
         UopPacket fpInvReg = EMPTY_UOP_PACKET, fpInvNewH = EMPTY_UOP_PACKET;
         UopPacket fpOvReg = EMPTY_UOP_PACKET, fpOvNewH = EMPTY_UOP_PACKET;
-
-        //OpSlotB staticEventReg = EMPTY_SLOT_B, 
-        OpSlotB staticEventNewH = EMPTY_SLOT_B;
-
 
 
         always @(negedge AbstractCore.clk) begin
@@ -315,25 +308,41 @@ module ExecBlock(ref InstructionMap insMap,
             staticEventNewH <= getOldestRenameEvSlot();
         end
 
-
         always @(posedge AbstractCore.clk) begin
-            // Needs: ?
-            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
-            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
-
-            // Needs: kind of event, mem access address (V only?)
-            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
-
-            // Refetch events don't need diagnostic info
-            //memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
-            //lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
-
-            // Needs: kind of event
-            //staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
-            
             updateCurrentEventReg();
         end
 
+
+        function automatic OpSlotB getOldestRenameEvSlot();
+            // TODO: if stageRename1_N is not empty and has a fetch event, catch it
+
+            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
+            // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+            if (found.size() == 0) return EMPTY_SLOT_B;
+            else return found[0];
+        endfunction
+
+
+        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+
+        function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
 
 
 
@@ -342,15 +351,6 @@ module ExecBlock(ref InstructionMap insMap,
             else if (next != -1 && prev > next) return next;
             else return prev;
         endfunction
-
-
-        function automatic InsId replaceEvId_N(input InsId prev, input InsId next);
-            InsId older = replaceEvId(prev, next);
-
-            if (shouldFlushId(older) || AbstractCore.lastRetired > older) return -1;
-            else return older;
-        endfunction
-
 
         function automatic OpSlotB replaceEvS_N(input OpSlotB prev, input OpSlotB next);
             OpSlotB older = prev;
@@ -366,7 +366,6 @@ module ExecBlock(ref InstructionMap insMap,
             if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_SLOT_B;
             else return older;
         endfunction
-
 
         function automatic UopPacket replaceEvP_N(input UopPacket prev, input UopPacket next);
             UopPacket older = prev;
@@ -384,37 +383,6 @@ module ExecBlock(ref InstructionMap insMap,
         endfunction
 
 
-        function automatic OpSlotB getOldestRenameEvSlot();
-            // TODO: if stageRename1_N is not empty and has a fetch event, catch it
-
-            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
-            // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-
-            if (found.size() == 0) return EMPTY_SLOT_B;
-            else return found[0];
-        endfunction
-
-
-        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
-
-        function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-            
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-            
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
-
 
         function automatic InsId getCurrentEventId();
             InsId tmp = currentEventReg;
@@ -429,16 +397,16 @@ module ExecBlock(ref InstructionMap insMap,
             tmp = replaceEvId(tmp, lqRefetchNewH);
             tmp = replaceEvId(tmp, staticEventNewH.mid);
             
-            tmp = replaceEvId_N(currentEventReg, tmp);
-            
+            tmp = replaceEvId(currentEventReg, tmp);
+
+            if (shouldFlushId(tmp) || AbstractCore.lastRetired > tmp) tmp = -1;
+
             return tmp;
         endfunction
 
         task automatic updateCurrentEventReg();
-            InsId tmp = getCurrentEventId();
-            int inds[$] = memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == tmp); 
-
-            currentEventReg <= tmp;
+            InsId newValue = getCurrentEventId();
+            int inds[$] = memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == newValue); 
 
             // Is the new ID one of mem uops?
             if (inds.size() > 0) begin
@@ -446,16 +414,27 @@ module ExecBlock(ref InstructionMap insMap,
                 lastEvtAD <= accessDescs_E2[ind];
                 lastEvtTr <= dcacheTranslations_E2[ind];
             end
-            else if (tmp != currentEventReg) begin // If changes to non-memory
+            else if (newValue != currentEventReg) begin // If changes to non-memory
                 lastEvtAD <= DEFAULT_ACCESS_DESC;
                 lastEvtTr <= DEFAULT_TRANSLATION;
             end
 
             // Is it a fetch event?
-            if (staticEventNewH.mid == tmp)
+            if (staticEventNewH.mid == newValue)
                 lastEvtFetch <= AbstractCore.stageRename1_N.evt;
-            else if (tmp != currentEventReg)
+            else if (newValue != currentEventReg)
                 lastEvtFetch <= PE_NONE;
+
+
+            currentEventReg <= newValue;
+
+            // Needs: ?
+            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+
+            // Needs: kind of event, mem access address (V only?)
+            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+
         endtask
 
 
@@ -463,4 +442,3 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 endmodule
-
