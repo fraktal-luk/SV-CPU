@@ -840,7 +840,8 @@ module AbstractCore
 
 
     function automatic logic pipesEmpty();
-        return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
+        //return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
+        return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1_N.active;
     endfunction
 
     function automatic logic hasStaticEvent(InsId id);
@@ -852,5 +853,11 @@ module AbstractCore
         SqEntry entry[$] = csq.min with (item.mid);
         return entry[0].mid;
     endfunction
+
+
+        logic ch0, ch1, ch2;
+        // assign ch0 = stageEmptyAB(stageRename1);
+        // assign ch1 = stageRename1_N.active;
+        // assign ch2 = stageEmptyAB(stageRename1) === !stageRename1_N.active;
 
 endmodule

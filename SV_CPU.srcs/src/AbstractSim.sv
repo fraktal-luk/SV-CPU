@@ -191,7 +191,7 @@ package AbstractSim;
     typedef struct {
         logic active;
         CacheReadStatus status;
-            ProgramEvent evt;
+        ProgramEvent evt;
         Mword vadr;
         Dword padr;
         OpSlotAF arr;
@@ -758,19 +758,19 @@ package AbstractSim;
 
 
 
-    function automatic logic stageEmptyAF(input OpSlotAF stage);
-        foreach (stage[i])
-            if (stage[i].active) return 0;
+    // function automatic logic stageEmptyAF(input OpSlotAF stage);
+    //     foreach (stage[i])
+    //         if (stage[i].active) return 0;
         
-        return 1; 
-    endfunction
+    //     return 1; 
+    // endfunction
 
-    function automatic logic stageEmptyAB(input OpSlotAB stage);
-        foreach (stage[i])
-            if (stage[i].active) return 0;
+    // function automatic logic stageEmptyAB(input OpSlotAB stage);
+    //     foreach (stage[i])
+    //         if (stage[i].active) return 0;
         
-        return 1; 
-    endfunction
+    //     return 1; 
+    // endfunction
 
     function automatic AccessSize getTransactionSize(input UopName uname);
         if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;

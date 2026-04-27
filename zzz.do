@@ -44,12 +44,9 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/branchEventInfo
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/lqRefetchNewH \
-sim:/ArchDesc0/core/theExecBlock/lqRefetchReg \
-sim:/ArchDesc0/core/theExecBlock/memEventNewH \
-sim:/ArchDesc0/core/theExecBlock/memEventReg
+sim:/ArchDesc0/core/theExecBlock/memEventNewH
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/staticEventNewH \
-sim:/ArchDesc0/core/theExecBlock/staticEventReg
+sim:/ArchDesc0/core/theExecBlock/staticEventNewH
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/mainEmul

@@ -284,18 +284,57 @@ module ExecBlock(ref InstructionMap insMap,
     generate
         logic chp, chq;
     
-        InsId currentEventReg = -1, lqRefetchReg = -1, lqRefetchNewH = -1;
-
-        ProgramEvent lastEvtFetch = PE_NONE;
+        InsId currentEventReg = -1, //lqRefetchReg = -1, 
+                lqRefetchNewH = -1;
 
         AccessDesc lastEvtAD;
         Translation lastEvtTr;
 
-        OpSlotB staticEventReg = EMPTY_SLOT_B, staticEventNewH = EMPTY_SLOT_B;
+        ProgramEvent lastEvtFetch = PE_NONE;
+        //UopPacket memRefetchReg = EMPTY_UOP_PACKET, 
+
+
+        UopPacket memRefetchNewH = EMPTY_UOP_PACKET;
         UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
-        UopPacket memRefetchReg = EMPTY_UOP_PACKET, memRefetchNewH = EMPTY_UOP_PACKET;
         UopPacket fpInvReg = EMPTY_UOP_PACKET, fpInvNewH = EMPTY_UOP_PACKET;
         UopPacket fpOvReg = EMPTY_UOP_PACKET, fpOvNewH = EMPTY_UOP_PACKET;
+
+        //OpSlotB staticEventReg = EMPTY_SLOT_B, 
+        OpSlotB staticEventNewH = EMPTY_SLOT_B;
+
+
+
+        always @(negedge AbstractCore.clk) begin
+            fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);
+            fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);
+
+            memEventNewH <= findOldestMemEvt(memImagesTr[0]);   // TODO: other mem conditions (ES_INVALID, ...) 
+            memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);
+
+            lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
+            staticEventNewH <= getOldestRenameEvSlot();
+        end
+
+
+        always @(posedge AbstractCore.clk) begin
+            // Needs: ?
+            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
+            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
+
+            // Needs: kind of event, mem access address (V only?)
+            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
+
+            // Refetch events don't need diagnostic info
+            //memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
+            //lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
+
+            // Needs: kind of event
+            //staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
+            
+            updateCurrentEventReg();
+        end
+
+
 
 
         function automatic InsId replaceEvId(input InsId prev, input InsId next);
@@ -317,13 +356,12 @@ module ExecBlock(ref InstructionMap insMap,
             OpSlotB older = prev;
             InsId prevId = prev.mid;
             InsId nextId = next.mid;
-
-                InsId olderId = replaceEvId(prevId, nextId);
+            InsId olderId = replaceEvId(prevId, nextId);
 
             if (prevId == -1) older = next;
             else if (nextId != -1 && prevId > nextId) older = next;
 
-                assert (olderId == older.mid) else $error("Ids differ");
+            assert (olderId == older.mid) else $error("Ids differ");
 
             if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_SLOT_B;
             else return older;
@@ -334,13 +372,12 @@ module ExecBlock(ref InstructionMap insMap,
             UopPacket older = prev;
             InsId prevId = U2M(prev.TMP_oid);
             InsId nextId = U2M(next.TMP_oid);
-
-                InsId olderId = replaceEvId(prevId, nextId);
+            InsId olderId = replaceEvId(prevId, nextId);
 
             if (prevId == -1) older = next;
             else if (nextId != -1 && prevId > nextId) older = next;
 
-                assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
+            assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
 
             if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
             else return older;
@@ -350,21 +387,12 @@ module ExecBlock(ref InstructionMap insMap,
         function automatic OpSlotB getOldestRenameEvSlot();
             // TODO: if stageRename1_N is not empty and has a fetch event, catch it
 
-            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));// && item.);
+            OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
             // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-
-
-                // if (AbstractCore.stageRename1_N.active && AbstractCore.stageRename1_N.evt != PE_NONE) begin
-                //     found = AbstractCore.stageRename1.find_first with (item.active);
-                //     assert (found.size() > 0) else $fatal(2, "stageRename1 active but no elements");
-                //     return found[0];
-                // end
-
 
             if (found.size() == 0) return EMPTY_SLOT_B;
             else return found[0];
         endfunction
-
 
 
         function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
@@ -386,40 +414,6 @@ module ExecBlock(ref InstructionMap insMap,
             assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
             return oldest[0];
         endfunction
-
- 
-        always @(negedge AbstractCore.clk) begin
-            fpInvNewH <= findOldestWithState(ES_FP_INVALID, floatImagesTr[0]);
-            fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, floatImagesTr[0]);
-
-            //memEventNewH <= findOldestWithState(ES_ILLEGAL, memImagesTr[0]);   // TODO: other mem conditions (ES_INVALID, ...) 
-            memEventNewH <= findOldestMemEvt(memImagesTr[0]);   // TODO: other mem conditions (ES_INVALID, ...) 
-            memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);
-
-
-            lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
-            staticEventNewH <= getOldestRenameEvSlot();
-        end
-        
-        
-        always @(posedge AbstractCore.clk) begin
-            // Needs: ?
-            fpInvReg <= replaceEvP_N(fpInvReg, fpInvNewH);
-            fpOvReg <= replaceEvP_N(fpOvReg, fpOvNewH);
-
-            // Needs: kind of event, mem access address (V only?)
-            memEventReg <= replaceEvP_N(memEventReg, memEventNewH);
-
-            // Refetch events don't need diagnostic info
-            memRefetchReg <= replaceEvP_N(memRefetchReg, memRefetchNewH);
-            lqRefetchReg <= replaceEvId_N(lqRefetchReg, lqRefetchNewH);
-
-            // Needs: kind of event
-            staticEventReg <= replaceEvS_N(staticEventReg, staticEventNewH);
-            
-            updateCurrentEventReg();
-
-        end
 
 
         function automatic InsId getCurrentEventId();
@@ -458,9 +452,8 @@ module ExecBlock(ref InstructionMap insMap,
             end
 
             // Is it a fetch event?
-            if (staticEventNewH.mid == tmp) begin
+            if (staticEventNewH.mid == tmp)
                 lastEvtFetch <= AbstractCore.stageRename1_N.evt;
-            end
             else if (tmp != currentEventReg)
                 lastEvtFetch <= PE_NONE;
         endtask
