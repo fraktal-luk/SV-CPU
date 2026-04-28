@@ -26,6 +26,18 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
 
+    typedef enum {
+        FS_NONE,
+        FS_OFF,       //
+        FS_WAIT_PAGE, // (uncached only) Next address is on another page, we have to wait to confirm
+        FS_WAIT_MISS, // Waiting because TLB/icache needs to fill
+        FS_WAIT_CTRL, // Waiting because event is being processed in backend, so redirect is certain
+        FS_RUN
+    } FetcherState;
+
+
+
+
     logic FETCH_UNC;
     logic fetchAllowCa;
 
@@ -61,6 +73,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     // CACHED
 
     generate
+        FetcherState cachedFetcherState = FS_NONE;
+
         FrontStage stageFetch2 = DEFAULT_FRONT_STAGE;
 
         InstructionCacheOutput cacheOut;
@@ -89,12 +103,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushFrontendBeforeF2();
                 stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC, FETCH_SINGLE);
+                    cachedFetcherState <= FS_RUN;
 
                 expectedTargetF2 <= redirectedTarget();
             end
             else if (frontRedCa || frontRedOnMiss) begin
                 flushFrontendBeforeF2();
                 stage_IP <= makeStage_IP(expectedTargetF2, !FETCH_UNC && !frontRedOnMiss, FETCH_SINGLE);
+                    cachedFetcherState <= frontRedOnMiss ? FS_WAIT_MISS : FS_RUN;
             end
             else begin
                 fetchNormalCached();
@@ -102,7 +118,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
                 if (!FETCH_UNC) stage_IP.active <= 1; // Resume fetching after miss
+                    cachedFetcherState <= FS_RUN;
             end
+
+                if (FETCH_UNC) cachedFetcherState <= FS_OFF;
         endtask
 
 
@@ -111,6 +130,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             if (fetchAllowCa && stage_IP.active) begin
                 stage_IP <= makeStage_IP(nextTrg, stage_IP.active, FETCH_SINGLE);
+                    cachedFetcherState <= FS_RUN;
                 stageFetch0 <= stage_IP;
             end
             else
@@ -251,6 +271,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     UncachedFetchUnit uncachedUnit(clk);
 
     generate
+        FetcherState uncachedFetcherState = FS_NONE;
+
         logic uncachedOn;
 
         FrontStage stageFetch2_U = DEFAULT_FRONT_STAGE;
@@ -287,10 +309,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), uncachedOn, stageUnc_IP.vadr, 0);
+                    uncachedFetcherState <= FS_RUN;
             end
             else if (frontRedUnc) begin
+                FrontStage stageNext = makeStageUnc_IP(expectedTargetF2_U, uncachedOn, stageUnc_IP.vadr, 1);
                 flushUncachedPipe();
-                stageUnc_IP <= makeStageUnc_IP(expectedTargetF2_U, uncachedOn, stageUnc_IP.vadr, 1);
+                stageUnc_IP <= stageNext;
+                    uncachedFetcherState = stageNext.active ? FS_RUN : FS_WAIT_PAGE;
             end
             else begin
                 fetchNormalUncached();
@@ -303,15 +328,23 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     && AbstractCore.pipesEmpty()
                     && frontUncachedEmpty()
             ) begin
-                stageUnc_IP.active <= 1; // Resume fetching after miss
+                if (!(uncachedFetcherState inside {FS_NONE, FS_OFF})) begin
+                    //$error("Resume unc fetchch");
+
+                    stageUnc_IP.active <= 1; // Resume fetching after miss
+                        uncachedFetcherState <= FS_RUN;
+                end
             end
 
+                if (!FETCH_UNC) uncachedFetcherState <= FS_OFF;
         endtask
 
 
         task automatic fetchNormalUncached();
             if (stageUnc_IP.active && ufqSize < UFQ_SIZE - UFQ_SLACK) begin
-                stageUnc_IP <= makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
+                FrontStage stageNext = makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
+                stageUnc_IP <= stageNext;
+                    uncachedFetcherState <= stageNext.active ? FS_RUN : FS_WAIT_PAGE;
                 stageFetchUnc0 <= stageUnc_IP;
             end
             else
@@ -472,7 +505,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         uncachedFetchQueue.delete();
 
         markKilledFrontStage(stageRename0.arr);
-        stageRename0 <= DEFAULT_FRONT_STAGE;//'{default: EMPTY_SLOT_F};
+        stageRename0 <= DEFAULT_FRONT_STAGE;
     endtask
 
 

@@ -222,6 +222,8 @@ module ArchDesc0();
             trEm.gp.initialCregs.memControl = 0;
             #CYCLE $display("\n>>>>>> Em  Dev tests unc");
             trEm.runSuites(devTestsUnc);
+
+            @(posedge clk);
         end
 
         if (RUN_SIM_TESTS) begin
