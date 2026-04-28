@@ -21,8 +21,8 @@ package ExecDefs;
         MC_AQ_REL,
         MC_SYS,
 
-            MC_UPPER_B // block cross replay
-            //MC_UPPER_P  // page cross replay
+        MC_UPPER_B // block cross replay
+        //MC_UPPER_P  // page cross replay
     } MemClass;
 
 
@@ -37,7 +37,7 @@ package ExecDefs;
         ES_UNCACHED_2,
 
         ES_BARRIER_1,
-            ES_AQ_REL_1,
+        ES_AQ_REL_1,
 
         ES_SQ_MISS,
         ES_DATA_MISS,
@@ -46,7 +46,7 @@ package ExecDefs;
         ES_REFETCH, // cause refetch
         ES_CANT_FORWARD,
         
-            ES_LOWER_DONE,
+        ES_LOWER_DONE,
 
 
         ES_ILLEGAL,
@@ -60,7 +60,6 @@ package ExecDefs;
         return 
                 status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
     endfunction
-
 
 
     // Poison
@@ -77,7 +76,6 @@ package ExecDefs;
     localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
 
 
-
     typedef struct {
         logic active;
         UidT TMP_oid;
@@ -88,7 +86,6 @@ package ExecDefs;
     } UopPacket;    
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
-
 
         typedef UopPacket UopMemPacket;
     

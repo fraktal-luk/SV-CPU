@@ -344,6 +344,7 @@ module AbstractCore
         Mword target;
 
         UopName uopName = decodeUop(ins);
+        logic staticExc = isStaticEventIns(ins);
         InstructionInfo ii = initInsInfo(id, adr, bits, ins);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
@@ -351,6 +352,17 @@ module AbstractCore
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
         runInEmulator(renamedEmul, adr, bits);
+
+        // Is there an exception?
+           // if (renamedEmul.status.exceptionRaised) $error("Exception in renamed emul");
+
+           if (staticExc) begin
+                ii.exception = staticExc;
+                ii.eventType = renamedEmul.status.eventType;
+           end
+
+           ii.emulException = renamedEmul.status.exceptionRaised;
+
         renamedEmul.drain();
 
         target = renamedEmul.coreState.target; // For insMap
@@ -534,6 +546,7 @@ module AbstractCore
         // TODO: incorporate arith exc into ROB output to bring back this check?
           //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
           //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+          assert (info.exception === info.emulException) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 
@@ -810,7 +823,6 @@ module AbstractCore
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
 
-        //TODO: set data memories for emulators according to core data memory
         renamedEmul.progMem.setLike(programMem);
         renamedEmul.dataMem.setLike(dataMem);
 
@@ -840,7 +852,6 @@ module AbstractCore
 
 
     function automatic logic pipesEmpty();
-        //return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
         return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1_N.active;
     endfunction
 

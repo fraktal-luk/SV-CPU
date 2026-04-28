@@ -188,7 +188,6 @@ package Emulation;
             cregs.currentStatus.dbStep = 0;
 
             cregs.intSyndrome = evType;
-               // cregs.excSyndrome = evType; // TODO: temporary
 
             syncSysRegsFromCregs();
 
@@ -222,18 +221,22 @@ package Emulation;
                 O_error: begin
                     setExecState(PE_SYS_ERROR, adr);
                         status.dbEventPending = 0;
+                        status.exceptionRaised = 1;
                 end
                 O_undef: begin
                     setExecState(PE_SYS_UNDEFINED_INSTRUCTION, adr);
                         status.dbEventPending = 0;
+                        status.exceptionRaised = 1;
                 end
                 O_call: begin
                     setExecState(PE_SYS_CALL, adr + 4);
                         status.dbEventPending = 0;
+                        status.exceptionRaised = 1;
                 end
                 O_dbcall: begin
                     setExecState(PE_SYS_DBCALL, adr + 4);
                         status.dbEventPending = 0;
+                        status.exceptionRaised = 1;
                 end
                 O_retE: begin
                     state.target = cregs.excSavedIP;
@@ -293,7 +296,8 @@ package Emulation;
             
             setExecState(evt, ip);
             syncStatusFromRegs();
-            
+            status.exceptionRaised = 1;
+
             return 1;
         endfunction
 
@@ -330,6 +334,7 @@ package Emulation;
         // Clear mem write and signals to send
         function automatic void drain();
             this.status.send = 0;
+                    status.exceptionRaised = 0;
         endfunction
 
 
@@ -356,7 +361,7 @@ package Emulation;
             // Don't set if exception happened
             status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
             
-            status.exceptionRaised = 0;
+            //status.exceptionRaised = 0;
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);

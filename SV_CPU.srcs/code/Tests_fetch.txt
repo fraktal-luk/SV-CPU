@@ -6,6 +6,6 @@ itlb_icache_miss  ; jump to page with TLB miss and then L1i miss, fill
 
 dev_test_fetch_invalid
 dev_test_fetch_unaligned
-;dev_test_fetch_unmapped
 dev_test_fetch_disallowed
+;dev_test_fetch_unmapped
 ;dev_test_fetch_nonexistent

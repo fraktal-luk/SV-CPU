@@ -79,7 +79,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                // TODO: assign precise values
                 if (mp.active) begin
                     UopName uname = decUname(mp.TMP_oid);
 

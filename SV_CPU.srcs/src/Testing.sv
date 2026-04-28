@@ -27,7 +27,6 @@ package Testing;
 
     localparam Dword DATA_P_UNCACHED = 'h0000000040000000;
 
-
     localparam Dword VIRTUAL_OFFSET_TLB_MISS = 'h100000;  // 1 MB
 
     localparam Dword PROG_V_OFFSET = 0; // Added to all physical adrs of program

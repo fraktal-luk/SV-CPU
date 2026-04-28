@@ -34,8 +34,7 @@ module UncachedDataUnit(
     logic uncachedBusy = 0;
     DataCacheOutput readResult = EMPTY_DATA_CACHE_OUTPUT;
 
-    // TODO: note in impl definitions
-    localparam Mword UNCACHED_BASE = 'h0000000040000000; // CAREFUL: sync it with testing settings
+    localparam Mword UNCACHED_BASE = DATA_P_UNCACHED;
 
 
     task automatic UNC_reset();
@@ -199,10 +198,6 @@ module UncachedDataUnit(
 
         return res;
     endfunction
-
-
-
-
 
 
 endmodule

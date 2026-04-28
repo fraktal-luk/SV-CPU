@@ -61,6 +61,9 @@ package Insmap;
         IndexSet inds;
 
         logic frontBranch;
+
+            logic emulException;
+
         logic exception;
         logic refetch;
 
