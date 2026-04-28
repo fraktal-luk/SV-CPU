@@ -356,7 +356,7 @@ module AbstractCore
         // Is there an exception?
            // if (renamedEmul.status.exceptionRaised) $error("Exception in renamed emul");
 
-           if (staticExc) begin
+           if (staticExc && !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})) begin
                 ii.exception = staticExc;
                 ii.eventType = renamedEmul.status.eventType;
            end

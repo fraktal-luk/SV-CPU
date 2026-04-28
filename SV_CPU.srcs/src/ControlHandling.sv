@@ -77,7 +77,7 @@ package ControlHandling;
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;
-        else if (exception) begin
+        else if (exception && !isStaticEventUop(uname)) begin
             assert (evtType != PE_NONE) else $fatal(2, "Unspecified exception reached Commit");
 
             res.cOp = CO_specificException;
