@@ -449,7 +449,7 @@ module AbstractCore
         else begin
             Mword sr2 = sysUnit.sysRegs[2];
             Mword sr3 = sysUnit.sysRegs[3];
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
                                     theExecBlock.lastEvtAD, theExecBlock.lastEvtTr, theExecBlock.memEventReg,

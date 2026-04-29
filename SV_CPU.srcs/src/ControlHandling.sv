@@ -10,57 +10,45 @@ package ControlHandling;
     import UopList::*;
 
 
-    function automatic EventInfo getLateEvent(input EventInfo info, input Mword adr, input Mword sr2, input Mword sr3, input Mword specificTarget);
+    function automatic EventInfo getLateEvent(input EventInfo info, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
         
         case (info.cOp)
             CO_specificException: begin
-                res.target = specificTarget;
-                res.redirect = 1;
+                res.target = info.target;
             end
             CO_fetchError: begin
                 res.target = IP_FETCH_EXC;
-                res.redirect = 1;
             end
             CO_error: begin
                 res.target = IP_ERROR;
-                res.redirect = 1;
             end
             CO_undef: begin
                 res.target = IP_EXC;
-                res.redirect = 1;
             end
             CO_call: begin
                 res.target = IP_CALL;
-                res.redirect = 1;
             end
             CO_dbcall: begin
                 res.target = IP_DB_CALL;
-                res.redirect = 1;
             end
             CO_retE: begin
                 res.target = sr2;
-                res.redirect = 1;
             end 
             CO_retI: begin
                 res.target = sr3;
-                res.redirect = 1;
             end 
             CO_sync: begin
-                res.target = adr + 4;
-                res.redirect = 1;
+                res.target = info.adr + 4;
             end
             CO_refetch: begin
-                res.target = adr;
-                res.redirect = 1;
+                res.target = info.adr;
             end 
             CO_send: begin
-                res.target = adr + 4;
-                res.redirect = 1;
+                res.target = info.adr + 4;
             end
             CO_break: begin
                 res.target = IP_DB_BREAK;
-                res.redirect = 1;
             end
             default: $fatal(2, "Unknown control op");
         endcase
@@ -68,6 +56,7 @@ package ControlHandling;
         res.active = 1;
         res.eventMid = info.eventMid;
         res.cOp = info.cOp;
+        res.redirect = 1;
 
         return res;
     endfunction

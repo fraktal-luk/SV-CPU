@@ -381,8 +381,6 @@ module ExecBlock(ref InstructionMap insMap,
             tmp = replaceEvId(tmp, U2M(memRefetchNewH.TMP_oid));
             tmp = replaceEvId(tmp, lqRefetchNewH);
             tmp = replaceEvId(tmp, staticEventNewH.mid);
-            
-            tmp = replaceEvId(currentEventReg, tmp);
 
             if (shouldFlushId(tmp) || AbstractCore.lastRetired > tmp) tmp = -1;
 
