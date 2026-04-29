@@ -72,7 +72,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                                             input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
                                             input ProgramEvent pe);
         case (cOp)
-            CO_exception, CO_specificException: begin
+            //CO_exception,
+            CO_specificException: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 
@@ -120,7 +121,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 
                 sysRegs[6] = PE_SYS_UNDEFINED_INSTRUCTION;
             end
-            CO_call: begin                  
+            CO_call: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
@@ -129,7 +130,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
                 sysRegs[6] = PE_SYS_CALL;
             end
-            CO_dbcall: begin                  
+            CO_dbcall: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
@@ -138,6 +139,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
                 sysRegs[6] = PE_SYS_DBCALL;
             end
+
+            // Those below don't set syndrome
             CO_retE: begin
                 sysRegs[1] = sysRegs[4];
             end

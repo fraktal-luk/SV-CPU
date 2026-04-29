@@ -463,25 +463,10 @@ module AbstractCore
     endtask
 
 
-    task automatic activateEvent();
-        if (reset) begin
-            lateEventInfoWaiting <= RESET_EVENT;
-            retiredEmul.resetSignal();
-        end
-        else if (interrupt) begin
-            lateEventInfoWaiting <= INT_EVENT;
-            $display(">> Interrupt !!!");
-            retiredEmul.interrupt();
-        end
-
-        lateEventInfo <= EMPTY_EVENT_INFO;
-
-        if (wqFree) fireLateEvent();
-    endtask
-
-
     task automatic advanceCommit();
         logic cancelRest = 0;
+        logic foundEvent = 0;
+        EventInfo lateEvt; // = EMPTY_EVENT_INFO;
 
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
@@ -501,13 +486,51 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
+                //lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
                 cancelRest = 1; // Don't commit anything more if event is being handled
+                    foundEvent = 1;
+                    lateEvt = eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
             end  
         end
 
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
+
+
+        if (foundEvent)
+            lateEventInfoWaiting <= lateEvt;
+
+        if (reset) begin
+            lateEventInfoWaiting <= RESET_EVENT;
+            retiredEmul.resetSignal();
+        end
+        else if (interrupt) begin
+            lateEventInfoWaiting <= INT_EVENT;
+            $display(">> Interrupt !!!");
+            retiredEmul.interrupt();
+        end
+
+        lateEventInfo <= EMPTY_EVENT_INFO;
+
+        if (wqFree) fireLateEvent();
+
     endtask
+
+
+        task automatic activateEvent();
+            // if (reset) begin
+            //     lateEventInfoWaiting <= RESET_EVENT;
+            //     retiredEmul.resetSignal();
+            // end
+            // else if (interrupt) begin
+            //     lateEventInfoWaiting <= INT_EVENT;
+            //     $display(">> Interrupt !!!");
+            //     retiredEmul.interrupt();
+            // end
+
+            // lateEventInfo <= EMPTY_EVENT_INFO;
+
+            // if (wqFree) fireLateEvent();
+        endtask
 
 
     function automatic void checkUops(input InsId id);

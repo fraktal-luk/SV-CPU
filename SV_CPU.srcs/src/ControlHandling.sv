@@ -14,9 +14,12 @@ package ControlHandling;
         EventInfo res = EMPTY_EVENT_INFO;
         
         case (info.cOp)
+            // Dynamic exceptions
             CO_specificException: begin
                 res.target = info.target;
             end
+
+            // Events known at Decode
             CO_fetchError: begin
                 res.target = IP_FETCH_EXC;
             end
@@ -32,12 +35,22 @@ package ControlHandling;
             CO_dbcall: begin
                 res.target = IP_DB_CALL;
             end
+
+                // Pseudo-interrupt
+                CO_break: begin
+                        $error("-----------\nCO_break in sync?\n--------------");
+                    res.target = IP_DB_BREAK;
+                end
+
+            // Returns
             CO_retE: begin
                 res.target = sr2;
             end 
             CO_retI: begin
                 res.target = sr3;
             end 
+
+            // 
             CO_sync: begin
                 res.target = info.adr + 4;
             end
@@ -47,9 +60,7 @@ package ControlHandling;
             CO_send: begin
                 res.target = info.adr + 4;
             end
-            CO_break: begin
-                res.target = IP_DB_BREAK;
-            end
+
             default: $fatal(2, "Unknown control op");
         endcase
 
@@ -62,7 +73,8 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr, input logic refetch, input logic exception, input ProgramEvent evtType, input logic dbStep);
+    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr,
+                                             input logic refetch, input logic exception, input ProgramEvent evtType, input logic dbStep);
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
         if (refetch) res.cOp = CO_refetch;

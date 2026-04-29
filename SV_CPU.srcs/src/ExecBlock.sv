@@ -408,6 +408,8 @@ module ExecBlock(ref InstructionMap insMap,
             else if (newValue != currentEventReg)
                 lastEvtFetch <= PE_NONE;
 
+            // TODO: introduce lastEvt which stores PE associated with newValue (like above for static)
+
 
             currentEventReg <= newValue;
 
