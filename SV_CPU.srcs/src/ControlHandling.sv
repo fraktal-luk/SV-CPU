@@ -12,35 +12,19 @@ package ControlHandling;
 
     function automatic EventInfo getLateEvent(input EventInfo info, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
-        
+
+        res.target = info.target;
+        res.active = 1;
+        res.eventMid = info.eventMid;
+        res.cOp = info.cOp;
+        res.redirect = 1;
+
         case (info.cOp)
             // Dynamic exceptions
-            CO_specificException: begin
-                res.target = info.target;
-            end
+            CO_specificException: ;
 
             // Events known at Decode
-            CO_fetchError: begin
-                res.target = IP_FETCH_EXC;
-            end
-            CO_error: begin
-                res.target = IP_ERROR;
-            end
-            CO_undef: begin
-                res.target = IP_EXC;
-            end
-            CO_call: begin
-                res.target = IP_CALL;
-            end
-            CO_dbcall: begin
-                res.target = IP_DB_CALL;
-            end
-
-                // Pseudo-interrupt
-                CO_break: begin
-                        $error("-----------\nCO_break in sync?\n--------------");
-                    res.target = IP_DB_BREAK;
-                end
+            CO_fetchError, CO_error, CO_undef, CO_call, CO_dbcall: ;
 
             // Returns
             CO_retE: begin
@@ -51,23 +35,10 @@ package ControlHandling;
             end 
 
             // 
-            CO_sync: begin
-                res.target = info.adr + 4;
-            end
-            CO_refetch: begin
-                res.target = info.adr;
-            end 
-            CO_send: begin
-                res.target = info.adr + 4;
-            end
+            CO_sync, CO_refetch, CO_send:  ;
 
             default: $fatal(2, "Unknown control op");
         endcase
-
-        res.active = 1;
-        res.eventMid = info.eventMid;
-        res.cOp = info.cOp;
-        res.redirect = 1;
 
         return res;
     endfunction
@@ -77,7 +48,10 @@ package ControlHandling;
                                              input logic refetch, input logic exception, input ProgramEvent evtType, input logic dbStep);
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
-        if (refetch) res.cOp = CO_refetch;
+        if (refetch) begin
+            res.cOp = CO_refetch;
+            res.target = adr;
+        end
         else if (exception && !isStaticEventUop(uname)) begin
             assert (evtType != PE_NONE) else $fatal(2, "Unspecified exception reached Commit");
 
@@ -86,20 +60,57 @@ package ControlHandling;
         end
         else begin
             case (uname)
-                UOP_ctrl_fetchError: res.cOp = CO_fetchError;
-                UOP_ctrl_error:    res.cOp = CO_error;
-                UOP_ctrl_undef:    res.cOp = CO_undef;
-                UOP_ctrl_call:     res.cOp = CO_call;
-                UOP_ctrl_dbcall:   res.cOp = CO_dbcall;
-                UOP_ctrl_rete:     res.cOp = CO_retE;
-                UOP_ctrl_reti:     res.cOp = CO_retI;
-
-                UOP_ctrl_refetch:  res.cOp = CO_refetch;
-                UOP_ctrl_sync:     res.cOp = dbStep ? CO_break : CO_sync;
-                UOP_ctrl_send:     res.cOp = CO_send; // TODO: implement CO_send_break which will work like CO_break but also sends signal
-                default:           res.cOp = dbStep ? CO_break : CO_none;
+                UOP_ctrl_fetchError: begin
+                                        res.cOp = CO_fetchError;
+                                        res.target = IP_FETCH_EXC;
+                                     end
+                UOP_ctrl_error:      begin
+                                        res.cOp = CO_error;
+                                        res.target = IP_ERROR;
+                                     end
+                UOP_ctrl_undef:      begin 
+                                        res.cOp = CO_undef;
+                                        res.target = IP_EXC;
+                                     end
+                UOP_ctrl_call:       begin
+                                        res.cOp = CO_call;
+                                        res.target = IP_CALL;
+                                     end
+                UOP_ctrl_dbcall:     begin
+                                        res.cOp = CO_dbcall;
+                                        res.target = IP_DB_CALL;
+                                     end
+                UOP_ctrl_rete:       begin
+                                        res.cOp = CO_retE;
+                                        res.target = 'x;
+                                     end
+                UOP_ctrl_reti:       begin
+                                        res.cOp = CO_retI;
+                                        res.target = 'x;
+                                     end
+                UOP_ctrl_refetch:    begin
+                                        res.cOp = CO_refetch;
+                                        res.target = adr;
+                                     end
+                UOP_ctrl_sync:     begin
+                                      res.cOp = dbStep ? CO_break : CO_sync;
+                                      res.target = adr + 4;
+                                      if (dbStep) res = DB_EVENT;
+                                   end
+                UOP_ctrl_send:     begin
+                                      res.cOp = CO_send; // TODO: implement CO_send_break which will work like CO_break but also sends signal
+                                      res.target = adr + 4;
+                                   end
+                default:           begin
+                                      res.cOp = dbStep ? CO_break : CO_none;
+                                      res.target = 'x;
+                                      if (dbStep) res = DB_EVENT;
+                                   end
             endcase
+
         end
+
+
         return res;
     endfunction
 

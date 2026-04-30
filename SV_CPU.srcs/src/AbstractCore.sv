@@ -155,7 +155,6 @@ module AbstractCore
         sysUnit.handleReads();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
-        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
@@ -431,20 +430,10 @@ module AbstractCore
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.active !== 1) return;
 
-        if (lateEventInfoWaiting.cOp == CO_reset) begin
-            sysUnit.saveStateAsync(retiredTarget, CO_reset);
-            retiredTarget <= IP_RESET;
-            lateEventInfo <= RESET_EVENT;
-        end
-        else if (lateEventInfoWaiting.cOp == CO_int) begin
-            sysUnit.saveStateAsync(retiredTarget, CO_int);
-            retiredTarget <= IP_INT;
-            lateEventInfo <= INT_EVENT;
-        end
-        else if (lateEventInfoWaiting.cOp == CO_break) begin
-            sysUnit.saveStateAsync(retiredTarget, CO_break);
-            retiredTarget <= IP_DB_BREAK;
-            lateEventInfo <= DB_EVENT;
+        if (lateEventInfoWaiting.cOp inside {CO_reset, CO_int, CO_break}) begin
+            sysUnit.saveStateAsync(retiredTarget, lateEventInfoWaiting.cOp);
+            retiredTarget <= lateEventInfoWaiting.target;
+            lateEventInfo <= lateEventInfoWaiting;
         end
         else begin
             Mword sr2 = sysUnit.sysRegs[2];
@@ -464,7 +453,6 @@ module AbstractCore
 
 
     task automatic advanceCommit();
-        logic cancelRest = 0;
         logic foundEvent = 0;
         EventInfo lateEvt; // = EMPTY_EVENT_INFO;
 
@@ -472,7 +460,7 @@ module AbstractCore
             InsId theId = theRob.retirementGroup[i].mid;
 
             if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
-            if (cancelRest) $fatal(2, "Committing after break");
+            if (foundEvent) $fatal(2, "Committing after break");
 
             commitOp(theRob.retirementGroup[i]);
 
@@ -486,10 +474,8 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                //lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
-                cancelRest = 1; // Don't commit anything more if event is being handled
-                    foundEvent = 1;
-                    lateEvt = eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
+                foundEvent = 1; // Don't commit anything more if event is being handled
+                lateEvt = eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
             end  
         end
 
@@ -512,25 +498,7 @@ module AbstractCore
         lateEventInfo <= EMPTY_EVENT_INFO;
 
         if (wqFree) fireLateEvent();
-
     endtask
-
-
-        task automatic activateEvent();
-            // if (reset) begin
-            //     lateEventInfoWaiting <= RESET_EVENT;
-            //     retiredEmul.resetSignal();
-            // end
-            // else if (interrupt) begin
-            //     lateEventInfoWaiting <= INT_EVENT;
-            //     $display(">> Interrupt !!!");
-            //     retiredEmul.interrupt();
-            // end
-
-            // lateEventInfo <= EMPTY_EVENT_INFO;
-
-            // if (wqFree) fireLateEvent();
-        endtask
 
 
     function automatic void checkUops(input InsId id);
