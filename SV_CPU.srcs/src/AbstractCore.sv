@@ -353,14 +353,13 @@ module AbstractCore
         runInEmulator(renamedEmul, adr, bits);
 
         // Is there an exception?
-           // if (renamedEmul.status.exceptionRaised) $error("Exception in renamed emul");
+        if (staticExc //&& !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})
+          ) begin
+            ii.exception = staticExc;
+            ii.eventType = renamedEmul.status.eventType;
+        end
 
-           if (staticExc && !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})) begin
-                ii.exception = staticExc;
-                ii.eventType = renamedEmul.status.eventType;
-           end
-
-           ii.emulException = renamedEmul.status.exceptionRaised;
+        ii.emulException = renamedEmul.status.exceptionRaised;
 
         renamedEmul.drain();
 
@@ -476,7 +475,17 @@ module AbstractCore
                 InstructionInfo ii = insMap.get(theId);
                 foundEvent = 1; // Don't commit anything more if event is being handled
                 lateEvt = eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
-            end  
+
+
+                if (theExecBlock.currentEventReg == theId) begin
+                    assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);
+                end
+                else begin
+                    assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
+                    else $fatal(2, "Event in map not registered in HW\n%p", ii);
+                end
+
+            end
         end
 
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
@@ -534,10 +543,8 @@ module AbstractCore
             $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
         end
 
-        // TODO: incorporate arith exc into ROB output to bring back this check?
-          //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
-          //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
-          assert (info.exception === info.emulException) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+        // .emulException implies .exception
+        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 

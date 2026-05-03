@@ -48,55 +48,72 @@ package ControlHandling;
                                              input logic refetch, input logic exception, input ProgramEvent evtType, input logic dbStep);
         EventInfo res = '{1, id, CO_none, 1, adr, 'x};
         
+        // Refetch event (dynamic?)  
         if (refetch) begin
             res.cOp = CO_refetch;
             res.target = adr;
         end
-        else if (exception && !isStaticEventUop(uname)) begin
+        else if (exception && !isStaticEventUop(uname)) begin // dynamic exception
             assert (evtType != PE_NONE) else $fatal(2, "Unspecified exception reached Commit");
 
             res.cOp = CO_specificException;
             res.target = programEvent2trg(evtType);
         end
-        else begin
+        else begin // Decode events
             case (uname)
+                // exc
                 UOP_ctrl_fetchError: begin
                                         res.cOp = CO_fetchError;
                                         res.target = IP_FETCH_EXC;
                                      end
+                // exc
                 UOP_ctrl_error:      begin
                                         res.cOp = CO_error;
                                         res.target = IP_ERROR;
                                      end
+                // exc
                 UOP_ctrl_undef:      begin 
                                         res.cOp = CO_undef;
                                         res.target = IP_EXC;
                                      end
+                // exc?
                 UOP_ctrl_call:       begin
                                         res.cOp = CO_call;
                                         res.target = IP_CALL;
                                      end
+                // exc?
                 UOP_ctrl_dbcall:     begin
                                         res.cOp = CO_dbcall;
                                         res.target = IP_DB_CALL;
                                      end
+
+                // ret
                 UOP_ctrl_rete:       begin
                                         res.cOp = CO_retE;
                                         res.target = 'x;
                                      end
+                // ret
                 UOP_ctrl_reti:       begin
                                         res.cOp = CO_retI;
                                         res.target = 'x;
                                      end
+
+
+                // Static refetch: does it make sense?
                 UOP_ctrl_refetch:    begin
                                         res.cOp = CO_refetch;
                                         res.target = adr;
                                      end
+
+
+                // sync
                 UOP_ctrl_sync:     begin
                                       res.cOp = dbStep ? CO_break : CO_sync;
                                       res.target = adr + 4;
                                       if (dbStep) res = DB_EVENT;
                                    end
+                
+                // sync
                 UOP_ctrl_send:     begin
                                       res.cOp = CO_send; // TODO: implement CO_send_break which will work like CO_break but also sends signal
                                       res.target = adr + 4;
