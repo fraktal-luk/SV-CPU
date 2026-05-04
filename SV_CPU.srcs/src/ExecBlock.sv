@@ -305,15 +305,15 @@ module ExecBlock(ref InstructionMap insMap,
             memRefetchNewH <= findOldestWithState(ES_REFETCH, memImagesTr[0]);
 
             lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
-            staticEventNewH <= getOldestRenameEvSlot();
+            staticEventNewH <= Exec_getOldestRenameEvSlot();
         end
 
         always @(posedge AbstractCore.clk) begin
-            updateCurrentEventReg();
+            Exec_updateCurrentEventReg();
         end
 
 
-        function automatic OpSlotB getOldestRenameEvSlot();
+        function automatic OpSlotB Exec_getOldestRenameEvSlot();
             // TODO: if stageRename1_N is not empty and has a fetch event, catch it
 
             OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
@@ -352,7 +352,7 @@ module ExecBlock(ref InstructionMap insMap,
         //     else return prev;
         // endfunction
 
-        function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
+        function automatic UopPacket Exec_replaceEvP(input UopPacket prev, input UopPacket next);
             UopPacket older = prev;
             InsId prevId = U2M(prev.TMP_oid);
             InsId nextId = U2M(next.TMP_oid);
@@ -369,7 +369,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-        function automatic InsId getCurrentEventId();
+        function automatic InsId Exec_getCurrentEventId();
             InsId tmp = currentEventReg;
                         
             if (AbstractCore.CurrentConfig.enArithExc) begin
@@ -387,8 +387,8 @@ module ExecBlock(ref InstructionMap insMap,
             return tmp;
         endfunction
 
-        task automatic updateCurrentEventReg();
-            InsId newValue = getCurrentEventId();
+        task automatic Exec_updateCurrentEventReg();
+            InsId newValue = Exec_getCurrentEventId();
             int inds[$] = memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == newValue); 
 
             // Is the new ID one of mem uops?
@@ -414,11 +414,11 @@ module ExecBlock(ref InstructionMap insMap,
             currentEventReg <= newValue;
 
             // Needs: ?
-            fpInvReg <= replaceEvP(fpInvReg, fpInvNewH);
-            fpOvReg <= replaceEvP(fpOvReg, fpOvNewH);
+            fpInvReg <= Exec_replaceEvP(fpInvReg, fpInvNewH);
+            fpOvReg <= Exec_replaceEvP(fpOvReg, fpOvNewH);
 
             // Needs: kind of event, mem access address (V only?)
-            memEventReg <= replaceEvP(memEventReg, memEventNewH);
+            memEventReg <= Exec_replaceEvP(memEventReg, memEventNewH);
 
         endtask
 
