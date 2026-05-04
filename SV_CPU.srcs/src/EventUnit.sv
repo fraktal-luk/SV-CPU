@@ -29,19 +29,9 @@ module EventUnit(input logic clk);
 
     logic chp, chq;
 
-    InsId currentEventReg = -1, lqRefetchNewH = -1;
 
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
-
-    ProgramEvent lastEvtFetch = PE_NONE;
-    OpSlotB staticEventNewH = EMPTY_SLOT_B;
-    UopPacket memRefetchNewH = EMPTY_UOP_PACKET;
-    UopPacket memEventReg = EMPTY_UOP_PACKET, memEventNewH = EMPTY_UOP_PACKET;
-    UopPacket fpInvReg = EMPTY_UOP_PACKET, fpInvNewH = EMPTY_UOP_PACKET;
-    UopPacket fpOvReg = EMPTY_UOP_PACKET, fpOvNewH = EMPTY_UOP_PACKET;
-
-
 
     EventDesc frontH = EMPTY_EVENT_DESC, front = EMPTY_EVENT_DESC,
                 dbStepH = EMPTY_EVENT_DESC, dbStep = EMPTY_EVENT_DESC, // Separate because can be overridden by exception
@@ -58,28 +48,15 @@ module EventUnit(input logic clk);
               generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC;
 
 
-
     always @(negedge clk) begin
-        // fpInvNewH <= findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]);
-        // fpOvNewH <=  findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]);
+        frontH <= getFrontEv();
 
-        // memEventNewH <= findOldestMemEvt(theExecBlock.memImagesTr[0]);
-        // memRefetchNewH <= findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]);
+        fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
+        fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
 
-        // lqRefetchNewH <= theLq.submod.oldestRefetchEntryP0.mid;
-        // staticEventNewH <= getOldestRenameEvSlot();
-
-
-            frontH <= edFromFront(getOldestRenameEvSlot());
-
-            fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
-            fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
-
-            execMemH <= edFromUop(findOldestMemEvt(theExecBlock.memImagesTr[0]));
-            execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]));
-            lqRefetchH <= edFromLqRefetch(theLq.submod.oldestRefetchEntryP0.mid);
-
-
+        execMemH <= edFromUop(findOldestMemEvt(theExecBlock.memImagesTr[0]));
+        execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]));
+        lqRefetchH <= edFromLqRefetch(theLq.submod.oldestRefetchEntryP0.mid);
     end
 
 
@@ -88,14 +65,18 @@ module EventUnit(input logic clk);
     end
 
 
-    function automatic OpSlotB getOldestRenameEvSlot();
+    function automatic EventDesc getFrontEv();
         // TODO: if stageRename1_N is not empty and has a fetch event, catch it
 
         OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
         // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
-        if (found.size() == 0) return EMPTY_SLOT_B;
-        else return found[0];
+        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+
+        if (AbstractCore.stageRename1_N.evt) return '{1, AbstractCore.stageRename1[0].mid, AbstractCore.stageRename1_N.evt};
+
+        if (found.size() == 0) return EMPTY_EVENT_DESC;
+        else return edFromFront(found[0]);
     endfunction
 
 
@@ -120,85 +101,63 @@ module EventUnit(input logic clk);
     endfunction 
 
 
-        task automatic updateCurrentEventReg();
-            EventDesc newValue = getCurrentEvent();
-            // int inds[$] = memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == newValue); 
+    task automatic updateCurrentEventReg();
+        EventDesc newValue = getCurrentEvent();
 
-            // // Is the new ID one of mem uops?
-            // if (inds.size() > 0) begin
-            //     int ind = inds[0];
-            //     lastEvtAD <= accessDescs_E2[ind];
-            //     lastEvtTr <= dcacheTranslations_E2[ind];
-            // end
-            // else if (newValue != currentEventReg) begin // If changes to non-memory
-            //     lastEvtAD <= DEFAULT_ACCESS_DESC;
-            //     lastEvtTr <= DEFAULT_TRANSLATION;
-            // end
+        general <= newValue;
 
-            // // Is it a fetch event?
-            // if (staticEventNewH.mid == newValue)
-            //     lastEvtFetch <= AbstractCore.stageRename1_N.evt;
-            // else if (newValue != currentEventReg)
-            //     lastEvtFetch <= PE_NONE;
+        front <= replaceEvt(front, frontH);
 
-            general <= newValue;
+        fpInv <= replaceEvt(fpInv, fpInvH);
+        fpOv <=  replaceEvt(fpOv, fpOvH);
 
-            front <= replaceEvt(front, frontH);
+        execMem <= replaceEvt(execMem, execMemH);
+        execRefetch <= replaceEvt(execRefetch, execRefetchH);
+        lqRefetch <= replaceEvt(lqRefetch, lqRefetchH);
 
-            fpInv <= replaceEvt(fpInv, fpInvH);
-            fpOv <=  replaceEvt(fpOv, fpOvH);
+        if (execMemH != execMem && execMemH.active) begin
+            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == newValue.id); 
+            assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
-            execMem <= replaceEvt(execMem, execMemH);
-            execRefetch <= replaceEvt(execRefetch, execRefetchH);
-            lqRefetch <= replaceEvt(lqRefetch, lqRefetchH);
+            lastEvtAD <= theExecBlock.accessDescs_E2[inds[0]];
+            lastEvtTr <= theExecBlock.dcacheTranslations_E2[inds[0]];
+        end
+    endtask
 
 
-            if (execMemH != execMem && execMemH.active) begin
-                int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == newValue.id); 
-                assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
+    function automatic EventDesc replaceEvt(input EventDesc prev, input EventDesc next);
+        EventDesc older = prev;
+        InsId prevId = (prev.id);
+        InsId nextId = (next.id);
+        InsId olderId = replaceEvId(prevId, nextId);
 
-                lastEvtAD <= theExecBlock.accessDescs_E2[inds[0]];
-                lastEvtTr <= theExecBlock.dcacheTranslations_E2[inds[0]];
-            end
+        if (prevId == -1) older = next;
+        else if (nextId != -1 && prevId > nextId) older = next;
 
+        assert (olderId == (older.id)) else $error("Ids differ");
 
-        endtask
+        if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_EVENT_DESC;
+        return older;
+    endfunction
 
+    function automatic EventDesc getCurrentEvent();
+        EventDesc tmp = general;
+                    
+        if (AbstractCore.CurrentConfig.enArithExc) begin
+            tmp = replaceEvt(tmp, fpInvH);
+            tmp = replaceEvt(tmp, fpOvH);
+        end
 
-        function automatic EventDesc replaceEvt(input EventDesc prev, input EventDesc next);
-            EventDesc older = prev;
-            InsId prevId = (prev.id);
-            InsId nextId = (next.id);
-            InsId olderId = replaceEvId(prevId, nextId);
+        tmp = replaceEvt(tmp, execMemH);
+        tmp = replaceEvt(tmp, execRefetchH);
+        tmp = replaceEvt(tmp, lqRefetchH);
+        tmp = replaceEvt(tmp, frontH);
 
-            if (prevId == -1) older = next;
-            else if (nextId != -1 && prevId > nextId) older = next;
+        //if (shouldFlushId(tmp.id) || AbstractCore.lastRetired > tmp.id) tmp = EMPTY_EVENT_DESC;
 
-            assert (olderId == (older.id)) else $error("Ids differ");
+        return tmp;
+    endfunction
 
-            if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_EVENT_DESC;
-            //else
-            return older;
-        endfunction
-
-        function automatic EventDesc getCurrentEvent();
-            EventDesc tmp = general;
-                        
-            if (AbstractCore.CurrentConfig.enArithExc) begin
-                tmp = replaceEvt(tmp, fpInvH);
-                tmp = replaceEvt(tmp, fpOvH);
-            end
-
-            tmp = replaceEvt(tmp, execMemH);
-            tmp = replaceEvt(tmp, execRefetchH);
-            tmp = replaceEvt(tmp, lqRefetchH);
-            tmp = replaceEvt(tmp, frontH);
-
-            //if (shouldFlushId(tmp.id) || AbstractCore.lastRetired > tmp.id) tmp = EMPTY_EVENT_DESC;
-
-            return tmp;
-        endfunction
-
-               assign chp = (general.id == theExecBlock.currentEventReg); 
+        assign chp = (general.id == theExecBlock.currentEventReg); 
 
 endmodule

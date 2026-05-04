@@ -465,6 +465,14 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
+                // assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInvReg) else $error("lelee");
+                // assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOvReg) else $error("uluuelee");
+
+                // assert( theExecBlock.lastEvtAD === eventUnit.lastEvtAD) else $error("sssss");
+                // assert( theExecBlock.lastEvtTr === eventUnit.lastEvtTr) else $error("tttttsssss");
+
+
+
             if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) sysUnit.setFpInv();
             if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) sysUnit.setFpOv();
             
@@ -481,6 +489,24 @@ module AbstractCore
 
                 if (theExecBlock.currentEventReg == theId) begin
                     assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);
+
+
+                        assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInv.id) else $error("lelee");
+                        assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOv.id) else $error("uluuelee");
+
+
+                        if (U2M(theExecBlock.memEventReg.TMP_oid) == theId) begin
+                            assert ( theId == eventUnit.execMem.id ) else $error("FFFFF");
+
+                            assert( theExecBlock.lastEvtAD === eventUnit.lastEvtAD) else $error("sssss");
+                            assert( theExecBlock.lastEvtTr === eventUnit.lastEvtTr) else $error("tttttsssss");
+                        end
+
+                        if (theId == eventUnit.front.id) begin
+                            assert ( theExecBlock.lastEvtFetch === eventUnit.front.etype ) else $error("hjehjkrjrr");
+                        end
+
+
                 end
                 else begin
                     assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
