@@ -324,33 +324,33 @@ module ExecBlock(ref InstructionMap insMap,
         endfunction
 
 
-        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+        // function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
+        //     ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+        //     ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
 
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
+        //     if (found.size() == 0) return EMPTY_UOP_PACKET;
 
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
+        //     assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+        //     return oldest[0];
+        // endfunction
 
-        function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+        // function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
+        //     ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
+        //     ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
             
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
+        //     if (found.size() == 0) return EMPTY_UOP_PACKET;
             
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
+        //     assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+        //     return oldest[0];
+        // endfunction
 
 
 
-        function automatic InsId replaceEvId(input InsId prev, input InsId next);
-            if (prev == -1) return next;
-            else if (next != -1 && prev > next) return next;
-            else return prev;
-        endfunction
+        // function automatic InsId replaceEvId(input InsId prev, input InsId next);
+        //     if (prev == -1) return next;
+        //     else if (next != -1 && prev > next) return next;
+        //     else return prev;
+        // endfunction
 
         function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
             UopPacket older = prev;

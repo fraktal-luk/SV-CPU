@@ -106,6 +106,8 @@ module AbstractCore
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B}; // TODO: change to type of stageRename0 to include evt info
     FrontStage stageRename1_N = DEFAULT_FRONT_STAGE;
 
+    EventUnit eventUnit(clk);
+
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
         theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);

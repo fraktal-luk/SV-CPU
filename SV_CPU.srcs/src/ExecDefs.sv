@@ -624,5 +624,63 @@ package ExecDefs;
                 ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
                 return oldest;
             endfunction
+
+
+
+        // function automatic OpSlotB getOldestRenameEvSlot();
+        //     // TODO: if stageRename1_N is not empty and has a fetch event, catch it
+
+        //     OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
+        //     // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
+
+        //     if (found.size() == 0) return EMPTY_SLOT_B;
+        //     else return found[0];
+        // endfunction
+
+
+        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+
+        function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
+            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
             
+            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            
+            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+            return oldest[0];
+        endfunction
+
+
+
+        function automatic InsId replaceEvId(input InsId prev, input InsId next);
+            if (prev == -1) return next;
+            else if (next != -1 && prev > next) return next;
+            else return prev;
+        endfunction
+
+        // function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
+        //     UopPacket older = prev;
+        //     InsId prevId = U2M(prev.TMP_oid);
+        //     InsId nextId = U2M(next.TMP_oid);
+        //     InsId olderId = replaceEvId(prevId, nextId);
+
+        //     if (prevId == -1) older = next;
+        //     else if (nextId != -1 && prevId > nextId) older = next;
+
+        //     assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
+
+        //     if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
+        //     else return older;
+        // endfunction
+
+
+    
 endpackage
