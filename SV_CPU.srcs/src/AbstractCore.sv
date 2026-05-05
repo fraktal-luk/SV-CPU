@@ -309,7 +309,7 @@ module AbstractCore
 
     task automatic flushBranchCheckpointQueueAll();
         branchCheckpointQueue = '{};
-    endtask    
+    endtask
 
     task automatic flushBranchCheckpointQueuePartial(input InsId id);
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].id > id) void'(branchCheckpointQueue.pop_back());

@@ -71,18 +71,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     function automatic void modifyStateSync(input ControlOp cOp, input Mword adr,
                                             input AccessDesc ad_N, input Translation tr_N,
                                             input EventDesc generalDesc);
-        case (cOp)
-            CO_specificException, CO_fetchError, CO_undef: begin
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr;
-                
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                sysRegs[6] = generalDesc.etype;
-            end
-
-            CO_call, CO_dbcall: begin
+        case (generalDesc.etype) inside
+            PE_SYS_CALL, PE_SYS_DBCALL: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
@@ -92,17 +83,24 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[6] = generalDesc.etype;
             end
 
-            // Those below don't set syndrome
-            CO_retE: begin
-                sysRegs[1] = sysRegs[4];
-            end
-            CO_retI: begin
-                sysRegs[1] = sysRegs[5];
-            end
-            
-            CO_refetch, CO_sync, CO_send: ;
+            [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS],
+            [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS],
+            [PE_SYS_INVALID_ADDRESS : PE_SYS_DISABLED_INSTRUCTION],
+            PE_ARITH_EXCEPTION: begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[2] = adr;
+                
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                sysRegs[1] &= ~('h00100000); // clear dbstep
 
-            default: $fatal(2, "Incorrect control op %p", cOp);
+                sysRegs[6] = generalDesc.etype;
+            end
+
+            PE_HW_RETE: sysRegs[1] = sysRegs[4];
+            PE_HW_RETI: sysRegs[1] = sysRegs[5];
+            PE_HW_SYNC, PE_HW_SEND, PE_HW_REFETCH: ;
+
+            default: $fatal(2, "Incorrect %p", generalDesc.etype);
         endcase
 
     endfunction
