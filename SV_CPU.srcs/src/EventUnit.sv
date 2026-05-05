@@ -200,6 +200,6 @@ module EventUnit(input logic clk);
         return tmp;
     endfunction
 
-        assign chp = (general.id == theExecBlock.currentEventReg); 
+       // assign chp = (general.id == theExecBlock.currentEventReg); 
 
 endmodule

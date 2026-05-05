@@ -443,9 +443,6 @@ module AbstractCore
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
-                                    //theExecBlock.memEventReg, eventUnit.execMem,
-                                    //eventUnit.fpInv, eventUnit.fpOv,
-                                    //eventUnit.front,
                                     eventUnit.general);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
@@ -469,13 +466,9 @@ module AbstractCore
 
             if (theId == (eventUnit.fpInv.id)) begin
                 sysUnit.setFpInv();
-
-                    assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInv.id) else $error("5555555");
             end
             if (theId == (eventUnit.fpOv.id)) begin
                 sysUnit.setFpOv();
-
-                    assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOv.id) else $error("11111111111");
             end
 
             syncCurrentConfigFromRegs();
@@ -488,20 +481,8 @@ module AbstractCore
                 foundEvent = 1; // Don't commit anything more if event is being handled
                 lateEvt = eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
 
-
-                if (theExecBlock.currentEventReg == theId) begin
+                if (eventUnit.general.id == theId) begin
                     assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);
-
-                        assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInv.id) else $error("lelee");
-                        assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOv.id) else $error("uluuelee");
-
-                        if (U2M(theExecBlock.memEventReg.TMP_oid) == theId) begin
-                            assert ( theId == eventUnit.execMem.id ) else $error("FFFFF");
-
-                            assert( theExecBlock.lastEvtAD === eventUnit.lastEvtAD) else $error("sssss");
-                            assert( theExecBlock.lastEvtTr === eventUnit.lastEvtTr) else $error("tttttsssss");
-                        end
-
                 end
                 else begin
                     assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
@@ -615,9 +596,9 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-        assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
+        assert ((eventUnit.general.id == id) === (retInfo.refetch || retInfo.exception ||
                             isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-        else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, retInfo.refetch, retInfo.exception);
+        else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, eventUnit.general.id, retInfo.refetch, retInfo.exception);
                             
         verifyOnCommit(retInfo);
 

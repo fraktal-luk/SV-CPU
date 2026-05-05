@@ -34,19 +34,12 @@ sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUopsE2
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/memImages
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/lastEvtAD \
-sim:/ArchDesc0/core/theExecBlock/lastEvtFetch \
-sim:/ArchDesc0/core/theExecBlock/lastEvtTr
+
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/lateEventInfo
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/branchEventInfo
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/lqRefetchNewH \
-sim:/ArchDesc0/core/theExecBlock/memEventNewH
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/staticEventNewH
+
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/mainEmul
@@ -66,10 +59,6 @@ sim:/ArchDesc0/core/theExecBlock/replayQueue/issued0 \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/issued1 \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/outPacket
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/currentEventReg
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/lastEvtFetch
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/eventUnit/front \
 sim:/ArchDesc0/core/eventUnit/frontH \
