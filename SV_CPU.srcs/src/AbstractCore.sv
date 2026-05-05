@@ -443,8 +443,8 @@ module AbstractCore
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
-                                    theExecBlock.memEventReg, eventUnit.execMem,
-                                    eventUnit.fpInv, eventUnit.fpOv,
+                                    //theExecBlock.memEventReg, eventUnit.execMem,
+                                    //eventUnit.fpInv, eventUnit.fpOv,
                                     //eventUnit.front,
                                     eventUnit.general);
             retiredTarget <= lateEvt.target;
