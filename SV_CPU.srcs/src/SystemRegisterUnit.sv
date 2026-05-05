@@ -73,7 +73,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                                                 input AccessDesc ad_N, input Translation tr_N,
                                             input UopPacket mp, //input UopPacket fpInv, input UopPacket fpOv,
                                                 input EventDesc memDesc, input EventDesc fpInvDesc, input EventDesc fpOvDesc,
-                                            input ProgramEvent pe);
+                                            //input ProgramEvent pe,
+                                            input EventDesc frontDesc);
         case (cOp)
             //CO_exception,
             CO_specificException: begin
@@ -113,7 +114,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                sysRegs[6] = pe;
+                   // assert (pe == frontDesc.etype) else $error("Differing %p, %p", pe, frontDesc.etype);
+
+                sysRegs[6] = frontDesc.etype;// pe;
             end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
@@ -155,6 +158,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
             
             default: $fatal(2, "Incorrect control op %p", cOp);
         endcase
+
     endfunction
     
 

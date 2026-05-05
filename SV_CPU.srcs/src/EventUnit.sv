@@ -61,11 +61,14 @@ module EventUnit(input logic clk);
         // TODO: if stageRename1_N is not empty and has a fetch event, catch it
 
         OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
+        OpSlotB foundAny[$] = AbstractCore.stageRename1.find_first with (item.active);
         // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
         if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
 
-        if (AbstractCore.stageRename1_N.evt) return '{1, AbstractCore.stageRename1[0].mid, AbstractCore.stageRename1_N.evt};
+        assert (foundAny.size() > 0) else $error("Renamed group active, must have active element");
+
+        if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
 
         if (found.size() == 0) return EMPTY_EVENT_DESC;
         else return edFromFront(found[0]);
@@ -108,13 +111,34 @@ module EventUnit(input logic clk);
 
     function automatic EventDesc edFromFront(input OpSlotB slot);
         ProgramEvent evt = PE_NONE;
+        UopName uname;
 
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
-        // TODO: fill evt
-        
+        uname = decMainUop(slot.mid);
 
-        
+        case (uname)
+            UOP_ctrl_fetchError: $fatal(2, "Handled elsewhere");
+
+            UOP_ctrl_error: evt = PE_SYS_ERROR;
+            UOP_ctrl_undef: evt = PE_SYS_UNDEFINED_INSTRUCTION;
+            UOP_ctrl_call:  evt = PE_SYS_CALL;
+            UOP_ctrl_dbcall:  evt = PE_SYS_DBCALL;
+
+            // ret
+            UOP_ctrl_rete:  evt = PE_HW_RETE;
+            UOP_ctrl_reti:  evt = PE_HW_RETI;
+
+            // Static refetch: does it make sense?
+            UOP_ctrl_refetch: evt = PE_HW_REFETCH;
+
+            // sync
+            UOP_ctrl_sync:  evt = PE_HW_SYNC;
+            UOP_ctrl_send:  evt = PE_HW_SEND;
+
+            default: ;
+        endcase
+
         return '{1, slot.mid, evt};
     endfunction 
 

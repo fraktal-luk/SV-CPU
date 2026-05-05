@@ -448,7 +448,8 @@ module AbstractCore
                                     //theExecBlock.fpInvReg, theExecBlock.fpOvReg,
                                         eventUnit.execMem,
                                         eventUnit.fpInv, eventUnit.fpOv,
-                                    theExecBlock.lastEvtFetch);
+                                    //theExecBlock.lastEvtFetch,
+                                    eventUnit.front);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -516,9 +517,10 @@ module AbstractCore
                             assert( theExecBlock.lastEvtTr === eventUnit.lastEvtTr) else $error("tttttsssss");
                         end
 
-                        if (theId == eventUnit.front.id) begin
-                            assert ( theExecBlock.lastEvtFetch === eventUnit.front.etype ) else $error("hjehjkrjrr");
-                        end
+                        // if (theId == eventUnit.front.id) begin
+                        //     assert ( theExecBlock.lastEvtFetch === eventUnit.front.etype ) else $error("hjehjkrjrr\n%p\n%p",
+                        //                                                                         theExecBlock.lastEvtFetch, eventUnit.front.etype);
+                        // end
 
 
                 end

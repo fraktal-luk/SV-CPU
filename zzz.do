@@ -65,3 +65,16 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/issued0 \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/issued1 \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/outPacket
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/currentEventReg
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/lastEvtFetch
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/eventUnit/front \
+sim:/ArchDesc0/core/eventUnit/frontH \
+sim:/ArchDesc0/core/eventUnit/general \
+sim:/ArchDesc0/core/eventUnit/generalH
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/stageRename1 \
+sim:/ArchDesc0/core/stageRename1_N
