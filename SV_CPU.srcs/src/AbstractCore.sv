@@ -442,14 +442,11 @@ module AbstractCore
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
-                                    //theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
-                                        eventUnit.lastEvtAD, eventUnit.lastEvtTr,
-                                    theExecBlock.memEventReg,
-                                    //theExecBlock.fpInvReg, theExecBlock.fpOvReg,
-                                        eventUnit.execMem,
-                                        eventUnit.fpInv, eventUnit.fpOv,
-                                    //theExecBlock.lastEvtFetch,
-                                    eventUnit.front);
+                                    eventUnit.lastEvtAD, eventUnit.lastEvtTr,
+                                    theExecBlock.memEventReg, eventUnit.execMem,
+                                    eventUnit.fpInv, eventUnit.fpOv,
+                                    eventUnit.front,
+                                    eventUnit.general);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
@@ -470,21 +467,11 @@ module AbstractCore
 
             commitOp(theRob.retirementGroup[i]);
 
-                // assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInvReg) else $error("lelee");
-                // assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOvReg) else $error("uluuelee");
-
-                // assert( theExecBlock.lastEvtAD === eventUnit.lastEvtAD) else $error("sssss");
-                // assert( theExecBlock.lastEvtTr === eventUnit.lastEvtTr) else $error("tttttsssss");
-
-
-
-            //if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
             if (theId == (eventUnit.fpInv.id)) begin
                 sysUnit.setFpInv();
 
                     assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInv.id) else $error("5555555");
             end
-            //if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
             if (theId == (eventUnit.fpOv.id)) begin
                 sysUnit.setFpOv();
 
@@ -505,10 +492,8 @@ module AbstractCore
                 if (theExecBlock.currentEventReg == theId) begin
                     assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);
 
-
                         assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInv.id) else $error("lelee");
                         assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOv.id) else $error("uluuelee");
-
 
                         if (U2M(theExecBlock.memEventReg.TMP_oid) == theId) begin
                             assert ( theId == eventUnit.execMem.id ) else $error("FFFFF");
@@ -516,12 +501,6 @@ module AbstractCore
                             assert( theExecBlock.lastEvtAD === eventUnit.lastEvtAD) else $error("sssss");
                             assert( theExecBlock.lastEvtTr === eventUnit.lastEvtTr) else $error("tttttsssss");
                         end
-
-                        // if (theId == eventUnit.front.id) begin
-                        //     assert ( theExecBlock.lastEvtFetch === eventUnit.front.etype ) else $error("hjehjkrjrr\n%p\n%p",
-                        //                                                                         theExecBlock.lastEvtFetch, eventUnit.front.etype);
-                        // end
-
 
                 end
                 else begin
