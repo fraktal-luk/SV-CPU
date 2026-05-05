@@ -445,7 +445,7 @@ module AbstractCore
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
                                     theExecBlock.memEventReg, eventUnit.execMem,
                                     eventUnit.fpInv, eventUnit.fpOv,
-                                    eventUnit.front,
+                                    //eventUnit.front,
                                     eventUnit.general);
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;

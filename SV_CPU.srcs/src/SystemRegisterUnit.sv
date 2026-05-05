@@ -72,10 +72,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                                             input AccessDesc ad_N, input Translation tr_N,
                                             input UopPacket mp, input EventDesc memDesc,
                                             input EventDesc fpInvDesc, input EventDesc fpOvDesc,
-                                            input EventDesc frontDesc,
+                                            //input EventDesc frontDesc,
                                             input EventDesc generalDesc);
         case (cOp)
-            //CO_exception,
             CO_specificException: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
@@ -83,38 +82,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                if (mp.active) begin
-                    UopName uname = decUname(mp.TMP_oid);
 
-                    case (mp.status)
-                        ES_INVALID: begin
-                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
-                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_INVALID_ADDRESS;
-
-                                        assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
-
-                        end
-                        ES_ILLEGAL: begin
-                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
-                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
-
-                                        assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
-
-                        end
-
-                        default: ;
-                    endcase
-                end
-                else if (fpInvDesc.active) begin
-                    sysRegs[6] = PE_ARITH_EXCEPTION;
-                                assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
-
-                end
-                else if (fpOvDesc.active) begin
-                    sysRegs[6] = PE_ARITH_EXCEPTION;
-                                assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
-
-                end
+                sysRegs[6] = generalDesc.etype;
             end
             CO_fetchError: begin
                 sysRegs[4] = sysRegs[1];
@@ -123,12 +92,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                   // assert (pe == frontDesc.etype) else $error("Differing %p, %p", pe, frontDesc.etype);
 
-                sysRegs[6] = frontDesc.etype;// pe;
-
-                            assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
-
+                sysRegs[6] = generalDesc.etype;
             end
             CO_undef: begin
                 sysRegs[4] = sysRegs[1];
@@ -137,9 +102,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
                 
-                sysRegs[6] = PE_SYS_UNDEFINED_INSTRUCTION;
-                            assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
 
+                sysRegs[6] = generalDesc.etype;
             end
             CO_call: begin
                 sysRegs[4] = sysRegs[1];
@@ -148,9 +112,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                sysRegs[6] = PE_SYS_CALL;
-                            assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
 
+                sysRegs[6] = generalDesc.etype;
             end
             CO_dbcall: begin
                 sysRegs[4] = sysRegs[1];
@@ -159,10 +122,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                sysRegs[6] = PE_SYS_DBCALL;
 
-                            assert (sysRegs[6] === generalDesc.etype) else $error("Type differs: %p, %p", ProgramEvent'(sysRegs[6]), generalDesc.etype);
-
+                sysRegs[6] = generalDesc.etype;
             end
 
             // Those below don't set syndrome
