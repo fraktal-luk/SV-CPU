@@ -442,10 +442,10 @@ module AbstractCore
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
 
             sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
-                                    theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
+                                    //theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
                                         eventUnit.lastEvtAD, eventUnit.lastEvtTr,
                                     theExecBlock.memEventReg,
-                                    theExecBlock.fpInvReg, theExecBlock.fpOvReg,
+                                    //theExecBlock.fpInvReg, theExecBlock.fpOvReg,
                                         eventUnit.execMem,
                                         eventUnit.fpInv, eventUnit.fpOv,
                                     theExecBlock.lastEvtFetch);
@@ -477,12 +477,14 @@ module AbstractCore
 
 
 
-            if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
+            //if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
+            if (theId == (eventUnit.fpInv.id)) begin
                 sysUnit.setFpInv();
 
                     assert (U2M(theExecBlock.fpInvReg.TMP_oid) == eventUnit.fpInv.id) else $error("5555555");
             end
-            if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
+            //if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
+            if (theId == (eventUnit.fpOv.id)) begin
                 sysUnit.setFpOv();
 
                     assert (U2M(theExecBlock.fpOvReg.TMP_oid) == eventUnit.fpOv.id) else $error("11111111111");

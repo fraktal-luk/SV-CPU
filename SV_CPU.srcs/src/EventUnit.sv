@@ -73,10 +73,31 @@ module EventUnit(input logic clk);
 
 
     function automatic EventDesc edFromUop(input UopPacket p);
+        ProgramEvent evt = PE_NONE;
+        UopName uname;
+
         if (!p.active) return EMPTY_EVENT_DESC;
 
-        // TODO: fill evt type
-        return '{1, U2M(p.TMP_oid), PE_NONE};
+        uname = decUname(p.TMP_oid);
+
+        case (p.status)
+            ES_INVALID: begin
+                if (isMemUop(uname)) evt = PE_MEM_INVALID_ADDRESS;
+                else if (isStoreSysUop(uname) || isLoadSysUop(uname)) evt = PE_SYS_INVALID_ADDRESS;
+            end
+            ES_ILLEGAL: begin
+                if (isMemUop(uname)) evt = PE_MEM_DISALLOWED_ACCESS;
+                else if (isStoreSysUop(uname) || isLoadSysUop(uname)) evt = PE_SYS_DISALLOWED_ACCESS;
+            end
+
+            ES_FP_INVALID, ES_FP_OVERFLOW: evt = PE_ARITH_EXCEPTION;
+
+            ES_REFETCH: evt = PE_HW_REFETCH;
+
+            default: ;
+        endcase
+
+        return '{1, U2M(p.TMP_oid), evt};
     endfunction
 
     function automatic EventDesc edFromLqRefetch(input InsId id);
@@ -86,10 +107,15 @@ module EventUnit(input logic clk);
     endfunction 
 
     function automatic EventDesc edFromFront(input OpSlotB slot);
+        ProgramEvent evt = PE_NONE;
+
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
         // TODO: fill evt
-        return '{1, slot.mid, PE_NONE};
+        
+
+        
+        return '{1, slot.mid, evt};
     endfunction 
 
 

@@ -69,9 +69,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
     function automatic void modifyStateSync(input ControlOp cOp, input Mword adr,
-                                            input AccessDesc ad, input Translation tr,
+                                            //input AccessDesc ad, input Translation tr,
                                                 input AccessDesc ad_N, input Translation tr_N,
-                                            input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
+                                            input UopPacket mp, //input UopPacket fpInv, input UopPacket fpOv,
                                                 input EventDesc memDesc, input EventDesc fpInvDesc, input EventDesc fpOvDesc,
                                             input ProgramEvent pe);
         case (cOp)
@@ -99,10 +99,10 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                         default: ;
                     endcase
                 end
-                else if (fpInv.active) begin
+                else if (fpInvDesc.active) begin
                     sysRegs[6] = PE_ARITH_EXCEPTION;
                 end
-                else if (fpOv.active) begin
+                else if (fpOvDesc.active) begin
                     sysRegs[6] = PE_ARITH_EXCEPTION;
                 end
             end
