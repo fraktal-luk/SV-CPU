@@ -68,8 +68,11 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
 
-    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr,
+    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr,
+                                            input AccessDesc ad, input Translation tr,
+                                                input AccessDesc ad_N, input Translation tr_N,
                                             input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
+                                                input EventDesc memDesc, input EventDesc fpInvDesc, input EventDesc fpOvDesc,
                                             input ProgramEvent pe);
         case (cOp)
             //CO_exception,

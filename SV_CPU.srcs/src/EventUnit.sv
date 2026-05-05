@@ -18,14 +18,6 @@ import Queues::*;
 module EventUnit(input logic clk);
 
 
-    typedef struct {
-        logic active;
-        InsId id;
-        ProgramEvent etype;
-    } EventDesc;
-
-    localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
-
 
     logic chp, chq;
 

@@ -795,4 +795,16 @@ package AbstractSim;
         return res;        
     endfunction
 
+
+
+    typedef struct {
+        logic active;
+        InsId id;
+        ProgramEvent etype;
+    } EventDesc;
+
+    localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
+
+
+
 endpackage
