@@ -68,7 +68,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
 
-    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr,
+    function automatic void modifyStateSync(//input ControlOp cOp,
+                                            input Mword adr,
                                             input AccessDesc ad_N, input Translation tr_N,
                                             input EventDesc generalDesc);
 

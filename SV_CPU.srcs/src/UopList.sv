@@ -339,6 +339,17 @@ package UopList;
             };
     endfunction
 
+    function automatic logic isSilentEventUop(input UopName name);
+        return name inside { 
+                UOP_ctrl_rete,
+                UOP_ctrl_reti,
+
+                UOP_ctrl_refetch,
+                UOP_ctrl_sync,
+                UOP_ctrl_send
+            };
+    endfunction
+
 
     function automatic logic uopHasIntDest(input UopName name);
         return name inside {

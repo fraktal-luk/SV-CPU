@@ -357,8 +357,14 @@ module AbstractCore
         // Is there an exception?
         if (staticExc //&& !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})
           ) begin
-            ii.exception = staticExc;
+            ii.exception = 1;
+        end
+
+        if (renamedEmul.status.exceptionRaised) begin
             ii.eventType = renamedEmul.status.eventType;
+        end
+        else if (isSilentEventIns(ins)) begin
+            
         end
 
         ii.emulException = renamedEmul.status.exceptionRaised;
@@ -441,7 +447,8 @@ module AbstractCore
             Mword sr3 = sysUnit.sysRegs[3];
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
 
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
+            sysUnit.modifyStateSync(//lateEventInfoWaiting.cOp,
+                                    lateEventInfoWaiting.adr,
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
                                     eventUnit.general);
             retiredTarget <= lateEvt.target;
@@ -479,7 +486,8 @@ module AbstractCore
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
                 foundEvent = 1; // Don't commit anything more if event is being handled
-                lateEvt = eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
+                lateEvt = eventFromOp(theId, ii, eventUnit.general,
+                                        CurrentConfig.dbStep);
 
                 if (eventUnit.general.id == theId) begin
                     assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);

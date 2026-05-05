@@ -207,15 +207,16 @@ package AbstractSim;
         logic active;
         InsId eventMid;
         ControlOp cOp;
+        ProgramEvent etype;
         logic redirect;
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, 1, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   1, 'x, IP_INT};
-    localparam EventInfo DB_EVENT =         '{1, -1, CO_break, 1, 'x, IP_DB_BREAK};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none, PE_NONE,  0, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset,PE_EXT_RESET, 1, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,  PE_EXT_INTERRUPT, 1, 'x, IP_INT};
+    localparam EventInfo DB_EVENT =         '{1, -1, CO_break,PE_EXT_DEBUG, 1, 'x, IP_DB_BREAK};
 
     typedef struct {
         int iqRegular;

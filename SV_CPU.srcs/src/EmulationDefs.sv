@@ -84,7 +84,11 @@ package EmulationDefs;
     endfunction
 
     function automatic logic isStaticEventIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send};
+        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_send};
+    endfunction
+
+    function automatic logic isSilentEventIns(input AbstractInstruction ins); // excluding sys load
+        return ins.def.o inside {O_sync, O_retE, O_retI, O_replay, O_send};
     endfunction
 
     function automatic logic isLoadIns(input AbstractInstruction ins);

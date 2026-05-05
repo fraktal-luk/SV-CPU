@@ -8,7 +8,7 @@ package ControlHandling;
     import Emulation::*;
     import AbstractSim::*;
     import UopList::*;
-
+    import Insmap::*;
 
     function automatic EventInfo getLateEvent(input EventInfo info, input Mword sr2, input Mword sr3);
         EventInfo res = EMPTY_EVENT_INFO;
@@ -44,10 +44,21 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input UopName uname, input Mword adr,
-                                             input logic refetch, input logic exception, input ProgramEvent evtType, input logic dbStep);
-        EventInfo res = '{1, id, CO_none, 1, adr, 'x};
-        
+    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii,
+                                             input EventDesc eDesc,
+                                             input logic dbStep);
+        UopName uname = ii.mainUop;
+        Mword adr = ii.basicData.adr;
+        logic refetch = ii.refetch;
+        logic exception = ii.exception;
+        ProgramEvent evtType = ii.eventType;
+
+//ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType,
+
+        EventInfo res = '{1, id, CO_none, PE_NONE, 1, adr, 'x};
+        Mword estTarget = programEvent2trg(eDesc.etype);
+
+
         // Refetch event (dynamic?)  
         if (refetch) begin
             res.cOp = CO_refetch;
@@ -124,6 +135,9 @@ package ControlHandling;
                                       if (dbStep) res = DB_EVENT;
                                    end
             endcase
+
+
+                assert(dbStep || isSilentEventUop(uname) || estTarget === res.target) else $error("targets: %X / %X\n%p / %p", estTarget, res.target, eDesc, evtType);
 
         end
 
