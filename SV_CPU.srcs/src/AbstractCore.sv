@@ -490,7 +490,7 @@ module AbstractCore
                                         CurrentConfig.dbStep);
 
                 if (eventUnit.general.id == theId) begin
-                    assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);
+                    assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
                 end
                 else begin
                     assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
@@ -604,9 +604,10 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-        assert ((eventUnit.general.id == id) === (retInfo.refetch || retInfo.exception ||
-                            isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-        else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, eventUnit.general.id, retInfo.refetch, retInfo.exception);
+        assert ((eventUnit.general.id == id) === (retInfo.refetch || retInfo.exception || CurrentConfig.dbStep ||
+                            isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)
+                            ))
+        else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", insInfo, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
                             
         verifyOnCommit(retInfo);
 

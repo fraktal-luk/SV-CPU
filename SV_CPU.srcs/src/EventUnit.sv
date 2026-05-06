@@ -70,7 +70,11 @@ module EventUnit(input logic clk);
 
         if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
 
-        if (found.size() == 0) return EMPTY_EVENT_DESC;
+        if (found.size() == 0 || (found[0].mid > foundAny[0].mid && AbstractCore.CurrentConfig.dbStep)) begin
+            if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
+
+            return EMPTY_EVENT_DESC;
+        end
         else return edFromFront(found[0]);
     endfunction
 
@@ -158,7 +162,7 @@ module EventUnit(input logic clk);
         lqRefetch <= replaceEvt(lqRefetch, lqRefetchH);
 
         if (execMemH != execMem && execMemH.active) begin
-            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == newValue.id); 
+            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
             lastEvtAD <= theExecBlock.accessDescs_E2[inds[0]];
@@ -175,6 +179,7 @@ module EventUnit(input logic clk);
 
         if (prevId == -1) older = next;
         else if (nextId != -1 && prevId > nextId) older = next;
+        else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions  TODO: formalize
 
         assert (olderId == (older.id)) else $error("Ids differ");
 
