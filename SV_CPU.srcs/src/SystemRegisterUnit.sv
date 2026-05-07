@@ -71,9 +71,10 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     function automatic void modifyStateSync(//input ControlOp cOp,
                                             input Mword adr,
                                             input AccessDesc ad_N, input Translation tr_N,
-                                            input EventDesc generalDesc);
+                                            input ProgramEvent pe);
+                                            //input EventDesc generalDesc);
 
-        case (generalDesc.etype) inside
+        case (pe) inside
             PE_SYS_CALL, PE_SYS_DBCALL: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
@@ -81,7 +82,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                sysRegs[6] = generalDesc.etype;
+                sysRegs[6] = pe;
             end
 
             [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS],
@@ -94,32 +95,37 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                sysRegs[6] = generalDesc.etype;
+                sysRegs[6] = pe;
             end
 
             PE_HW_RETE: sysRegs[1] = sysRegs[4];
             PE_HW_RETI: sysRegs[1] = sysRegs[5];
             PE_HW_SYNC, PE_HW_SEND, PE_HW_REFETCH: ;
 
-            default: $fatal(2, "Incorrect %p", generalDesc.etype);
+            default: $fatal(2, "Incorrect %p", pe);
         endcase
 
     endfunction
 
 
-    function automatic void saveStateAsync(input Mword prevTarget, input ControlOp cOp);
+    function automatic void saveStateAsync(input Mword prevTarget,/* input ControlOp cOp,*/ input ProgramEvent pe);
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
 
         sysRegs[1] |= 16; // FUTURE: handle state register correctly
         sysRegs[1] &= ~('h00100000); // clear dbstep
 
-        case (cOp)
-            CO_reset: sysRegs[7] = PE_EXT_RESET;
-            CO_int:   sysRegs[7] = PE_EXT_INTERRUPT;
-            CO_break: sysRegs[7] = PE_EXT_DEBUG;
-            default: $fatal(2, "Incorrect control op %p", cOp);
-        endcase
+        sysRegs[7] = pe;
+
+        // case (cOp)
+        //     CO_reset: sysRegs[7] = PE_EXT_RESET;
+        //     CO_int:   sysRegs[7] = PE_EXT_INTERRUPT;
+        //     CO_break: sysRegs[7] = PE_EXT_DEBUG;
+        //     default: $fatal(2, "Incorrect control op %p", cOp);
+        // endcase
+
+        //     if (sysRegs[7] !== pe) $error("%p, %p", cOp, pe);
+
     endfunction
 
     function automatic void setFpInv();

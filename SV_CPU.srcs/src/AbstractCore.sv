@@ -44,6 +44,8 @@ module AbstractCore
 
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
+    logic sig_N;
+
     Mword insAdr;       // DB?
     logic fetchEnable;  // DB?
 
@@ -149,6 +151,7 @@ module AbstractCore
     assign insAdr = theFrontend.fetchAdr;
 
     assign sig = lateEventInfo.cOp == CO_send;
+    assign sig_N = lateEventInfo.etype == PE_HW_SEND;
 
 
     always @(posedge clk) begin
@@ -438,7 +441,10 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.cOp inside {CO_reset, CO_int, CO_break}) begin
-            sysUnit.saveStateAsync(retiredTarget, lateEventInfoWaiting.cOp);
+        //if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
+            //    assert (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) else $error("jjkrfrjfrj");
+
+            sysUnit.saveStateAsync(retiredTarget, /*lateEventInfoWaiting.cOp, */lateEventInfoWaiting.etype);
             retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
         end
@@ -450,7 +456,10 @@ module AbstractCore
             sysUnit.modifyStateSync(//lateEventInfoWaiting.cOp,
                                     lateEventInfoWaiting.adr,
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
-                                    eventUnit.general);
+                                    eventUnit.general.etype);
+                                    //eventUnit.general);
+                assert (eventUnit.general.etype == lateEventInfoWaiting.etype) else $error("nieeee\n%p, %p", eventUnit.general.etype, lateEventInfoWaiting.etype);
+
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end

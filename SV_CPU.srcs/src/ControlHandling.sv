@@ -17,6 +17,7 @@ package ControlHandling;
         res.active = 1;
         res.eventMid = info.eventMid;
         res.cOp = info.cOp;
+        res.etype = info.etype;
         res.redirect = 1;
 
         case (info.cOp)
@@ -57,6 +58,9 @@ package ControlHandling;
 
         EventInfo res = '{1, id, CO_none, PE_NONE, 1, adr, 'x};
         Mword estTarget = programEvent2trg(eDesc.etype);
+
+
+            res.etype = eDesc.etype;
 
 
         // Refetch event (dynamic?)  

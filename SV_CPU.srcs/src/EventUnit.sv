@@ -180,6 +180,7 @@ module EventUnit(input logic clk);
         if (prevId == -1) older = next;
         else if (nextId != -1 && prevId > nextId) older = next;
         else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions  TODO: formalize
+        // TODO: assure that exception vs refetch in complex mem cases is defined and predictable
 
         assert (olderId == (older.id)) else $error("Ids differ");
 
