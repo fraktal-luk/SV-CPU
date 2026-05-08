@@ -150,8 +150,8 @@ module AbstractCore
     assign fetchEnable = theFrontend.fetchEnable;
     assign insAdr = theFrontend.fetchAdr;
 
-    assign sig = lateEventInfo.cOp == CO_send;
-    assign sig_N = lateEventInfo.etype == PE_HW_SEND;
+        assign sig_N = lateEventInfo.cOp == CO_send; // Deprec
+    assign sig = lateEventInfo.etype == PE_HW_SEND;
 
 
     always @(posedge clk) begin
@@ -440,8 +440,8 @@ module AbstractCore
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.active !== 1) return;
 
-        if (lateEventInfoWaiting.cOp inside {CO_reset, CO_int, CO_break}) begin
-        //if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
+        //if (lateEventInfoWaiting.cOp inside {CO_reset, CO_int, CO_break}) begin
+        if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
             //    assert (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) else $error("jjkrfrjfrj");
 
             sysUnit.saveStateAsync(retiredTarget, /*lateEventInfoWaiting.cOp, */lateEventInfoWaiting.etype);

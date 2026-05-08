@@ -20,6 +20,12 @@ package ControlHandling;
         res.etype = info.etype;
         res.redirect = 1;
 
+            if (info.etype == PE_HW_RETE) res.target = sr2;
+            if (info.etype == PE_HW_RETI) res.target = sr3;
+
+            return res;
+
+
         case (info.cOp)
             // Dynamic exceptions
             CO_specificException: ;
@@ -30,9 +36,11 @@ package ControlHandling;
             // Returns
             CO_retE: begin
                 res.target = sr2;
+                    $error("rete: %p", info.etype);
             end 
             CO_retI: begin
                 res.target = sr3;
+                    $error("reti: %p", info.etype);
             end 
 
             // 
@@ -106,11 +114,14 @@ package ControlHandling;
                 UOP_ctrl_rete:       begin
                                         res.cOp = CO_retE;
                                         res.target = 'x;
+
+                                            $error("%p, %p", ii.eventType, eDesc.etype);
                                      end
                 // ret
                 UOP_ctrl_reti:       begin
                                         res.cOp = CO_retI;
                                         res.target = 'x;
+                                            $error("%p, %p", ii.eventType, eDesc.etype);
                                      end
 
 
@@ -126,6 +137,8 @@ package ControlHandling;
                                       res.cOp = dbStep ? CO_break : CO_sync;
                                       res.target = adr + 4;
                                       if (dbStep) res = DB_EVENT;
+
+                                            $error("%p, %p", ii.eventType, eDesc.etype);
                                    end
                 
                 // sync
@@ -142,6 +155,8 @@ package ControlHandling;
 
 
                 assert(dbStep || isSilentEventUop(uname) || estTarget === res.target) else $error("targets: %X / %X\n%p / %p", estTarget, res.target, eDesc, evtType);
+
+            res.cOp = CO_none;
 
         end
 
