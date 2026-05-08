@@ -20,88 +20,29 @@ package ControlHandling;
         res.etype = info.etype;
         res.redirect = 1;
 
-            if (info.etype == PE_HW_RETE) res.target = sr2;
-            if (info.etype == PE_HW_RETI) res.target = sr3;
+        if (info.etype == PE_HW_RETE) res.target = sr2;
+        if (info.etype == PE_HW_RETI) res.target = sr3;
 
-            return res;
-
-
-        case (info.cOp)
-            // Dynamic exceptions
-            CO_specificException: ;
-
-            // Events known at Decode
-            CO_fetchError, CO_error, CO_undef, CO_call, CO_dbcall: ;
-
-            // Returns
-            CO_retE: begin
-                res.target = sr2;
-                    $error("rete: %p", info.etype);
-            end 
-            CO_retI: begin
-                res.target = sr3;
-                    $error("reti: %p", info.etype);
-            end 
-
-            // 
-            CO_sync, CO_refetch, CO_send:  ;
-
-            default: $fatal(2, "Unknown control op");
-        endcase
+        return res;
 
         return res;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii,
-                                             input EventDesc eDesc,
-                                             input logic dbStep);
-        UopName uname = ii.mainUop;
+    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc);
         Mword adr = ii.basicData.adr;
-        logic refetch = ii.refetch;
-        logic exception = ii.exception;
-        ProgramEvent evtType = ii.eventType;
+        EventInfo res = '{1, id, CO_none, eDesc.etype, 1, adr, 'x};
 
-        EventInfo res = '{1, id, CO_none, PE_NONE, 1, adr, 'x};
-            Mword estTarget = programEvent2trg(eDesc.etype);
-
-        res.etype = eDesc.etype;
-
-        if (eDesc.etype == PE_EXT_DEBUG) res = DB_EVENT; 
-
-        // Refetch event (dynamic?)  
-        else if (refetch) begin
-                assert (eDesc.etype == PE_HW_REFETCH) else $error("Wrg refetch? %p", eDesc.etype);
+        if (eDesc.etype == PE_EXT_DEBUG)
+            res = DB_EVENT; 
+        else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
+            res.target = adr + 4;
+        else if (eDesc.etype == PE_HW_REFETCH)
             res.target = adr;
-        end
-        else if (exception && !isStaticEventUop(uname)) begin // dynamic exception
-            assert (evtType != PE_NONE) else $fatal(2, "Unspecified exception reached Commit");
-            res.target = programEvent2trg(evtType);
-        end
-        else begin // Decode events
+        else
+            res.target = programEvent2trg(eDesc.etype);
 
-            case (uname)
-                // exc
-                UOP_ctrl_fetchError, UOP_ctrl_error, UOP_ctrl_undef, UOP_ctrl_call, UOP_ctrl_dbcall, UOP_ctrl_rete, UOP_ctrl_reti:
-                    res.target = programEvent2trg(evtType);
-
-                // sync
-                UOP_ctrl_sync, UOP_ctrl_send:     begin
-                                      res.target = adr + 4;
-                                   end
-
-                default:           begin
-                                      assert (eDesc.etype == PE_NONE) else $error("WTF??: %p", eDesc.etype);
-                                      res.target = 'x;
-                                   end
-            endcase
-
-                assert(dbStep || isSilentEventUop(uname) || estTarget === res.target) else $error("targets: %X / %X\n%p / %p", estTarget, res.target, eDesc, evtType);
-
-            res.cOp = CO_none;
-
-        end
-
+        res.cOp = CO_none;
 
         return res;
     endfunction

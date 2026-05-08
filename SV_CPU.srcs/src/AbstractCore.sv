@@ -495,8 +495,7 @@ module AbstractCore
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
                 foundEvent = 1; // Don't commit anything more if event is being handled
-                lateEvt = eventFromOp(theId, ii, eventUnit.general,
-                                        CurrentConfig.dbStep);
+                lateEvt = eventFromOp(theId, ii, eventUnit.general);
 
                 if (eventUnit.general.id == theId) begin
                     assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
