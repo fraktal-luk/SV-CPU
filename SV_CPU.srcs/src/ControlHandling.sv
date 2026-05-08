@@ -62,97 +62,39 @@ package ControlHandling;
         logic exception = ii.exception;
         ProgramEvent evtType = ii.eventType;
 
-//ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType,
-
         EventInfo res = '{1, id, CO_none, PE_NONE, 1, adr, 'x};
-        Mword estTarget = programEvent2trg(eDesc.etype);
+            Mword estTarget = programEvent2trg(eDesc.etype);
 
+        res.etype = eDesc.etype;
 
-            res.etype = eDesc.etype;
-
+        if (eDesc.etype == PE_EXT_DEBUG) res = DB_EVENT; 
 
         // Refetch event (dynamic?)  
-        if (refetch) begin
-            res.cOp = CO_refetch;
+        else if (refetch) begin
+                assert (eDesc.etype == PE_HW_REFETCH) else $error("Wrg refetch? %p", eDesc.etype);
             res.target = adr;
         end
         else if (exception && !isStaticEventUop(uname)) begin // dynamic exception
             assert (evtType != PE_NONE) else $fatal(2, "Unspecified exception reached Commit");
-
-            res.cOp = CO_specificException;
             res.target = programEvent2trg(evtType);
         end
         else begin // Decode events
+
             case (uname)
                 // exc
-                UOP_ctrl_fetchError: begin
-                                        res.cOp = CO_fetchError;
-                                        res.target = IP_FETCH_EXC;
-                                     end
-                // exc
-                UOP_ctrl_error:      begin
-                                        res.cOp = CO_error;
-                                        res.target = IP_ERROR;
-                                     end
-                // exc
-                UOP_ctrl_undef:      begin 
-                                        res.cOp = CO_undef;
-                                        res.target = IP_EXC;
-                                     end
-                // exc?
-                UOP_ctrl_call:       begin
-                                        res.cOp = CO_call;
-                                        res.target = IP_CALL;
-                                     end
-                // exc?
-                UOP_ctrl_dbcall:     begin
-                                        res.cOp = CO_dbcall;
-                                        res.target = IP_DB_CALL;
-                                     end
-
-                // ret
-                UOP_ctrl_rete:       begin
-                                        res.cOp = CO_retE;
-                                        res.target = 'x;
-
-                                            $error("%p, %p", ii.eventType, eDesc.etype);
-                                     end
-                // ret
-                UOP_ctrl_reti:       begin
-                                        res.cOp = CO_retI;
-                                        res.target = 'x;
-                                            $error("%p, %p", ii.eventType, eDesc.etype);
-                                     end
-
-
-                // Static refetch: does it make sense?
-                UOP_ctrl_refetch:    begin
-                                        res.cOp = CO_refetch;
-                                        res.target = adr;
-                                     end
-
+                UOP_ctrl_fetchError, UOP_ctrl_error, UOP_ctrl_undef, UOP_ctrl_call, UOP_ctrl_dbcall, UOP_ctrl_rete, UOP_ctrl_reti:
+                    res.target = programEvent2trg(evtType);
 
                 // sync
-                UOP_ctrl_sync:     begin
-                                      res.cOp = dbStep ? CO_break : CO_sync;
+                UOP_ctrl_sync, UOP_ctrl_send:     begin
                                       res.target = adr + 4;
-                                      if (dbStep) res = DB_EVENT;
+                                   end
 
-                                            $error("%p, %p", ii.eventType, eDesc.etype);
-                                   end
-                
-                // sync
-                UOP_ctrl_send:     begin
-                                      res.cOp = CO_send; // TODO: implement CO_send_break which will work like CO_break but also sends signal
-                                      res.target = adr + 4;
-                                   end
                 default:           begin
-                                      res.cOp = dbStep ? CO_break : CO_none;
+                                      assert (eDesc.etype == PE_NONE) else $error("WTF??: %p", eDesc.etype);
                                       res.target = 'x;
-                                      if (dbStep) res = DB_EVENT;
                                    end
             endcase
-
 
                 assert(dbStep || isSilentEventUop(uname) || estTarget === res.target) else $error("targets: %X / %X\n%p / %p", estTarget, res.target, eDesc, evtType);
 
