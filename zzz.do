@@ -67,3 +67,15 @@ sim:/ArchDesc0/core/eventUnit/generalH
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/stageRename1 \
 sim:/ArchDesc0/core/stageRename1_N
+
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/isEmpty \
+sim:/ArchDesc0/core/theRob/lateEventOngoing
+add wave -position insertpoint sim:/ArchDesc0/core/eventUnit/*
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/lastRetired \
+sim:/ArchDesc0/core/lateEventInfo \
+sim:/ArchDesc0/core/lateEventInfoWaiting \
+sim:/ArchDesc0/core/lateEventInfoWaitingInt \
+sim:/ArchDesc0/core/lateEventInfoWaitingReset

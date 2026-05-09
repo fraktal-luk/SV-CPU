@@ -254,7 +254,8 @@ module ArchDesc0();
 
 
     task automatic startSim();
-        #CYCLE reset <= 1;
+        //#CYCLE 
+               reset <= 1;
         #CYCLE reset <= 0;
         #CYCLE;
     endtask
@@ -262,6 +263,7 @@ module ArchDesc0();
     task automatic awaitResult(); 
         wait (done);
         #CYCLE;
+            #CYCLE;
     endtask
 
     task announce(input string name);

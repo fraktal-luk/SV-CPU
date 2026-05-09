@@ -37,7 +37,10 @@ module EventUnit(input logic clk);
 
               interruptH = EMPTY_EVENT_DESC, interrupt = EMPTY_EVENT_DESC,
               nmiH = EMPTY_EVENT_DESC, nmi = EMPTY_EVENT_DESC,
-              generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC;
+              generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC,
+                interruptEvtH = EMPTY_EVENT_DESC, interruptEvt = EMPTY_EVENT_DESC,
+                resetEvtH = EMPTY_EVENT_DESC, resetEvt = EMPTY_EVENT_DESC,
+                dbEvtH = EMPTY_EVENT_DESC, dbEvt = EMPTY_EVENT_DESC;
 
 
     always @(negedge clk) begin
@@ -54,6 +57,17 @@ module EventUnit(input logic clk);
 
     always @(posedge clk) begin
         updateCurrentEventReg();
+
+        resetEvt = replaceEvt(resetEvt, resetEvt); // Flush if needed
+        interruptEvt = replaceEvt(interruptEvt, interruptEvt); // Flush if needed
+
+
+        if (AbstractCore.reset) resetEvt = '{1, -1, PE_EXT_RESET};
+        else resetEvt = EMPTY_EVENT_DESC;
+        
+        if (AbstractCore.interrupt) interruptEvt = '{1, -1, PE_EXT_INTERRUPT};
+        else interruptEvt = EMPTY_EVENT_DESC;
+
     end
 
 

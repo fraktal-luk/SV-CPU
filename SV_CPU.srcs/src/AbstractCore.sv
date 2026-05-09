@@ -78,6 +78,8 @@ module AbstractCore
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
 
     // Store interface
     // Committed
@@ -440,11 +442,8 @@ module AbstractCore
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.active !== 1) return;
 
-        //if (lateEventInfoWaiting.cOp inside {CO_reset, CO_int, CO_break}) begin
         if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
-            //    assert (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) else $error("jjkrfrjfrj");
-
-            sysUnit.saveStateAsync(retiredTarget, /*lateEventInfoWaiting.cOp, */lateEventInfoWaiting.etype);
+            sysUnit.saveStateAsync(retiredTarget, lateEventInfoWaiting.etype);
             retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
         end
@@ -453,18 +452,18 @@ module AbstractCore
             Mword sr3 = sysUnit.sysRegs[3];
             EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
 
-            sysUnit.modifyStateSync(//lateEventInfoWaiting.cOp,
-                                    lateEventInfoWaiting.adr,
+            sysUnit.modifyStateSync(lateEventInfoWaiting.adr,
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
                                     eventUnit.general.etype);
-                                    //eventUnit.general);
-                assert (eventUnit.general.etype == lateEventInfoWaiting.etype) else $error("nieeee\n%p, %p", eventUnit.general.etype, lateEventInfoWaiting.etype);
+            assert (eventUnit.general.etype == lateEventInfoWaiting.etype) else $error("nieeee\n%p, %p", eventUnit.general.etype, lateEventInfoWaiting.etype);
 
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
     endtask
 
 
@@ -514,12 +513,16 @@ module AbstractCore
         if (foundEvent)
             lateEventInfoWaiting <= lateEvt;
 
-        if (reset) begin
+        //if (reset) begin
+        if (eventUnit.resetEvt.active) begin
             lateEventInfoWaiting <= RESET_EVENT;
+            lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
         end
-        else if (interrupt) begin
+        //else if (interrupt) begin
+        else if (eventUnit.interruptEvt.active) begin
             lateEventInfoWaiting <= INT_EVENT;
+            lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
             retiredEmul.interrupt();
         end
