@@ -90,7 +90,7 @@ module ReorderBuffer
 
     logic isEmpty;
 
-    always_comb isEmpty = (endPointer === backupPointer); //(indB === ind_Start);
+    always_comb isEmpty = (endPointer === backupPointer);
 
     assign size = (endPointer - drainPointer + 2*DEPTH) % (2*DEPTH);
     assign allow = (size < DEPTH - N_RENAME_STAGES);
@@ -99,7 +99,9 @@ module ReorderBuffer
 
     always_comb retirementGroup = makeRetirementGroup();
     
-    always_comb lateEventOngoing = AbstractCore.interrupt || AbstractCore.reset || lateEventInfo.redirect
+    always_comb lateEventOngoing = AbstractCore.interrupt || AbstractCore.reset
+                                || eventUnit.interruptEvt.active || eventUnit.resetEvt.active
+                                || lateEventInfo.redirect
                                 || AbstractCore.lateEventInfoWaiting.active
                                 || lastIsBreaking;
 
@@ -450,8 +452,7 @@ module ReorderBuffer
             end
             
             if (isBranchUop(decMainUop(mid))) begin
-                UopName uname = //insMap.getU(FIRST_U(mid)).name;
-                                decMainUop(mid);
+                UopName uname = decMainUop(mid);
                 BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
                 res[i].takenBranch = entry[0].taken;
                 

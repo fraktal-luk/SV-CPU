@@ -73,7 +73,6 @@ module ArchDesc0();
         GlobalParams gp = Test_fillGpCached();
 
         $display("Emulation event/int tests");
-        //#DELAY;
 
         emulTestName = "int";
 
@@ -223,6 +222,8 @@ module ArchDesc0();
             trEm.gp.initialCregs.memControl = 0;
             #CYCLE $display("\n>>>>>> Em  Dev tests unc");
             trEm.runSuites(devTestsUnc);
+
+            @(posedge clk);
         end
 
         if (RUN_SIM_TESTS) begin
@@ -253,7 +254,8 @@ module ArchDesc0();
 
 
     task automatic startSim();
-        #CYCLE reset <= 1;
+        //#CYCLE 
+               reset <= 1;
         #CYCLE reset <= 0;
         #CYCLE;
     endtask
@@ -261,6 +263,7 @@ module ArchDesc0();
     task automatic awaitResult(); 
         wait (done);
         #CYCLE;
+            #CYCLE;
     endtask
 
     task announce(input string name);

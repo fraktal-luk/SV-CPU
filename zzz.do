@@ -34,22 +34,12 @@ sim:/ArchDesc0/core/theExecBlock/replayQueue/inputUopsE2
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/memImages
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/lastEvtAD \
-sim:/ArchDesc0/core/theExecBlock/lastEvtFetch \
-sim:/ArchDesc0/core/theExecBlock/lastEvtTr
+
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/lateEventInfo
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/branchEventInfo
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/lqRefetchNewH \
-sim:/ArchDesc0/core/theExecBlock/lqRefetchReg \
-sim:/ArchDesc0/core/theExecBlock/memEventNewH \
-sim:/ArchDesc0/core/theExecBlock/memEventReg
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theExecBlock/staticEventNewH \
-sim:/ArchDesc0/core/theExecBlock/staticEventReg
+
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/mainEmul
@@ -68,3 +58,24 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/issued0 \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/issued1 \
 sim:/ArchDesc0/core/theExecBlock/replayQueue/outPacket
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/eventUnit/front \
+sim:/ArchDesc0/core/eventUnit/frontH \
+sim:/ArchDesc0/core/eventUnit/general \
+sim:/ArchDesc0/core/eventUnit/generalH
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/stageRename1 \
+sim:/ArchDesc0/core/stageRename1_N
+
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/isEmpty \
+sim:/ArchDesc0/core/theRob/lateEventOngoing
+add wave -position insertpoint sim:/ArchDesc0/core/eventUnit/*
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/lastRetired \
+sim:/ArchDesc0/core/lateEventInfo \
+sim:/ArchDesc0/core/lateEventInfoWaiting \
+sim:/ArchDesc0/core/lateEventInfoWaitingInt \
+sim:/ArchDesc0/core/lateEventInfoWaitingReset

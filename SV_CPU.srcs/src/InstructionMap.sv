@@ -61,6 +61,9 @@ package Insmap;
         IndexSet inds;
 
         logic frontBranch;
+
+            logic emulException;
+
         logic exception;
         logic refetch;
 
@@ -73,6 +76,7 @@ package Insmap;
         res.id = id;
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
         res.frontBranch = 'x;
+        res.emulException = 0;
         res.exception = 0;
         res.refetch = 0;
 

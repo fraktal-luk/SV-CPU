@@ -15,10 +15,6 @@ import CacheDefs::*;
 
 module UncachedFetchUnit(
                 input logic clk
-                
-                // input logic readEn,
-                // input Mword readAddress,
-                // output InstructionCacheOutput readOut
               );
 
 endmodule

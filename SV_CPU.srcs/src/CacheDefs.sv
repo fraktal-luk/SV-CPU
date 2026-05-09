@@ -20,7 +20,6 @@ package CacheDefs;
 
 
 
-
     typedef Translation TranslationA[N_MEM_PORTS];
 
 
@@ -120,8 +119,7 @@ package CacheDefs;
     function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
         AccessInfo res;
 
-        Dword aLow = //adrLowD(adr);
-                     adr % WAY_SIZE;
+        Dword aLow = adr % WAY_SIZE;
         int block = aLow / BLOCK_SIZE;
         int blockOffset = aLow % BLOCK_SIZE;
 
@@ -182,7 +180,6 @@ package CacheDefs;
 
     class DataCacheBlock;
         logic valid;
-        //Mword vbase;
         Dword pbase;
         logic lock;
         Mbyte array[BLOCK_SIZE];
@@ -235,23 +232,16 @@ package CacheDefs;
 
         // @endian
         function automatic void writeWord(input int offset, input Word value);
-            //Dword val = {value,         32'h00000000};
-            //Dword mask =        'hffffffff00000000;
-
-                Dword val = value;
-                Dword mask =        'hffffffff;
+            Dword val = value;
+            Dword mask =  'hffffffff;
             writeDword(offset, val, mask);
             return;
         endfunction
 
         // @endian
         function automatic void writeByte(input int offset, input Mbyte value);
-            //Dword val = {value,   56'h00000000000000};
-            //Dword mask =        'hff00000000000000;
-
-                Dword val = value;
-                Dword mask = 'hff;
-
+            Dword val = value;
+            Dword mask = 'hff;
             writeDword(offset, val, mask);
             return;
         endfunction
@@ -300,11 +290,9 @@ package CacheDefs;
     function automatic ReadResult selectWayResultArray(input Translation tr, input ReadResult results[]);
         Dword trBase = getBlockBaseD(tr.padr);
         ReadResult res = '{0, -1, 'x, 'x, 'x};
-        int chosen = -1;//results.size() - 1;
 
         foreach (results[i]) begin
             if (results[i].valid && getBlockBaseD(results[i].tag) === trBase) begin
-                chosen = i;
                 res = results[i];
                 res.way = i;
                 return res;
@@ -450,10 +438,9 @@ package CacheDefs;
 
         if (block == null) return '{0, 'x, '{default: 'x}};
         begin
-            logic hit0 = 1;
             FetchLine val0 = block.readLine(aDesc.blockOffset);                    
             if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
-            return '{hit0, block.pbase, val0};
+            return '{1, block.pbase, val0};
         end
     endfunction
 

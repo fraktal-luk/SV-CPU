@@ -68,119 +68,64 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
 
-    function automatic void modifyStateSync(input ControlOp cOp, input Mword adr, input AccessDesc ad, input Translation tr,
-                                            input UopPacket mp, input UopPacket fpInv, input UopPacket fpOv,
-                                                input ProgramEvent pe);
-        case (cOp)
-            CO_exception, CO_specificException: begin
+    function automatic void modifyStateSync(//input ControlOp cOp,
+                                            input Mword adr,
+                                            input AccessDesc ad_N, input Translation tr_N,
+                                            input ProgramEvent pe);
+                                            //input EventDesc generalDesc);
+
+        case (pe) inside
+            PE_SYS_CALL, PE_SYS_DBCALL: begin
+                sysRegs[4] = sysRegs[1];
+                sysRegs[2] = adr + 4;
+                
+                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                sysRegs[1] &= ~('h00100000); // clear dbstep
+
+                sysRegs[6] = pe;
+            end
+
+            [PE_FETCH_INVALID_ADDRESS : PE_FETCH_NONEXISTENT_ADDRESS],
+            [PE_MEM_INVALID_ADDRESS : PE_MEM_NONEXISTENT_ADDRESS],
+            [PE_SYS_INVALID_ADDRESS : PE_SYS_DISABLED_INSTRUCTION],
+            PE_ARITH_EXCEPTION: begin
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 
                 sysRegs[1] |= 1; // FUTURE: handle state register correctly
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                // TODO: assign precise values
-                if (mp.active) begin
-                    case (mp.status)
-                        ES_INVALID: begin
-                            UopName uname = decUname(mp.TMP_oid);
-                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_INVALID_ADDRESS;
-                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_INVALID_ADDRESS;
-
-                        end
-                        ES_ILLEGAL: begin
-                            UopName uname = decUname(mp.TMP_oid);
-                            if (isMemUop(uname)) sysRegs[6] = PE_MEM_DISALLOWED_ACCESS;
-                            else if (isStoreSysUop(uname) || isLoadSysUop(uname)) sysRegs[6] = PE_SYS_DISALLOWED_ACCESS;
-
-                        end
-
-                        // ES_FP_INVALID, ES_FP_OVERFLOW:
-                        //     sysRegs[6] = PE_ARITH_EXCEPTION;
-
-                        default: ;
-                    endcase
-                end
-                else if (fpInv.active) begin
-                    sysRegs[6] = PE_ARITH_EXCEPTION;
-
-                end
-                else if (fpOv.active) begin
-                    sysRegs[6] = PE_ARITH_EXCEPTION;
-                end
+                sysRegs[6] = pe;
             end
-            CO_fetchError: begin
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr;// + 4;
-                
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                sysRegs[1] &= ~('h00100000); // clear dbstep
 
-                begin
-                    sysRegs[6] = //PE_FETCH_INVALID_ADDRESS;
-                                    pe;
-                end
-            end
-            CO_undef: begin
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr;// + 4;
-                
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                sysRegs[1] &= ~('h00100000); // clear dbstep
-                
-                begin
-                    sysRegs[6] = PE_SYS_UNDEFINED_INSTRUCTION;
-                end
-            end
-            CO_call: begin                  
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr + 4;
-                
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                sysRegs[1] &= ~('h00100000); // clear dbstep
+            PE_HW_RETE: sysRegs[1] = sysRegs[4];
+            PE_HW_RETI: sysRegs[1] = sysRegs[5];
+            PE_HW_SYNC, PE_HW_SEND, PE_HW_REFETCH: ;
 
-                begin
-                    sysRegs[6] = PE_SYS_CALL;
-                end
-            end
-            CO_dbcall: begin                  
-                sysRegs[4] = sysRegs[1];
-                sysRegs[2] = adr + 4;
-                
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
-                sysRegs[1] &= ~('h00100000); // clear dbstep
-
-                begin
-                    sysRegs[6] = PE_SYS_DBCALL;
-                end
-            end
-            CO_retE: begin
-                sysRegs[1] = sysRegs[4];
-            end
-            CO_retI: begin
-                sysRegs[1] = sysRegs[5];
-            end
-            
-            CO_refetch, CO_sync, CO_send: ;
-            
-            default: $fatal(2, "Incorrect control op %p", cOp);
+            default: $fatal(2, "Incorrect %p", pe);
         endcase
-    endfunction
-    
 
-    function automatic void saveStateAsync(input Mword prevTarget, input ControlOp cop);
+    endfunction
+
+
+    function automatic void saveStateAsync(input Mword prevTarget,/* input ControlOp cOp,*/ input ProgramEvent pe);
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
 
         sysRegs[1] |= 16; // FUTURE: handle state register correctly
         sysRegs[1] &= ~('h00100000); // clear dbstep
 
-        case (cop)
-            CO_reset: sysRegs[7] = PE_EXT_RESET;
-            CO_int: sysRegs[7] = PE_EXT_INTERRUPT;
-            CO_break: sysRegs[7] = PE_EXT_DEBUG;
-            default: ;
-        endcase
+        sysRegs[7] = pe;
+
+        // case (cOp)
+        //     CO_reset: sysRegs[7] = PE_EXT_RESET;
+        //     CO_int:   sysRegs[7] = PE_EXT_INTERRUPT;
+        //     CO_break: sysRegs[7] = PE_EXT_DEBUG;
+        //     default: $fatal(2, "Incorrect control op %p", cOp);
+        // endcase
+
+        //     if (sysRegs[7] !== pe) $error("%p, %p", cOp, pe);
+
     endfunction
 
     function automatic void setFpInv();

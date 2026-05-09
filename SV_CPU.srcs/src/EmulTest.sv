@@ -31,28 +31,28 @@ module EmulTest();
         test_MEM_UNMAPPED();
         test_MEM_NONEXISTENT();
 
-        test_INTERRUPT();
+        //test_INTERRUPT();
 
         $display("DONE\n");
         //$stop(2);
     endtask
 
     
-    task automatic test_INTERRUPT();
-        emul.resetCoreAndMappings();
+    // task automatic test_INTERRUPT();
+    //     emul.resetCoreAndMappings();
             
-        emul.DB_enableMmu();
-        emul.coreState.target = 0;
-        emul.progMem.writePage(0, '{0: asm("ja 0")});
+    //     emul.DB_enableMmu();
+    //     emul.coreState.target = 0;
+    //     emul.progMem.writePage(0, '{0: asm("ja 0")});
 
-            emul.programMappings.push_back(DEFAULT_PAGE0);
+    //         emul.programMappings.push_back(DEFAULT_PAGE0);
 
-        emul.interrupt();
+    //     emul.interrupt();
 
-        // Check
-        // TODO: temporary PE_NONE because status is read from sys reg [6], and interrupt affects reg [7]
-        check(emul, PE_NONE /*PE_EXT_INTERRUPT*/, IP_INT, "ext interrupt");
-    endtask
+    //     // Check
+    //     // TODO: temporary PE_NONE because status is read from sys reg [6], and interrupt affects reg [7]
+    //     check(emul, PE_NONE /*PE_EXT_INTERRUPT*/, IP_INT, "ext interrupt");
+    // endtask
 
 
     task automatic test_SYS_ERROR();

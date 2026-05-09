@@ -112,7 +112,8 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
         end
 
-        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
+        //if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
+        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.etype == PE_HW_SYNC) clearLocks();
 
         doCachedWrite(writeReqs[0]);
     end

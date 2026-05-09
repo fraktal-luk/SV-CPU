@@ -760,7 +760,14 @@ package InsDefs;
 
         PE_EXT_INTERRUPT = 6*16 + 0,
         PE_EXT_RESET = 6*16 + 1,
-        PE_EXT_DEBUG = 6*16 + 2
+        PE_EXT_DEBUG = 6*16 + 2,
+
+        // Internal, used by HW for control
+        PE_HW_SYNC = 8*16 + 0,
+        PE_HW_REFETCH = 8*16 + 1,
+        PE_HW_RETE = 8*16 + 2,
+        PE_HW_RETI = 8*16 + 3,
+        PE_HW_SEND = 8*16 + 4
 
     } ProgramEvent;
 

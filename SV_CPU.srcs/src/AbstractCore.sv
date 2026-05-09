@@ -44,6 +44,8 @@ module AbstractCore
 
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
+    logic sig_N;
+
     Mword insAdr;       // DB?
     logic fetchEnable;  // DB?
 
@@ -76,6 +78,8 @@ module AbstractCore
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
 
     // Store interface
     // Committed
@@ -105,6 +109,8 @@ module AbstractCore
     // Rename
     OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B}; // TODO: change to type of stageRename0 to include evt info
     FrontStage stageRename1_N = DEFAULT_FRONT_STAGE;
+
+    EventUnit eventUnit(clk);
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
@@ -146,8 +152,8 @@ module AbstractCore
     assign fetchEnable = theFrontend.fetchEnable;
     assign insAdr = theFrontend.fetchAdr;
 
-    assign sig = lateEventInfo.cOp == CO_send;
-    //assign wrong = lateEventInfo.cOp inside {CO_error, CO_undef};
+        assign sig_N = lateEventInfo.cOp == CO_send; // Deprec
+    assign sig = lateEventInfo.etype == PE_HW_SEND;
 
 
     always @(posedge clk) begin
@@ -156,7 +162,6 @@ module AbstractCore
         sysUnit.handleReads();
 
         advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
-        activateEvent(); // lateEventInfo, lateEventInfoWaiting, retiredtarget, sysRegs, retiredEmul
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
@@ -309,7 +314,7 @@ module AbstractCore
 
     task automatic flushBranchCheckpointQueueAll();
         branchCheckpointQueue = '{};
-    endtask    
+    endtask
 
     task automatic flushBranchCheckpointQueuePartial(input InsId id);
         while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].id > id) void'(branchCheckpointQueue.pop_back());
@@ -345,18 +350,30 @@ module AbstractCore
         Mword target;
 
         UopName uopName = decodeUop(ins);
+        logic staticExc = isStaticEventIns(ins);
         InstructionInfo ii = initInsInfo(id, adr, bits, ins);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-
-            //if (evt != PE_NONE) $error("%p: %p, %p, // %p", ins, adr, vadr, bits);
-
-          //if (evt == PE_FETCH_UNALIGNED_ADDRESS) 
-
         runInEmulator(renamedEmul, adr, bits);
+
+        // Is there an exception?
+        if (staticExc //&& !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})
+          ) begin
+            ii.exception = 1;
+        end
+
+        if (renamedEmul.status.exceptionRaised) begin
+            ii.eventType = renamedEmul.status.eventType;
+        end
+        else if (isSilentEventIns(ins)) begin
+            
+        end
+
+        ii.emulException = renamedEmul.status.exceptionRaised;
+
         renamedEmul.drain();
 
         target = renamedEmul.coreState.target; // For insMap
@@ -399,7 +416,7 @@ module AbstractCore
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
         end
 
-        insMap.allocate(id, ii, uInfos);  // 
+        insMap.allocate(id, ii, uInfos);
 
         if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
@@ -425,73 +442,50 @@ module AbstractCore
     task automatic fireLateEvent();
         if (lateEventInfoWaiting.active !== 1) return;
 
-        if (lateEventInfoWaiting.cOp == CO_reset) begin
-            sysUnit.saveStateAsync(retiredTarget, CO_reset);
-            retiredTarget <= IP_RESET;
-            lateEventInfo <= RESET_EVENT;
-        end
-        else if (lateEventInfoWaiting.cOp == CO_int) begin
-            sysUnit.saveStateAsync(retiredTarget, CO_int);
-            retiredTarget <= IP_INT;
-            lateEventInfo <= INT_EVENT;
-        end
-        else if (lateEventInfoWaiting.cOp == CO_break) begin
-            sysUnit.saveStateAsync(retiredTarget, CO_break);
-            retiredTarget <= IP_DB_BREAK;
-            lateEventInfo <= DB_EVENT;
+        if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
+            sysUnit.saveStateAsync(retiredTarget, lateEventInfoWaiting.etype);
+            retiredTarget <= lateEventInfoWaiting.target;
+            lateEventInfo <= lateEventInfoWaiting;
         end
         else begin
             Mword sr2 = sysUnit.sysRegs[2];
             Mword sr3 = sysUnit.sysRegs[3];
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, lateEventInfoWaiting.adr, sr2, sr3, lateEventInfoWaiting.target);
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
 
-            sysUnit.modifyStateSync(lateEventInfoWaiting.cOp, lateEventInfoWaiting.adr,
-                                        theExecBlock.lastEvtAD, theExecBlock.lastEvtTr,
-                                        theExecBlock.memEventReg, theExecBlock.fpInvReg, theExecBlock.fpOvReg,
-                                        theExecBlock.lastEvtFetch);
+            sysUnit.modifyStateSync(lateEventInfoWaiting.adr,
+                                    eventUnit.lastEvtAD, eventUnit.lastEvtTr,
+                                    eventUnit.general.etype);
+            assert (eventUnit.general.etype == lateEventInfoWaiting.etype) else $error("nieeee\n%p, %p", eventUnit.general.etype, lateEventInfoWaiting.etype);
+
             retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-    endtask
-
-
-    task automatic activateEvent();
-        if (reset) begin
-            lateEventInfoWaiting <= RESET_EVENT;
-            retiredEmul.resetSignal();
-        end
-        else if (interrupt) begin
-            lateEventInfoWaiting <= INT_EVENT;
-            $display(">> Interrupt !!!");
-            retiredEmul.interrupt();
-        end
-
-        lateEventInfo <= EMPTY_EVENT_INFO;
-
-        if (wqFree) fireLateEvent();
+        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
     endtask
 
 
     task automatic advanceCommit();
-        logic cancelRest = 0;
+        logic foundEvent = 0;
+        EventInfo lateEvt; // = EMPTY_EVENT_INFO;
 
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
 
             if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
-            if (cancelRest) $fatal(2, "Committing after break");
+            if (foundEvent) $fatal(2, "Committing after break");
 
             commitOp(theRob.retirementGroup[i]);
 
-            if (theId == U2M(theExecBlock.fpInvReg.TMP_oid)) begin
+            if (theId == (eventUnit.fpInv.id)) begin
                 sysUnit.setFpInv();
             end
-            if (theId == U2M(theExecBlock.fpOvReg.TMP_oid)) begin
+            if (theId == (eventUnit.fpOv.id)) begin
                 sysUnit.setFpOv();
             end
-            
+
             syncCurrentConfigFromRegs();
 
             lastRetired <= theId;
@@ -499,12 +493,43 @@ module AbstractCore
             // RET: generate late event
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
-                lateEventInfoWaiting <= eventFromOp(theId, ii.mainUop, ii.basicData.adr, ii.refetch, ii.exception, ii.eventType, CurrentConfig.dbStep);
-                cancelRest = 1; // Don't commit anything more if event is being handled
-            end  
+                foundEvent = 1; // Don't commit anything more if event is being handled
+                lateEvt = eventFromOp(theId, ii, eventUnit.general);
+
+                if (eventUnit.general.id == theId) begin
+                    assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
+                end
+                else begin
+                    assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
+                    else $fatal(2, "Event in map not registered in HW\n%p", ii);
+                end
+
+            end
         end
 
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
+
+
+        if (foundEvent)
+            lateEventInfoWaiting <= lateEvt;
+
+        //if (reset) begin
+        if (eventUnit.resetEvt.active) begin
+            lateEventInfoWaiting <= RESET_EVENT;
+            lateEventInfoWaitingReset <= RESET_EVENT;
+            retiredEmul.resetSignal();
+        end
+        //else if (interrupt) begin
+        else if (eventUnit.interruptEvt.active) begin
+            lateEventInfoWaiting <= INT_EVENT;
+            lateEventInfoWaitingInt <= INT_EVENT;
+            $display(">> Interrupt !!!");
+            retiredEmul.interrupt();
+        end
+
+        lateEventInfo <= EMPTY_EVENT_INFO;
+
+        if (wqFree) fireLateEvent();
     endtask
 
 
@@ -530,7 +555,6 @@ module AbstractCore
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
         Mword expectedTargetFloor = trg;
-        //expectedTargetFloor[1:0] = 0;
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert (expectedTargetFloor === info.basicData.adr) else begin
@@ -542,9 +566,8 @@ module AbstractCore
             $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
         end
 
-        // TODO: incorporate arith exc into ROB output to bring back this check?
-          //  Or better: maybe storing exc/refech in SQ/LQ is not needed because they are in First Event unit?
-          //  assert (retInfo.exception === info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+        // .emulException implies .exception
+        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
 
         if (info.refetch) return;
 
@@ -592,10 +615,10 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-        assert ((theExecBlock.currentEventReg == id) === (retInfo.refetch || retInfo.exception ||
-                            isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)))
-            else $fatal(2, "Mismatch at op %d: %d , %p, %p ", id, theExecBlock.currentEventReg, 
-                        retInfo.refetch, retInfo.exception);
+        assert ((eventUnit.general.id == id) === (retInfo.refetch || retInfo.exception || CurrentConfig.dbStep ||
+                            isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)
+                            ))
+        else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", insInfo, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
                             
         verifyOnCommit(retInfo);
 
@@ -625,12 +648,6 @@ module AbstractCore
 
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
-
-
-                // if (id >= 'h4b4) begin
-                //     Dword ct = getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
-                //     $error("RetiredTarget <= %d\nEmul target = %d", ct, retiredEmul.coreState.target);
-                // end
 
         // RET: update target
         retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
@@ -828,12 +845,11 @@ module AbstractCore
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
 
-            //TODO: set data memories for emulators according to core data memory
-            renamedEmul.progMem.setLike(programMem);
-            renamedEmul.dataMem.setLike(dataMem);
+        renamedEmul.progMem.setLike(programMem);
+        renamedEmul.dataMem.setLike(dataMem);
 
-            retiredEmul.progMem.setLike(programMem);
-            retiredEmul.dataMem.setLike(dataMem);
+        retiredEmul.progMem.setLike(programMem);
+        retiredEmul.dataMem.setLike(dataMem);
 
         theFrontend.instructionCache.preloadForTest();
         dataCache.preloadForTest();
@@ -858,7 +874,7 @@ module AbstractCore
 
 
     function automatic logic pipesEmpty();
-        return theRob.isEmpty && !lateEventInfoWaiting.active && stageEmptyAB(stageRename1);
+        return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1_N.active;
     endfunction
 
     function automatic logic hasStaticEvent(InsId id);
@@ -870,5 +886,11 @@ module AbstractCore
         SqEntry entry[$] = csq.min with (item.mid);
         return entry[0].mid;
     endfunction
+
+
+        logic ch0, ch1, ch2;
+        // assign ch0 = stageEmptyAB(stageRename1);
+        // assign ch1 = stageRename1_N.active;
+        // assign ch2 = stageEmptyAB(stageRename1) === !stageRename1_N.active;
 
 endmodule

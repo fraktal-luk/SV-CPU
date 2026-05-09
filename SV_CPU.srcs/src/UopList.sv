@@ -324,6 +324,33 @@ package UopList;
     endfunction
 
 
+    function automatic logic isStaticEventUop(input UopName name);
+        return name inside {UOP_ctrl_fetchError, 
+                UOP_ctrl_error,
+                UOP_ctrl_undef,
+                UOP_ctrl_call,
+                UOP_ctrl_dbcall,
+                UOP_ctrl_rete,
+                UOP_ctrl_reti,
+
+                UOP_ctrl_refetch,
+                UOP_ctrl_sync,
+                UOP_ctrl_send
+            };
+    endfunction
+
+    function automatic logic isSilentEventUop(input UopName name);
+        return name inside { 
+                UOP_ctrl_rete,
+                UOP_ctrl_reti,
+
+                UOP_ctrl_refetch,
+                UOP_ctrl_sync,
+                UOP_ctrl_send
+            };
+    endfunction
+
+
     function automatic logic uopHasIntDest(input UopName name);
         return name inside {
          UOP_int_and,

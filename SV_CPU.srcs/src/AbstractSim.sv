@@ -67,7 +67,7 @@ package AbstractSim;
         CO_call,
             CO_dbcall,
 
-        CO_exception,
+        //CO_exception,
             CO_specificException, // 
         
         CO_sync,
@@ -191,7 +191,7 @@ package AbstractSim;
     typedef struct {
         logic active;
         CacheReadStatus status;
-            ProgramEvent evt;
+        ProgramEvent evt;
         Mword vadr;
         Dword padr;
         OpSlotAF arr;
@@ -207,15 +207,16 @@ package AbstractSim;
         logic active;
         InsId eventMid;
         ControlOp cOp;
+        ProgramEvent etype;
         logic redirect;
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none,  0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset, 1, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,   1, 'x, IP_INT};
-    localparam EventInfo DB_EVENT =         '{1, -1, CO_break, 1, 'x, IP_DB_BREAK};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none, PE_NONE,  0, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset,PE_EXT_RESET, 1, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,  PE_EXT_INTERRUPT, 1, 'x, IP_INT};
+    localparam EventInfo DB_EVENT =         '{1, -1, CO_break,PE_EXT_DEBUG, 1, 'x, IP_DB_BREAK};
 
     typedef struct {
         int iqRegular;
@@ -722,19 +723,12 @@ package AbstractSim;
     // @endian
     function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
         Dword cw = w; // combined word
-            Dword shifted = w << 8*(8-shift);
-        Dword wsaved = saved;
-        Dword cd = {wsaved, w};
+        Dword shifted = w << 8*(8-shift);
 
-           // Dword 
-        //%cw = cd[63-(8*shift) -: 32];
         foreach (cw[i]) begin
             if (saved[i] === 'x) cw[i] = shifted[i];
             else cw[i] = saved[i];
         end
-
-        //    $error("Loaded %08X. Combining %08X:%08X into %08X", w, shifted, saved, cw);
-
 
         return loadValue(cw, uop);
     endfunction
@@ -742,42 +736,27 @@ package AbstractSim;
 
     // Mem handling
 
-        function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
-            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
-            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
-            
-            if ($isunknown(wa) || $isunknown(wb)) return 0;
-            return (wa < bEnd && wb < aEnd);
-        endfunction
+    function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+        Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+        Dword bEnd = wb + Dword'(sizeB); // Exclusive end
         
-        // is a inside b
-        function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
-            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
-            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
-            
-            if ($isunknown(wa) || $isunknown(wb)) return 0;
-            return (wa >= wb && aEnd <= bEnd);
-        endfunction
-
-        function automatic Mword fetchLineBase(input Mword adr);
-            return adr & ~(4*FETCH_WIDTH-1);
-        endfunction;
-
-
-
-    function automatic logic stageEmptyAF(input OpSlotAF stage);
-        foreach (stage[i])
-            if (stage[i].active) return 0;
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+        return (wa < bEnd && wb < aEnd);
+    endfunction
+    
+    // is a inside b
+    function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+        Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+        Dword bEnd = wb + Dword'(sizeB); // Exclusive end
         
-        return 1; 
+        if ($isunknown(wa) || $isunknown(wb)) return 0;
+        return (wa >= wb && aEnd <= bEnd);
     endfunction
 
-    function automatic logic stageEmptyAB(input OpSlotAB stage);
-        foreach (stage[i])
-            if (stage[i].active) return 0;
-        
-        return 1; 
-    endfunction
+    function automatic Mword fetchLineBase(input Mword adr);
+        return adr & ~(4*FETCH_WIDTH-1);
+    endfunction;
+
 
     function automatic AccessSize getTransactionSize(input UopName uname);
         if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
@@ -795,26 +774,38 @@ package AbstractSim;
     endfunction
 
 
-        function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
-            OpSlotAF res = st;
-            Mword expectedTargetFloor = expectedTarget;
-            expectedTargetFloor[1:0] = 0;
+    function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
+        OpSlotAF res = st;
+        Mword expectedTargetFloor = expectedTarget;
+        expectedTargetFloor[1:0] = 0;
 
-            foreach (res[i])
-                res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
+        foreach (res[i])
+            res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
 
-            return res;       
-        endfunction
+        return res;       
+    endfunction
 
-        function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
-            OpSlotAF res = st;
+    function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
+        OpSlotAF res = st;
 
-            if (branchSlot == -1) return res;
+        if (branchSlot == -1) return res;
 
-            foreach (res[i])
-                if (i > branchSlot) res[i].active = 0;
+        foreach (res[i])
+            if (i > branchSlot) res[i].active = 0;
 
-            return res;        
-        endfunction
+        return res;        
+    endfunction
+
+
+
+    typedef struct {
+        logic active;
+        InsId id;
+        ProgramEvent etype;
+    } EventDesc;
+
+    localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
+
+
 
 endpackage
