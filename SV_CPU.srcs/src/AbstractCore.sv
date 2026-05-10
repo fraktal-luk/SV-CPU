@@ -524,7 +524,9 @@ module AbstractCore
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
+                $display("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
+                $display("After:      %X", retiredEmul.coreState.target);
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -619,7 +621,13 @@ module AbstractCore
                             isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)
                             ))
         else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", insInfo, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
-                            
+
+
+                if (id > 'h23f0) begin
+                    //$display("%016x: %08x  %s", insAdr, iword, disasm(iword));
+                    $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
+                end
+
         verifyOnCommit(retInfo);
 
         // RET: update regs
