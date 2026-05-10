@@ -61,8 +61,14 @@ module EventUnit(input logic clk);
     always @(posedge clk) begin
         updateCurrentEventReg();
 
-        resetEvt <= replaceEvt(resetEvt, resetEvt); // Flush if needed
-        interruptEvt <= replaceEvt(interruptEvt, interruptEvt); // Flush if needed
+        //resetEvt <= replaceEvt(resetEvt, resetEvt); // Flush if needed
+        //interruptEvt <= replaceEvt(interruptEvt, interruptEvt); // Flush if needed
+
+        if (AbstractCore.lateEventInfo.redirect) begin
+            interruptEvt <= EMPTY_EVENT_DESC;
+            resetEvt <= EMPTY_EVENT_DESC;
+        end
+
 
 
         if (AbstractCore.reset) resetEvt <= '{1, -1, PE_EXT_RESET};
@@ -72,8 +78,8 @@ module EventUnit(input logic clk);
             interruptEvt <= '{1, -1, PE_EXT_INTERRUPT};
             intCounter <= 10;
         end
-        //else if (intCounter > 0) intCounter <= intCounter - 1;
-        else interruptEvt <= EMPTY_EVENT_DESC;
+        else if (intCounter > 0) intCounter <= intCounter - 1;
+        //else interruptEvt <= EMPTY_EVENT_DESC;
 
     end
 

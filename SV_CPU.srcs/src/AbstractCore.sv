@@ -524,7 +524,7 @@ module AbstractCore
             retiredEmul.resetSignal();
         end
         //else if (interrupt) begin
-        else if (eventUnit.interruptEvt.active // && eventUnit.intCounter == 10
+        else if (eventUnit.interruptEvt.active  && eventUnit.intCounter == 10
                             ) begin
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
