@@ -21,6 +21,7 @@ module EventUnit(input logic clk);
 
     logic chp, chq;
 
+    logic clearEvent = 0;
 
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
@@ -164,6 +165,10 @@ module EventUnit(input logic clk);
     task automatic updateCurrentEventReg();
         EventDesc newValue = getCurrentEvent();
 
+        // Signal if general is being cleared
+        if (!newValue.active && general.active) clearEvent <= 1;
+        else clearEvent <= 0;
+
         general <= newValue;
 
         front <= replaceEvt(front, frontH);
@@ -221,5 +226,13 @@ module EventUnit(input logic clk);
     endfunction
 
        // assign chp = (general.id == theExecBlock.currentEventReg); 
+
+
+    function automatic logic hasEvent();
+        return general.active
+            || resetEvt.active
+            || interruptEvt.active
+                ;
+    endfunction 
 
 endmodule

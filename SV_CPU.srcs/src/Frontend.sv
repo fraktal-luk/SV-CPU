@@ -128,7 +128,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic fetchNormalCached();
             Mword nextTrg = FETCH_SINGLE ? stage_IP.vadr + 4 : fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
 
-            if (fetchAllowCa && stage_IP.active) begin
+            if (eventUnit.hasEvent()) begin
+                stage_IP <= makeStage_IP(nextTrg, 0, FETCH_SINGLE);
+                    cachedFetcherState <= FS_WAIT_CTRL;
+                stageFetch0 <= DEFAULT_FRONT_STAGE;
+            end
+            else if (fetchAllowCa && stage_IP.active) begin
                 stage_IP <= makeStage_IP(nextTrg, stage_IP.active, FETCH_SINGLE);
                     cachedFetcherState <= FS_RUN;
                 stageFetch0 <= stage_IP;
@@ -208,7 +213,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     Translation tr = AbstractCore.retiredEmul.translateProgramAddress(arr[i].adr);
                     Word memBits = AbstractCore.programMem.fetch(tr.padr);
     
-                    assert (realBits === memBits) else $fatal(2, "Bits fetched at %d not same: %p, %p", arr[i].adr, realBits, memBits);
+                    assert (realBits === memBits) else $fatal(2, "Bits fetched at %X not same: %X, %X", arr[i].adr, realBits, memBits);
                 end
                 
                 arr[i].bits = realBits;
@@ -341,6 +346,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
         task automatic fetchNormalUncached();
+            if (eventUnit.hasEvent()) begin
+                FrontStage stageNext = makeStageUnc_IP(stageUnc_IP.vadr + 4, 0, stageUnc_IP.vadr, 1);
+                stageUnc_IP <= stageNext;
+                    uncachedFetcherState <= FS_WAIT_CTRL;
+                stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
+            end
             if (stageUnc_IP.active && ufqSize < UFQ_SIZE - UFQ_SLACK) begin
                 FrontStage stageNext = makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageUnc_IP <= stageNext;

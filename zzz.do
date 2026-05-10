@@ -79,3 +79,12 @@ sim:/ArchDesc0/core/lateEventInfo \
 sim:/ArchDesc0/core/lateEventInfoWaiting \
 sim:/ArchDesc0/core/lateEventInfoWaitingInt \
 sim:/ArchDesc0/core/lateEventInfoWaitingReset
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/cachedFetcherState \
+sim:/ArchDesc0/core/theFrontend/frontRedCa \
+sim:/ArchDesc0/core/theFrontend/frontRedOnMiss \
+sim:/ArchDesc0/core/theFrontend/stage_IP \
+sim:/ArchDesc0/core/theFrontend/stageFetch0
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/fetchEnable
