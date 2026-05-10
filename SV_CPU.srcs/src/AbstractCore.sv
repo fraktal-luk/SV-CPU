@@ -471,6 +471,10 @@ module AbstractCore
         logic foundEvent = 0;
         EventInfo lateEvt; // = EMPTY_EVENT_INFO;
 
+
+                if (interrupt) $error("i tsignal");
+                if (eventUnit.interruptEvt.active) $error("interrupt evt ative");
+
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
 
@@ -520,13 +524,14 @@ module AbstractCore
             retiredEmul.resetSignal();
         end
         //else if (interrupt) begin
-        else if (eventUnit.interruptEvt.active) begin
+        else if (eventUnit.interruptEvt.active // && eventUnit.intCounter == 10
+                            ) begin
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
-                $display("Pre target: %X", retiredEmul.coreState.target);
+                $error("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
-                $display("After:      %X", retiredEmul.coreState.target);
+                $error("After:      %X", retiredEmul.coreState.target);
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -625,7 +630,7 @@ module AbstractCore
 
                 if (id > 'h23f0) begin
                     //$display("%016x: %08x  %s", insAdr, iword, disasm(iword));
-                    $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
+                    $error("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
                 end
 
         verifyOnCommit(retInfo);

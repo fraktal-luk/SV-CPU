@@ -193,7 +193,7 @@ module ArchDesc0();
         startSim();
 
         // The part that differs from regular sim test
-        #(20*CYCLE); // FUTURE: should be wait for clock instead of delay?
+        #(21*CYCLE); // FUTURE: should be wait for clock instead of delay?
         pulseInt0();
         awaitResult();
 
