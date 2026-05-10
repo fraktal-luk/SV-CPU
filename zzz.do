@@ -69,10 +69,10 @@ sim:/ArchDesc0/core/stageRename1 \
 sim:/ArchDesc0/core/stageRename1_N
 
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/isEmpty \
-sim:/ArchDesc0/core/theRob/lateEventOngoing
-add wave -position insertpoint sim:/ArchDesc0/core/eventUnit/*
+
+
+#add wave -position insertpoint sim:/ArchDesc0/core/eventUnit/*
+
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/lastRetired \
 sim:/ArchDesc0/core/lateEventInfo \
@@ -81,10 +81,11 @@ sim:/ArchDesc0/core/lateEventInfoWaitingInt \
 sim:/ArchDesc0/core/lateEventInfoWaitingReset
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/cachedFetcherState \
-sim:/ArchDesc0/core/theFrontend/frontRedCa \
-sim:/ArchDesc0/core/theFrontend/frontRedOnMiss \
-sim:/ArchDesc0/core/theFrontend/stage_IP \
-sim:/ArchDesc0/core/theFrontend/stageFetch0
+sim:/ArchDesc0/core/eventUnit/general \
+sim:/ArchDesc0/core/eventUnit/intCounter \
+sim:/ArchDesc0/core/eventUnit/interruptEvt \
+sim:/ArchDesc0/core/eventUnit/resetEvt
+
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/fetchEnable
+sim:/ArchDesc0/core/theRob/lateEventOngoing \
+sim:/ArchDesc0/core/theRob/isEmpty

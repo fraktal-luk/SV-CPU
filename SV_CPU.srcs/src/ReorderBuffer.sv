@@ -99,8 +99,11 @@ module ReorderBuffer
 
     always_comb retirementGroup = makeRetirementGroup();
     
-    always_comb lateEventOngoing = AbstractCore.interrupt || AbstractCore.reset
-                                || eventUnit.interruptEvt.active || eventUnit.resetEvt.active
+    always_comb lateEventOngoing = 0
+                                //|| AbstractCore.interrupt 
+                                    || AbstractCore.reset
+                                //|| eventUnit.interruptEvt.active 
+                                    || eventUnit.resetEvt.active
                                 || lateEventInfo.redirect
                                 || AbstractCore.lateEventInfoWaiting.active
                                 || lastIsBreaking;
