@@ -21,7 +21,7 @@ module EventUnit(input logic clk);
 
     logic chp, chq;
 
-    logic clearEvent = 0;
+    logic clearEvent = 0, clearInterruptEvt = 0;
 
     int intCounter = -1;
 
@@ -61,14 +61,19 @@ module EventUnit(input logic clk);
     always @(posedge clk) begin
         updateCurrentEventReg();
 
-        //resetEvt <= replaceEvt(resetEvt, resetEvt); // Flush if needed
-        //interruptEvt <= replaceEvt(interruptEvt, interruptEvt); // Flush if needed
+        clearInterruptEvt <= 0;
 
         if (AbstractCore.lateEventInfo.redirect) begin
+            // Detect interrupt rejection
+            if (interruptEvt.active && AbstractCore.lateEventInfo.etype != PE_EXT_INTERRUPT) begin
+                clearInterruptEvt <= 1;
+                    $display("Interrupt rejected");
+            end
+
             interruptEvt <= EMPTY_EVENT_DESC;
+
             resetEvt <= EMPTY_EVENT_DESC;
         end
-
 
 
         if (AbstractCore.reset) resetEvt <= '{1, -1, PE_EXT_RESET};
@@ -79,7 +84,6 @@ module EventUnit(input logic clk);
             intCounter <= 10;
         end
         else if (intCounter > 0) intCounter <= intCounter - 1;
-        //else interruptEvt <= EMPTY_EVENT_DESC;
 
     end
 

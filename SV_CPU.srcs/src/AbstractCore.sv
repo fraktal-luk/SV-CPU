@@ -633,8 +633,7 @@ module AbstractCore
 
 
                 if (id > 'h23f0) begin
-                    //$display("%016x: %08x  %s", insAdr, iword, disasm(iword));
-                    $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
+                   // $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
                 end
 
         verifyOnCommit(retInfo);
