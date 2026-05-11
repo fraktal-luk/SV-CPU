@@ -632,7 +632,7 @@ module AbstractCore
         else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", insInfo, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
 
 
-                if (id > 'h23f0) begin
+                if (id > 'h1fb0) begin
                    // $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
                 end
 
