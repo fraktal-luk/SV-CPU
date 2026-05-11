@@ -81,7 +81,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         InstructionCacheOutput cacheOut;
         InstructionL1 instructionCache(clk, stage_IP.active, fetchLineBase(stage_IP.vadr), cacheOut);
 
-        FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE;
+        FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1;// = DEFAULT_FRONT_STAGE;
             FrontStage alt_stageFetch0 = DEFAULT_FRONT_STAGE, alt_stageFetch1 = DEFAULT_FRONT_STAGE, alt_stageFetch2 = DEFAULT_FRONT_STAGE;
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
@@ -94,9 +94,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         assign stageIpSig = stage_IP;
         assign finalFetchStage = stageFetch2;
 
+            assign stageFetch1 = alt_stageFetch1;
+
 
             assign chk = (alt_cachedFetcherState == cachedFetcherState);
             assign chk_2 = (alt_stageIP === stage_IP);
+            
+            assign chk_3 = (alt_stageFetch0.active === stageFetch0.active);
+            assign chk_4 = (alt_stageFetch1 === stageFetch1);
 
         task automatic cachedRedirectLate();
             alt_flushFrontendBeforeF2();
@@ -248,9 +253,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             Mword nextTrg = fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
 
             if (eventUnit.hasEvent()) begin
+                    flushFrontendBeforeF2();
+
                 stage_IP <= makeStage_IP(nextTrg, 0);
                     cachedFetcherState <= FS_WAIT_CTRL;
                 stageFetch0 <= DEFAULT_FRONT_STAGE;
+
+                return;
             end
             else if (fetchAllowCa && stage_IP.active) begin
                 stage_IP <= makeStage_IP(nextTrg, stage_IP.active);
@@ -261,7 +270,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 stageFetch0 <= DEFAULT_FRONT_STAGE;
 
 
-            stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
+            if (cachedFetcherState != FS_RUN) begin
+                //$error("Skip front move");
+               // return;
+            end
+
+           // stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
             stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
 
             if (stageFetch1.active) begin
@@ -291,7 +305,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
            
             stage_IP <= DEFAULT_FRONT_STAGE;
             stageFetch0 <= DEFAULT_FRONT_STAGE;
-            stageFetch1 <= DEFAULT_FRONT_STAGE;
+           // stageFetch1 <= DEFAULT_FRONT_STAGE;
 
             markKilledFrontStage(stageFetch2.arr);
             stageFetch2 <= DEFAULT_FRONT_STAGE;
