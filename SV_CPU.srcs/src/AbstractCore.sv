@@ -514,6 +514,8 @@ module AbstractCore
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
 
 
+        // TODO: correctly prioritize event sources
+
         if (foundEvent)
             lateEventInfoWaiting <= lateEvt;
 

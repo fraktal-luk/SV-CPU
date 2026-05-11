@@ -181,6 +181,10 @@ module EventUnit(input logic clk);
         if (!newValue.active && general.active) clearEvent <= 1;
         else clearEvent <= 0;
 
+        // TODO: when new event is being set, clear interruptEvt and signal a reject - exceptions have higher prio
+        //      Or maybe interruptEvt should exist in parallel with general, and only get rejected when general is moving to lateEventInfoWaiting
+        //          Because general can be cleared by branch redirect, and this should not be a reason to reject interrupt
+
         general <= newValue;
 
         front <= replaceEvt(front, frontH);
@@ -221,7 +225,7 @@ module EventUnit(input logic clk);
 
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
-                    
+
         if (AbstractCore.CurrentConfig.enArithExc) begin
             tmp = replaceEvt(tmp, fpInvH);
             tmp = replaceEvt(tmp, fpOvH);

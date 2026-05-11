@@ -69,16 +69,16 @@ module ArchDesc0();
     endclass
 
 
-    task automatic runIntTestEmul(ref Emulator emul);
+    task automatic runIntTestEmul(ref Emulator emul, input string name);
         GlobalParams gp = Test_fillGpCached();
 
         $display("Emulation event/int tests");
 
-        emulTestName = "int";
+        emulTestName = name;
 
         resetAll(emul);
 
-        setTestMemories("events_int", emul.progMem, emul.dataMem, handlers);
+        setTestMemories(name, emul.progMem, emul.dataMem, handlers);
 
         emul.initCore(gp.initialCregs, gp.preloadedInsTlbL2, gp.preloadedDataTlbL2);
 
@@ -177,23 +177,23 @@ module ArchDesc0();
     endtask
 
 
-    task automatic runIntTestSim();
-        CodeSecArr testSections = processFile(readFile({codeDir, "events_int", ".txt"}));
+    task automatic runIntTestSim(input string name);
+        CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
         WordArray outputWay;
 
         GlobalParams gp = Test_fillGpCached();
         gp.initialCregs.memControl = 7;
 
-        #CYCLE announce("int");
+        #CYCLE announce(name);
         core.resetForTest();
-        setTestMemories("events_int", core.programMem, core.dataMem, handlers);
+        setTestMemories(name, core.programMem, core.dataMem, handlers);
         core.globalParams = gp;
         core.preloadForTest();
 
         startSim();
 
         // The part that differs from regular sim test
-        #(21*CYCLE); // FUTURE: should be wait for clock instead of delay?
+        #(9*CYCLE); // FUTURE: should be wait for clock instead of delay?
         pulseInt0();
         awaitResult();
 
@@ -212,7 +212,7 @@ module ArchDesc0();
         handlers = processFile(readFile({codeDir, "handlers.txt"}));;
 
         if (RUN_EMUL_TESTS) begin
-            runIntTestEmul(mainEmul);
+            runIntTestEmul(mainEmul, "events_int");
 
             trEm.gp = Test_fillGpCached();
             trEm.gp.initialCregs.memControl = 7;
@@ -243,7 +243,8 @@ module ArchDesc0();
             core.insMap.assertReissue();
 
             #CYCLE $display("\n>>>>>> Event/int tests");
-            runIntTestSim();
+            runIntTestSim("events_int");
+            runIntTestSim("events_int2");
         end
 
         $display("\nAll tests done\n");
