@@ -108,12 +108,16 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             alt_flushFrontendBeforeF2();
             alt_cachedFetcherState <= FS_RUN;
             alt_stageIP <= makeStage_IP(lateEventInfo.target, 1);
+
+            expectedTargetF2 <= lateEventInfo.target;
         endtask
 
         task automatic cachedRedirectBranch();
             alt_flushFrontendBeforeF2();
             alt_cachedFetcherState <= FS_RUN;
             alt_stageIP <= makeStage_IP(branchEventInfo.target, 1);
+
+            expectedTargetF2 <= branchEventInfo.target;
         endtask
 
         task automatic cachedRedirectFront();
@@ -146,6 +150,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 //assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
                 //expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
             end
+
+                moveStage2();
         endtask
 
 
@@ -190,7 +196,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     end
                     else if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
                         cachedResumeFill();
-                            // cachedRedirectFront()  -> other concept, where cachedWaitMiss doesn't set target adr, but it's set now
                     end
                 end
                 
@@ -216,67 +221,30 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             // Move to common part
             assert (!stage_IP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
 
-            runCached();
+            //runCached();
 
             alt_runCached();
         end
 
-        task automatic runCached();
-            if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-                flushFrontendBeforeF2();
-              //  stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC);
-                    cachedFetcherState <= FS_RUN;
-
-                expectedTargetF2 <= redirectedTarget();
-            end
-            else if (frontRedCa || frontRedOnMiss) begin
-                flushFrontendBeforeF2();
-               // stage_IP <= makeStage_IP(frontRedOnMiss ? 'x : expectedTargetF2, !FETCH_UNC && !frontRedOnMiss);
-                    cachedFetcherState <= frontRedOnMiss ? FS_WAIT_MISS : FS_RUN;
-            end
-            else begin
-                fetchNormalCached();
-            end
-
-            if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
-                if (!FETCH_UNC) begin
-                    //stage_IP.active <= 1; // Resume fetching after miss
-                    cachedFetcherState <= FS_RUN;
-                 //       stage_IP <= makeStage_IP(expectedTargetF2, 1);
+            task automatic runCached();
+                if (lateEventInfo.redirect || branchEventInfo.redirect) begin
+                    //setExpectedTargetF2();
                 end
-            end
+                else if (frontRedCa || frontRedOnMiss) begin
+                end
+                else begin
+                    if (eventUnit.hasEvent()) return;
 
-                if (FETCH_UNC) cachedFetcherState <= FS_OFF;
+                    moveStage2();
+                end
+            endtask
+
+
+        task automatic setExpectedTargetF2();
+            expectedTargetF2 <= redirectedTarget();
         endtask
 
-
-        task automatic fetchNormalCached();
-            Mword nextTrg = fetchLineBase(stage_IP.vadr) + FETCH_WIDTH*4;
-
-            if (eventUnit.hasEvent()) begin
-                    flushFrontendBeforeF2();
-
-               // stage_IP <= makeStage_IP(nextTrg, 0);
-                    cachedFetcherState <= FS_WAIT_CTRL;
-                stageFetch0 <= DEFAULT_FRONT_STAGE;
-
-                return;
-            end
-            else if (fetchAllowCa && stage_IP.active) begin
-                //stage_IP <= makeStage_IP(nextTrg, stage_IP.active);
-                    cachedFetcherState <= FS_RUN;
-                stageFetch0 <= stage_IP;
-            end
-            else
-                stageFetch0 <= DEFAULT_FRONT_STAGE;
-
-
-            if (cachedFetcherState != FS_RUN) begin
-                //$error("Skip front move");
-               // return;
-            end
-
-           // stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
+        task automatic moveStage2();
             stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
 
             if (stageFetch1.active) begin
@@ -286,31 +254,21 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
 
-            task automatic alt_flushFrontendBeforeF2();
-                markKilledFrontStage(alt_stageIP.arr);
-                markKilledFrontStage(alt_stageFetch0.arr);
-                markKilledFrontStage(alt_stageFetch1.arr);
-                alt_stageIP <= DEFAULT_FRONT_STAGE;
-                alt_stageFetch0 <= DEFAULT_FRONT_STAGE;
-                alt_stageFetch1 <= DEFAULT_FRONT_STAGE;
+        task automatic alt_flushFrontendBeforeF2();
+            markKilledFrontStage(alt_stageIP.arr);
+            markKilledFrontStage(alt_stageFetch0.arr);
+            markKilledFrontStage(alt_stageFetch1.arr);
+            alt_stageIP <= DEFAULT_FRONT_STAGE;
+            alt_stageFetch0 <= DEFAULT_FRONT_STAGE;
+            alt_stageFetch1 <= DEFAULT_FRONT_STAGE;
 
-                markKilledFrontStage(alt_stageFetch2.arr);
-                alt_stageFetch2 <= DEFAULT_FRONT_STAGE;
-            endtask
-
-
-        task automatic flushFrontendBeforeF2();
-            markKilledFrontStage(stage_IP.arr);
-            markKilledFrontStage(stageFetch0.arr);
-            markKilledFrontStage(stageFetch1.arr);
-           
-            stage_IP <= DEFAULT_FRONT_STAGE;
-            stageFetch0 <= DEFAULT_FRONT_STAGE;
-           // stageFetch1 <= DEFAULT_FRONT_STAGE;
+            markKilledFrontStage(alt_stageFetch2.arr);
+            alt_stageFetch2 <= DEFAULT_FRONT_STAGE;
 
             markKilledFrontStage(stageFetch2.arr);
             stageFetch2 <= DEFAULT_FRONT_STAGE;
-        endtask    
+        endtask
+
 
         function automatic FrontStage makeStage_IP(input Mword target, input logic on);
             FrontStage res = DEFAULT_FRONT_STAGE;
