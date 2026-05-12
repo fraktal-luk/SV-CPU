@@ -796,6 +796,105 @@ package AbstractSim;
         return res;        
     endfunction
 
+        function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
+            FrontStage res = fs;
+            OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+
+            int brSlot = scanBranches(arrayF2, ENABLE_FRONT_BRANCHES);
+
+            if (!fs.active) return DEFAULT_FRONT_STAGE;
+
+            arrayF2 = clearAfterBranch(arrayF2, brSlot);
+
+            // Set prediction info
+            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+
+            res.padr = 'x;
+            res.arr = arrayF2;
+
+            return res;
+        endfunction
+
+        function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
+            // If no taken branches, increment base adr. Otherwise get taken target
+            OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
+            Mword adr = res[FETCH_WIDTH-1].adr + 4;
+            
+            if (!fs.active) return 'x;
+
+            foreach (res[i]) 
+                if (res[i].active) begin
+                    AbstractInstruction ins = decodeAbstract(res[i].bits);
+                    adr = res[i].adr + 4;   // Last active
+                    
+                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                        if (isBranchAlwaysIns(ins)) begin
+                            adr = res[i].adr + Mword'(ins.sources[1]);
+                            break;
+                        end
+                    end
+                end
+            
+            return adr;
+        endfunction
+
+        function automatic FrontStage makeStage_IP(input Mword target, input logic on);
+            FrontStage res = DEFAULT_FRONT_STAGE;
+            Mword baseAdr = fetchLineBase(target);
+            logic already = 0;
+            Mword targetFloor = target;
+            targetFloor[1:0] = 0;
+
+            res.active = on;
+            res.status = CR_HIT;
+            res.vadr = target;
+
+            foreach (res.arr[i]) begin
+                Mword adr = baseAdr + 4*i;
+                logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
+                res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+            end
+            
+            return res;
+        endfunction
+
+
+    function automatic int scanBranches(input OpSlotAF st, input logic ENABLE_FRONT_BRANCHES);
+        OpSlotAF res = st;
+        int branchSlot = -1;
+        Mword takenTargets[FETCH_WIDTH] = '{default: 'x};
+        logic constantBranches[FETCH_WIDTH] = '{default: 'x};
+        logic predictedBranches[FETCH_WIDTH] = '{default: 'x};
+        
+        // Decode branches and decide if taken.
+        foreach (res[i]) begin
+            AbstractInstruction ins = decodeAbstract(res[i].bits);
+            constantBranches[i] = 0;
+            
+            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                takenTargets[i] = res[i].adr + Mword'(ins.sources[1]);
+                constantBranches[i] = 1;
+                predictedBranches[i] = isBranchAlwaysIns(ins);            
+            end
+
+            if (isBranchRegIns(ins)) begin
+                
+            end
+        end
+
+        // Scan for first taken branch
+        foreach (res[i]) begin
+            if (!res[i].active) continue;
+            
+            if (constantBranches[i] && predictedBranches[i]) begin
+                branchSlot = i;
+                break;
+            end
+        end
+ 
+        return branchSlot;
+    endfunction
+
 
 
     typedef struct {

@@ -144,7 +144,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         task automatic cachedMoveStagesBeforeF2();
             alt_stageFetch1 <= setCacheResponse(alt_stageFetch0, cacheOut, instructionCache.translationSig.padr);
-            alt_stageFetch2 <= getFrontStageF2(alt_stageFetch1, expectedTargetF2);
+            alt_stageFetch2 <= getFrontStageF2(alt_stageFetch1, expectedTargetF2, ENABLE_FRONT_BRANCHES);
 
             if (alt_stageFetch1.active) begin
                 //assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
@@ -221,23 +221,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             // Move to common part
             assert (!stage_IP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
 
-            //runCached();
-
             alt_runCached();
         end
-
-            task automatic runCached();
-                if (lateEventInfo.redirect || branchEventInfo.redirect) begin
-                    //setExpectedTargetF2();
-                end
-                else if (frontRedCa || frontRedOnMiss) begin
-                end
-                else begin
-                    if (eventUnit.hasEvent()) return;
-
-                    moveStage2();
-                end
-            endtask
 
 
         task automatic setExpectedTargetF2();
@@ -245,11 +230,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
         task automatic moveStage2();
-            stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2);
+            stageFetch2 <= getFrontStageF2(stageFetch1, expectedTargetF2, ENABLE_FRONT_BRANCHES);
 
             if (stageFetch1.active) begin
                 assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
-                expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2);
+                expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2, ENABLE_FRONT_BRANCHES);
             end
         endtask
 
@@ -270,25 +255,25 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endtask
 
 
-        function automatic FrontStage makeStage_IP(input Mword target, input logic on);
-            FrontStage res = DEFAULT_FRONT_STAGE;
-            Mword baseAdr = fetchLineBase(target);
-            logic already = 0;
-            Mword targetFloor = target;
-            targetFloor[1:0] = 0;
+        // function automatic FrontStage makeStage_IP(input Mword target, input logic on);
+        //     FrontStage res = DEFAULT_FRONT_STAGE;
+        //     Mword baseAdr = fetchLineBase(target);
+        //     logic already = 0;
+        //     Mword targetFloor = target;
+        //     targetFloor[1:0] = 0;
 
-            res.active = on;
-            res.status = CR_HIT;
-            res.vadr = target;
+        //     res.active = on;
+        //     res.status = CR_HIT;
+        //     res.vadr = target;
 
-            foreach (res.arr[i]) begin
-                Mword adr = baseAdr + 4*i;
-                logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
-                res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
-            end
+        //     foreach (res.arr[i]) begin
+        //         Mword adr = baseAdr + 4*i;
+        //         logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
+        //         res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+        //     end
             
-            return res;
-        endfunction
+        //     return res;
+        // endfunction
 
 
         function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cacheOut, input Dword padr);
@@ -328,47 +313,47 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endfunction
 
 
-        function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
-            FrontStage res = fs;
-            OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+        // function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
+        //     FrontStage res = fs;
+        //     OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
 
-            int brSlot = scanBranches(arrayF2);
+        //     int brSlot = scanBranches(arrayF2);
 
-            if (!fs.active) return DEFAULT_FRONT_STAGE;
+        //     if (!fs.active) return DEFAULT_FRONT_STAGE;
 
-            arrayF2 = clearAfterBranch(arrayF2, brSlot);
+        //     arrayF2 = clearAfterBranch(arrayF2, brSlot);
 
-            // Set prediction info
-            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+        //     // Set prediction info
+        //     if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
 
-            res.padr = 'x;
-            res.arr = arrayF2;
+        //     res.padr = 'x;
+        //     res.arr = arrayF2;
 
-            return res;
-        endfunction
+        //     return res;
+        // endfunction
 
-        function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
-            // If no taken branches, increment base adr. Otherwise get taken target
-            OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
-            Mword adr = res[FETCH_WIDTH-1].adr + 4;
+        // function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget);
+        //     // If no taken branches, increment base adr. Otherwise get taken target
+        //     OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
+        //     Mword adr = res[FETCH_WIDTH-1].adr + 4;
             
-            if (!fs.active) return 'x;
+        //     if (!fs.active) return 'x;
 
-            foreach (res[i]) 
-                if (res[i].active) begin
-                    AbstractInstruction ins = decodeAbstract(res[i].bits);
-                    adr = res[i].adr + 4;   // Last active
+        //     foreach (res[i]) 
+        //         if (res[i].active) begin
+        //             AbstractInstruction ins = decodeAbstract(res[i].bits);
+        //             adr = res[i].adr + 4;   // Last active
                     
-                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                        if (isBranchAlwaysIns(ins)) begin
-                            adr = res[i].adr + Mword'(ins.sources[1]);
-                            break;
-                        end
-                    end
-                end
+        //             if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+        //                 if (isBranchAlwaysIns(ins)) begin
+        //                     adr = res[i].adr + Mword'(ins.sources[1]);
+        //                     break;
+        //                 end
+        //             end
+        //         end
             
-            return adr;
-        endfunction
+        //     return adr;
+        // endfunction
 
     endgenerate
 
@@ -623,41 +608,41 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endtask
 
 
-    function automatic int scanBranches(input OpSlotAF st);
-        OpSlotAF res = st;
-        int branchSlot = -1;
-        Mword takenTargets[FETCH_WIDTH] = '{default: 'x};
-        logic constantBranches[FETCH_WIDTH] = '{default: 'x};
-        logic predictedBranches[FETCH_WIDTH] = '{default: 'x};
+    // function automatic int scanBranches(input OpSlotAF st, input logic ENABLE_FRONT_BRANCHES);
+    //     OpSlotAF res = st;
+    //     int branchSlot = -1;
+    //     Mword takenTargets[FETCH_WIDTH] = '{default: 'x};
+    //     logic constantBranches[FETCH_WIDTH] = '{default: 'x};
+    //     logic predictedBranches[FETCH_WIDTH] = '{default: 'x};
         
-        // Decode branches and decide if taken.
-        foreach (res[i]) begin
-            AbstractInstruction ins = decodeAbstract(res[i].bits);
-            constantBranches[i] = 0;
+    //     // Decode branches and decide if taken.
+    //     foreach (res[i]) begin
+    //         AbstractInstruction ins = decodeAbstract(res[i].bits);
+    //         constantBranches[i] = 0;
             
-            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                takenTargets[i] = res[i].adr + Mword'(ins.sources[1]);
-                constantBranches[i] = 1;
-                predictedBranches[i] = isBranchAlwaysIns(ins);            
-            end
+    //         if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+    //             takenTargets[i] = res[i].adr + Mword'(ins.sources[1]);
+    //             constantBranches[i] = 1;
+    //             predictedBranches[i] = isBranchAlwaysIns(ins);            
+    //         end
 
-            if (isBranchRegIns(ins)) begin
+    //         if (isBranchRegIns(ins)) begin
                 
-            end
-        end
+    //         end
+    //     end
 
-        // Scan for first taken branch
-        foreach (res[i]) begin
-            if (!res[i].active) continue;
+    //     // Scan for first taken branch
+    //     foreach (res[i]) begin
+    //         if (!res[i].active) continue;
             
-            if (constantBranches[i] && predictedBranches[i]) begin
-                branchSlot = i;
-                break;
-            end
-        end
+    //         if (constantBranches[i] && predictedBranches[i]) begin
+    //             branchSlot = i;
+    //             break;
+    //         end
+    //     end
  
-        return branchSlot;
-    endfunction
+    //     return branchSlot;
+    // endfunction
 
 
 
