@@ -837,8 +837,10 @@ module AbstractCore
         dataCache.reset();
         theFrontend.instructionCache.reset();
 
+        // TODO: make this more formally correct (set proper state? FS_WAIT_CTRL?)
         theFrontend.stageUnc_IP.active <= 0;
-        theFrontend.stage_IP.active <= 0;
+        theFrontend.stageIP.active <= 0;
+
 
         branchCheckpointQueue.delete();
 

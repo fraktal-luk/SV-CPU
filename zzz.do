@@ -92,10 +92,8 @@ sim:/ArchDesc0/core/theRob/isEmpty
 
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/alt_cachedFetcherState \
-sim:/ArchDesc0/core/theFrontend/alt_stageIP \
 sim:/ArchDesc0/core/theFrontend/cachedFetcherState \
-sim:/ArchDesc0/core/theFrontend/stage_IP \
+sim:/ArchDesc0/core/theFrontend/stageIP \
 sim:/ArchDesc0/core/theFrontend/frontRedCa \
 sim:/ArchDesc0/core/theFrontend/frontRedOnMiss
 

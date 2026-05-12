@@ -896,6 +896,42 @@ package AbstractSim;
     endfunction
 
 
+        function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
+            FrontStage res = DEFAULT_FRONT_STAGE;
+            logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
+
+            res.active = on && !(guardPageCross && pageCross);
+            res.status = CR_HIT;
+            res.vadr = target;
+            res.padr = target;
+
+            res.arr[0] = '{1, -1, target, 'x, 0, 'x};
+
+            return res;
+        endfunction
+
+
+        function automatic FrontStage getFrontStageF2_U(input FrontStage fs, input logic ENABLE_FRONT_BRANCHES);
+            FrontStage res = fs;
+            OpSlotF slot0 = fs.arr[0];
+
+            AbstractInstruction ins = decodeAbstract(slot0.bits);
+            logic takeBranch = fs.active && (fs.status == CR_HIT) && slot0.active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
+
+            if (takeBranch) slot0.predictedTarget = slot0.adr + Mword'(ins.sources[1]);
+            else slot0.predictedTarget = slot0.adr + 4;
+
+            slot0.takenBranch = takeBranch;
+
+            res.padr = 'x;
+            res.arr[0] = slot0;
+
+            return res;
+        endfunction
+
+
+
+
 
     typedef struct {
         logic active;
