@@ -79,7 +79,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         FrontStage stageFetch2 = DEFAULT_FRONT_STAGE;
 
         InstructionCacheOutput cacheOut;
-        InstructionL1 instructionCache(clk, stage_IP.active, fetchLineBase(stage_IP.vadr), cacheOut);
+        InstructionL1 instructionCache(clk, alt_stageIP.active, fetchLineBase(alt_stageIP.vadr), cacheOut);
 
         FrontStage stage_IP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1;// = DEFAULT_FRONT_STAGE;
             FrontStage alt_stageFetch0 = DEFAULT_FRONT_STAGE, alt_stageFetch1 = DEFAULT_FRONT_STAGE, alt_stageFetch2 = DEFAULT_FRONT_STAGE;
@@ -91,7 +91,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         assign frontRedOnMiss = (stageFetch1.active && stageFetch1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
             // ^ We don't handle the miss if it's not on the predicted path - it would be discarded even if not missed
         
-        assign stageIpSig = stage_IP;
+        assign stageIpSig = //stage_IP;
+                            alt_stageIP;
         assign finalFetchStage = stageFetch2;
 
             assign stageFetch1 = alt_stageFetch1;
@@ -166,7 +167,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     end
                     else if (frontRedCa)
                         cachedRedirectFront();
-                    else if (fetchAllowCa && stage_IP.active) begin // Normal flow
+                    else if (fetchAllowCa && alt_stageIP.active) begin // Normal flow
                         Mword nextTrg = fetchLineBase(alt_stageIP.vadr) + FETCH_WIDTH*4;
                         alt_stageIP <= makeStage_IP(nextTrg, 1);
                         alt_stageFetch0 <= alt_stageIP;
@@ -223,14 +224,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic runCached();
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushFrontendBeforeF2();
-                stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC);
+              //  stage_IP <= makeStage_IP(redirectedTarget(), !FETCH_UNC);
                     cachedFetcherState <= FS_RUN;
 
                 expectedTargetF2 <= redirectedTarget();
             end
             else if (frontRedCa || frontRedOnMiss) begin
                 flushFrontendBeforeF2();
-                stage_IP <= makeStage_IP(frontRedOnMiss ? 'x : expectedTargetF2, !FETCH_UNC && !frontRedOnMiss);
+               // stage_IP <= makeStage_IP(frontRedOnMiss ? 'x : expectedTargetF2, !FETCH_UNC && !frontRedOnMiss);
                     cachedFetcherState <= frontRedOnMiss ? FS_WAIT_MISS : FS_RUN;
             end
             else begin
@@ -239,9 +240,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill) begin
                 if (!FETCH_UNC) begin
-                    stage_IP.active <= 1; // Resume fetching after miss
+                    //stage_IP.active <= 1; // Resume fetching after miss
                     cachedFetcherState <= FS_RUN;
-                        stage_IP <= makeStage_IP(expectedTargetF2, 1);
+                 //       stage_IP <= makeStage_IP(expectedTargetF2, 1);
                 end
             end
 
@@ -255,14 +256,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (eventUnit.hasEvent()) begin
                     flushFrontendBeforeF2();
 
-                stage_IP <= makeStage_IP(nextTrg, 0);
+               // stage_IP <= makeStage_IP(nextTrg, 0);
                     cachedFetcherState <= FS_WAIT_CTRL;
                 stageFetch0 <= DEFAULT_FRONT_STAGE;
 
                 return;
             end
             else if (fetchAllowCa && stage_IP.active) begin
-                stage_IP <= makeStage_IP(nextTrg, stage_IP.active);
+                //stage_IP <= makeStage_IP(nextTrg, stage_IP.active);
                     cachedFetcherState <= FS_RUN;
                 stageFetch0 <= stage_IP;
             end
