@@ -66,6 +66,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign fetchAdr = FETCH_UNC ? stageUncIpSig.vadr : fetchLineBase(stageIpSig.vadr);
 
 
+    always @(posedge clk) begin
+        assert (cachedFetcherState == FS_OFF || uncachedFetcherState == FS_OFF) else $fatal(2, "2 fetchers active together");
+    end
+
     /////////////////////////////////////
     // CACHED
 
@@ -197,9 +201,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
         always @(posedge clk) begin
-            // Move to common part
-            assert (!stageIP.active || !stageUnc_IP.active) else $fatal(2, "2 fetchers active together");
-
             runCached();
         end
 
@@ -507,5 +508,22 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     function automatic logic stageRenamed0Empty();
         return !stageRename0.active;
     endfunction
+
+
+
+    task automatic reset();
+        //stageIP.active <= 0;
+
+        if (cachedFetcherState != FS_OFF) begin
+            cachedWaitCtrl();
+        end
+
+        if (uncachedFetcherState != FS_OFF) begin
+            uncachedFetcherState <= FS_WAIT_CTRL;
+            stageUnc_IP <= DEFAULT_FRONT_STAGE;
+        end
+
+    endtask
+
 
 endmodule
