@@ -82,24 +82,12 @@ sim:/ArchDesc0/core/lateEventInfoWaitingReset
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/eventUnit/general \
-sim:/ArchDesc0/core/eventUnit/intCounter \
 sim:/ArchDesc0/core/eventUnit/interruptEvt \
-sim:/ArchDesc0/core/eventUnit/resetEvt
+sim:/ArchDesc0/core/eventUnit/resetEvt \
+sim:/ArchDesc0/core/eventUnit/backendState
+
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/lateEventOngoing \
 sim:/ArchDesc0/core/theRob/isEmpty
-
-
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/cachedFetcherState \
-sim:/ArchDesc0/core/theFrontend/stageIP \
-sim:/ArchDesc0/core/theFrontend/frontRedCa \
-sim:/ArchDesc0/core/theFrontend/frontRedOnMiss
-
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/chk \
-sim:/ArchDesc0/core/theFrontend/chk_2 \
-sim:/ArchDesc0/core/theFrontend/chk_3 \
-sim:/ArchDesc0/core/theFrontend/chk_4
 

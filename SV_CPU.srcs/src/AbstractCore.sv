@@ -516,14 +516,19 @@ module AbstractCore
 
         // TODO: correctly prioritize event sources
 
-        if (foundEvent)
+        if (foundEvent) begin
             lateEventInfoWaiting <= lateEvt;
+
+            eventUnit.setHandling();
+        end
 
         //if (reset) begin
         if (eventUnit.resetEvt.active) begin
             lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
+
+            eventUnit.setHandling();
         end
         //else if (interrupt) begin
         else if (eventUnit.interruptEvt.active // && eventUnit.intCounter == 4
@@ -536,6 +541,8 @@ module AbstractCore
                 $display("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
                 $display("After:      %X", retiredEmul.coreState.target);
+
+            eventUnit.setHandling();
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;

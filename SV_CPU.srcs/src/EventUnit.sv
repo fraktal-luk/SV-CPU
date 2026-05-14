@@ -18,6 +18,15 @@ import Queues::*;
 module EventUnit(input logic clk);
 
 
+    typedef enum {
+        BS_NONE,
+        BS_NORMAL, // accepts renamed ops
+        BS_WAIT,   // event to handle is present, don't accept new ops
+        BS_HANDLING // event processing ongoing
+    } BackendState;
+
+    BackendState backendState = BS_NONE;
+
 
     logic chp, chq;
 
@@ -73,15 +82,23 @@ module EventUnit(input logic clk);
             interruptEvt <= EMPTY_EVENT_DESC;
 
             resetEvt <= EMPTY_EVENT_DESC;
+
+            backendState <= BS_NORMAL;
         end
 
 
-        if (AbstractCore.reset) resetEvt <= '{1, -1, PE_EXT_RESET};
+        if (AbstractCore.reset) begin
+            resetEvt <= '{1, -1, PE_EXT_RESET};
+
+            if (backendState == BS_NORMAL) backendState <= BS_WAIT;
+        end
         else resetEvt <= EMPTY_EVENT_DESC;
         
         if (AbstractCore.interrupt) begin
             interruptEvt <= '{1, -1, PE_EXT_INTERRUPT};
             intCounter <= 10;
+
+            if (backendState == BS_NORMAL) backendState <= BS_WAIT;
         end
         else if (intCounter > 0) intCounter <= intCounter - 1;
 
@@ -189,6 +206,11 @@ module EventUnit(input logic clk);
         //      Or maybe interruptEvt should exist in parallel with general, and only get rejected when general is moving to lateEventInfoWaiting
         //          Because general can be cleared by branch redirect, and this should not be a reason to reject interrupt
 
+        if (backendState != BS_HANDLING) begin
+            if (newValue.active) backendState <= BS_WAIT;
+            else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
+        end
+
         general <= newValue;
 
         front <= replaceEvt(front, frontH);
@@ -254,5 +276,10 @@ module EventUnit(input logic clk);
             || interruptEvt.active
                 ;
     endfunction 
+
+
+    function automatic void setHandling();
+        backendState <= BS_HANDLING;
+    endfunction
 
 endmodule
