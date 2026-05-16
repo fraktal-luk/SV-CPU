@@ -283,13 +283,19 @@ module ReorderBuffer
             
             ind_Start = incIndex(ind_Start);
             
-            if (head.records[i].mid == -1) continue;
-            
-            res.records[i] = head.records[i];
 
-            assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+                res.records[i] = head.records[i];
+
+
+            if (head.records[i].mid == -1) begin
+                //    res.records[i] = head.records[i];
+                continue;
+            end
+
+
+                assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
             
-            if (breaksCommitId(head.records[i].mid)) break;
+                if (breaksCommitId(head.records[i].mid)) break;
         end
         
         return res;
