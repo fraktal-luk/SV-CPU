@@ -115,8 +115,13 @@ module ReorderBuffer
 
         advanceDrain();
         doRetirement();
+
         readTable();
+
+
         indsAB();
+
+
             makeRrqView();
         markCompleted();
 
@@ -139,8 +144,9 @@ module ReorderBuffer
         while (drainPointer != indCommitted.row) begin
            int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= indCommitted.mid) );
            if (fd.size() != 0) break;
-           array_N[drainPointer % DEPTH] = EMPTY_ROW;
-           drainPointer = (drainPointer+1) % (2*DEPTH);
+
+           array_N[drainPointer % DEPTH] = EMPTY_ROW;      // !!!
+           drainPointer = (drainPointer+1) % (2*DEPTH);    // !!!
         end
     endtask
 
@@ -160,10 +166,10 @@ module ReorderBuffer
 
                 assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
 
-            indCommitted <= r.tableIndex;
+            indCommitted <= r.tableIndex;  // !!!
             
             // Find next slot to be committed (skip empty ones)
-            indNextToCommit = r.tableIndex;
+            indNextToCommit = r.tableIndex;  // !!!...
 
 
             indNextToCommit.mid = entryAt(indNextToCommit).mid;
@@ -191,7 +197,7 @@ module ReorderBuffer
             end 
         end
 
-        indToCommitSig <= indNextToCommit;
+        indToCommitSig <= indNextToCommit;  // !!!
 
     endtask;
 
@@ -199,7 +205,7 @@ module ReorderBuffer
         Row row;
 
         if (lateEventOngoing) begin            
-            arrayHeadRow <= EMPTY_ROW;
+            arrayHeadRow <= EMPTY_ROW;  // !!!
         end
         else begin
             Row arrayHeadRowVar = readRowPart();
@@ -207,21 +213,21 @@ module ReorderBuffer
             foreach (arrayHeadRowVar.records[i])
                 if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
 
-            arrayHeadRow <= arrayHeadRowVar;
-            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
+            arrayHeadRow <= arrayHeadRowVar;  // !!!
+            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
         end
 
 
         row = tickRow(arrayHeadRow);
 
         if (lateEventOngoing) begin            
-            outRow <= EMPTY_ROW;
-            lastIsBreaking <= 0;
+            outRow <= EMPTY_ROW;   // !!!
+            lastIsBreaking <= 0;   // !!!
         end
         else begin
-            outRow <= row;
-            lastOut <= getLastOut(lastOut, row.records);
-            lastIsBreaking <= isLastBreaking(row.records);                
+            outRow <= row;     // !!!
+            lastOut <= getLastOut(lastOut, row.records);   // !!!
+            lastIsBreaking <= isLastBreaking(row.records); // !!!         
         end
 
     endtask
@@ -229,16 +235,16 @@ module ReorderBuffer
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
-            indNextToCommit = '{backupPointer, 0, -1};
-            indToCommitSig <= indNextToCommit;
-            ind_Start = '{backupPointer, 0, -1};
-            indB = '{backupPointer, 0, -1};
+            indNextToCommit = '{backupPointer, 0, -1};   // !!!
+            indToCommitSig <= indNextToCommit;           // !!!
+            ind_Start = '{backupPointer, 0, -1};         // !!!
+            indB = '{backupPointer, 0, -1};              // !!!
             rrq.delete();            
         end
         else begin
             while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
                 pushEntry(indB);
-                indB = incIndex(indB);
+                indB = incIndex(indB);                   // !!!
             end                
         end        
 
