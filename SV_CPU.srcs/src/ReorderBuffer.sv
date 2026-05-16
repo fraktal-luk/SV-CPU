@@ -153,6 +153,7 @@ module ReorderBuffer
             RobResult r;
             
             if (thisMid == -1) continue;
+
             r = rrq.pop_front();
 
             TMP_setZ(r);
@@ -163,29 +164,32 @@ module ReorderBuffer
             
             // Find next slot to be committed (skip empty ones)
             indNextToCommit = r.tableIndex;
+
+
             indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-                indNextToCommit = incIndex(indNextToCommit);
-                indNextToCommit.mid = entryAt(indNextToCommit).mid;
-                
-                //if (entryAt(indNextToCommit).mid != -1) break;
-                if (indNextToCommit.mid != -1) break;
-            end
-            
-            
+            //if (indNextToCommit.mid == -1) begin
+                while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+                    indNextToCommit = incIndex(indNextToCommit);
+                    indNextToCommit.mid = entryAt(indNextToCommit).mid;
+
+                    if (indNextToCommit.mid != -1) break;
+                end
+            //end
+
             if (breaksCommitId(thisMid)) break;
         end
 
 
         // Find another occupied entry if such exists, or go to end if none 
         indNextToCommit.mid = entryAt(indNextToCommit).mid;
-        while (indNextToCommit.mid == -1 && indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-            indNextToCommit = incIndex(indNextToCommit);
-            indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            
-            //if (entryAt(indNextToCommit).mid != -1) break;
-            if (indNextToCommit.mid != -1) break;
-        end 
+        if (indNextToCommit.mid == -1) begin
+            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+                indNextToCommit = incIndex(indNextToCommit);
+                indNextToCommit.mid = entryAt(indNextToCommit).mid;
+
+                if (indNextToCommit.mid != -1) break;
+            end 
+        end
 
         indToCommitSig <= indNextToCommit;
 
