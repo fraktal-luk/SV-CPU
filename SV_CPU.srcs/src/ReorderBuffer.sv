@@ -156,9 +156,10 @@ module ReorderBuffer
             r = rrq.pop_front();
 
             TMP_setZ(r);
-            indCommitted <= r.tableIndex;
-            
+
                 assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
+
+            indCommitted <= r.tableIndex;
             
             // Find next slot to be committed (skip empty ones)
             indNextToCommit = r.tableIndex;
@@ -167,7 +168,8 @@ module ReorderBuffer
                 indNextToCommit = incIndex(indNextToCommit);
                 indNextToCommit.mid = entryAt(indNextToCommit).mid;
                 
-                if (entryAt(indNextToCommit).mid != -1) break;
+                //if (entryAt(indNextToCommit).mid != -1) break;
+                if (indNextToCommit.mid != -1) break;
             end
             
             
@@ -181,7 +183,8 @@ module ReorderBuffer
             indNextToCommit = incIndex(indNextToCommit);
             indNextToCommit.mid = entryAt(indNextToCommit).mid;
             
-            if (entryAt(indNextToCommit).mid != -1) break;
+            //if (entryAt(indNextToCommit).mid != -1) break;
+            if (indNextToCommit.mid != -1) break;
         end 
 
         indToCommitSig <= indNextToCommit;
@@ -330,7 +333,8 @@ module ReorderBuffer
                 if (row[c].mid > branchEventInfo.eventMid) begin
                     putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
-                        array_N[p % DEPTH].records[c] = EMPTY_RECORD;
+                    array_N[p % DEPTH].records[c] = EMPTY_RECORD;
+                    
                     if (rowContains) begin
                         array[p % DEPTH].records[c].used = 1;  // !!
                         array_N[p % DEPTH].records[c].used = 1;  // !!
