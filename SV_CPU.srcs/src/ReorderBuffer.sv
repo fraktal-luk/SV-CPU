@@ -22,48 +22,10 @@ module ReorderBuffer
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
-    // typedef logic CompletedVec[N_UOP_MAX];
-
-    // typedef struct {
-    //     logic used;
-    //     InsId mid;
-    //     CompletedVec completed;
-    // } OpRecord;
-    
-    // localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};
-
-    // typedef OpRecord OpRecordA[WIDTH];
-
-    // typedef struct {
-    //     OpRecord records[WIDTH];
-    // } Row;
-    
-    // localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
-
-    // typedef OpRecord QM[3*WIDTH];
 
 
-    //     // Experimental
-    //     typedef struct {
-    //         int row;
-    //         int slot;
-    //         InsId mid;
-    //     } TableIndex;
-        
-    //     localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
+    Alt_ROB#(WIDTH) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
 
-        
-    //     typedef struct {
-    //         InsId id = -1;
-    //         TableIndex tableIndex = EMPTY_TABLE_INDEX;
-    //         logic control;
-    //         logic refetch;
-    //         logic exception;
-    //     } RobResult;
-        
-    //     localparam RobResult EMPTY_ROB_RESULT = '{-1, EMPTY_TABLE_INDEX, 'x, 'x, 'x};
-        
-    //     typedef RobResult RRQ[$];
 
 
     RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
@@ -162,12 +124,18 @@ module ReorderBuffer
 
         if (lateEventInfo.redirect) begin
             flushArrayAll();
+
+                altRob.flushAll();
         end
         else if (branchEventInfo.redirect) begin
             flushArrayPartial();
+
+                altRob.flushPartial();
         end
         else if (anyActiveB(inGroup)) begin
             add(inGroup);
+
+                altRob.writeInput(inGroup);
         end
 
     end

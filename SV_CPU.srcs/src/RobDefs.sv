@@ -16,7 +16,7 @@ package RobDefs;
 
 
 
-    localparam int ROB_WIDTH = 4;
+   // localparam int ROB_WIDTH = 4;
 
 
     typedef logic CompletedVec[N_UOP_MAX];
