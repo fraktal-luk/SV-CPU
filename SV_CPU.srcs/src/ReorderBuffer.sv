@@ -24,7 +24,7 @@ module ReorderBuffer
 
 
 
-    Alt_ROB#(WIDTH) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
+    Alt_ROB#(.WIDTH(WIDTH)) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
 
 
 
@@ -87,22 +87,22 @@ module ReorderBuffer
 
 
 
-    generate
+    // generate
 
-        function automatic int movePtrOne(input int p);
-            int pNew = (p + 1) % (2*ROB_SIZE);
-            return pNew;
-        endfunction
+    //     function automatic int movePtrOne(input int p);
+    //         int pNew = (p + 1) % (2*ROB_SIZE);
+    //         return pNew;
+    //     endfunction
 
-        function automatic int movePtrRow(input int p);
-            int pBase = p % ROB_WIDTH;
-            int pNew = (pBase + ROB_WIDTH) % (2*ROB_SIZE);
-            return pNew;
-        endfunction
+    //     function automatic int movePtrRow(input int p);
+    //         int pBase = p % ROB_WIDTH;
+    //         int pNew = (pBase + ROB_WIDTH) % (2*ROB_SIZE);
+    //         return pNew;
+    //     endfunction
 
-        int pDrain = 0, pCommitted = 0, pCommitNext = 0, pRead = 0, pScan = 0, pEnd = 0, pBackup = 0;  
+    //     int pDrain = 0, pCommitted = 0, pCommitNext = 0, pRead = 0, pScan = 0, pEnd = 0, pBackup = 0;  
 
-    endgenerate
+    // endgenerate
 
 
 
@@ -121,6 +121,12 @@ module ReorderBuffer
 
             makeRrqView();
         markCompleted();
+
+
+            altRob.commit();
+
+            altRob.alt_markCompleted();
+
 
         if (lateEventInfo.redirect) begin
             flushArrayAll();
