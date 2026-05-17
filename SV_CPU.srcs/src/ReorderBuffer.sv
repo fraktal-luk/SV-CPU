@@ -117,7 +117,7 @@ module ReorderBuffer
         doRetirement();
 
         readTable();
-
+        setOutput();
 
         indsAB();
 
@@ -202,7 +202,6 @@ module ReorderBuffer
     endtask;
 
     task automatic readTable();
-        Row row;
 
         if (lateEventOngoing) begin            
             arrayHeadRow <= EMPTY_ROW;  // !!!
@@ -216,20 +215,14 @@ module ReorderBuffer
             arrayHeadRow <= arrayHeadRowVar;  // !!!
             lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
         end
+    endtask
 
+    task automatic setOutput();
+        Row row = tickRow(arrayHeadRow);
 
-        row = tickRow(arrayHeadRow);
-
-        if (lateEventOngoing) begin            
-            outRow <= EMPTY_ROW;   // !!!
-            lastIsBreaking <= 0;   // !!!
-        end
-        else begin
-            outRow <= row;     // !!!
-            lastOut <= getLastOut(lastOut, row.records);   // !!!
-            lastIsBreaking <= isLastBreaking(row.records); // !!!         
-        end
-
+        outRow <= row;     // !!!
+        lastOut <= getLastOut(lastOut, row.records);   // !!!
+        lastIsBreaking <= isLastBreaking(row.records); // !!!
     endtask
 
 
@@ -271,7 +264,7 @@ module ReorderBuffer
     endtask
 
 
-
+    // 
     function automatic Row readRowPart();
         Row head = array[ind_Start.row % DEPTH];
         Row res = EMPTY_ROW;
@@ -283,19 +276,16 @@ module ReorderBuffer
             
             ind_Start = incIndex(ind_Start);
             
-
-                res.records[i] = head.records[i];
-
+            res.records[i] = head.records[i];
 
             if (head.records[i].mid == -1) begin
-                //    res.records[i] = head.records[i];
                 continue;
             end
-
-
+            else begin
                 assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
             
                 if (breaksCommitId(head.records[i].mid)) break;
+            end
         end
         
         return res;
