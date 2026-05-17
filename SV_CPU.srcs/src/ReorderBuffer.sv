@@ -7,6 +7,8 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 
+import RobDefs::*;
+
 
 module ReorderBuffer
 #(
@@ -20,48 +22,48 @@ module ReorderBuffer
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
-    typedef logic CompletedVec[N_UOP_MAX];
+    // typedef logic CompletedVec[N_UOP_MAX];
 
-    typedef struct {
-        logic used;
-        InsId mid;
-        CompletedVec completed;
-    } OpRecord;
+    // typedef struct {
+    //     logic used;
+    //     InsId mid;
+    //     CompletedVec completed;
+    // } OpRecord;
     
-    localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};
+    // localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};
 
-    typedef OpRecord OpRecordA[WIDTH];
+    // typedef OpRecord OpRecordA[WIDTH];
 
-    typedef struct {
-        OpRecord records[WIDTH];
-    } Row;
+    // typedef struct {
+    //     OpRecord records[WIDTH];
+    // } Row;
     
-    localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
+    // localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
-    typedef OpRecord QM[3*WIDTH];
+    // typedef OpRecord QM[3*WIDTH];
 
-    
-        // Experimental
-        typedef struct {
-            int row;
-            int slot;
-            InsId mid;
-        } TableIndex;
+
+    //     // Experimental
+    //     typedef struct {
+    //         int row;
+    //         int slot;
+    //         InsId mid;
+    //     } TableIndex;
         
-        localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
+    //     localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
 
         
-        typedef struct {
-            InsId id = -1;
-            TableIndex tableIndex = EMPTY_TABLE_INDEX;
-            logic control;
-            logic refetch;
-            logic exception;
-        } RobResult;
+    //     typedef struct {
+    //         InsId id = -1;
+    //         TableIndex tableIndex = EMPTY_TABLE_INDEX;
+    //         logic control;
+    //         logic refetch;
+    //         logic exception;
+    //     } RobResult;
         
-        localparam RobResult EMPTY_ROB_RESULT = '{-1, EMPTY_TABLE_INDEX, 'x, 'x, 'x};
+    //     localparam RobResult EMPTY_ROB_RESULT = '{-1, EMPTY_TABLE_INDEX, 'x, 'x, 'x};
         
-        typedef RobResult RRQ[$];
+    //     typedef RobResult RRQ[$];
 
 
     RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
@@ -106,7 +108,40 @@ module ReorderBuffer
                                     || eventUnit.resetEvt.active
                                 || lateEventInfo.redirect
                                 || AbstractCore.lateEventInfoWaiting.active
-                                || lastIsBreaking;
+                                || lastIsBreaking
+                                ;
+
+
+
+            logic chD, chCom, chComNext, chStart, chB, chEnd, chBackup;
+
+            assign chD = drainPointer <= indCommitted.row;
+            assign chCom = indCommitted.row <= indToCommitSig.row;
+            assign chComNext = indToCommitSig.row <= ind_Start.row;
+            assign chStart = ind_Start.row <= indB.row;
+            assign chB = indB.row <= endPointer;
+            
+            assign chBackup = backupPointer <= indToCommitSig.row;
+
+
+
+    generate
+
+        function automatic int movePtrOne(input int p);
+            int pNew = (p + 1) % (2*ROB_SIZE);
+            return pNew;
+        endfunction
+
+        function automatic int movePtrRow(input int p);
+            int pBase = p % ROB_WIDTH;
+            int pNew = (pBase + ROB_WIDTH) % (2*ROB_SIZE);
+            return pNew;
+        endfunction
+
+        int pDrain = 0, pCommitted = 0, pCommitNext = 0, pRead = 0, pScan = 0, pEnd = 0, pBackup = 0;  
+
+    endgenerate
+
 
 
 
@@ -162,7 +197,7 @@ module ReorderBuffer
 
             r = rrq.pop_front();
 
-            TMP_setZ(r);
+            TMP_setZ(r); // set Z from indCommitted to r
 
                 assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
 
@@ -171,22 +206,20 @@ module ReorderBuffer
             // Find next slot to be committed (skip empty ones)
             indNextToCommit = r.tableIndex;  // !!!...
 
-
+            // go to next occupied slot
             indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            //if (indNextToCommit.mid == -1) begin
-                while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-                    indNextToCommit = incIndex(indNextToCommit);
-                    indNextToCommit.mid = entryAt(indNextToCommit).mid;
+            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+                indNextToCommit = incIndex(indNextToCommit);
+                indNextToCommit.mid = entryAt(indNextToCommit).mid;
 
-                    if (indNextToCommit.mid != -1) break;
-                end
-            //end
+                if (indNextToCommit.mid != -1) break;
+            end
 
             if (breaksCommitId(thisMid)) break;
         end
 
 
-        // Find another occupied entry if such exists, or go to end if none 
+        // Find next occupied entry if such exists, or go to end if none 
         indNextToCommit.mid = entryAt(indNextToCommit).mid;
         if (indNextToCommit.mid == -1) begin
             while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
@@ -202,19 +235,13 @@ module ReorderBuffer
     endtask;
 
     task automatic readTable();
+        Row arrayHeadRowVar = lateEventOngoing ? EMPTY_ROW :  readRowPart();
 
-        if (lateEventOngoing) begin            
-            arrayHeadRow <= EMPTY_ROW;  // !!!
-        end
-        else begin
-            Row arrayHeadRowVar = readRowPart();
+        foreach (arrayHeadRowVar.records[i])
+            if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
 
-            foreach (arrayHeadRowVar.records[i])
-                if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
-
-            arrayHeadRow <= arrayHeadRowVar;  // !!!
-            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
-        end
+        arrayHeadRow <= arrayHeadRowVar;  // !!!
+        lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
     endtask
 
     task automatic setOutput();
@@ -235,6 +262,8 @@ module ReorderBuffer
             rrq.delete();            
         end
         else begin
+
+            // 
             while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
                 pushEntry(indB);
                 indB = incIndex(indB);                   // !!!
@@ -268,7 +297,7 @@ module ReorderBuffer
     function automatic Row readRowPart();
         Row head = array[ind_Start.row % DEPTH];
         Row res = EMPTY_ROW;
-    
+
         foreach (head.records[i]) begin
             if (i < ind_Start.slot) continue;
             
@@ -325,7 +354,6 @@ module ReorderBuffer
 
 
     task automatic flushArrayPartial();
-        //InsId causingMid = branchEventInfo.eventMid;
         int p = ind_Start.row; // TODO: change to first not committed entry?
      
         for (int i = 0; i < DEPTH; i++) begin
@@ -522,7 +550,8 @@ module ReorderBuffer
             res.slot = 0;
             res.row = (res.row+1) % (2*DEPTH);
         end
-        
+        res.mid = -1;
+
         return res;
     endfunction
 
