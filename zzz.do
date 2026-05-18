@@ -94,7 +94,7 @@ sim:/ArchDesc0/core/theRob/isEmpty
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/pEnd
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pHuhu
+sim:/ArchDesc0/core/theRob/altRob/pScan
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/pCommit
 add wave -position insertpoint  \

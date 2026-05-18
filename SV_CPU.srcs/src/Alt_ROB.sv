@@ -51,12 +51,26 @@ module Alt_ROB
     task automatic commit();
         int p = pCommit;
 
-        while (array[p].mid == -1 || array[p2i(p)].mid <= AbstractCore.lastRetired) begin
-            p = movePtrOne(p);
+        while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= AbstractCore.lastRetired) begin
             if (p == pEnd) break;
+            array[p2i(p)].used = 'z;
+            p = movePtrOne(p);
+            //if (p == pEnd) break;
         end
 
         pCommit <= p;
+
+
+        p = pScan; // Old value!
+        while (array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
+            if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) break; // Don't mpve
+            if (p == pEnd) break;
+
+            array[p2i(p)].used = 'x;
+            p = movePtrOne(p);
+        end
+
+        pScan <= p;
     endtask
 
 
@@ -86,6 +100,13 @@ module Alt_ROB
         // new pEnd: pCommit rounded up to beginning of row
         if (pCommit % WIDTH == 0) pEnd <= pCommit;
         else pEnd <= movePtrRow(pCommit);
+
+
+
+        // move scan pointer:
+        if (pCommit % WIDTH == 0) pScan <= pCommit;
+        else pScan <= movePtrRow(pCommit);
+
     endtask
 
     task automatic flushPartial();
@@ -126,7 +147,6 @@ module Alt_ROB
                 $error("wrapped around whole ROB!");
                 break;
             end
-
             p = movePtrOne(p);
         end
 
