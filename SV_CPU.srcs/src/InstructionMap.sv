@@ -285,10 +285,12 @@ package Insmap;
             insBase.minfos[id].exception = 1;
                 insBase.minfos[id].dynamicEvt = 1;
             insBase.minfos[id].eventType = evtType;
+                insBase.minfos[id].hwEventType = evtType;
         endfunction
         
         function automatic void setRefetch(input InsId id);
             insBase.minfos[id].refetch = 1;
+            insBase.minfos[id].hwEventType = PE_HW_REFETCH;
         endfunction
         ////////////
 

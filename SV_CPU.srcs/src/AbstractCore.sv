@@ -597,8 +597,17 @@ module AbstractCore
 
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
+
         assert ((eventUnit.general.id == id) === eventPresent)
         else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", info, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
+
+
+        if (eventPresent) begin
+            assert ((eventUnit.general.etype == info.hwEventType)
+                    || (eventUnit.general.etype == PE_EXT_DEBUG && info.hwEventType == PE_NONE)
+                ) else $error("wrong: %p / %p", eventUnit.general.etype, info.hwEventType);
+        end
+
 
         assert (expectedTargetFloor === info.basicData.adr) else begin
             retiredEmul.getBasicDbView();
