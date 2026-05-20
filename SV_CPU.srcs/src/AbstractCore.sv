@@ -351,6 +351,7 @@ module AbstractCore
 
         UopName uopName = decodeUop(ins);
         logic staticExc = isStaticEventIns(ins);
+        logic silentEvt = isSilentEventIns(ins);
         InstructionInfo ii = initInsInfo(id, adr, bits, ins);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
@@ -360,18 +361,28 @@ module AbstractCore
         runInEmulator(renamedEmul, adr, bits);
 
         // Is there an exception?
-        if (staticExc //&& !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})
-          ) begin
+
+        if (evt != PE_NONE) begin
             ii.exception = 1;
+            ii.staticEvt = 1;
+            ii.hwEventType = evt;
+        end
+        else if (staticExc //&& !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})
+          ) begin
+
+            if (silentEvt) ii.silentEvt = 1;
+            else ii.staticEvt = 1;
+            
+            ii.exception = 1;
+
+            ii.hwEventType = eventFromUop(uopName);
         end
 
         if (renamedEmul.status.exceptionRaised) begin
             ii.eventType = renamedEmul.status.eventType;
         end
-        else if (isSilentEventIns(ins)) begin
-            
-        end
 
+        // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
         ii.emulException = renamedEmul.status.exceptionRaised;
 
         renamedEmul.drain();
@@ -681,7 +692,7 @@ module AbstractCore
     endtask
 
 
-    task automatic putToWq(input InsId id, input logic cancel);// input logic exception, input logic refetch);        
+    task automatic putToWq(input InsId id, input logic cancel);
         SqEntry found[$] = theSq.content.find_first with (item.mid == id);
         SqEntry foundElem = found[0];
 
