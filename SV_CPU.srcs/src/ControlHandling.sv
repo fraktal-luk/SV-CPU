@@ -52,12 +52,11 @@ package ControlHandling;
     endtask
 
     // core logic
-    function automatic Mword getCommitTarget(input UopName uname, input logic taken, input Mword own, input Mword executed, input logic refetch, input logic exception);
-        if (isBranchUop(uname) && taken) return executed;
-        else if (exception) return 'x;
+    function automatic Mword getCommitTarget(input UopName uname, input Mword own, input Mword executed, input logic taken, input logic abnormal);
+        if (abnormal) return 'x;
+        else if (isBranchUop(uname) && taken) return executed;
         else if (uname == UOP_ctrl_sync) return own + 4;
         else if (isControlUop(uname)) return 'x;
-        else if (refetch) return own;
         else return own + 4;
     endfunction;
 

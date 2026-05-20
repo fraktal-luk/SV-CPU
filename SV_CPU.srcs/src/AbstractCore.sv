@@ -573,7 +573,21 @@ module AbstractCore
         Mword trg = retiredEmul.coreState.target; // DB
         Mword nextTrg;
         Mword expectedTargetFloor = trg;
+
+        InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+
+        logic eventPresent = (retInfo.refetch ||
+                              CurrentConfig.dbStep ||
+                              
+                              retInfo.exception ||
+                                isStaticEventIns(info.basicData.dec) ||
+                                (info.eventType == PE_ARITH_EXCEPTION)
+                            );
+
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
+
+        assert ((eventUnit.general.id == id) === eventPresent)
+        else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", info, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
 
         assert (expectedTargetFloor === info.basicData.adr) else begin
             retiredEmul.getBasicDbView();
@@ -609,6 +623,10 @@ module AbstractCore
                 end
             end
         end
+
+        putMilestoneM(id, retireType);
+        insMap.setRetired(id);
+
     endtask
 
 
@@ -631,28 +649,18 @@ module AbstractCore
         InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
 
-        InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
-
-        assert ((eventUnit.general.id == id) === (retInfo.refetch || retInfo.exception || CurrentConfig.dbStep ||
-                            isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)
-                            ))
-        else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", insInfo, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
-
-
-                if (id > 'h1fb0) begin
-                   // $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
-                end
+        logic abnormal = retInfo.refetch || retInfo.exception;
 
         verifyOnCommit(retInfo);
 
         // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
             UidT uid = '{id, u};
-            registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, retInfo.refetch || retInfo.exception); // Need to modify to handle Exceptional and Hidden
+            registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, abnormal); // Need to modify to handle Exceptional and Hidden
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) putToWq(id, retInfo.exception, retInfo.refetch);
+        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) putToWq(id, abnormal);
 
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
@@ -660,10 +668,6 @@ module AbstractCore
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
         end
-
-        // Need to modify to serve all types of commit            
-        putMilestoneM(id, retireType);
-        insMap.setRetired(id);
 
         // Elements related to crucial signals:
         // RET: update inds
@@ -673,15 +677,15 @@ module AbstractCore
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
         // RET: update target
-        retiredTarget <= getCommitTarget(decMainUop(id), retInfo.takenBranch, insInfo.basicData.adr, retInfo.target, retInfo.refetch, retInfo.exception);
+        retiredTarget <= getCommitTarget(decMainUop(id), insInfo.basicData.adr, retInfo.target, retInfo.takenBranch, abnormal);
     endtask
 
 
-    task automatic putToWq(input InsId id, input logic exception, input logic refetch);        
+    task automatic putToWq(input InsId id, input logic cancel);// input logic exception, input logic refetch);        
         SqEntry found[$] = theSq.content.find_first with (item.mid == id);
         SqEntry foundElem = found[0];
 
-        if (exception || refetch) foundElem.valReady = 0; // Make sure it's inactive
+        if (cancel) foundElem.valReady = 0; // Make sure it's inactive
 
         csq.push_back(foundElem); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
