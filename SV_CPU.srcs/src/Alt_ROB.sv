@@ -22,65 +22,53 @@ module Alt_ROB
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
-
-        initial begin
-            $error("(0 - 252) mod 256: %d", (0-252) % 256);
-            $error("(0 - 252) pmod 256: %d", properMod(0-252 ,256));
-
-            $error("0 olde than 4 @ 0: %d", pointerOlderThan(0, 4, 0));
-            $error("0 olde than 4 @ 4: %d", pointerOlderThan(0, 4, 4));
-
-        end
-
-
         OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
 
-
-        int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pScanPrev = 0;  
-        int ct = -1;
+    int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pScanPrev = 0;  
 
 
-            logic ch0, ch1, ch2, ch3, ch4;
+    logic ch0, ch1, ch2, ch3, ch4;
 
 
-            always_comb ch0 = pointerOlderThan(pScan, pScanPrev, pScan);
-            always_comb ch1 = pointerOlderThan(pScan, pEnd, pCommit);
+    always_comb ch0 = pointerOlderThan(pScan, pScanPrev, pScan);
+    always_comb ch1 = pointerOlderThan(pScan, pEnd, pCommit);
 
 
-            always_comb ch3 = pointerOlderThan(pScanPrev, pScan, pScan);
-            always_comb ch4 = pointerOlderThan(pEnd, pScan, pCommit);
+    always_comb ch3 = pointerOlderThan(pScanPrev, pScan, pScan);
+    always_comb ch4 = pointerOlderThan(pEnd, pScan, pCommit);
 
 
-            function automatic int properMod(input int what, input int by);
-                int mayBeMinus = what % by;
-                if (mayBeMinus < 0) return mayBeMinus + by;
-                else return mayBeMinus;
-            endfunction
+    function automatic int properMod(input int what, input int by);
+        int mayBeMinus = what % by;
+        if (mayBeMinus < 0) return mayBeMinus + by;
+        else return mayBeMinus;
+    endfunction
 
 
-        // Is left older than right?
-        function automatic logic pointerOlderThan(input int left, input int right, input int pRef); 
-            int leftRel = properMod(left - pRef, 2*ROB_SIZE);
-            int rightRel = properMod(right - pRef, 2*ROB_SIZE);
-            return leftRel < rightRel;
-        endfunction
+    // Is left older than right?
+    function automatic logic pointerOlderThan(input int left, input int right, input int pRef); 
+        int leftRel = properMod(left - pRef, 2*ROB_SIZE);
+        int rightRel = properMod(right - pRef, 2*ROB_SIZE);
+        return leftRel < rightRel;
+    endfunction
 
 
-        function automatic int p2i(input int p);
-            return p % ROB_SIZE;
-        endfunction
+    function automatic int p2i(input int p);
+        return p % ROB_SIZE;
+    endfunction
 
 
-        function automatic int movePtrOne(input int p);
-            int pNew = (p + 1) % (2*ROB_SIZE);
-            return pNew;
-        endfunction
+    function automatic int movePtrOne(input int p);
+        int pNew = (p + 1) % (2*ROB_SIZE);
+        return pNew;
+    endfunction
 
-        function automatic int movePtrRow(input int p);
-            int pBase = p - (p % WIDTH);
-            int pNew = (pBase + WIDTH) % (2*ROB_SIZE);
-            return pNew;
-        endfunction
+    function automatic int movePtrRow(input int p);
+        int pBase = p - (p % WIDTH);
+        int pNew = (pBase + WIDTH) % (2*ROB_SIZE);
+        return pNew;
+    endfunction
+
 
 
     task automatic commit();
@@ -90,7 +78,6 @@ module Alt_ROB
             if (p == pEnd) break;
             array[p2i(p)].used = 'z;
             p = movePtrOne(p);
-            //if (p == pEnd) break;
         end
 
         pCommit <= p;
@@ -107,10 +94,7 @@ module Alt_ROB
 
         pScan <= p;
 
-
-
-
-            pScanPrev <= pScan;
+        pScanPrev <= pScan;
     endtask
 
 
@@ -120,10 +104,6 @@ module Alt_ROB
 
         // Clear starting from pCommit
         int p = pCommit;
-
-            // $error("flush a");
-
-            // return;
 
         while (p != pEnd) begin
             array[p2i(p)] = EMPTY_RECORD;
@@ -141,12 +121,9 @@ module Alt_ROB
         if (pCommit % WIDTH == 0) pEnd <= pCommit;
         else pEnd <= movePtrRow(pCommit);
 
-
-
         // move scan pointer:
         if (pCommit % WIDTH == 0) pScan <= pCommit;
         else pScan <= movePtrRow(pCommit);
-
     endtask
 
     task automatic flushPartial();
@@ -155,11 +132,6 @@ module Alt_ROB
 
         // Clear starting from given
         int p = pCommit;
-
-
-            // $error("flush p");
-
-            // return;
 
         // move until finding proper mid
         while (array[p2i(p)].mid != branchEventInfo.eventMid) begin
@@ -174,7 +146,6 @@ module Alt_ROB
         pEndNew = movePtrRow(p);
         // from next after mid - clear
         p = movePtrOne(p);
-
 
         lc = 0;
 
@@ -193,8 +164,8 @@ module Alt_ROB
     endtask
 
 
+    OpRecordA lastRec;
 
-        OpRecordA lastRec;
 
     task automatic writeInput(input OpSlotAB in);
         OpRecordA rec = makeRecord(in);
