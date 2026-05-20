@@ -18,13 +18,6 @@ import Queues::*;
 module EventUnit(input logic clk);
 
 
-    typedef enum {
-        BS_NONE,
-        BS_NORMAL, // accepts renamed ops
-        BS_WAIT,   // event to handle is present, don't accept new ops
-        BS_HANDLING // event processing ongoing
-    } BackendState;
-
     BackendState backendState = BS_NONE;
 
 

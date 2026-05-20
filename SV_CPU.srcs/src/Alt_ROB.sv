@@ -23,12 +23,47 @@ module Alt_ROB
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
 
+        initial begin
+            $error("(0 - 252) mod 256: %d", (0-252) % 256);
+            $error("(0 - 252) pmod 256: %d", properMod(0-252 ,256));
+
+            $error("0 olde than 4 @ 0: %d", pointerOlderThan(0, 4, 0));
+            $error("0 olde than 4 @ 4: %d", pointerOlderThan(0, 4, 4));
+
+        end
+
 
         OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
 
 
-        int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pHuhu = 0;  
+        int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pScanPrev = 0;  
         int ct = -1;
+
+
+            logic ch0, ch1, ch2, ch3, ch4;
+
+
+            always_comb ch0 = pointerOlderThan(pScan, pScanPrev, pScan);
+            always_comb ch1 = pointerOlderThan(pScan, pEnd, pCommit);
+
+
+            always_comb ch3 = pointerOlderThan(pScanPrev, pScan, pScan);
+            always_comb ch4 = pointerOlderThan(pEnd, pScan, pCommit);
+
+
+            function automatic int properMod(input int what, input int by);
+                int mayBeMinus = what % by;
+                if (mayBeMinus < 0) return mayBeMinus + by;
+                else return mayBeMinus;
+            endfunction
+
+
+        // Is left older than right?
+        function automatic logic pointerOlderThan(input int left, input int right, input int pRef); 
+            int leftRel = properMod(left - pRef, 2*ROB_SIZE);
+            int rightRel = properMod(right - pRef, 2*ROB_SIZE);
+            return leftRel < rightRel;
+        endfunction
 
 
         function automatic int p2i(input int p);
@@ -71,6 +106,11 @@ module Alt_ROB
         end
 
         pScan <= p;
+
+
+
+
+            pScanPrev <= pScan;
     endtask
 
 
@@ -111,7 +151,7 @@ module Alt_ROB
 
     task automatic flushPartial();
         int lc = 0;
-        int pNew = -1;
+        int pEndNew = -1;
 
         // Clear starting from given
         int p = pCommit;
@@ -131,8 +171,7 @@ module Alt_ROB
             p = movePtrOne(p);
         end
 
-        // set ptrs to next after mid (next row beginning)
-        pNew = movePtrRow(p);
+        pEndNew = movePtrRow(p);
         // from next after mid - clear
         p = movePtrOne(p);
 
@@ -150,7 +189,7 @@ module Alt_ROB
             p = movePtrOne(p);
         end
 
-        pEnd <= pNew;
+        pEnd <= pEndNew;
     endtask
 
 
@@ -205,5 +244,16 @@ module Alt_ROB
             //
         end
     endtask
+
+
+    generate
+        OpRecord recCommit, recScan, recScanPrev, recEnd;
+
+        assign recCommit = array[p2i(pCommit)];        
+        assign recScan = array[p2i(pScan)];        
+        assign recScanPrev = array[p2i(pScanPrev)];        
+        assign recEnd = array[p2i(pEnd)];        
+    endgenerate
+
 
 endmodule

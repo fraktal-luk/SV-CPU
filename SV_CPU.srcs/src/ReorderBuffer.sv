@@ -41,12 +41,17 @@ module ReorderBuffer
     
     logic allow;
     
-    InsId lastScanned = -1, // last id whoch was transfered to output queue
+    InsId lastScanned = -1, // last id which was transfered to output queue
           lastOut = -1;     // last accepted as committed
     logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
     
     TableIndex indB = '{0, 0, -1}, ind_Start = '{0, 0, -1},
                indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
+
+
+        // lastScanned - what can be read from SQ/LQ to deliver data for committing
+        // lastOut - what can be committed in SQ
+
 
 
     RRQ rrq;
@@ -580,5 +585,8 @@ module ReorderBuffer
 
         return res;
     endfunction
+
+
+
 
 endmodule

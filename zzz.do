@@ -92,12 +92,34 @@ sim:/ArchDesc0/core/theRob/lateEventOngoing \
 sim:/ArchDesc0/core/theRob/isEmpty
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pEnd
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pScan
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pCommit
+sim:/ArchDesc0/core/theRob/altRob/pCommit \
+sim:/ArchDesc0/core/theRob/altRob/pScan \
+sim:/ArchDesc0/core/theRob/altRob/pScanPrev \
+sim:/ArchDesc0/core/theRob/altRob/pEnd \
+sim:/ArchDesc0/core/theRob/altRob/ch0 \
+sim:/ArchDesc0/core/theRob/altRob/ch1 \
+sim:/ArchDesc0/core/theRob/altRob/ch2 \
+sim:/ArchDesc0/core/theRob/altRob/ch3 \
+sim:/ArchDesc0/core/theRob/altRob/ch4
+
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/lastRec
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/array
+
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/drainPointer \
+sim:/ArchDesc0/core/theRob/endPointer \
+sim:/ArchDesc0/core/theRob/ind_Start \
+sim:/ArchDesc0/core/theRob/indB \
+sim:/ArchDesc0/core/theRob/indCommitted \
+sim:/ArchDesc0/core/theRob/indNextToCommit \
+sim:/ArchDesc0/core/theRob/indToCommitSig
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/recCommit \
+sim:/ArchDesc0/core/theRob/altRob/recEnd \
+sim:/ArchDesc0/core/theRob/altRob/recScan \
+sim:/ArchDesc0/core/theRob/altRob/recScanPrev
+
