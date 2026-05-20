@@ -18,9 +18,14 @@ import Queues::*;
 module EventUnit(input logic clk);
 
 
+    BackendState backendState = BS_NONE;
+
 
     logic chp, chq;
 
+    logic clearEvent = 0, clearInterruptEvt = 0;
+
+    int intCounter = -1;
 
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
@@ -58,15 +63,37 @@ module EventUnit(input logic clk);
     always @(posedge clk) begin
         updateCurrentEventReg();
 
-        resetEvt = replaceEvt(resetEvt, resetEvt); // Flush if needed
-        interruptEvt = replaceEvt(interruptEvt, interruptEvt); // Flush if needed
+        clearInterruptEvt <= 0;
+
+        if (AbstractCore.lateEventInfo.redirect) begin
+            // Detect interrupt rejection
+            if (interruptEvt.active && AbstractCore.lateEventInfo.etype != PE_EXT_INTERRUPT) begin
+                clearInterruptEvt <= 1;
+                    $display("Interrupt rejected");
+            end
+
+            interruptEvt <= EMPTY_EVENT_DESC;
+
+            resetEvt <= EMPTY_EVENT_DESC;
+
+            backendState <= BS_NORMAL;
+        end
 
 
-        if (AbstractCore.reset) resetEvt = '{1, -1, PE_EXT_RESET};
-        else resetEvt = EMPTY_EVENT_DESC;
+        if (AbstractCore.reset) begin
+            resetEvt <= '{1, -1, PE_EXT_RESET};
+
+            if (backendState == BS_NORMAL) backendState <= BS_WAIT;
+        end
+        else resetEvt <= EMPTY_EVENT_DESC;
         
-        if (AbstractCore.interrupt) interruptEvt = '{1, -1, PE_EXT_INTERRUPT};
-        else interruptEvt = EMPTY_EVENT_DESC;
+        if (AbstractCore.interrupt) begin
+            interruptEvt <= '{1, -1, PE_EXT_INTERRUPT};
+            intCounter <= 10;
+
+            if (backendState == BS_NORMAL) backendState <= BS_WAIT;
+        end
+        else if (intCounter > 0) intCounter <= intCounter - 1;
 
     end
 
@@ -164,6 +191,19 @@ module EventUnit(input logic clk);
     task automatic updateCurrentEventReg();
         EventDesc newValue = getCurrentEvent();
 
+        // Signal if general is being cleared
+        if (!newValue.active && general.active) clearEvent <= 1;
+        else clearEvent <= 0;
+
+        // TODO: when new event is being set, clear interruptEvt and signal a reject - exceptions have higher prio
+        //      Or maybe interruptEvt should exist in parallel with general, and only get rejected when general is moving to lateEventInfoWaiting
+        //          Because general can be cleared by branch redirect, and this should not be a reason to reject interrupt
+
+        if (backendState != BS_HANDLING) begin
+            if (newValue.active) backendState <= BS_WAIT;
+            else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
+        end
+
         general <= newValue;
 
         front <= replaceEvt(front, frontH);
@@ -204,7 +244,7 @@ module EventUnit(input logic clk);
 
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
-                    
+
         if (AbstractCore.CurrentConfig.enArithExc) begin
             tmp = replaceEvt(tmp, fpInvH);
             tmp = replaceEvt(tmp, fpOvH);
@@ -221,5 +261,18 @@ module EventUnit(input logic clk);
     endfunction
 
        // assign chp = (general.id == theExecBlock.currentEventReg); 
+
+
+    function automatic logic hasEvent();
+        return general.active
+            || resetEvt.active
+            || interruptEvt.active
+                ;
+    endfunction 
+
+
+    function automatic void setHandling();
+        backendState <= BS_HANDLING;
+    endfunction
 
 endmodule

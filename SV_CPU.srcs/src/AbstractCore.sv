@@ -471,6 +471,10 @@ module AbstractCore
         logic foundEvent = 0;
         EventInfo lateEvt; // = EMPTY_EVENT_INFO;
 
+
+                // if (interrupt) $error("i tsignal");
+                // if (eventUnit.interruptEvt.active) $error("interrupt evt ative");
+
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
 
@@ -510,21 +514,35 @@ module AbstractCore
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
 
 
-        if (foundEvent)
+        // TODO: correctly prioritize event sources
+
+        if (foundEvent) begin
             lateEventInfoWaiting <= lateEvt;
+
+            eventUnit.setHandling();
+        end
 
         //if (reset) begin
         if (eventUnit.resetEvt.active) begin
             lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
+
+            eventUnit.setHandling();
         end
         //else if (interrupt) begin
-        else if (eventUnit.interruptEvt.active) begin
+        else if (eventUnit.interruptEvt.active // && eventUnit.intCounter == 4
+                                    && !lateEventInfo.active && !lateEventInfoWaiting.active
+                                    && theRob.isEmpty
+                            ) begin
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
+                $display("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
+                $display("After:      %X", retiredEmul.coreState.target);
+
+            eventUnit.setHandling();
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -619,7 +637,12 @@ module AbstractCore
                             isStaticEventIns(insInfo.basicData.dec) || (insInfo.eventType == PE_ARITH_EXCEPTION)
                             ))
         else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", insInfo, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
-                            
+
+
+                if (id > 'h1fb0) begin
+                   // $display("Commiting %X;\n   %016x: %08x  %s", id,  insInfo.basicData.adr, insInfo.basicData.bits, disasm(insInfo.basicData.bits));
+                end
+
         verifyOnCommit(retInfo);
 
         // RET: update regs
@@ -817,12 +840,14 @@ module AbstractCore
 
         programMem = new();
         dataMem = new();
-        
+
         dataCache.reset();
         theFrontend.instructionCache.reset();
+        theFrontend.reset();
 
-        theFrontend.stageUnc_IP.active <= 0;
-        theFrontend.stage_IP.active <= 0;
+        // theFrontend.stageUnc_IP.active <= 0;
+        // theFrontend.stageIP.active <= 0;
+
 
         branchCheckpointQueue.delete();
 

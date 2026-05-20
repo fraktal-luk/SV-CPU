@@ -14,6 +14,14 @@ package ExecDefs;
     
 
     typedef enum {
+        BS_NONE,
+        BS_NORMAL, // accepts renamed ops
+        BS_WAIT,   // event to handle is present, don't accept new ops
+        BS_HANDLING // event processing ongoing
+    } BackendState;
+
+
+    typedef enum {
         MC_NONE,
         MC_NORMAL,
         MC_BARRIER,

@@ -31,6 +31,8 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/MemBuffers.sv" \
 "../../../../SV_CPU.srcs/src/MemSubpipe.sv" \
 "../../../../SV_CPU.srcs/src/Modules.sv" \
+"../../../../SV_CPU.srcs/src/Alt_ROB.sv" \
+"../../../../SV_CPU.srcs/src/RobDefs.sv" \
 "../../../../SV_CPU.srcs/src/ReorderBuffer.sv" \
 "../../../../SV_CPU.srcs/src/ReplayQueue.sv" \
 "../../../../SV_CPU.srcs/src/SystemRegisterUnit.sv" \

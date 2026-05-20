@@ -7,6 +7,8 @@ import Emulation::*;
 import AbstractSim::*;
 import Insmap::*;
 
+import RobDefs::*;
+
 
 module ReorderBuffer
 #(
@@ -20,48 +22,10 @@ module ReorderBuffer
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
-    typedef logic CompletedVec[N_UOP_MAX];
 
-    typedef struct {
-        logic used;
-        InsId mid;
-        CompletedVec completed;
-    } OpRecord;
-    
-    localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};
 
-    typedef OpRecord OpRecordA[WIDTH];
+    Alt_ROB#(.WIDTH(WIDTH)) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
 
-    typedef struct {
-        OpRecord records[WIDTH];
-    } Row;
-    
-    localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
-
-    typedef OpRecord QM[3*WIDTH];
-
-    
-        // Experimental
-        typedef struct {
-            int row;
-            int slot;
-            InsId mid;
-        } TableIndex;
-        
-        localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
-
-        
-        typedef struct {
-            InsId id = -1;
-            TableIndex tableIndex = EMPTY_TABLE_INDEX;
-            logic control;
-            logic refetch;
-            logic exception;
-        } RobResult;
-        
-        localparam RobResult EMPTY_ROB_RESULT = '{-1, EMPTY_TABLE_INDEX, 'x, 'x, 'x};
-        
-        typedef RobResult RRQ[$];
 
 
     RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
@@ -77,12 +41,17 @@ module ReorderBuffer
     
     logic allow;
     
-    InsId lastScanned = -1, // last id whoch was transfered to output queue
+    InsId lastScanned = -1, // last id which was transfered to output queue
           lastOut = -1;     // last accepted as committed
     logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
     
     TableIndex indB = '{0, 0, -1}, ind_Start = '{0, 0, -1},
                indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
+
+
+        // lastScanned - what can be read from SQ/LQ to deliver data for committing
+        // lastOut - what can be committed in SQ
+
 
 
     RRQ rrq;
@@ -99,11 +68,27 @@ module ReorderBuffer
 
     always_comb retirementGroup = makeRetirementGroup();
     
-    always_comb lateEventOngoing = AbstractCore.interrupt || AbstractCore.reset
-                                || eventUnit.interruptEvt.active || eventUnit.resetEvt.active
+    always_comb lateEventOngoing = 0
+                                //|| AbstractCore.interrupt 
+                                    || AbstractCore.reset
+                                //|| eventUnit.interruptEvt.active 
+                                    || eventUnit.resetEvt.active
                                 || lateEventInfo.redirect
                                 || AbstractCore.lateEventInfoWaiting.active
-                                || lastIsBreaking;
+                                || lastIsBreaking
+                                ;
+
+
+
+            logic chD, chCom, chComNext, chStart, chB, chEnd, chBackup;
+
+            assign chD = drainPointer <= indCommitted.row;
+            assign chCom = indCommitted.row <= indToCommitSig.row;
+            assign chComNext = indToCommitSig.row <= ind_Start.row;
+            assign chStart = ind_Start.row <= indB.row;
+            assign chB = indB.row <= endPointer;
+            
+            assign chBackup = backupPointer <= indToCommitSig.row;
 
 
 
@@ -111,84 +96,40 @@ module ReorderBuffer
         retirementGroupPrev <= retirementGroup;
 
         advanceDrain();
-
         doRetirement();
 
         readTable();
+        setOutput();
 
         indsAB();
 
+
+            makeRrqView();
         markCompleted();
+
+
+            altRob.commit();
+
+            altRob.alt_markCompleted();
+
 
         if (lateEventInfo.redirect) begin
             flushArrayAll();
+
+                altRob.flushAll();
         end
         else if (branchEventInfo.redirect) begin
             flushArrayPartial();
+
+                altRob.flushPartial();
         end
         else if (anyActiveB(inGroup)) begin
             add(inGroup);
+
+                altRob.writeInput(inGroup);
         end
 
     end
-
-
-
-
-
-    function automatic OpRecord tickRecord(input OpRecord rec);
-        if (lateEventOngoing) begin
-            if (rec.mid != -1)
-                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
-            return EMPTY_RECORD;
-        end
-        else
-            return rec;
-    endfunction
-
-    function automatic Row tickRow(input Row row);
-        Row res;
-
-        foreach (res.records[i])
-            res.records[i] = tickRecord(row.records[i]);
-
-        return res;
-    endfunction
-
-
-    function automatic Row readRowPart();
-        Row head = array[ind_Start.row % DEPTH];
-        Row res = EMPTY_ROW;
-    
-        foreach (head.records[i]) begin
-            if (i < ind_Start.slot) continue;
-            
-            if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) break;
-            
-            ind_Start = incIndex(ind_Start);
-            
-            if (head.records[i].mid == -1) continue;
-            
-            res.records[i] = head.records[i];
-
-            assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-            
-            if (breaksCommitId(head.records[i].mid)) break;
-        end
-        
-        return res;
-    endfunction
-    
-    
-    task automatic TMP_setZ(input RobResult r);
-        TableIndex ti = indCommitted;
-    
-        while (1) begin
-            ti = incIndex(ti);
-            array_N[ti.row].records[ti.slot].used = 'z;                
-            if (ti.row == r.tableIndex.row && ti.slot == r.tableIndex.slot) break;
-        end
-    endtask
 
 
 
@@ -197,111 +138,149 @@ module ReorderBuffer
         while (drainPointer != indCommitted.row) begin
            int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= indCommitted.mid) );
            if (fd.size() != 0) break;
-           array_N[drainPointer % DEPTH] = EMPTY_ROW;
-           drainPointer = (drainPointer+1) % (2*DEPTH);
+
+           array_N[drainPointer % DEPTH] = EMPTY_ROW;      // !!!
+           drainPointer = (drainPointer+1) % (2*DEPTH);    // !!!
         end
     endtask
 
+
     task automatic doRetirement();
+
+        // Go thru outRow, stop if a breaking event occurs
         foreach (outRow.records[i]) begin
             InsId thisMid = outRow.records[i].mid;
             RobResult r;
             
             if (thisMid == -1) continue;
+
             r = rrq.pop_front();
 
-            TMP_setZ(r);
-            indCommitted <= r.tableIndex;
-            
+            TMP_setZ(r); // set Z from indCommitted to r
+
                 assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
+
+            indCommitted <= r.tableIndex;  // !!!
             
-            // Find next slot to be committed
-            indNextToCommit = r.tableIndex;
+            // Find next slot to be committed (skip empty ones)
+            indNextToCommit = r.tableIndex;  // !!!...
+
+            // go to next occupied slot
             indNextToCommit.mid = entryAt(indNextToCommit).mid;
             while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
                 indNextToCommit = incIndex(indNextToCommit);
                 indNextToCommit.mid = entryAt(indNextToCommit).mid;
-                
-                if (entryAt(indNextToCommit).mid != -1) break;
+
+                if (indNextToCommit.mid != -1) break;
             end
-            
-            
+
             if (breaksCommitId(thisMid)) break;
         end
 
-        indNextToCommit.mid = entryAt(indNextToCommit).mid;
-        while (indNextToCommit.mid == -1 && indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-            indNextToCommit = incIndex(indNextToCommit);
-            indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            
-            if (entryAt(indNextToCommit).mid != -1) break;
-        end 
 
-        indToCommitSig <= indNextToCommit;
+        // Find next occupied entry if such exists, or go to end if none 
+        indNextToCommit.mid = entryAt(indNextToCommit).mid;
+        if (indNextToCommit.mid == -1) begin
+            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+                indNextToCommit = incIndex(indNextToCommit);
+                indNextToCommit.mid = entryAt(indNextToCommit).mid;
+
+                if (indNextToCommit.mid != -1) break;
+            end 
+        end
+
+        indToCommitSig <= indNextToCommit;  // !!!
 
     endtask;
 
-
     task automatic readTable();
-        Row arrayHeadRowVar, outRowVar, row;
+        Row arrayHeadRowVar = lateEventOngoing ? EMPTY_ROW :  readRowPart();
 
-        if (lateEventOngoing) begin            
-            arrayHeadRow <= EMPTY_ROW;
-        end
-        else begin
-            arrayHeadRowVar = readRowPart();
+        foreach (arrayHeadRowVar.records[i])
+            if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
 
-            foreach (arrayHeadRowVar.records[i])
-                if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
+        arrayHeadRow <= arrayHeadRowVar;  // !!!
+        lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
+    endtask
 
-            arrayHeadRow <= arrayHeadRowVar;
-            lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records);
-        end
+    task automatic setOutput();
+        Row row = tickRow(arrayHeadRow);
 
-
-        row = tickRow(arrayHeadRow);
-
-        if (lateEventOngoing) begin            
-            outRow <= EMPTY_ROW;
-            lastIsBreaking <= 0;
-        end
-        else begin
-            outRowVar = row;
-            outRow <= outRowVar;
-            lastOut <= getLastOut(lastOut, outRowVar.records);
-            lastIsBreaking <= isLastBreaking(outRowVar.records);                
-        end
-
+        outRow <= row;     // !!!
+        lastOut <= getLastOut(lastOut, row.records);   // !!!
+        lastIsBreaking <= isLastBreaking(row.records); // !!!
     endtask
 
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
-            indNextToCommit = '{backupPointer, 0, -1};
-            indToCommitSig <= indNextToCommit;
-            ind_Start = '{backupPointer, 0, -1};
-            indB = '{backupPointer, 0, -1};
+            indNextToCommit = '{backupPointer, 0, -1};   // !!!
+            indToCommitSig <= indNextToCommit;           // !!!
+            ind_Start = '{backupPointer, 0, -1};         // !!!
+            indB = '{backupPointer, 0, -1};              // !!!
             rrq.delete();            
         end
         else begin
-            while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
-                InsId thisMid = entryAt(indB).mid;
 
-                if (thisMid != -1) begin
-                    InstructionInfo info = insMap.get(thisMid);
-                    rrq.push_back('{thisMid, '{indB.row, indB.slot, thisMid}, isControlUop(info.mainUop), info.refetch, info.exception});
-                end
-                indB = incIndex(indB);
+            // 
+            while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
+                pushEntry(indB);
+                indB = incIndex(indB);                   // !!!
             end                
         end        
 
+    endtask
 
-        //rrqSize <= rrq.size();
-        
+
+
+
+
+    task automatic pushEntry(input TableIndex indexB);
+        InsId thisMid = entryAt(indexB).mid;
+
+        if (thisMid != -1) begin
+            InstructionInfo info = insMap.get(thisMid);
+            rrq.push_back('{thisMid, '{indexB.row, indexB.slot, thisMid}, isControlUop(info.mainUop), info.refetch, info.exception});
+        end
+    endtask
+
+
+    task automatic makeRrqView();
         rrq_View = '{default: EMPTY_ROB_RESULT};
         foreach (rrq[i])
             rrq_View[i] = rrq[i];
     endtask
+
+
+    // 
+    function automatic Row readRowPart();
+        Row head = array[ind_Start.row % DEPTH];
+        Row res = EMPTY_ROW;
+
+        foreach (head.records[i]) begin
+            if (i < ind_Start.slot) continue;
+            
+            if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) break;
+            
+            ind_Start = incIndex(ind_Start);
+            
+            res.records[i] = head.records[i];
+
+            if (head.records[i].mid == -1) begin
+                continue;
+            end
+            else begin
+                assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
+            
+                if (breaksCommitId(head.records[i].mid)) break;
+            end
+        end
+        
+        return res;
+    endfunction
+    
+    
+
 
 
 
@@ -334,7 +313,6 @@ module ReorderBuffer
 
 
     task automatic flushArrayPartial();
-        //InsId causingMid = branchEventInfo.eventMid;
         int p = ind_Start.row; // TODO: change to first not committed entry?
      
         for (int i = 0; i < DEPTH; i++) begin
@@ -348,7 +326,8 @@ module ReorderBuffer
                 if (row[c].mid > branchEventInfo.eventMid) begin
                     putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
-                        array_N[p % DEPTH].records[c] = EMPTY_RECORD;
+                    array_N[p % DEPTH].records[c] = EMPTY_RECORD;
+                    
                     if (rowContains) begin
                         array[p % DEPTH].records[c].used = 1;  // !!
                         array_N[p % DEPTH].records[c].used = 1;  // !!
@@ -358,29 +337,6 @@ module ReorderBuffer
             p++;
         end
     endtask
-
-
-
-    function automatic CompletedVec initCompletedVec(input int n);
-        CompletedVec res = '{default: 'x};
-        for (int i = 0; i < n; i++)
-            res[i] = 0;
-        return res;
-    endfunction
-
-
-    function automatic OpRecordA makeRecord(input OpSlotAB ops);
-        OpRecordA res = '{default: EMPTY_RECORD};
-        foreach (ops[i]) begin
-            if (ops[i].active) begin
-                int nUops = insMap.get(ops[i].mid).nUops;
-                res[i] = '{1, ops[i].mid, initCompletedVec(nUops)};
-            end
-            else
-                res[i].used = 1; // Empty slots within occupied rows
-        end
-        return res;
-    endfunction
 
                         // .active, .mid
     task automatic add(input OpSlotAB in);
@@ -396,27 +352,11 @@ module ReorderBuffer
         end
     endtask
        
-    
-    function automatic InsId getLastOut(input InsId prev, input OpRecordA recs);
-        InsId tmp = prev;
-        
-        foreach (recs[i])
-            if  (recs[i].mid != -1)
-                tmp = recs[i].mid;
-                
-        return tmp;
-    endfunction
 
-    function automatic logic isLastBreaking(input OpRecordA recs);
-        logic brk = 0;
-        
-        foreach (recs[i])
-            if  (recs[i].mid != -1)
-                brk = breaksCommitId(recs[i].mid);
-                
-        return brk;
-    endfunction
 
+
+
+/////////---------------------------------------------------------------------------------------
 
 
     function automatic RetirementInfoA makeRetirementGroup();
@@ -467,6 +407,66 @@ module ReorderBuffer
     endfunction
 
 
+
+
+
+
+
+    task automatic TMP_setZ(input RobResult r);
+        TableIndex ti = indCommitted;
+    
+        while (1) begin
+            ti = incIndex(ti);
+            array_N[ti.row].records[ti.slot].used = 'z;                
+            if (ti.row == r.tableIndex.row && ti.slot == r.tableIndex.slot) break;
+        end
+    endtask
+
+    function automatic CompletedVec initCompletedVec(input int n);
+        CompletedVec res = '{default: 'x};
+        for (int i = 0; i < n; i++)
+            res[i] = 0;
+        return res;
+    endfunction
+
+
+    function automatic OpRecordA makeRecord(input OpSlotAB ops);
+        OpRecordA res = '{default: EMPTY_RECORD};
+        foreach (ops[i]) begin
+            if (ops[i].active) begin
+                int nUops = insMap.get(ops[i].mid).nUops;
+                res[i] = '{1, ops[i].mid, initCompletedVec(nUops)};
+            end
+            else
+                res[i].used = 1; // Empty slots within occupied rows
+        end
+        return res;
+    endfunction
+
+
+    function automatic InsId getLastOut(input InsId prev, input OpRecordA recs);
+        InsId tmp = prev;
+        
+        foreach (recs[i])
+            if  (recs[i].mid != -1)
+                tmp = recs[i].mid;
+                
+        return tmp;
+    endfunction
+
+    function automatic logic isLastBreaking(input OpRecordA recs);
+        logic brk = 0;
+        
+        foreach (recs[i])
+            if  (recs[i].mid != -1)
+                brk = breaksCommitId(recs[i].mid);
+                
+        return brk;
+    endfunction
+
+
+
+
     task automatic markCompleted();
         markPacketCompleted(theExecBlock.doneRegular0_E);
         markPacketCompleted(theExecBlock.doneRegular1_E);
@@ -501,8 +501,6 @@ module ReorderBuffer
     endtask
 
 
-
-    // Experimental    
     function automatic TableIndex incIndex(input TableIndex ind);
         TableIndex res = ind;
         
@@ -511,10 +509,12 @@ module ReorderBuffer
             res.slot = 0;
             res.row = (res.row+1) % (2*DEPTH);
         end
-        
+        res.mid = -1;
+
         return res;
     endfunction
-    
+
+
     function automatic OpRecord entryAt(input TableIndex ind);
         return array[ind.row % DEPTH].records[ind.slot];
     endfunction
@@ -545,5 +545,28 @@ module ReorderBuffer
             
             return pN < endN;
         endfunction
+
+
+    function automatic OpRecord tickRecord(input OpRecord rec);
+        if (lateEventOngoing) begin
+            if (rec.mid != -1)
+                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
+            return EMPTY_RECORD;
+        end
+        else
+            return rec;
+    endfunction
+
+    function automatic Row tickRow(input Row row);
+        Row res;
+
+        foreach (res.records[i])
+            res.records[i] = tickRecord(row.records[i]);
+
+        return res;
+    endfunction
+
+
+
 
 endmodule
