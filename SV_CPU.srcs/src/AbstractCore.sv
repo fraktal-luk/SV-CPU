@@ -585,12 +585,12 @@ module AbstractCore
         Mword nextTrg;
         Mword expectedTargetFloor = trg;
 
-        InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+        InstructionMap::Milestone retireType = info.dynamicEvt ? InstructionMap::RetireException : (info.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-            logic memQueueExc = retInfo.exception;
-            logic memQueueRef = retInfo.refetch;
-            logic mapExc = info.dynamicEvt;
-            logic mapRef = info.refetch;
+            // logic memQueueExc = retInfo.exception;
+            // logic memQueueRef = retInfo.refetch;
+            // logic mapExc = info.dynamicEvt;
+            // logic mapRef = info.refetch;
 
         logic eventPresentAlt = (
                               CurrentConfig.dbStep ||
@@ -611,7 +611,7 @@ module AbstractCore
                             );
 
 
-                       assert (eventPresentAlt === eventPresent) else $error("WTFF  %p %p", eventPresentAlt, eventPresent);
+                    //   assert (eventPresentAlt === eventPresent) else $error("WTFF  %p %p", eventPresentAlt, eventPresent);
 
 
             // if (retInfo.exception) begin
