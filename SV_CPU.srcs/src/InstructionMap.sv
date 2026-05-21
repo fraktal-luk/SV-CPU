@@ -84,6 +84,7 @@ package Insmap;
         res.exception = 0;
             res.staticEvt = 0;
             res.dynamicEvt = 0;
+            res.silentEvt = 0;
         res.refetch = 0;
 
         res.hwEventType = PE_NONE;

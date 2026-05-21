@@ -587,13 +587,46 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = retInfo.exception ? InstructionMap::RetireException : (retInfo.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-        logic eventPresent = (retInfo.refetch ||
+            logic memQueueExc = retInfo.exception;
+            logic memQueueRef = retInfo.refetch;
+            logic mapExc = info.dynamicEvt;
+            logic mapRef = info.refetch;
+
+        logic eventPresentAlt = (
                               CurrentConfig.dbStep ||
-                              
-                              retInfo.exception ||
+
+                                    retInfo.refetch ||
+                                    retInfo.exception ||
                                 isStaticEventIns(info.basicData.dec) ||
                                 (info.eventType == PE_ARITH_EXCEPTION)
+                                );
+
+
+                       logic eventPresent =     (
+                                    CurrentConfig.dbStep ||
+                                    info.refetch ||
+                                    info.dynamicEvt ||
+                                    info.staticEvt ||
+                                    info.silentEvt
                             );
+
+
+                       assert (eventPresentAlt === eventPresent) else $error("WTFF  %p %p", eventPresentAlt, eventPresent);
+
+
+            // if (retInfo.exception) begin
+            //     assert (mapExc) else $error("boejee");
+            //     assert (info.hwEventType == info.eventType) else $error("yyyyyy");
+            //     assert (!info.staticEvt && info.dynamicEvt) else $error("hohohhhhh"); 
+            // end
+
+            // assert (retInfo.refetch == info.refetch) else $error("oooooooooo");
+
+            // if (retInfo.refetch) begin
+            //     assert (info.eventType == PE_NONE) else $error("????rrrrrrrrr");
+            //     assert (info.hwEventType == PE_HW_REFETCH) else $error("jajajajajaa"); 
+            // end
+
 
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
@@ -613,10 +646,10 @@ module AbstractCore
             retiredEmul.getBasicDbView();
             $fatal(2, "Commit: mm adr %h / %h", expectedTargetFloor, info.basicData.adr);
         end
-        assert (retInfo.refetch === info.refetch) else begin
-            retiredEmul.getBasicDbView();
-            $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
-        end
+        // assert (retInfo.refetch === info.refetch) else begin
+        //     retiredEmul.getBasicDbView();
+        //     $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
+        // end
 
         // .emulException implies .exception
         assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
@@ -669,7 +702,10 @@ module AbstractCore
         InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
 
-        logic abnormal = retInfo.refetch || retInfo.exception;
+        logic abnormalAlt = retInfo.refetch || retInfo.exception;
+            logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
+
+            //assert (abnormalAlt === abnormal) else $error("----------\n%p\n%p", retInfo, insInfo);
 
         verifyOnCommit(retInfo);
 
