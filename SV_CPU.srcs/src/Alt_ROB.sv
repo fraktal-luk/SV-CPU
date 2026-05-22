@@ -27,6 +27,14 @@ module Alt_ROB
     int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pScanPrev = 0;  
 
 
+        InsId lastScannedId = -1, lastScannedIdVar = -1, lastCommittedId = -1, lastCommittedIdVar = -1;
+        InsId lastScannedIdEvt = -1;
+
+        logic eventFound = 0;
+
+        Mword trg, trgEvt, trgCommitted;
+
+
     logic ch0, ch1, ch2, ch3, ch4;
 
 
@@ -73,28 +81,70 @@ module Alt_ROB
 
     task automatic commit();
         int p = pCommit;
+        lastCommittedIdVar = lastCommittedId;
 
-        while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= AbstractCore.lastRetired) begin
+
+        while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= theRob.lastOut /*AbstractCore.lastRetired*/) begin
             if (p == pEnd) break;
             array[p2i(p)].used = 'z;
+
+            // if (array[p2i(p)].mid != -1)
+            //     handleScan_Commit(array[p2i(p)]);
+
             p = movePtrOne(p);
         end
 
         pCommit <= p;
+        lastCommittedId <= lastCommittedIdVar;
 
 
         p = pScan; // Old value!
-        while (array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
-            if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) break; // Don't mpve
-            if (p == pEnd) break;
+        lastScannedIdVar = lastScannedId;
 
-            array[p2i(p)].used = 'x;
-            p = movePtrOne(p);
+        if (!eventFound) begin
+            while (array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
+                if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) begin
+                    // This slot has an event
+                    eventFound <= 1;
+                    TMP_handleScanEvt(array[p2i(p)]);
+                    handleScan(array[p2i(p)]);
+                    break; // Don't mpve
+                end
+                if (p == pEnd) break;
+
+                array[p2i(p)].used = 'x;
+
+                if (array[p2i(p)].mid != -1)
+                    handleScan(array[p2i(p)]);
+
+                p = movePtrOne(p);
+            end
         end
 
         pScan <= p;
+        lastScannedId <= lastScannedIdVar;
 
         pScanPrev <= pScan;
+    endtask
+
+
+    task automatic handleLateEvent();
+
+        // if (eventUnit.general.active) begin
+        //     // InstructionInfo info = insMap.get(mid);
+        //     // BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
+
+        //     handleScan(array[p2i(pScan)]);
+
+        //     pScanPrev <= pScan;
+        //     pScan <= movePtrOne(pScan);
+
+        // end
+
+            trg <= lateEventInfo.target;
+
+
+        eventFound <= 0;
     endtask
 
 
@@ -215,6 +265,43 @@ module Alt_ROB
             //
         end
     endtask
+
+
+    function automatic void handleScan_Commit(input OpRecord rec);
+        // TODO
+        InsId mid = rec.mid;
+        InstructionInfo info = insMap.get(mid);
+        BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
+
+        trgCommitted <= findTarget(info, found);
+
+
+        lastCommittedIdVar = mid;
+    endfunction
+
+    function automatic void handleScan(input OpRecord rec);
+        // TODO
+        InsId mid = rec.mid;
+        InstructionInfo info = insMap.get(mid);
+        BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
+
+        trg <= findTarget(info, found);
+
+
+        lastScannedIdVar = mid;
+    endfunction
+
+   function automatic void TMP_handleScanEvt(input OpRecord rec);
+        // TODO
+        InsId mid = rec.mid;
+        InstructionInfo info = insMap.get(mid);
+        BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
+
+        trgEvt <= findTarget(info, found);
+
+        lastScannedIdEvt <= mid;
+    endfunction
+
 
 
     generate

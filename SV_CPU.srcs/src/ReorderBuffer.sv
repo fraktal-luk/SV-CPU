@@ -49,9 +49,15 @@ module ReorderBuffer
                indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
 
 
+    int indB_int, ind_Start_int, indCommitted_int, indToCommitSig_int, indToCommit_int;
+
+        assign indB_int = TMP_int(indB);
+        assign indStart_int = TMP_int(ind_Start);
+        assign indCommitted_int = TMP_int(indCommitted);
+        assign indToCommit_int = TMP_int(indToCommitSig);
+
         // lastScanned - what can be read from SQ/LQ to deliver data for committing
         // lastOut - what can be committed in SQ
-
 
 
     RRQ rrq;
@@ -115,6 +121,8 @@ module ReorderBuffer
 
         if (lateEventInfo.redirect) begin
             flushArrayAll();
+
+                altRob.handleLateEvent();
 
                 altRob.flushAll();
         end
@@ -230,8 +238,6 @@ module ReorderBuffer
         end        
 
     endtask
-
-
 
 
 
@@ -378,18 +384,18 @@ module ReorderBuffer
             res[i].exception = 0;
             res[i].refetch = 0;
             
-            // Find corresponding entries of queues
-            if (isStoreUop(decMainUop(mid))) begin
-                StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
-                //res[i].refetch = entry[0].refetch;
-                //res[i].exception = entry[0].error;               
-            end
+            // // Find corresponding entries of queues
+            // if (isStoreUop(decMainUop(mid))) begin
+            //     StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
+            //     //res[i].refetch = entry[0].refetch;
+            //     //res[i].exception = entry[0].error;               
+            // end
 
-            if (isLoadUop(decMainUop(mid))) begin
-                 LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
-                 //res[i].refetch = entry[0].refetch;
-                 //res[i].exception = entry[0].error;
-            end
+            // if (isLoadUop(decMainUop(mid))) begin
+            //      LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
+            //      //res[i].refetch = entry[0].refetch;
+            //      //res[i].exception = entry[0].error;
+            // end
             
             if (isBranchUop(decMainUop(mid))) begin
                 UopName uname = decMainUop(mid);
@@ -405,9 +411,6 @@ module ReorderBuffer
 
         return res;
     endfunction
-
-
-
 
 
 

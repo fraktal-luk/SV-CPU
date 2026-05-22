@@ -123,3 +123,19 @@ sim:/ArchDesc0/core/theRob/altRob/recEnd \
 sim:/ArchDesc0/core/theRob/altRob/recScan \
 sim:/ArchDesc0/core/theRob/altRob/recScanPrev
 
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/eventFound \
+sim:/ArchDesc0/core/theRob/altRob/lastRec \
+sim:/ArchDesc0/core/theRob/altRob/lastScannedId \
+sim:/ArchDesc0/core/theRob/altRob/lastScannedIdEvt \
+sim:/ArchDesc0/core/theRob/altRob/lastScannedIdVar \
+sim:/ArchDesc0/core/theRob/altRob/lateEventInfo \
+sim:/ArchDesc0/core/theRob/altRob/trg \
+sim:/ArchDesc0/core/theRob/altRob/trgEvt
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/ind_Start_int \
+sim:/ArchDesc0/core/theRob/indB_int \
+sim:/ArchDesc0/core/theRob/indCommitted_int \
+sim:/ArchDesc0/core/theRob/indToCommit_int \
+sim:/ArchDesc0/core/theRob/indToCommitSig_int

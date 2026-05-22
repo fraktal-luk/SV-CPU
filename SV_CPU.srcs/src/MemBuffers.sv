@@ -107,9 +107,10 @@ module StoreQueue
 
     function automatic logic isCommittable(input InsId id);
         return id != -1 && id <= AbstractCore.theRob.lastOut;
+                                 //   AbstractCore.lastRetired;
     endfunction
 
-    
+
     function automatic logic appliesU(input UopName uname);        
         return (
             (IS_STORE_QUEUE && (isStoreUop(uname) || isMemBarrierUop(uname)))  

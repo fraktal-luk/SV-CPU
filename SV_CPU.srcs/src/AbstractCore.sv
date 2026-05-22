@@ -360,21 +360,16 @@ module AbstractCore
 
         runInEmulator(renamedEmul, adr, bits);
 
-        // Is there an exception?
-
         if (evt != PE_NONE) begin
             ii.exception = 1;
             ii.staticEvt = 1;
             ii.hwEventType = evt;
         end
-        else if (staticExc //&& !(uopName inside {UOP_ctrl_sync, UOP_ctrl_send, UOP_ctrl_rete, UOP_ctrl_reti})
-          ) begin
-
+        else if (staticExc) begin
             if (silentEvt) ii.silentEvt = 1;
             else ii.staticEvt = 1;
-            
-            ii.exception = 1;
 
+            ii.exception = 1;
             ii.hwEventType = eventFromUop(uopName);
         end
 
@@ -454,6 +449,11 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
+
+            if (lateEventInfoWaiting.etype != PE_EXT_RESET) begin
+                assert (retiredTarget === theRob.altRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.altRob.trg);
+            end
+
             sysUnit.saveStateAsync(retiredTarget, lateEventInfoWaiting.etype);
             retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
@@ -480,11 +480,7 @@ module AbstractCore
 
     task automatic advanceCommit();
         logic foundEvent = 0;
-        EventInfo lateEvt; // = EMPTY_EVENT_INFO;
-
-
-                // if (interrupt) $error("i tsignal");
-                // if (eventUnit.interruptEvt.active) $error("interrupt evt ative");
+        EventInfo lateEvt;
 
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
@@ -529,20 +525,20 @@ module AbstractCore
 
         if (foundEvent) begin
             lateEventInfoWaiting <= lateEvt;
-
             eventUnit.setHandling();
         end
 
-        //if (reset) begin
-        if (eventUnit.resetEvt.active) begin
+        if (eventUnit.resetEvt.active
+                                    && !lateEventInfo.active && !lateEventInfoWaiting.active
+                                    && theRob.isEmpty
+        ) begin
             lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
 
             eventUnit.setHandling();
         end
-        //else if (interrupt) begin
-        else if (eventUnit.interruptEvt.active // && eventUnit.intCounter == 4
+        else if (eventUnit.interruptEvt.active
                                     && !lateEventInfo.active && !lateEventInfoWaiting.active
                                     && theRob.isEmpty
                             ) begin
@@ -587,53 +583,18 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = info.dynamicEvt ? InstructionMap::RetireException : (info.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-            // logic memQueueExc = retInfo.exception;
-            // logic memQueueRef = retInfo.refetch;
-            // logic mapExc = info.dynamicEvt;
-            // logic mapRef = info.refetch;
-
-        logic eventPresentAlt = (
-                              CurrentConfig.dbStep ||
-
-                                    retInfo.refetch ||
-                                    retInfo.exception ||
-                                isStaticEventIns(info.basicData.dec) ||
-                                (info.eventType == PE_ARITH_EXCEPTION)
-                                );
-
-
-                       logic eventPresent =     (
-                                    CurrentConfig.dbStep ||
-                                    info.refetch ||
-                                    info.dynamicEvt ||
-                                    info.staticEvt ||
-                                    info.silentEvt
-                            );
-
-
-                    //   assert (eventPresentAlt === eventPresent) else $error("WTFF  %p %p", eventPresentAlt, eventPresent);
-
-
-            // if (retInfo.exception) begin
-            //     assert (mapExc) else $error("boejee");
-            //     assert (info.hwEventType == info.eventType) else $error("yyyyyy");
-            //     assert (!info.staticEvt && info.dynamicEvt) else $error("hohohhhhh"); 
-            // end
-
-            // assert (retInfo.refetch == info.refetch) else $error("oooooooooo");
-
-            // if (retInfo.refetch) begin
-            //     assert (info.eventType == PE_NONE) else $error("????rrrrrrrrr");
-            //     assert (info.hwEventType == PE_HW_REFETCH) else $error("jajajajajaa"); 
-            // end
-
+       logic eventPresent = (
+                    CurrentConfig.dbStep ||
+                    info.refetch ||
+                    info.dynamicEvt ||
+                    info.staticEvt ||
+                    info.silentEvt
+            );
 
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
-
         assert ((eventUnit.general.id == id) === eventPresent)
         else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", info, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
-
 
         if (eventPresent) begin
             assert ((eventUnit.general.etype == info.hwEventType)
@@ -641,15 +602,10 @@ module AbstractCore
                 ) else $error("wrong: %p / %p", eventUnit.general.etype, info.hwEventType);
         end
 
-
         assert (expectedTargetFloor === info.basicData.adr) else begin
             retiredEmul.getBasicDbView();
             $fatal(2, "Commit: mm adr %h / %h", expectedTargetFloor, info.basicData.adr);
         end
-        // assert (retInfo.refetch === info.refetch) else begin
-        //     retiredEmul.getBasicDbView();
-        //     $fatal(2, "Not seen refetch: %d\n%p\n%p", id, info, retInfo);   
-        // end
 
         // .emulException implies .exception
         assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
@@ -701,11 +657,7 @@ module AbstractCore
     task automatic commitOp(RetirementInfo retInfo);
         InsId id = retInfo.mid;
         InstructionInfo insInfo = insMap.get(id);
-
-        logic abnormalAlt = retInfo.refetch || retInfo.exception;
-            logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
-
-            //assert (abnormalAlt === abnormal) else $error("----------\n%p\n%p", retInfo, insInfo);
+        logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
 
         verifyOnCommit(retInfo);
 
@@ -905,10 +857,6 @@ module AbstractCore
         theFrontend.instructionCache.reset();
         theFrontend.reset();
 
-        // theFrontend.stageUnc_IP.active <= 0;
-        // theFrontend.stageIP.active <= 0;
-
-
         branchCheckpointQueue.delete();
 
         sysUnit.reset();
@@ -970,6 +918,27 @@ module AbstractCore
     function automatic InsId oldestCsq();
         SqEntry entry[$] = csq.min with (item.mid);
         return entry[0].mid;
+    endfunction
+
+
+    function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
+        UopName uname = info.mainUop;
+        Mword own = info.basicData.adr;
+        Mword executed = 'x;
+        logic taken = 'x;
+
+        if (isBranchUop(uname)) begin 
+            assert (entries.size() == 1) else $fatal(2, "Brnhc not in BQ\n%p", info);
+            executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
+            taken = entries[0].taken;
+        end
+
+        if (0) ;
+        //if (info.dynamicEvt || info.refetch) return 'x;
+        //else if (uname == UOP_ctrl_sync) return own + 4;
+        else if (isBranchUop(uname) && taken) return executed;
+        //else if (isControlUop(uname)) return 'x;
+        else return own + 4;
     endfunction
 
 
