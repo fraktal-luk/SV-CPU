@@ -101,9 +101,9 @@ module StoreQueue
     endtask
 
 
-    function automatic logic isScanned(input InsId id);
-        return id != -1 && id <= AbstractCore.theRob.lastScanned;
-    endfunction
+    // function automatic logic isScanned(input InsId id);
+    //     return id != -1 && id <= AbstractCore.theRob.lastScanned;
+    // endfunction
 
     function automatic logic isCommittable(input InsId id);
         return id != -1 && id <= AbstractCore.theRob.lastOut;
@@ -140,16 +140,16 @@ module StoreQueue
 
 
     task automatic advance();
-        while (isScanned(content[scanPointer % SIZE].mid)) begin 
-            outputQ.push_back(content[scanPointer % SIZE]);
-            scanPointer = (scanPointer+1) % (2*SIZE);
-        end
+        // while (isScanned(content[scanPointer % SIZE].mid)) begin 
+        //    // outputQ.push_back(content[scanPointer % SIZE]);
+        //     scanPointer = (scanPointer+1) % (2*SIZE);
+        // end
 
         while (isCommittable(content[startPointer % SIZE].mid)) begin
             InsId thisId = content[startPointer % SIZE].mid;
 
-            assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
-            outputQ.pop_front();
+          //  assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
+          //  outputQ.pop_front();
 
             putMilestoneM(thisId, QUEUE_EXIT);
             checkOnCommit();

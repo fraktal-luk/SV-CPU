@@ -94,7 +94,7 @@ module AbstractCore
     SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, sysWriteInfos);
 
     // Event control
-    Mword retiredTarget = 0;
+    //Mword retiredTarget = 0;
 
     logic barrierUnlocking;
     InsId barrierUnlockingMid;
@@ -452,11 +452,11 @@ module AbstractCore
 
             //if (lateEventInfoWaiting.etype != PE_EXT_RESET) 
             begin
-                assert (retiredTarget === theRob.altRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.altRob.trg);
+              //  assert (retiredTarget === theRob.altRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.altRob.trg);
             end
 
             sysUnit.saveStateAsync(theRob.altRob.trg /*retiredTarget*/, lateEventInfoWaiting.etype);
-            retiredTarget <= lateEventInfoWaiting.target;
+           // retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
         end
         else begin
@@ -469,7 +469,7 @@ module AbstractCore
                                     eventUnit.general.etype);
             assert (eventUnit.general.etype == lateEventInfoWaiting.etype) else $error("nieeee\n%p, %p", eventUnit.general.etype, lateEventInfoWaiting.etype);
 
-            retiredTarget <= lateEvt.target;
+            //retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
 
@@ -686,7 +686,7 @@ module AbstractCore
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
 
         // RET: update target
-        retiredTarget <= getCommitTarget(decMainUop(id), insInfo.basicData.adr, retInfo.target, retInfo.takenBranch, abnormal);
+       // retiredTarget <= getCommitTarget(decMainUop(id), insInfo.basicData.adr, retInfo.target, retInfo.takenBranch, abnormal);
     endtask
 
 
@@ -866,7 +866,7 @@ module AbstractCore
         syncCurrentConfigFromRegs();
         
             theRob.altRob.trg <= IP_RESET;
-        retiredTarget <= IP_RESET;
+       // retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
         csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};

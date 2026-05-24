@@ -51,7 +51,7 @@ package ControlHandling;
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
 
-    // core logic
+    // UNUSED
     function automatic Mword getCommitTarget(input UopName uname, input Mword own, input Mword executed, input logic taken, input logic abnormal);
         if (abnormal) return 'x;
         else if (isBranchUop(uname) && taken) return executed;

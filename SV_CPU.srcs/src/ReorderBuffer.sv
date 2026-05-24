@@ -46,7 +46,7 @@ module ReorderBuffer
     logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
     
     TableIndex indB = '{0, 0, -1}, ind_Start = '{0, 0, -1},
-               indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
+               indCommitted = '{-1, -1, -1};//, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
 
 
     int indB_int, ind_Start_int, indCommitted_int, indToCommitSig_int, indToCommit_int;
@@ -54,7 +54,7 @@ module ReorderBuffer
         assign indB_int = TMP_int(indB);
         assign indStart_int = TMP_int(ind_Start);
         assign indCommitted_int = TMP_int(indCommitted);
-        assign indToCommit_int = TMP_int(indToCommitSig);
+      //  assign indToCommit_int = TMP_int(indToCommitSig);
 
         // lastScanned - what can be read from SQ/LQ to deliver data for committing
         // lastOut - what can be committed in SQ
@@ -89,12 +89,12 @@ module ReorderBuffer
             logic chD, chCom, chComNext, chStart, chB, chEnd, chBackup;
 
             assign chD = drainPointer <= indCommitted.row;
-            assign chCom = indCommitted.row <= indToCommitSig.row;
-            assign chComNext = indToCommitSig.row <= ind_Start.row;
+           // assign chCom = indCommitted.row <= indToCommitSig.row;
+           // assign chComNext = indToCommitSig.row <= ind_Start.row;
             assign chStart = ind_Start.row <= indB.row;
             assign chB = indB.row <= endPointer;
             
-            assign chBackup = backupPointer <= indToCommitSig.row;
+            //assign chBackup = backupPointer <= indToCommitSig.row;
 
 
 
@@ -166,38 +166,38 @@ module ReorderBuffer
 
             TMP_setZ(r); // set Z from indCommitted to r
 
-                assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
+              //  assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
 
             indCommitted <= r.tableIndex;  // !!!
             
             // Find next slot to be committed (skip empty ones)
-            indNextToCommit = r.tableIndex;  // !!!...
+            // indNextToCommit = r.tableIndex;  // !!!...
 
-            // go to next occupied slot
-            indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-                indNextToCommit = incIndex(indNextToCommit);
-                indNextToCommit.mid = entryAt(indNextToCommit).mid;
+            // // go to next occupied slot
+            // indNextToCommit.mid = entryAt(indNextToCommit).mid;
+            // while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+            //     indNextToCommit = incIndex(indNextToCommit);
+            //     indNextToCommit.mid = entryAt(indNextToCommit).mid;
 
-                if (indNextToCommit.mid != -1) break;
-            end
+            //     if (indNextToCommit.mid != -1) break;
+            // end
 
             if (breaksCommitId(thisMid)) break;
         end
 
 
-        // Find next occupied entry if such exists, or go to end if none 
-        indNextToCommit.mid = entryAt(indNextToCommit).mid;
-        if (indNextToCommit.mid == -1) begin
-            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-                indNextToCommit = incIndex(indNextToCommit);
-                indNextToCommit.mid = entryAt(indNextToCommit).mid;
+        // // Find next occupied entry if such exists, or go to end if none 
+        // indNextToCommit.mid = entryAt(indNextToCommit).mid;
+        // if (indNextToCommit.mid == -1) begin
+        //     while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
+        //         indNextToCommit = incIndex(indNextToCommit);
+        //         indNextToCommit.mid = entryAt(indNextToCommit).mid;
 
-                if (indNextToCommit.mid != -1) break;
-            end 
-        end
+        //         if (indNextToCommit.mid != -1) break;
+        //     end 
+        // end
 
-        indToCommitSig <= indNextToCommit;  // !!!
+        //indToCommitSig <= indNextToCommit;  // !!!
 
     endtask;
 
@@ -222,8 +222,8 @@ module ReorderBuffer
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
-            indNextToCommit = '{backupPointer, 0, -1};   // !!!
-            indToCommitSig <= indNextToCommit;           // !!!
+            //indNextToCommit = '{backupPointer, 0, -1};   // !!!
+            //indToCommitSig <= indNextToCommit;           // !!!
             ind_Start = '{backupPointer, 0, -1};         // !!!
             indB = '{backupPointer, 0, -1};              // !!!
             rrq.delete();            
@@ -357,7 +357,7 @@ module ReorderBuffer
             if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
         end
     endtask
-       
+
 
 
 
@@ -368,9 +368,9 @@ module ReorderBuffer
     function automatic RetirementInfoA makeRetirementGroup();
         Row row = outRow;
         
-        StoreQueueHelper::Entry outputSQ[3*ROB_WIDTH] = AbstractCore.theSq.outputQM;
-        LoadQueueHelper::Entry outputLQ[3*ROB_WIDTH] = AbstractCore.theLq.outputQM;
-        BranchQueueHelper::Entry outputBQ[3*ROB_WIDTH] = AbstractCore.theBq.outputQM;
+        // StoreQueueHelper::Entry outputSQ[3*ROB_WIDTH] = AbstractCore.theSq.outputQM;
+        // LoadQueueHelper::Entry outputLQ[3*ROB_WIDTH] = AbstractCore.theLq.outputQM;
+        // BranchQueueHelper::Entry outputBQ[3*ROB_WIDTH] = AbstractCore.theBq.outputQM;
         
         RetirementInfoA res = '{default: EMPTY_RETIREMENT_INFO};
         foreach (row.records[i]) begin
@@ -397,16 +397,16 @@ module ReorderBuffer
             //      //res[i].exception = entry[0].error;
             // end
             
-            if (isBranchUop(decMainUop(mid))) begin
-                UopName uname = decMainUop(mid);
-                BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
-                res[i].takenBranch = entry[0].taken;
+            // if (isBranchUop(decMainUop(mid))) begin
+            //     UopName uname = decMainUop(mid);
+            //     BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
+            //     res[i].takenBranch = entry[0].taken;
                 
-                if (isBranchRegUop(uname))
-                    res[i].target = entry[0].regTarget;
-                else
-                    res[i].target = entry[0].immTarget;
-            end
+            //     if (isBranchRegUop(uname))
+            //         res[i].target = entry[0].regTarget;
+            //     else
+            //         res[i].target = entry[0].immTarget;
+            // end
         end
 
         return res;

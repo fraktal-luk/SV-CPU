@@ -113,9 +113,7 @@ sim:/ArchDesc0/core/theRob/drainPointer \
 sim:/ArchDesc0/core/theRob/endPointer \
 sim:/ArchDesc0/core/theRob/ind_Start \
 sim:/ArchDesc0/core/theRob/indB \
-sim:/ArchDesc0/core/theRob/indCommitted \
-sim:/ArchDesc0/core/theRob/indNextToCommit \
-sim:/ArchDesc0/core/theRob/indToCommitSig
+sim:/ArchDesc0/core/theRob/indCommitted
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/recCommit \
