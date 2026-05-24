@@ -450,11 +450,12 @@ module AbstractCore
 
         if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
 
-            if (lateEventInfoWaiting.etype != PE_EXT_RESET) begin
+            //if (lateEventInfoWaiting.etype != PE_EXT_RESET) 
+            begin
                 assert (retiredTarget === theRob.altRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.altRob.trg);
             end
 
-            sysUnit.saveStateAsync(retiredTarget, lateEventInfoWaiting.etype);
+            sysUnit.saveStateAsync(theRob.altRob.trg /*retiredTarget*/, lateEventInfoWaiting.etype);
             retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
         end
@@ -864,6 +865,7 @@ module AbstractCore
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
         
+            theRob.altRob.trg <= IP_RESET;
         retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
