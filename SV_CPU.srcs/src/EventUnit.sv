@@ -56,7 +56,7 @@ module EventUnit(input logic clk);
 
         execMemH <= edFromUop(findOldestMemEvt(theExecBlock.memImagesTr[0]));
         execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]));
-        lqRefetchH <= edFromLqRefetch(theLq.submod.oldestRefetchEntryP0.mid);
+        lqRefetchH <= edFromLqRefetch(theLq.submod.oldestRefetchEntry.mid);
     end
 
 
@@ -254,6 +254,8 @@ module EventUnit(input logic clk);
         tmp = replaceEvt(tmp, execRefetchH);
         tmp = replaceEvt(tmp, lqRefetchH);
         tmp = replaceEvt(tmp, frontH);
+
+                if (lqRefetchH.id == 5203) $error("Setting  general evt for 5203");
 
         //if (shouldFlushId(tmp.id) || AbstractCore.lastRetired > tmp.id) tmp = EMPTY_EVENT_DESC;
 

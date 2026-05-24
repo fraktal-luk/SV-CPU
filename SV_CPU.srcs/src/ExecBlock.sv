@@ -48,6 +48,7 @@ module ExecBlock(ref InstructionMap insMap,
     DataCacheOutput sysOuts_E1[N_MEM_PORTS];
     
     UopMemPacket sqResponse_E1[N_MEM_PORTS];
+    UopMemPacket lqResponse_E1[N_MEM_PORTS];
 
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
@@ -124,7 +125,8 @@ module ExecBlock(ref InstructionMap insMap,
         dcacheOuts_E1[0],
         uncachedOuts_E1[0],
         sysOuts_E1[0],
-        sqResponse_E1[0]
+        sqResponse_E1[0],
+        lqResponse_E1[0]        
     );
 
     // Mem 2 - for ReplayQueue only!
@@ -139,7 +141,8 @@ module ExecBlock(ref InstructionMap insMap,
         dcacheOuts_E1[2],
         uncachedOuts_E1[2],
         sysOuts_E1[2],
-        sqResponse_E1[2]
+        sqResponse_E1[2],
+        lqResponse_E1[2]
     );
 
     // Vec 0
@@ -193,8 +196,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneBranch_E = branch0.stage0_E;
     assign doneDivider_E = divider.stage0_E;
-    assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
-    assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
+    //assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
+    //assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
+        assign doneMem0_E = TMP_mp(memToComplete(mem0.stage1_E));
+        assign doneMem2_E = TMP_mp(memToComplete(mem2.stage1_E));
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
     assign doneFloatDiv_E = fdiv.stage0_E;

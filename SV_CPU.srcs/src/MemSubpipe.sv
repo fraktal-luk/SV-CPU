@@ -23,7 +23,8 @@ module MemSubpipe#()
     input DataCacheOutput cacheResp,
     input DataCacheOutput uncachedResp,
     input DataCacheOutput sysRegResp,
-    input UopPacket sqResp
+    input UopPacket sqResp,
+    input UopPacket lqResp
 );
 
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
@@ -32,7 +33,7 @@ module MemSubpipe#()
     Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION;
 
 
-    UopMemPacket stage0, stage0_E;
+    UopMemPacket stage0, stage0_E, stage1_E;
     Translation tr0;
     AccessDesc ad0;
 
@@ -41,6 +42,7 @@ module MemSubpipe#()
     assign accessDescOut = accessDescE0;
 
     always_comb stage0_E = pE2_E;
+    always_comb stage1_E = pD0_E;
     assign tr0 = trE2;
     assign ad0 = accessDescE2;
 
@@ -162,7 +164,7 @@ module MemSubpipe#()
     
     task automatic performE2();    
         UopMemPacket stateE2 = tickP(pE1);
-        stateE2 = updateE2(stateE2, accessDescE1, cacheResp, uncachedResp, sysRegResp, sqResp);
+        stateE2 = updateE2(stateE2, accessDescE1, cacheResp, uncachedResp, sysRegResp, sqResp, lqResp);
         pE2 <= stateE2;
     endtask
 
@@ -203,7 +205,7 @@ module MemSubpipe#()
 
     function automatic UopMemPacket updateE2(input UopMemPacket p, input AccessDesc ad,
                                              input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, 
-                                             input DataCacheOutput sysResp, input UopPacket sqResp);
+                                             input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
         UopMemPacket res = p;
         UidT uid = p.TMP_oid;
         UopName uname;
@@ -320,7 +322,7 @@ module MemSubpipe#()
 
         assert (!uncachedResp.active) else $error("Why uncched\n%p\n%p", uncachedResp, cacheResp);
         
-        return updateE2_Regular(p, ad, cacheResp, sqResp);
+        return updateE2_Regular(p, ad, cacheResp, sqResp, lqResp);
     endfunction
 
 
@@ -345,7 +347,8 @@ module MemSubpipe#()
     endfunction
 
 
-    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp, input UopPacket sqResp);
+    function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp,
+                                                        input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
@@ -395,7 +398,9 @@ module MemSubpipe#()
             end
         end
 
-        if (isStoreMemUop(decUname(uid))) begin            
+        if (isStoreMemUop(decUname(uid))) begin
+              //  if (lqResp.active) $error("Stre has SOV\n%p", p);
+
             res.status = ES_OK;
         end
 

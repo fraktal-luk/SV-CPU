@@ -468,33 +468,65 @@ module TmpSubLq();
         end
 
         // Scan entries which need to be refetched and find the oldest
-        begin
-            LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
-            LqEntry oldestFound[$] = found.min with (item.mid);
+        // begin
+        //     LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
+        //     LqEntry oldestFound[$] = found.min with (item.mid);
 
-            int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
-            int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
+        //     int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
+        //     int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
 
-            if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
-            else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
+        //     if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
+        //     else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
 
-            // If wasn't killed in queue, pass on
-            if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
-            else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+        //             if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
 
-            // If wasn't killed in queue, pass on
-            if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
-            else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
-        end
+
+        //     // If wasn't killed in queue, pass on
+        //     if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
+        //     else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+
+        //     // If wasn't killed in queue, pass on
+        //     if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
+        //     else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
+        // end
 
         foreach (theExecBlock.toLqE2[p]) begin
             UopMemPacket storeUop = theExecBlock.toLqE2[p];
 
+            //theExecBlock.lqResponse_E1[p] <= EMPTY_UOP_PACKET;
+
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size));
+
+            //theExecBlock.lqResponse_E1[p]  <= 
+                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size));
         end
 
+            handleSOV();
+
     endtask
+
+
+    function automatic void handleSOV();
+        LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
+        LqEntry oldestFound[$] = found.min with (item.mid);
+
+        int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
+        int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
+
+        if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
+        else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
+
+                if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
+
+
+        // If wasn't killed in queue, pass on
+        if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
+        else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+
+        // If wasn't killed in queue, pass on
+        if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
+        else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
+    endfunction
 
 
     function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize trSize);
@@ -508,9 +540,11 @@ module TmpSubLq();
         begin // 'active' indicates that some match has happened without further details
             int oldestFound[$] = found.min with (entries[item].mid);
             StoreQueue.insMap.setRefetch(entries[oldestFound[0]].mid);
+
+                $error("Found SOV:\n%d -> %d", id, entries[oldestFound[0]].mid);
         end
-        
-        return EMPTY_UOP_PACKET;
+
+        return '{1, FIRST_U(id), MC_NONE, ES_OK, EMPTY_POISON, 'x};
     endfunction
 
 
