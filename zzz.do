@@ -163,5 +163,6 @@ sim:/ArchDesc0/core/theRob/altRob/lastCommittedId \
 sim:/ArchDesc0/core/theRob/altRob/lastReadId \
 sim:/ArchDesc0/core/theRob/altRob/lastScannedId
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/currentRow
+sim:/ArchDesc0/core/theRob/altRob/currentRow \
+sim:/ArchDesc0/core/theRob/altRob/prevRow
 

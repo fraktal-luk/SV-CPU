@@ -486,8 +486,14 @@ module AbstractCore
         foreach (theRob.retirementGroup[i]) begin
             InsId theId = theRob.retirementGroup[i].mid;
 
+                //assert (theRob.retirementGroup[i].mid == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.altRob.prevRow[i].mid);
+
             if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
             if (foundEvent) $fatal(2, "Committing after break");
+
+
+                assert (theRob.retirementGroup[i].mid == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.altRob.prevRow[i].mid);
+
 
             commitOp(theRob.retirementGroup[i]);
 

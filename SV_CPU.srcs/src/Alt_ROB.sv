@@ -40,12 +40,18 @@ module Alt_ROB
     logic ch0, ch1, ch2, ch3, ch4;
 
 
-    always_comb ch0 = pointerOlderThan(pScan, pScanPrev, pScan);
-    always_comb ch1 = pointerOlderThan(pScan, pEnd, pCommit);
+    // always_comb ch0 = pointerOlderThan(pScan, pScanPrev, pScan);
+    // always_comb ch1 = pointerOlderThan(pScan, pEnd, pCommit);
+
+    // always_comb ch3 = pointerOlderThan(pScanPrev, pScan, pScan);
+    // always_comb ch4 = pointerOlderThan(pEnd, pScan, pCommit);
 
 
-    always_comb ch3 = pointerOlderThan(pScanPrev, pScan, pScan);
-    always_comb ch4 = pointerOlderThan(pEnd, pScan, pCommit);
+        assign ch0 = (lastScannedId == theRob.lastOut);
+        assign ch1 = (lastScannedId == theRob.lastScanned);
+        
+        assign ch2 = (lastReadId == theRob.lastOut);
+        assign ch3 = (prevReadId == theRob.lastOut);
 
 
     function automatic int properMod(input int what, input int by);
@@ -87,7 +93,12 @@ module Alt_ROB
 
 
         while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= theRob.lastOut /*AbstractCore.lastRetired*/) begin
+
+                   // assert (theRob.lastOut == prevReadId) else $error("id diff %d, %d", theRob.lastOut, prevReadId);
+
             if (p == pEnd) break;
+
+                array[p2i(p)] = EMPTY_RECORD;
             array[p2i(p)].used = 'z;
 
             // if (array[p2i(p)].mid != -1)
@@ -116,7 +127,8 @@ module Alt_ROB
                     eventFound <= 1;
                     TMP_handleScanEvt(array[p2i(p)]);
                     handleScan(array[p2i(p)]);
-                    break; // Don't mpve
+                    p = movePtrOne(p);
+                    break;
                 end
                 if (p == pEnd) break;
 
@@ -144,7 +156,7 @@ module Alt_ROB
         prevRow <= currentRow;
         currentRow <= '{default: EMPTY_RECORD};
 
-        if (!eventFound) begin
+        //if (!eventFound) begin
             while (1) begin //array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
                 // if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) begin
                 //     // This slot has an event
@@ -164,7 +176,7 @@ module Alt_ROB
 
                 p = movePtrOne(p);
             end
-        end
+        //end
 
         pRead <= p;
         prevReadId <= lastReadId;
