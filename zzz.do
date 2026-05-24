@@ -132,8 +132,36 @@ sim:/ArchDesc0/core/theRob/altRob/trg \
 sim:/ArchDesc0/core/theRob/altRob/trgEvt
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/ind_Start_int \
-sim:/ArchDesc0/core/theRob/indB_int \
+sim:/ArchDesc0/core/theRob/altRob/pCommit \
 sim:/ArchDesc0/core/theRob/indCommitted_int \
-sim:/ArchDesc0/core/theRob/indToCommit_int \
-sim:/ArchDesc0/core/theRob/indToCommitSig_int
+sim:/ArchDesc0/core/theRob/indStart_int \
+sim:/ArchDesc0/core/theRob/indB_int \
+sim:/ArchDesc0/core/theRob/altRob/pScan
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/arrayHeadRow
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/outRow
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/lastScanned
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/lastOut
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/arrayHeadRow
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/outRow
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/lastScanned
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/lastOut
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/pRead \
+sim:/ArchDesc0/core/theRob/altRob/pReadPrev
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/lastCommittedId \
+sim:/ArchDesc0/core/theRob/altRob/lastReadId \
+sim:/ArchDesc0/core/theRob/altRob/lastScannedId
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/currentRow
+

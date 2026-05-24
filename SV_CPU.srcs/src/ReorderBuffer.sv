@@ -49,7 +49,7 @@ module ReorderBuffer
                indCommitted = '{-1, -1, -1};//, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
 
 
-    int indB_int, ind_Start_int, indCommitted_int, indToCommitSig_int, indToCommit_int;
+    int indB_int, indStart_int, indCommitted_int, indToCommitSig_int, indToCommit_int;
 
         assign indB_int = TMP_int(indB);
         assign indStart_int = TMP_int(ind_Start);
@@ -166,38 +166,10 @@ module ReorderBuffer
 
             TMP_setZ(r); // set Z from indCommitted to r
 
-              //  assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
-
             indCommitted <= r.tableIndex;  // !!!
             
-            // Find next slot to be committed (skip empty ones)
-            // indNextToCommit = r.tableIndex;  // !!!...
-
-            // // go to next occupied slot
-            // indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            // while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-            //     indNextToCommit = incIndex(indNextToCommit);
-            //     indNextToCommit.mid = entryAt(indNextToCommit).mid;
-
-            //     if (indNextToCommit.mid != -1) break;
-            // end
-
             if (breaksCommitId(thisMid)) break;
         end
-
-
-        // // Find next occupied entry if such exists, or go to end if none 
-        // indNextToCommit.mid = entryAt(indNextToCommit).mid;
-        // if (indNextToCommit.mid == -1) begin
-        //     while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-        //         indNextToCommit = incIndex(indNextToCommit);
-        //         indNextToCommit.mid = entryAt(indNextToCommit).mid;
-
-        //         if (indNextToCommit.mid != -1) break;
-        //     end 
-        // end
-
-        //indToCommitSig <= indNextToCommit;  // !!!
 
     endtask;
 
@@ -222,15 +194,11 @@ module ReorderBuffer
 
     task automatic indsAB();
         if (lateEventInfo.redirect) begin
-            //indNextToCommit = '{backupPointer, 0, -1};   // !!!
-            //indToCommitSig <= indNextToCommit;           // !!!
             ind_Start = '{backupPointer, 0, -1};         // !!!
             indB = '{backupPointer, 0, -1};              // !!!
             rrq.delete();            
         end
         else begin
-
-            // 
             while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
                 pushEntry(indB);
                 indB = incIndex(indB);                   // !!!
@@ -286,8 +254,6 @@ module ReorderBuffer
     endfunction
     
     
-
-
 
 
     task automatic flushArrayAll();
@@ -365,16 +331,11 @@ module ReorderBuffer
 /////////---------------------------------------------------------------------------------------
 
 
-    function automatic RetirementInfoA makeRetirementGroup();
-        Row row = outRow;
-        
-        // StoreQueueHelper::Entry outputSQ[3*ROB_WIDTH] = AbstractCore.theSq.outputQM;
-        // LoadQueueHelper::Entry outputLQ[3*ROB_WIDTH] = AbstractCore.theLq.outputQM;
-        // BranchQueueHelper::Entry outputBQ[3*ROB_WIDTH] = AbstractCore.theBq.outputQM;
-        
+    function automatic RetirementInfoA makeRetirementGroup();        
         RetirementInfoA res = '{default: EMPTY_RETIREMENT_INFO};
-        foreach (row.records[i]) begin
-            InsId mid = row.records[i].mid;
+
+        foreach (outRow.records[i]) begin
+            InsId mid = outRow.records[i].mid;
             
             if (mid == -1) continue;
             res[i].active = 1;
@@ -383,35 +344,10 @@ module ReorderBuffer
             res[i].takenBranch = 0;
             res[i].exception = 0;
             res[i].refetch = 0;
-            
-            // // Find corresponding entries of queues
-            // if (isStoreUop(decMainUop(mid))) begin
-            //     StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
-            //     //res[i].refetch = entry[0].refetch;
-            //     //res[i].exception = entry[0].error;               
-            // end
-
-            // if (isLoadUop(decMainUop(mid))) begin
-            //      LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
-            //      //res[i].refetch = entry[0].refetch;
-            //      //res[i].exception = entry[0].error;
-            // end
-            
-            // if (isBranchUop(decMainUop(mid))) begin
-            //     UopName uname = decMainUop(mid);
-            //     BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
-            //     res[i].takenBranch = entry[0].taken;
-                
-            //     if (isBranchRegUop(uname))
-            //         res[i].target = entry[0].regTarget;
-            //     else
-            //         res[i].target = entry[0].immTarget;
-            // end
         end
 
         return res;
     endfunction
-
 
 
 

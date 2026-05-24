@@ -24,10 +24,12 @@ module Alt_ROB
 
         OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
 
-    int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pScanPrev = 0;  
+        OpRecordA currentRow = '{default: EMPTY_RECORD}, prevRow = '{default: EMPTY_RECORD};
+
+    int pDrain = 0, pCommit = 0, /*pCommitNext = 0,*/ pRead = 0, pScan = 0, pEnd = 0, pBackup = 0,  pScanPrev = 0, pReadPrev = 0;;
 
 
-        InsId lastScannedId = -1, lastScannedIdVar = -1, lastCommittedId = -1, lastCommittedIdVar = -1;
+        InsId lastScannedId = -1, lastScannedIdVar = -1, lastCommittedId = -1, lastCommittedIdVar = -1, lastReadId = -1, lastReadIdVar = -1, prevReadId = -1;
         InsId lastScannedIdEvt = -1;
 
         logic eventFound = 0;
@@ -97,8 +99,14 @@ module Alt_ROB
         pCommit <= p;
         lastCommittedId <= lastCommittedIdVar;
 
+        moveRead();
+        moveScan();
+    endtask
 
-        p = pScan; // Old value!
+
+
+    task automatic moveScan();
+        int p = pScan; // Old value!
         lastScannedIdVar = lastScannedId;
 
         if (!eventFound) begin
@@ -126,6 +134,45 @@ module Alt_ROB
 
         pScanPrev <= pScan;
     endtask
+
+
+    task automatic moveRead();
+        int p = pRead; // Old value!
+        int pNextRow = movePtrRow(pRead);
+        lastReadIdVar = lastReadId;
+
+        prevRow <= currentRow;
+        currentRow <= '{default: EMPTY_RECORD};
+
+        if (!eventFound) begin
+            while (1) begin //array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
+                // if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) begin
+                //     // This slot has an event
+                //     handleRead(array[p2i(p)]);
+                //     break; // Don't mpve
+                // end
+                if (p == pScan) break;
+
+                if (p == pNextRow) break;
+
+                //array[p2i(p)].used = 'x;
+
+                currentRow[p % WIDTH] <= array[p2i(p)];
+
+                if (array[p2i(p)].mid != -1)
+                    handleRead(array[p2i(p)]);
+
+                p = movePtrOne(p);
+            end
+        end
+
+        pRead <= p;
+        prevReadId <= lastReadId;
+        lastReadId <= lastReadIdVar;
+
+        pReadPrev <= pRead;
+    endtask
+
 
 
     task automatic handleLateEvent();
@@ -268,7 +315,6 @@ module Alt_ROB
 
 
     function automatic void handleScan_Commit(input OpRecord rec);
-        // TODO
         InsId mid = rec.mid;
         InstructionInfo info = insMap.get(mid);
         BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
@@ -280,7 +326,6 @@ module Alt_ROB
     endfunction
 
     function automatic void handleScan(input OpRecord rec);
-        // TODO
         InsId mid = rec.mid;
         InstructionInfo info = insMap.get(mid);
         BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
@@ -290,6 +335,15 @@ module Alt_ROB
 
         lastScannedIdVar = mid;
     endfunction
+
+    function automatic void handleRead(input OpRecord rec);
+        InsId mid = rec.mid;
+        //InstructionInfo info = insMap.get(mid);
+
+        lastReadIdVar = mid;
+    endfunction
+
+
 
    function automatic void TMP_handleScanEvt(input OpRecord rec);
         // TODO
