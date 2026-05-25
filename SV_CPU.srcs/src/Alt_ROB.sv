@@ -60,8 +60,8 @@ module Alt_ROB
 
         always_comb isEmpty = (pEnd === pCommit);
 
-        assign size = (pEnd - pDrain + 2*DEPTH) % (2*DEPTH);
-        assign allow = (size < DEPTH - N_RENAME_STAGES);
+        assign size = (pEnd - pDrain + 2*ROB_SIZE) % (2*ROB_SIZE);
+        assign allow = (size < ROB_SIZE - WIDTH*N_RENAME_STAGES);
 
 
 
@@ -121,6 +121,8 @@ module Alt_ROB
 
         pCommit <= p;
         lastCommittedId <= lastCommittedIdVar;
+
+        pDrain <= pCommit;
 
         moveRead();
         moveScan();

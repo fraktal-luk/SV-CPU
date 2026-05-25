@@ -144,25 +144,25 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/outRow
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/lastScanned
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/lastOut
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/arrayHeadRow
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/outRow
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/lastScanned
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/lastOut
-add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/arrayHeadRow \
+sim:/ArchDesc0/core/theRob/outRow \
+sim:/ArchDesc0/core/theRob/lastScanned \
+sim:/ArchDesc0/core/theRob/lastOut \
+sim:/ArchDesc0/core/theRob/altRob/pDrain \
+sim:/ArchDesc0/core/theRob/altRob/pCommit \
 sim:/ArchDesc0/core/theRob/altRob/pRead \
-sim:/ArchDesc0/core/theRob/altRob/pReadPrev
-add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/pReadPrev \
 sim:/ArchDesc0/core/theRob/altRob/lastCommittedId \
 sim:/ArchDesc0/core/theRob/altRob/lastReadId \
-sim:/ArchDesc0/core/theRob/altRob/lastScannedId
-add wave -position insertpoint  \
+sim:/ArchDesc0/core/theRob/altRob/lastScannedId \
 sim:/ArchDesc0/core/theRob/altRob/currentRow \
-sim:/ArchDesc0/core/theRob/altRob/prevRow
+sim:/ArchDesc0/core/theRob/altRob/prevRow \
+sim:/ArchDesc0/core/theRob/size \
+sim:/ArchDesc0/core/theRob/allow \
+sim:/ArchDesc0/core/theRob/isEmpty \
+sim:/ArchDesc0/core/theRob/altRob/size \
+sim:/ArchDesc0/core/theRob/altRob/allow \
+sim:/ArchDesc0/core/theRob/altRob/isEmpty
 

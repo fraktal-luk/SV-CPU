@@ -65,10 +65,15 @@ module ReorderBuffer
 
     logic isEmpty;
 
-        always_comb isEmpty = (endPointer === backupPointer);
+        //always_comb isEmpty = (endPointer === backupPointer);
 
         assign size = (endPointer - drainPointer + 2*DEPTH) % (2*DEPTH);
-        assign allow = (size < DEPTH - N_RENAME_STAGES);
+        //assign allow = (size < DEPTH - N_RENAME_STAGES);
+
+
+        assign isEmpty = altRob.isEmpty;
+        assign allow = altRob.allow;
+
 
     always_comb backupPointer = (indCommitted.row + 1) % (2*DEPTH);                   
 
