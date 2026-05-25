@@ -54,6 +54,18 @@ module Alt_ROB
         assign ch3 = (prevReadId == theRob.lastOut);
 
 
+
+    logic isEmpty, allow;
+    int size;
+
+        always_comb isEmpty = (pEnd === pCommit);
+
+        assign size = (pEnd - pDrain + 2*DEPTH) % (2*DEPTH);
+        assign allow = (size < DEPTH - N_RENAME_STAGES);
+
+
+
+
     function automatic int properMod(input int what, input int by);
         int mayBeMinus = what % by;
         if (mayBeMinus < 0) return mayBeMinus + by;
@@ -92,9 +104,9 @@ module Alt_ROB
         lastCommittedIdVar = lastCommittedId;
 
 
-        while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= theRob.lastOut /*AbstractCore.lastRetired*/) begin
+        while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= prevReadId) begin
 
-                    assert (theRob.lastOut == prevReadId) else $error("id diff %d, %d", theRob.lastOut, prevReadId);
+                 //   assert (theRob.lastOut == prevReadId) else $error("id diff %d, %d", theRob.lastOut, prevReadId);
 
             if (p == pEnd) break;
 
@@ -231,12 +243,20 @@ module Alt_ROB
         end
 
         // new pEnd: pCommit rounded up to beginning of row
-        if (pCommit % WIDTH == 0) pEnd <= pCommit;
-        else pEnd <= movePtrRow(pCommit);
+        if (pCommit % WIDTH == 0) begin
+            pEnd <= pCommit;
+            pScan <= pCommit;
+            pRead <= pCommit;
+        end
+        else begin
+            pEnd <= movePtrRow(pCommit);
+            pScan <= movePtrRow(pCommit);
+            pRead <= movePtrRow(pCommit);
+        end
 
-        // move scan pointer:
-        if (pCommit % WIDTH == 0) pScan <= pCommit;
-        else pScan <= movePtrRow(pCommit);
+        // // move scan pointer:
+        // if (pCommit % WIDTH == 0) pScan <= pCommit;
+        // else pScan <= movePtrRow(pCommit);
     endtask
 
     task automatic flushPartial();
