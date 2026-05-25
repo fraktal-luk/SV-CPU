@@ -107,7 +107,7 @@ module StoreQueue
 
     function automatic logic isCommittable(input InsId id);
         return id != -1 && id <= //AbstractCore.theRob.lastOut;
-                                    AbstractCore.theRob.altRob.prevReadId;
+                                    AbstractCore.theRob.prevReadId;
     endfunction
 
 

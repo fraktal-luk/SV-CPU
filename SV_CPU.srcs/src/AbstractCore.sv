@@ -452,10 +452,10 @@ module AbstractCore
 
             //if (lateEventInfoWaiting.etype != PE_EXT_RESET) 
             begin
-              //  assert (retiredTarget === theRob.altRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.altRob.trg);
+              //  assert (retiredTarget === theRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.trg);
             end
 
-            sysUnit.saveStateAsync(theRob.altRob.trg /*retiredTarget*/, lateEventInfoWaiting.etype);
+            sysUnit.saveStateAsync(theRob.trg /*retiredTarget*/, lateEventInfoWaiting.etype);
            // retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
         end
@@ -484,17 +484,17 @@ module AbstractCore
         EventInfo lateEvt;
 
         //foreach (theRob.retirementGroup[i]) begin
-        foreach (theRob.altRob.prevRow[i]) begin
+        foreach (theRob.prevRow[i]) begin
         //    InsId theId = theRob.retirementGroup[i].mid;
-            InsId theId = theRob.altRob.prevRow[i].mid;
+            InsId theId = theRob.prevRow[i].mid;
 
-                //assert (theId == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theId, theRob.altRob.prevRow[i].mid);
+                //assert (theId == theRob.prevRow[i].mid) else $error("mids: %d, %d", theId, theRob.prevRow[i].mid);
 
-            if (theRob.altRob.prevRow[i].used !== 1 || theId == -1) continue;
+            if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
             if (foundEvent) $fatal(2, "Committing after break");
 
 
-                //assert (theRob.retirementGroup[i].mid == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.altRob.prevRow[i].mid);
+                //assert (theRob.retirementGroup[i].mid == theRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.prevRow[i].mid);
 
 
             commitOp(theId);
@@ -870,8 +870,8 @@ module AbstractCore
         
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
-        
-            theRob.altRob.trg <= IP_RESET;
+
+            theRob.trg <= IP_RESET;
        // retiredTarget <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             

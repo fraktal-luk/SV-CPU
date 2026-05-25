@@ -88,49 +88,37 @@ sim:/ArchDesc0/core/eventUnit/backendState
 
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pCommit \
-sim:/ArchDesc0/core/theRob/altRob/pScan \
-sim:/ArchDesc0/core/theRob/altRob/pScanPrev \
-sim:/ArchDesc0/core/theRob/altRob/pEnd \
-sim:/ArchDesc0/core/theRob/altRob/ch0 \
-sim:/ArchDesc0/core/theRob/altRob/ch1 \
-sim:/ArchDesc0/core/theRob/altRob/ch2 \
-sim:/ArchDesc0/core/theRob/altRob/ch3 \
-sim:/ArchDesc0/core/theRob/altRob/ch4
+sim:/ArchDesc0/core/theRob/pCommit \
+sim:/ArchDesc0/core/theRob/pScan \
+sim:/ArchDesc0/core/theRob/pScanPrev \
+sim:/ArchDesc0/core/theRob/pEnd
+
 
 
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/recCommit \
-sim:/ArchDesc0/core/theRob/altRob/recEnd \
-sim:/ArchDesc0/core/theRob/altRob/recScan \
-sim:/ArchDesc0/core/theRob/altRob/recScanPrev
+sim:/ArchDesc0/core/theRob/recCommit \
+sim:/ArchDesc0/core/theRob/recEnd \
+sim:/ArchDesc0/core/theRob/recScan \
+sim:/ArchDesc0/core/theRob/recScanPrev
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/eventFound \
-sim:/ArchDesc0/core/theRob/altRob/lastRec \
-sim:/ArchDesc0/core/theRob/altRob/lastScannedId \
-sim:/ArchDesc0/core/theRob/altRob/lastScannedIdEvt \
-sim:/ArchDesc0/core/theRob/altRob/lastScannedIdVar \
-sim:/ArchDesc0/core/theRob/altRob/lateEventInfo \
-sim:/ArchDesc0/core/theRob/altRob/trg \
-sim:/ArchDesc0/core/theRob/altRob/trgEvt
-
+sim:/ArchDesc0/core/theRob/eventFound \
+sim:/ArchDesc0/core/theRob/lastRec \
+sim:/ArchDesc0/core/theRob/lateEventInfo \
+sim:/ArchDesc0/core/theRob/trg \
 
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pDrain \
-sim:/ArchDesc0/core/theRob/altRob/pCommit \
-sim:/ArchDesc0/core/theRob/altRob/pRead \
-sim:/ArchDesc0/core/theRob/altRob/pReadPrev \
-sim:/ArchDesc0/core/theRob/altRob/lastCommittedId \
-sim:/ArchDesc0/core/theRob/altRob/lastReadId \
-sim:/ArchDesc0/core/theRob/altRob/lastScannedId \
-sim:/ArchDesc0/core/theRob/altRob/currentRow \
-sim:/ArchDesc0/core/theRob/altRob/prevRow \
+sim:/ArchDesc0/core/theRob/pDrain \
+sim:/ArchDesc0/core/theRob/pCommit \
+sim:/ArchDesc0/core/theRob/pRead \
+sim:/ArchDesc0/core/theRob/pReadPrev \
+sim:/ArchDesc0/core/theRob/lastReadId \
+sim:/ArchDesc0/core/theRob/lastScannedId \
+sim:/ArchDesc0/core/theRob/currentRow \
+sim:/ArchDesc0/core/theRob/prevRow \
+sim:/ArchDesc0/core/theRob/size \
 sim:/ArchDesc0/core/theRob/allow \
-sim:/ArchDesc0/core/theRob/isEmpty \
-sim:/ArchDesc0/core/theRob/altRob/size \
-sim:/ArchDesc0/core/theRob/altRob/allow \
-sim:/ArchDesc0/core/theRob/altRob/isEmpty
+sim:/ArchDesc0/core/theRob/isEmpty
 
