@@ -483,19 +483,21 @@ module AbstractCore
         logic foundEvent = 0;
         EventInfo lateEvt;
 
-        foreach (theRob.retirementGroup[i]) begin
-            InsId theId = theRob.retirementGroup[i].mid;
+        //foreach (theRob.retirementGroup[i]) begin
+        foreach (theRob.altRob.prevRow[i]) begin
+        //    InsId theId = theRob.retirementGroup[i].mid;
+            InsId theId = theRob.altRob.prevRow[i].mid;
 
-                //assert (theRob.retirementGroup[i].mid == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.altRob.prevRow[i].mid);
+                assert (theId == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theId, theRob.altRob.prevRow[i].mid);
 
             if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
             if (foundEvent) $fatal(2, "Committing after break");
 
 
-                assert (theRob.retirementGroup[i].mid == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.altRob.prevRow[i].mid);
+                //assert (theRob.retirementGroup[i].mid == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.altRob.prevRow[i].mid);
 
 
-            commitOp(theRob.retirementGroup[i]);
+            commitOp(theId);
 
             if (theId == (eventUnit.fpInv.id)) begin
                 sysUnit.setFpInv();
@@ -580,8 +582,7 @@ module AbstractCore
     endfunction
 
 
-    task automatic verifyOnCommit(input RetirementInfo retInfo);
-        InsId id = retInfo.mid;
+    task automatic verifyOnCommit(input InsId id);
         InstructionInfo info = insMap.get(id);
 
         Mword trg = retiredEmul.coreState.target; // DB
@@ -601,7 +602,7 @@ module AbstractCore
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
         assert ((eventUnit.general.id == id) === eventPresent)
-        else $fatal(2, "Mismatch at op\n%p:\n%p\n ref %p, exc %p, dbs %d ", info, eventUnit.general, retInfo.refetch, retInfo.exception, CurrentConfig.dbStep);
+        else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, eventUnit.general, CurrentConfig.dbStep);
 
         if (eventPresent) begin
             assert ((eventUnit.general.etype == info.hwEventType)
@@ -615,7 +616,7 @@ module AbstractCore
         end
 
         // .emulException implies .exception
-        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p\n%p", id, info, retInfo);
+        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", id, info);
 
         if (info.refetch) return;
 
@@ -631,14 +632,14 @@ module AbstractCore
         retiredEmul.catchDbTrap();
 
         // Normal (branches don't cause exceptions so far, check for exc can be omitted)
-        if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
-            if (retInfo.takenBranch === 1) begin
-                assert (retInfo.target === nextTrg) else begin
-                    retiredEmul.getBasicDbView();
-                    $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
-                end
-            end
-        end
+        // if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
+        //     if (retInfo.takenBranch === 1) begin
+        //         assert (retInfo.target === nextTrg) else begin
+        //             retiredEmul.getBasicDbView();
+        //             $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
+        //         end
+        //     end
+        // end
 
         putMilestoneM(id, retireType);
         insMap.setRetired(id);
@@ -661,12 +662,11 @@ module AbstractCore
     //
     // Store ops: if Exc or Hidden, SQ entry must be marked invalid on commit or not committed (ptr not moved, then flushed by event)
     // 
-    task automatic commitOp(RetirementInfo retInfo);
-        InsId id = retInfo.mid;
+    task automatic commitOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
         logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
 
-        verifyOnCommit(retInfo);
+        verifyOnCommit(id);
 
         // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin

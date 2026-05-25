@@ -106,8 +106,8 @@ module StoreQueue
     // endfunction
 
     function automatic logic isCommittable(input InsId id);
-        return id != -1 && id <= AbstractCore.theRob.lastOut;
-                                 //   AbstractCore.lastRetired;
+        return id != -1 && id <= //AbstractCore.theRob.lastOut;
+                                    AbstractCore.theRob.altRob.prevReadId;
     endfunction
 
 
@@ -516,7 +516,7 @@ module TmpSubLq();
         if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
         else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
 
-                if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
+             //   if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
 
 
         // If wasn't killed in queue, pass on
@@ -541,7 +541,7 @@ module TmpSubLq();
             int oldestFound[$] = found.min with (entries[item].mid);
             StoreQueue.insMap.setRefetch(entries[oldestFound[0]].mid);
 
-                $error("Found SOV:\n%d -> %d", id, entries[oldestFound[0]].mid);
+              //  $error("Found SOV:\n%d -> %d", id, entries[oldestFound[0]].mid);
         end
 
         return '{1, FIRST_U(id), MC_NONE, ES_OK, EMPTY_POISON, 'x};

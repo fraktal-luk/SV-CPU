@@ -94,7 +94,7 @@ module Alt_ROB
 
         while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= theRob.lastOut /*AbstractCore.lastRetired*/) begin
 
-                   // assert (theRob.lastOut == prevReadId) else $error("id diff %d, %d", theRob.lastOut, prevReadId);
+                    assert (theRob.lastOut == prevReadId) else $error("id diff %d, %d", theRob.lastOut, prevReadId);
 
             if (p == pEnd) break;
 
@@ -123,7 +123,7 @@ module Alt_ROB
         if (!eventFound) begin
             while (array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
 
-                    if (array[p2i(p)].mid == 5203) $error("SCANNING  5203");
+                   // if (array[p2i(p)].mid == 5203) $error("SCANNING  5203");
 
 
                 if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) begin

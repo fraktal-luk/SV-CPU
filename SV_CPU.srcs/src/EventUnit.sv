@@ -255,7 +255,7 @@ module EventUnit(input logic clk);
         tmp = replaceEvt(tmp, lqRefetchH);
         tmp = replaceEvt(tmp, frontH);
 
-                if (lqRefetchH.id == 5203) $error("Setting  general evt for 5203");
+               // if (lqRefetchH.id == 5203) $error("Setting  general evt for 5203");
 
         //if (shouldFlushId(tmp.id) || AbstractCore.lastRetired > tmp.id) tmp = EMPTY_EVENT_DESC;
 
