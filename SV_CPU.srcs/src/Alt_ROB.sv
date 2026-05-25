@@ -150,7 +150,7 @@ module Alt_ROB
                 end
                 if (p == pEnd) break;
 
-                array[p2i(p)].used = 'x;
+                //array[p2i(p)].used = 'x;
 
                 if (array[p2i(p)].mid != -1)
                     handleScan(array[p2i(p)]);

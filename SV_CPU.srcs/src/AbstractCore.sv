@@ -488,9 +488,9 @@ module AbstractCore
         //    InsId theId = theRob.retirementGroup[i].mid;
             InsId theId = theRob.altRob.prevRow[i].mid;
 
-                assert (theId == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theId, theRob.altRob.prevRow[i].mid);
+                //assert (theId == theRob.altRob.prevRow[i].mid) else $error("mids: %d, %d", theId, theRob.altRob.prevRow[i].mid);
 
-            if (theRob.retirementGroup[i].active !== 1 || theId == -1) continue;
+            if (theRob.altRob.prevRow[i].used !== 1 || theId == -1) continue;
             if (foundEvent) $fatal(2, "Committing after break");
 
 
