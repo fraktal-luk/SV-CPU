@@ -185,9 +185,10 @@ module Alt_ROB
 
                 if (p == pNextRow) break;
 
-                //array[p2i(p)].used = 'x;
 
                 currentRow[p % WIDTH] <= array[p2i(p)];
+                    // TODO: milestone
+                    putMilestoneM(array[p2i(p)].mid, InstructionMap::RobExit);
 
                 if (array[p2i(p)].mid != -1)
                     handleRead(array[p2i(p)]);
@@ -233,6 +234,9 @@ module Alt_ROB
         int p = pCommit;
 
         while (p != pEnd) begin
+
+                putMilestoneM(array[p2i(p)].mid, InstructionMap::RobFlush);
+
             array[p2i(p)] = EMPTY_RECORD;
 
             lc++;
@@ -285,6 +289,8 @@ module Alt_ROB
         lc = 0;
 
         while (p != pEnd) begin
+                            putMilestoneM(array[p2i(p)].mid, InstructionMap::RobFlush);
+
             array[p2i(p)] = EMPTY_RECORD;
 
             lc++;
@@ -306,6 +312,13 @@ module Alt_ROB
         OpRecordA rec = makeRecord(in);
 
         array[p2i(pEnd) +: WIDTH] = rec;
+            // TODO: milestones
+
+        foreach (rec[i]) begin
+            putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
+            if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
+        end
+
             lastRec <= rec;
         pEnd <= movePtrRow(pEnd);
 
@@ -346,8 +359,9 @@ module Alt_ROB
         array[found[0]].completed[sub] = 1;
 
          // TODO: if all completed, put milestone
-        if (array[found[0]].completed.and()) begin
+        if (array[found[0]].completed.and() !== 0) begin
             //
+            putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
         end
     endtask
 

@@ -181,8 +181,8 @@ module ReorderBuffer
     task automatic readTable();
         Row arrayHeadRowVar = lateEventOngoing ? EMPTY_ROW :  readRowPart();
 
-        foreach (arrayHeadRowVar.records[i])
-            if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
+        //foreach (arrayHeadRowVar.records[i])
+        //    if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
 
         arrayHeadRow <= arrayHeadRowVar;  // !!!
         lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
@@ -264,8 +264,8 @@ module ReorderBuffer
     task automatic flushArrayAll();
         foreach (array[r]) begin
             OpRecord row[WIDTH] = array[r].records;
-            foreach (row[c])
-                if (row[c].mid > indCommitted.mid) putMilestoneM(row[c].mid, InstructionMap::RobFlush);
+            //foreach (row[c])
+              //  if (row[c].mid > indCommitted.mid) putMilestoneM(row[c].mid, InstructionMap::RobFlush);
         end
 
       
@@ -301,7 +301,7 @@ module ReorderBuffer
                     rowContains = 1;
                 end
                 if (row[c].mid > branchEventInfo.eventMid) begin
-                    putMilestoneM(row[c].mid, InstructionMap::RobFlush);
+                   // putMilestoneM(row[c].mid, InstructionMap::RobFlush);
                     array[p % DEPTH].records[c] = EMPTY_RECORD;
                     array_N[p % DEPTH].records[c] = EMPTY_RECORD;
                     
@@ -324,8 +324,8 @@ module ReorderBuffer
         endPointer = (endPointer+1) % (2*DEPTH);
         
         foreach (rec[i]) begin
-            putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
-            if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
+            //putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
+            //if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
         end
     endtask
 
@@ -440,7 +440,7 @@ module ReorderBuffer
                 if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
                     array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
                         array_N[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
-                    if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
+                    //if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
                 end
     endtask
 
