@@ -106,17 +106,17 @@ module ReorderBuffer
     always @(posedge AbstractCore.clk) begin
         retirementGroupPrev <= retirementGroup;
 
-        advanceDrain();
-        doRetirement();
+        // advanceDrain();
+        // doRetirement();
 
-        readTable();
-        setOutput();
+        // readTable();
+        // setOutput();
 
-        indsAB();
+        // indsAB();
 
 
-            makeRrqView();
-        markCompleted();
+        //     makeRrqView();
+        // markCompleted();
 
 
             altRob.commit();
@@ -125,19 +125,19 @@ module ReorderBuffer
 
 
         if (lateEventInfo.redirect) begin
-            flushArrayAll();
+           // flushArrayAll();
 
                 altRob.handleLateEvent();
 
                 altRob.flushAll();
         end
         else if (branchEventInfo.redirect) begin
-            flushArrayPartial();
+           // flushArrayPartial();
 
                 altRob.flushPartial();
         end
         else if (anyActiveB(inGroup)) begin
-            add(inGroup);
+           // add(inGroup);
 
                 altRob.writeInput(inGroup);
         end
