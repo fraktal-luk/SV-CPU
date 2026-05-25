@@ -423,4 +423,31 @@ package UopList;
     localparam int N_UOP_MAX = 2; // Biggest number for uops for any instruction
 
 
+
+    // TODO: this duplicates func in EventUnit
+    function automatic ProgramEvent eventFromUop(input UopName uname);
+        case (uname)
+            UOP_ctrl_fetchError: $fatal(2, "Should be handled outside this function");
+
+            UOP_ctrl_error: return PE_SYS_ERROR;
+            UOP_ctrl_undef: return PE_SYS_UNDEFINED_INSTRUCTION;
+            UOP_ctrl_call:  return PE_SYS_CALL;
+            UOP_ctrl_dbcall:  return PE_SYS_DBCALL;
+
+            // ret
+            UOP_ctrl_rete:  return PE_HW_RETE;
+            UOP_ctrl_reti:  return PE_HW_RETI;
+
+            // Static refetch: does it make sense?
+            UOP_ctrl_refetch: return PE_HW_REFETCH;
+
+            // sync
+            UOP_ctrl_sync:  return PE_HW_SYNC;
+            UOP_ctrl_send:  return PE_HW_SEND;
+
+            default: return PE_NONE;
+        endcase
+    endfunction 
+
+
 endpackage

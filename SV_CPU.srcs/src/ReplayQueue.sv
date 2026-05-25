@@ -158,10 +158,12 @@ module ReplayQueue(
                 end
 
                 ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1: begin
-                    if (U2M(entries[i].uid) == theRob.indToCommitSig.mid && eventUnit.backendState != BS_HANDLING && AbstractCore.wqFree) begin
-                           // $error("NExt to commit ready:\n%p\n%d, %d", theRob.indToCommitSig, theRob.altRob.pScan, theRob.altRob.recScan);
+                    if (U2M(entries[i].uid) == //theRob.indToCommitSig.mid
+                                                theRob.recScan.mid
+                        && eventUnit.backendState != BS_HANDLING && AbstractCore.wqFree) begin
+                           // $error("NExt to commit ready:\n%p\n%d, %d", theRob.indToCommitSig, theRob.pScan, theRob.recScan);
 
-                            assert (theRob.indToCommitSig.mid == theRob.altRob.recScan.mid) else $fatal("not the same mid nextto comit");
+                           // assert (theRob.indToCommitSig.mid == theRob.recScan.mid) else $fatal("not the same mid nextto comit");
 
                         entries[i].ready = 1;
                     end

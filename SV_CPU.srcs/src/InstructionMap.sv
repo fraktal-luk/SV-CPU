@@ -65,7 +65,11 @@ package Insmap;
             logic emulException;
 
         logic exception;
+            logic dynamicEvt; // event detected in Exec
+            logic staticEvt; // event known at decode
+            logic silentEvt; // HW control, not calling any handler
         logic refetch;
+            ProgramEvent hwEventType;
 
         ProgramEvent eventType;
     } InstructionInfo; // FUTURE: rename to MopInfo?
@@ -78,8 +82,12 @@ package Insmap;
         res.frontBranch = 'x;
         res.emulException = 0;
         res.exception = 0;
+            res.staticEvt = 0;
+            res.dynamicEvt = 0;
+            res.silentEvt = 0;
         res.refetch = 0;
 
+        res.hwEventType = PE_NONE;
         res.eventType = PE_NONE;
 
         return res;
@@ -276,11 +284,14 @@ package Insmap;
         
         function automatic void setException(input InsId id, input ProgramEvent evtType);
             insBase.minfos[id].exception = 1;
+                insBase.minfos[id].dynamicEvt = 1;
             insBase.minfos[id].eventType = evtType;
+                insBase.minfos[id].hwEventType = evtType;
         endfunction
         
         function automatic void setRefetch(input InsId id);
             insBase.minfos[id].refetch = 1;
+            insBase.minfos[id].hwEventType = PE_HW_REFETCH;
         endfunction
         ////////////
 

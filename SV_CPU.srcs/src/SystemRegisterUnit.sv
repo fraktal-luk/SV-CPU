@@ -68,12 +68,10 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
 
-    function automatic void modifyStateSync(//input ControlOp cOp,
+    function automatic void modifyStateSync(
                                             input Mword adr,
-                                            input AccessDesc ad_N, input Translation tr_N,
+                                            input AccessDesc ad, input Translation tr,
                                             input ProgramEvent pe);
-                                            //input EventDesc generalDesc);
-
         case (pe) inside
             PE_SYS_CALL, PE_SYS_DBCALL: begin
                 sysRegs[4] = sysRegs[1];
@@ -108,7 +106,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     endfunction
 
 
-    function automatic void saveStateAsync(input Mword prevTarget,/* input ControlOp cOp,*/ input ProgramEvent pe);
+    function automatic void saveStateAsync(input Mword prevTarget, input ProgramEvent pe);
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
 
@@ -116,16 +114,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         sysRegs[1] &= ~('h00100000); // clear dbstep
 
         sysRegs[7] = pe;
-
-        // case (cOp)
-        //     CO_reset: sysRegs[7] = PE_EXT_RESET;
-        //     CO_int:   sysRegs[7] = PE_EXT_INTERRUPT;
-        //     CO_break: sysRegs[7] = PE_EXT_DEBUG;
-        //     default: $fatal(2, "Incorrect control op %p", cOp);
-        // endcase
-
-        //     if (sysRegs[7] !== pe) $error("%p, %p", cOp, pe);
-
     endfunction
 
     function automatic void setFpInv();

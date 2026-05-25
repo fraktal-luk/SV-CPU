@@ -101,15 +101,16 @@ module StoreQueue
     endtask
 
 
-    function automatic logic isScanned(input InsId id);
-        return id != -1 && id <= AbstractCore.theRob.lastScanned;
-    endfunction
+    // function automatic logic isScanned(input InsId id);
+    //     return id != -1 && id <= AbstractCore.theRob.lastScanned;
+    // endfunction
 
     function automatic logic isCommittable(input InsId id);
-        return id != -1 && id <= AbstractCore.theRob.lastOut;
+        return id != -1 && id <= //AbstractCore.theRob.lastOut;
+                                    AbstractCore.theRob.prevReadId;
     endfunction
 
-    
+
     function automatic logic appliesU(input UopName uname);        
         return (
             (IS_STORE_QUEUE && (isStoreUop(uname) || isMemBarrierUop(uname)))  
@@ -139,16 +140,16 @@ module StoreQueue
 
 
     task automatic advance();
-        while (isScanned(content[scanPointer % SIZE].mid)) begin 
-            outputQ.push_back(content[scanPointer % SIZE]);
-            scanPointer = (scanPointer+1) % (2*SIZE);
-        end
+        // while (isScanned(content[scanPointer % SIZE].mid)) begin 
+        //    // outputQ.push_back(content[scanPointer % SIZE]);
+        //     scanPointer = (scanPointer+1) % (2*SIZE);
+        // end
 
         while (isCommittable(content[startPointer % SIZE].mid)) begin
             InsId thisId = content[startPointer % SIZE].mid;
 
-            assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
-            outputQ.pop_front();
+          //  assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
+          //  outputQ.pop_front();
 
             putMilestoneM(thisId, QUEUE_EXIT);
             checkOnCommit();
@@ -467,33 +468,65 @@ module TmpSubLq();
         end
 
         // Scan entries which need to be refetched and find the oldest
-        begin
-            LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
-            LqEntry oldestFound[$] = found.min with (item.mid);
+        // begin
+        //     LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
+        //     LqEntry oldestFound[$] = found.min with (item.mid);
 
-            int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
-            int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
+        //     int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
+        //     int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
 
-            if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
-            else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
+        //     if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
+        //     else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
 
-            // If wasn't killed in queue, pass on
-            if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
-            else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+        //             if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
 
-            // If wasn't killed in queue, pass on
-            if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
-            else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
-        end
+
+        //     // If wasn't killed in queue, pass on
+        //     if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
+        //     else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+
+        //     // If wasn't killed in queue, pass on
+        //     if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
+        //     else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
+        // end
 
         foreach (theExecBlock.toLqE2[p]) begin
             UopMemPacket storeUop = theExecBlock.toLqE2[p];
 
+            //theExecBlock.lqResponse_E1[p] <= EMPTY_UOP_PACKET;
+
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size));
+
+            //theExecBlock.lqResponse_E1[p]  <= 
+                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size));
         end
 
+            handleSOV();
+
     endtask
+
+
+    function automatic void handleSOV();
+        LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
+        LqEntry oldestFound[$] = found.min with (item.mid);
+
+        int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
+        int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
+
+        if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
+        else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
+
+             //   if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
+
+
+        // If wasn't killed in queue, pass on
+        if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
+        else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
+
+        // If wasn't killed in queue, pass on
+        if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
+        else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
+    endfunction
 
 
     function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize trSize);
@@ -507,9 +540,11 @@ module TmpSubLq();
         begin // 'active' indicates that some match has happened without further details
             int oldestFound[$] = found.min with (entries[item].mid);
             StoreQueue.insMap.setRefetch(entries[oldestFound[0]].mid);
+
+              //  $error("Found SOV:\n%d -> %d", id, entries[oldestFound[0]].mid);
         end
-        
-        return EMPTY_UOP_PACKET;
+
+        return '{1, FIRST_U(id), MC_NONE, ES_OK, EMPTY_POISON, 'x};
     endfunction
 
 

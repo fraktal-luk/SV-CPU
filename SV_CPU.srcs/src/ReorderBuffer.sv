@@ -23,404 +23,320 @@ module ReorderBuffer
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
 
+    // Alt_ROB#(.WIDTH(WIDTH)) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
+    
+    // logic allow, isEmpty;
 
-    Alt_ROB#(.WIDTH(WIDTH)) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
-
-
-
-    RetirementInfoA retirementGroup, retirementGroupPrev = '{default: EMPTY_RETIREMENT_INFO};
-
-    Row arrayHeadRow = EMPTY_ROW, outRow = EMPTY_ROW;
-    Row array[DEPTH] = '{default: EMPTY_ROW};
-        Row array_N[DEPTH] = '{default: EMPTY_ROW};
+    // assign isEmpty = altRob.isEmpty;
+    // assign allow = altRob.allow;
 
 
-    int drainPointer = -1, endPointer = 0;
-    int backupPointer;
+
+    OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
+
+    OpRecordA currentRow = '{default: EMPTY_RECORD}, prevRow = '{default: EMPTY_RECORD}, lastRec = '{default: EMPTY_RECORD};
+
+    int pDrain = 0, pCommit = 0, pRead = 0, pScan = 0, pEnd = 0, pScanPrev = 0, pReadPrev = 0;;
+
+    InsId lastScannedId = -1, lastScannedIdVar = -1, lastReadId = -1, lastReadIdVar = -1, prevReadId = -1, lastScannedIdEvt = -1;
+
+    logic eventFound = 0;
+
+    Mword trg = 'x, trgEvt = 'x;
+
+
+    logic isEmpty, allow;
     int size;
-    
-    logic allow;
-    
-    InsId lastScanned = -1, // last id which was transfered to output queue
-          lastOut = -1;     // last accepted as committed
-    logic lateEventOngoing, lastIsBreaking = 0;//,  pre_lastIsBreaking = 0;
-    
-    TableIndex indB = '{0, 0, -1}, ind_Start = '{0, 0, -1},
-               indCommitted = '{-1, -1, -1}, indNextToCommit = '{-1, -1, -1}, indToCommitSig = '{-1, -1, -1};
 
 
-        // lastScanned - what can be read from SQ/LQ to deliver data for committing
-        // lastOut - what can be committed in SQ
-
-
-
-    RRQ rrq;
-    RobResult rrq_View[40];
-
-    logic isEmpty;
-
-    always_comb isEmpty = (endPointer === backupPointer);
-
-    assign size = (endPointer - drainPointer + 2*DEPTH) % (2*DEPTH);
-    assign allow = (size < DEPTH - N_RENAME_STAGES);
-
-    always_comb backupPointer = (indCommitted.row + 1) % (2*DEPTH);                   
-
-    always_comb retirementGroup = makeRetirementGroup();
-    
-    always_comb lateEventOngoing = 0
-                                //|| AbstractCore.interrupt 
-                                    || AbstractCore.reset
-                                //|| eventUnit.interruptEvt.active 
-                                    || eventUnit.resetEvt.active
-                                || lateEventInfo.redirect
-                                || AbstractCore.lateEventInfoWaiting.active
-                                || lastIsBreaking
-                                ;
-
-
-
-            logic chD, chCom, chComNext, chStart, chB, chEnd, chBackup;
-
-            assign chD = drainPointer <= indCommitted.row;
-            assign chCom = indCommitted.row <= indToCommitSig.row;
-            assign chComNext = indToCommitSig.row <= ind_Start.row;
-            assign chStart = ind_Start.row <= indB.row;
-            assign chB = indB.row <= endPointer;
-            
-            assign chBackup = backupPointer <= indToCommitSig.row;
+    always_comb isEmpty = (pEnd === pCommit);
+    assign size = (pEnd - pDrain + 2*ROB_SIZE) % (2*ROB_SIZE);
+    assign allow = (size < ROB_SIZE - WIDTH*N_RENAME_STAGES);
 
 
 
     always @(posedge AbstractCore.clk) begin
-        retirementGroupPrev <= retirementGroup;
-
-        advanceDrain();
-        doRetirement();
-
-        readTable();
-        setOutput();
-
-        indsAB();
-
-
-            makeRrqView();
-        markCompleted();
-
-
-            altRob.commit();
-
-            altRob.alt_markCompleted();
-
+        commit();
+        alt_markCompleted();
 
         if (lateEventInfo.redirect) begin
-            flushArrayAll();
-
-                altRob.flushAll();
+            handleLateEvent();
+            flushAll();
         end
         else if (branchEventInfo.redirect) begin
-            flushArrayPartial();
-
-                altRob.flushPartial();
+            flushPartial();
         end
         else if (anyActiveB(inGroup)) begin
-            add(inGroup);
-
-                altRob.writeInput(inGroup);
+            writeInput(inGroup);
         end
-
     end
 
 
 
-    task automatic advanceDrain();
-        // FUTURE: this condition will prevent from draining completely (last committed slot will remain). Later enable draining the last slot
-        while (drainPointer != indCommitted.row) begin
-           int fd[$] = array_N[drainPointer % DEPTH].records.find_index with ( item.mid != -1 && (item.mid >= indCommitted.mid) );
-           if (fd.size() != 0) break;
 
-           array_N[drainPointer % DEPTH] = EMPTY_ROW;      // !!!
-           drainPointer = (drainPointer+1) % (2*DEPTH);    // !!!
+    task automatic commit();
+        int p = pCommit;
+
+        while (array[p2i(p)].mid == -1 || array[p2i(p)].mid <= prevReadId) begin
+            if (p == pEnd) break;
+
+            array[p2i(p)] = EMPTY_RECORD;
+            p = movePtrOne(p);
         end
+
+        pCommit <= p;
+        pDrain <= pCommit; // For now pDrain is assumed to always go one step behind pCommit
+
+        moveRead();
+        moveScan();
     endtask
 
 
-    task automatic doRetirement();
 
-        // Go thru outRow, stop if a breaking event occurs
-        foreach (outRow.records[i]) begin
-            InsId thisMid = outRow.records[i].mid;
-            RobResult r;
-            
-            if (thisMid == -1) continue;
+    task automatic moveScan();
+        int p = pScan; // Old value!
+        lastScannedIdVar = lastScannedId;
 
-            r = rrq.pop_front();
+        if (!eventFound) begin
+            while (array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
+                if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) begin
+                    // This slot has an event
+                    eventFound <= 1;
+                    handleScan(array[p2i(p)]);
+                    p = movePtrOne(p);
+                    break;
+                end
+                if (p == pEnd) break;
 
-            TMP_setZ(r); // set Z from indCommitted to r
+                if (array[p2i(p)].mid != -1)
+                    handleScan(array[p2i(p)]);
 
-                assert (r.tableIndex === indNextToCommit) else $error("Differ: %p, %p", r.tableIndex, indNextToCommit);
+                p = movePtrOne(p);
+            end
+        end
 
-            indCommitted <= r.tableIndex;  // !!!
-            
-            // Find next slot to be committed (skip empty ones)
-            indNextToCommit = r.tableIndex;  // !!!...
+        pScan <= p;
+        lastScannedId <= lastScannedIdVar;
 
-            // go to next occupied slot
-            indNextToCommit.mid = entryAt(indNextToCommit).mid;
-            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-                indNextToCommit = incIndex(indNextToCommit);
-                indNextToCommit.mid = entryAt(indNextToCommit).mid;
+        pScanPrev <= pScan;
+    endtask
 
-                if (indNextToCommit.mid != -1) break;
+
+    task automatic moveRead();
+        int p = pRead; // Old value!
+        int pNextRow = movePtrRow(pRead);
+        lastReadIdVar = lastReadId;
+
+        prevRow <= currentRow;
+        currentRow <= '{default: EMPTY_RECORD};
+
+        while (1) begin
+            if (p == pScan) break;
+            if (p == pNextRow) break;
+
+            currentRow[p % WIDTH] <= array[p2i(p)];
+            putMilestoneM(array[p2i(p)].mid, InstructionMap::RobExit);
+
+            if (array[p2i(p)].mid != -1)
+                handleRead(array[p2i(p)]);
+
+            p = movePtrOne(p);
+        end
+
+        pRead <= p;
+        prevReadId <= lastReadId;
+        lastReadId <= lastReadIdVar;
+
+        pReadPrev <= pRead;
+    endtask
+
+
+
+    task automatic handleLateEvent();
+        trg <= lateEventInfo.target;
+        eventFound <= 0;
+    endtask
+
+
+
+    task automatic flushAll();
+        int lc = 0;
+
+        int p = pCommit; // Clear starting from pCommit
+
+        while (p != pEnd) begin
+            putMilestoneM(array[p2i(p)].mid, InstructionMap::RobFlush);
+            array[p2i(p)] = EMPTY_RECORD;
+
+            lc++;
+            if (lc > ROB_SIZE) begin
+                $error("wrapped around whole ROB!");
+                break;
             end
 
-            if (breaksCommitId(thisMid)) break;
+            p = movePtrOne(p);
         end
 
-
-        // Find next occupied entry if such exists, or go to end if none 
-        indNextToCommit.mid = entryAt(indNextToCommit).mid;
-        if (indNextToCommit.mid == -1) begin
-            while (indexInRange(indNextToCommit, '{indCommitted, '{endPointer, 0, -1}}, DEPTH)) begin
-                indNextToCommit = incIndex(indNextToCommit);
-                indNextToCommit.mid = entryAt(indNextToCommit).mid;
-
-                if (indNextToCommit.mid != -1) break;
-            end 
-        end
-
-        indToCommitSig <= indNextToCommit;  // !!!
-
-    endtask;
-
-    task automatic readTable();
-        Row arrayHeadRowVar = lateEventOngoing ? EMPTY_ROW :  readRowPart();
-
-        foreach (arrayHeadRowVar.records[i])
-            if (arrayHeadRowVar.records[i].mid != -1) putMilestoneM(arrayHeadRowVar.records[i].mid, InstructionMap::RobExit);
-
-        arrayHeadRow <= arrayHeadRowVar;  // !!!
-        lastScanned <= getLastOut(lastScanned, arrayHeadRowVar.records); // !!!
-    endtask
-
-    task automatic setOutput();
-        Row row = tickRow(arrayHeadRow);
-
-        outRow <= row;     // !!!
-        lastOut <= getLastOut(lastOut, row.records);   // !!!
-        lastIsBreaking <= isLastBreaking(row.records); // !!!
-    endtask
-
-
-    task automatic indsAB();
-        if (lateEventInfo.redirect) begin
-            indNextToCommit = '{backupPointer, 0, -1};   // !!!
-            indToCommitSig <= indNextToCommit;           // !!!
-            ind_Start = '{backupPointer, 0, -1};         // !!!
-            indB = '{backupPointer, 0, -1};              // !!!
-            rrq.delete();            
+        if (pCommit % WIDTH == 0) begin
+            pEnd <= pCommit;
+            pScan <= pCommit;
+            pRead <= pCommit;
         end
         else begin
-
-            // 
-            while (ptrInRange(indB.row, '{indCommitted.row, endPointer}, DEPTH) && entryCompleted_T(entryAt(indB))) begin
-                pushEntry(indB);
-                indB = incIndex(indB);                   // !!!
-            end                
-        end        
-
-    endtask
-
-
-
-
-
-    task automatic pushEntry(input TableIndex indexB);
-        InsId thisMid = entryAt(indexB).mid;
-
-        if (thisMid != -1) begin
-            InstructionInfo info = insMap.get(thisMid);
-            rrq.push_back('{thisMid, '{indexB.row, indexB.slot, thisMid}, isControlUop(info.mainUop), info.refetch, info.exception});
+            pEnd <= movePtrRow(pCommit);
+            pScan <= movePtrRow(pCommit);
+            pRead <= movePtrRow(pCommit);
         end
     endtask
 
+    task automatic flushPartial();
+        int lc = 0;
+        int pEndNew = -1;
 
-    task automatic makeRrqView();
-        rrq_View = '{default: EMPTY_ROB_RESULT};
-        foreach (rrq[i])
-            rrq_View[i] = rrq[i];
+        // Clear starting from given
+        int p = pCommit;
+
+        // move until finding proper mid
+        while (array[p2i(p)].mid != branchEventInfo.eventMid) begin
+            lc++;
+            if (lc >= ROB_SIZE) begin
+                $error("not found causing id");
+                break;
+            end
+            p = movePtrOne(p);
+        end
+
+        pEndNew = movePtrRow(p);
+        // from next after mid - clear
+        p = movePtrOne(p);
+
+        lc = 0;
+
+        while (p != pEnd) begin
+            putMilestoneM(array[p2i(p)].mid, InstructionMap::RobFlush);
+
+            array[p2i(p)] = EMPTY_RECORD;
+
+            lc++;
+            if (lc > ROB_SIZE) begin
+                $error("wrapped around whole ROB!");
+                break;
+            end
+            p = movePtrOne(p);
+        end
+
+        pEnd <= pEndNew;
     endtask
 
 
-    // 
-    function automatic Row readRowPart();
-        Row head = array[ind_Start.row % DEPTH];
-        Row res = EMPTY_ROW;
-
-        foreach (head.records[i]) begin
-            if (i < ind_Start.slot) continue;
-            
-            if (!indexInRange(ind_Start, '{indCommitted, indB}, DEPTH)) break;
-            
-            ind_Start = incIndex(ind_Start);
-            
-            res.records[i] = head.records[i];
-
-            if (head.records[i].mid == -1) begin
-                continue;
-            end
-            else begin
-                assert (head.records[i].completed.and() !== 0) else $fatal(2, "not compl"); // Will be 0 if any 0 is there
-            
-                if (breaksCommitId(head.records[i].mid)) break;
-            end
-        end
-        
-        return res;
-    endfunction
-    
-    
-
-
-
-
-    task automatic flushArrayAll();
-        foreach (array[r]) begin
-            OpRecord row[WIDTH] = array[r].records;
-            foreach (row[c])
-                if (row[c].mid > indCommitted.mid) putMilestoneM(row[c].mid, InstructionMap::RobFlush);
-        end
-
-      
-        foreach (array[r]) begin
-            Row row = array[r];
-            foreach (row.records[c]) begin
-                if (array[r].records[c].mid > indCommitted.mid)
-                    array[r].records[c] = EMPTY_RECORD;
-            end
-        end
-         
-        foreach (array_N[r]) begin
-            Row row = array_N[r];
-            foreach (row.records[c]) begin
-                if (array_N[r].records[c].mid > indCommitted.mid)
-                    array_N[r].records[c] = EMPTY_RECORD;
-            end
-        end
-        
-        endPointer = backupPointer;
-    endtask
-
-
-    task automatic flushArrayPartial();
-        int p = ind_Start.row; // TODO: change to first not committed entry?
-     
-        for (int i = 0; i < DEPTH; i++) begin
-            OpRecord row[WIDTH] = array[p % DEPTH].records;
-            logic rowContains = 0;
-            for (int c = 0; c < WIDTH; c++) begin
-                if (row[c].mid == branchEventInfo.eventMid) begin
-                    endPointer = (p+1) % (2*DEPTH);
-                    rowContains = 1;
-                end
-                if (row[c].mid > branchEventInfo.eventMid) begin
-                    putMilestoneM(row[c].mid, InstructionMap::RobFlush);
-                    array[p % DEPTH].records[c] = EMPTY_RECORD;
-                    array_N[p % DEPTH].records[c] = EMPTY_RECORD;
-                    
-                    if (rowContains) begin
-                        array[p % DEPTH].records[c].used = 1;  // !!
-                        array_N[p % DEPTH].records[c].used = 1;  // !!
-                    end
-                end
-            end
-            p++;
-        end
-    endtask
-
-                        // .active, .mid
-    task automatic add(input OpSlotAB in);
+    task automatic writeInput(input OpSlotAB in);
         OpRecordA rec = makeRecord(in);
 
-        array[endPointer % DEPTH].records = makeRecord(in);
-            array_N[endPointer % DEPTH].records = makeRecord(in);
-        endPointer = (endPointer+1) % (2*DEPTH);
-        
+        array[p2i(pEnd) +: WIDTH] = rec;
+
         foreach (rec[i]) begin
             putMilestoneM(rec[i].mid, InstructionMap::RobEnter);
             if (rec[i].completed.and() !== 0) putMilestoneM(rec[i].mid, InstructionMap::RobComplete);
         end
+
+        lastRec <= rec;
+        pEnd <= movePtrRow(pEnd);
     endtask
-       
 
 
+    task automatic alt_markCompleted();
+        alt_markPacketCompleted(theExecBlock.doneRegular0_E);
+        alt_markPacketCompleted(theExecBlock.doneRegular1_E);
+
+        alt_markPacketCompleted(theExecBlock.doneBranch_E);
+
+        alt_markPacketCompleted(theExecBlock.doneDivider_E);
+
+        alt_markPacketCompleted(theExecBlock.doneMultiplier0_E);
+        alt_markPacketCompleted(theExecBlock.doneMultiplier1_E);
 
 
-/////////---------------------------------------------------------------------------------------
+        alt_markPacketCompleted(theExecBlock.doneFloat0_E);
+        alt_markPacketCompleted(theExecBlock.doneFloat1_E);
+        alt_markPacketCompleted(theExecBlock.doneFloatDiv_E);
 
+        alt_markPacketCompleted(theExecBlock.doneMem0_E);
+        alt_markPacketCompleted(theExecBlock.doneMem2_E);
+        alt_markPacketCompleted(theExecBlock.doneStoreData_E);
+    endtask
 
-    function automatic RetirementInfoA makeRetirementGroup();
-        Row row = outRow;
+    task automatic alt_markPacketCompleted(input UopPacket p);         
+        int found[$];
+        int sub = SUBOP(p.TMP_oid);
+
+        if (!p.active) return;
         
-        StoreQueueHelper::Entry outputSQ[3*ROB_WIDTH] = AbstractCore.theSq.outputQM;
-        LoadQueueHelper::Entry outputLQ[3*ROB_WIDTH] = AbstractCore.theLq.outputQM;
-        BranchQueueHelper::Entry outputBQ[3*ROB_WIDTH] = AbstractCore.theBq.outputQM;
-        
-        RetirementInfoA res = '{default: EMPTY_RETIREMENT_INFO};
-        foreach (row.records[i]) begin
-            InsId mid = row.records[i].mid;
-            
-            if (mid == -1) continue;
-            res[i].active = 1;
-            res[i].mid = mid;
-            
-            res[i].takenBranch = 0;
-            res[i].exception = 0;
-            res[i].refetch = 0;
-            
-            // Find corresponding entries of queues
-            if (isStoreUop(decMainUop(mid))) begin
-                StoreQueueHelper::Entry entry[$] = outputSQ.find with (item.mid == mid);
-                res[i].refetch = entry[0].refetch;
-                res[i].exception = entry[0].error;               
-            end
+        found = array.find_first_index with (item.mid == U2M(p.TMP_oid));
 
-            if (isLoadUop(decMainUop(mid))) begin
-                 LoadQueueHelper::Entry entry[$] = outputLQ.find with (item.mid == mid);
-                 res[i].refetch = entry[0].refetch;
-                 res[i].exception = entry[0].error;
-            end
-            
-            if (isBranchUop(decMainUop(mid))) begin
-                UopName uname = decMainUop(mid);
-                BranchQueueHelper::Entry entry[$] = outputBQ.find with (item.mid == mid);
-                res[i].takenBranch = entry[0].taken;
-                
-                if (isBranchRegUop(uname))
-                    res[i].target = entry[0].regTarget;
-                else
-                    res[i].target = entry[0].immTarget;
-            end
-        end
+        assert (found.size() > 0) else $error("%p not found in ROB!", p.TMP_oid);
 
-        return res;
+        array[found[0]].completed[sub] = 1;
+
+        if (array[found[0]].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
+    endtask
+
+
+    function automatic void handleScan(input OpRecord rec);
+        InsId mid = rec.mid;
+        InstructionInfo info = insMap.get(mid);
+        BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
+
+        trg <= findTarget(info, found);
+
+        lastScannedIdVar = mid;
+    endfunction
+
+            function automatic void handleRead(input OpRecord rec);
+                lastReadIdVar = rec.mid;
+            endfunction
+
+        generate
+            OpRecord recCommit, recScan, recScanPrev, recEnd;
+
+            assign recCommit = array[p2i(pCommit)];        
+            assign recScan = array[p2i(pScan)];        
+            assign recScanPrev = array[p2i(pScanPrev)];        
+            assign recEnd = array[p2i(pEnd)];        
+        endgenerate
+
+
+
+    function automatic int properMod(input int what, input int by);
+        int mayBeMinus = what % by;
+        if (mayBeMinus < 0) return mayBeMinus + by;
+        else return mayBeMinus;
     endfunction
 
 
+    // Is left older than right?
+    function automatic logic pointerOlderThan(input int left, input int right, input int pRef); 
+        int leftRel = properMod(left - pRef, 2*ROB_SIZE);
+        int rightRel = properMod(right - pRef, 2*ROB_SIZE);
+        return leftRel < rightRel;
+    endfunction
 
 
+    function automatic int p2i(input int p);
+        return p % ROB_SIZE;
+    endfunction
 
 
+    function automatic int movePtrOne(input int p);
+        int pNew = (p + 1) % (2*ROB_SIZE);
+        return pNew;
+    endfunction
 
-    task automatic TMP_setZ(input RobResult r);
-        TableIndex ti = indCommitted;
-    
-        while (1) begin
-            ti = incIndex(ti);
-            array_N[ti.row].records[ti.slot].used = 'z;                
-            if (ti.row == r.tableIndex.row && ti.slot == r.tableIndex.slot) break;
-        end
-    endtask
+    function automatic int movePtrRow(input int p);
+        int pBase = p - (p % WIDTH);
+        int pNew = (pBase + WIDTH) % (2*ROB_SIZE);
+        return pNew;
+    endfunction
+
 
     function automatic CompletedVec initCompletedVec(input int n);
         CompletedVec res = '{default: 'x};
@@ -428,7 +344,6 @@ module ReorderBuffer
             res[i] = 0;
         return res;
     endfunction
-
 
     function automatic OpRecordA makeRecord(input OpSlotAB ops);
         OpRecordA res = '{default: EMPTY_RECORD};
@@ -443,127 +358,8 @@ module ReorderBuffer
         return res;
     endfunction
 
-
-    function automatic InsId getLastOut(input InsId prev, input OpRecordA recs);
-        InsId tmp = prev;
-        
-        foreach (recs[i])
-            if  (recs[i].mid != -1)
-                tmp = recs[i].mid;
-                
-        return tmp;
-    endfunction
-
-    function automatic logic isLastBreaking(input OpRecordA recs);
-        logic brk = 0;
-        
-        foreach (recs[i])
-            if  (recs[i].mid != -1)
-                brk = breaksCommitId(recs[i].mid);
-                
-        return brk;
-    endfunction
-
-
-
-
-    task automatic markCompleted();
-        markPacketCompleted(theExecBlock.doneRegular0_E);
-        markPacketCompleted(theExecBlock.doneRegular1_E);
-
-        markPacketCompleted(theExecBlock.doneBranch_E);
-
-        markPacketCompleted(theExecBlock.doneDivider_E);
-
-        markPacketCompleted(theExecBlock.doneMultiplier0_E);
-        markPacketCompleted(theExecBlock.doneMultiplier1_E);
-
-
-        markPacketCompleted(theExecBlock.doneFloat0_E);
-        markPacketCompleted(theExecBlock.doneFloat1_E);
-        markPacketCompleted(theExecBlock.doneFloatDiv_E);
-
-        markPacketCompleted(theExecBlock.doneMem0_E);
-        markPacketCompleted(theExecBlock.doneMem2_E);
-        markPacketCompleted(theExecBlock.doneStoreData_E);
-    endtask
-
-    task automatic markPacketCompleted(input UopPacket p);         
-        if (!p.active) return;
-        
-        for (int r = 0; r < DEPTH; r++)
-            for (int c = 0; c < WIDTH; c++)
-                if (array[r].records[c].mid == U2M(p.TMP_oid)) begin
-                    array[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
-                        array_N[r].records[c].completed[SUBOP(p.TMP_oid)] = 1;
-                    if (array[r].records[c].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
-                end
-    endtask
-
-
-    function automatic TableIndex incIndex(input TableIndex ind);
-        TableIndex res = ind;
-        
-        res.slot++;
-        if (res.slot == WIDTH) begin
-            res.slot = 0;
-            res.row = (res.row+1) % (2*DEPTH);
-        end
-        res.mid = -1;
-
-        return res;
-    endfunction
-
-
-    function automatic OpRecord entryAt(input TableIndex ind);
-        return array[ind.row % DEPTH].records[ind.slot];
-    endfunction
-
-    
-        function automatic logic entryCompleted_T(input OpRecord rec);
-            return (rec.mid == -1) || (rec.completed.and() !== 0); // empty slots within used rows are by definition completed
-        endfunction
-
-        function automatic logic ptrInRange(input int p, input int range[2], input int SIZE);
-            int start = range[0];
-            int endN = (range[1] - start + 2*SIZE) % (2*SIZE); // Adding 2*SIZE to ensure positive arg for modulo
-            int pN = (p - start + 2*SIZE) % (2*SIZE);          // Adding 2*SIZE to ensure positive arg for modulo
-            
-            return pN < endN;
-        endfunction
-
-        function automatic int TMP_int(input TableIndex ind);
-            return ind.row * WIDTH + ind.slot;
-        endfunction
-
-        function automatic logic indexInRange(input TableIndex p, input TableIndex range[2], input int SIZE);            
-            int TSIZE = SIZE * WIDTH;
-            
-            int start = TMP_int(range[0]);
-            int endN = (TMP_int(range[1]) - start + 2*TSIZE) % (2*TSIZE); // Adding 2*SIZE to ensure positive arg for modulo
-            int pN = (TMP_int(p) - start + 2*TSIZE) % (2*TSIZE);          // Adding 2*SIZE to ensure positive arg for modulo
-            
-            return pN < endN;
-        endfunction
-
-
-    function automatic OpRecord tickRecord(input OpRecord rec);
-        if (lateEventOngoing) begin
-            if (rec.mid != -1)
-                putMilestoneM(rec.mid, InstructionMap::FlushCommit);
-            return EMPTY_RECORD;
-        end
-        else
-            return rec;
-    endfunction
-
-    function automatic Row tickRow(input Row row);
-        Row res;
-
-        foreach (res.records[i])
-            res.records[i] = tickRecord(row.records[i]);
-
-        return res;
+    function automatic int TMP_int(input TableIndex ind);
+        return ind.row * WIDTH + ind.slot;
     endfunction
 
 
