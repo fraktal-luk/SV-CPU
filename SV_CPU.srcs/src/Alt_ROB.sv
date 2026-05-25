@@ -47,11 +47,11 @@ module Alt_ROB
     // always_comb ch4 = pointerOlderThan(pEnd, pScan, pCommit);
 
 
-        assign ch0 = (lastScannedId == theRob.lastOut);
-        assign ch1 = (lastScannedId == theRob.lastScanned);
+        // assign ch0 = (lastScannedId == theRob.lastOut);
+        // assign ch1 = (lastScannedId == theRob.lastScanned);
         
-        assign ch2 = (lastReadId == theRob.lastOut);
-        assign ch3 = (prevReadId == theRob.lastOut);
+        // assign ch2 = (lastReadId == theRob.lastOut);
+        // assign ch3 = (prevReadId == theRob.lastOut);
 
 
 

@@ -88,10 +88,6 @@ sim:/ArchDesc0/core/eventUnit/backendState
 
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/lateEventOngoing \
-sim:/ArchDesc0/core/theRob/isEmpty
-
-add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/pCommit \
 sim:/ArchDesc0/core/theRob/altRob/pScan \
 sim:/ArchDesc0/core/theRob/altRob/pScanPrev \
@@ -102,18 +98,7 @@ sim:/ArchDesc0/core/theRob/altRob/ch2 \
 sim:/ArchDesc0/core/theRob/altRob/ch3 \
 sim:/ArchDesc0/core/theRob/altRob/ch4
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/lastRec
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/array
 
-
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/drainPointer \
-sim:/ArchDesc0/core/theRob/endPointer \
-sim:/ArchDesc0/core/theRob/ind_Start \
-sim:/ArchDesc0/core/theRob/indB \
-sim:/ArchDesc0/core/theRob/indCommitted
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theRob/altRob/recCommit \
@@ -131,25 +116,9 @@ sim:/ArchDesc0/core/theRob/altRob/lateEventInfo \
 sim:/ArchDesc0/core/theRob/altRob/trg \
 sim:/ArchDesc0/core/theRob/altRob/trgEvt
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/altRob/pCommit \
-sim:/ArchDesc0/core/theRob/indCommitted_int \
-sim:/ArchDesc0/core/theRob/indStart_int \
-sim:/ArchDesc0/core/theRob/indB_int \
-sim:/ArchDesc0/core/theRob/altRob/pScan
+
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/arrayHeadRow
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/outRow
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/lastScanned
-
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/theRob/arrayHeadRow \
-sim:/ArchDesc0/core/theRob/outRow \
-sim:/ArchDesc0/core/theRob/lastScanned \
-sim:/ArchDesc0/core/theRob/lastOut \
 sim:/ArchDesc0/core/theRob/altRob/pDrain \
 sim:/ArchDesc0/core/theRob/altRob/pCommit \
 sim:/ArchDesc0/core/theRob/altRob/pRead \
@@ -159,7 +128,6 @@ sim:/ArchDesc0/core/theRob/altRob/lastReadId \
 sim:/ArchDesc0/core/theRob/altRob/lastScannedId \
 sim:/ArchDesc0/core/theRob/altRob/currentRow \
 sim:/ArchDesc0/core/theRob/altRob/prevRow \
-sim:/ArchDesc0/core/theRob/size \
 sim:/ArchDesc0/core/theRob/allow \
 sim:/ArchDesc0/core/theRob/isEmpty \
 sim:/ArchDesc0/core/theRob/altRob/size \
