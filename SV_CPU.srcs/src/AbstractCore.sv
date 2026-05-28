@@ -29,7 +29,7 @@ module AbstractCore
     output logic sig,
     output logic wrong
 );
-    logic dummy = 'z;
+    logic dummy ; //= 'z;
 
     GlobalParams globalParams;
 
@@ -102,24 +102,23 @@ module AbstractCore
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
-    OpSlotAB stageRename1 = '{default: EMPTY_SLOT_B}; // TODO: change to type of stageRename0 to include evt info
     FrontStage stageRename1_N = DEFAULT_FRONT_STAGE;
 
     EventUnit eventUnit(clk);
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1_N.arr);
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
 
     bind StoreQueue: theSq TmpSubSq submod();
     bind StoreQueue: theLq TmpSubLq submod();
     bind StoreQueue: theBq TmpSubBr submod();
 
-    IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1);
+    IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1_N.arr);
 
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
@@ -264,14 +263,17 @@ module AbstractCore
             renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr);
         end
 
-        stageRename1 <= ops;
+       // stageRename1 <= ops;
             stageRename1_N <= theFrontend.stageRename0;
+            stageRename1_N.arr <= ops;
     endtask
+
+//            assign dummy = stageRename1 === stageRename1_N.arr;
 
 
     task automatic redirectRest();
-        stageRename1 <= '{default: EMPTY_SLOT_B};
-        markKilledRenameStage(stageRename1);
+       // stageRename1 <= '{default: EMPTY_SLOT_B};
+        markKilledRenameStage(stageRename1_N.arr);
             stageRename1_N <= DEFAULT_FRONT_STAGE;
 
         if (lateEventInfo.redirect) begin

@@ -64,9 +64,6 @@ sim:/ArchDesc0/core/eventUnit/front \
 sim:/ArchDesc0/core/eventUnit/frontH \
 sim:/ArchDesc0/core/eventUnit/general \
 sim:/ArchDesc0/core/eventUnit/generalH
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/stageRename1 \
-sim:/ArchDesc0/core/stageRename1_N
 
 
 

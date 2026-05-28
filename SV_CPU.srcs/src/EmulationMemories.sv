@@ -6,7 +6,7 @@ package EmulationMemories;
     import EmulationDefs::*;
     
 
-        localparam int TMP_BLOCK_SIZE = 64;
+    localparam int TMP_BLOCK_SIZE = 64;
 
     // 4kB pages
     class PageBasedProgramMemory;

@@ -17,9 +17,7 @@ import Queues::*;
 
 module EventUnit(input logic clk);
 
-
     BackendState backendState = BS_NONE;
-
 
     logic chp, chq;
 
@@ -73,9 +71,7 @@ module EventUnit(input logic clk);
             end
 
             interruptEvt <= EMPTY_EVENT_DESC;
-
             resetEvt <= EMPTY_EVENT_DESC;
-
             backendState <= BS_NORMAL;
         end
 
@@ -101,8 +97,8 @@ module EventUnit(input logic clk);
     function automatic EventDesc getFrontEv();
         // TODO: if stageRename1_N is not empty and has a fetch event, catch it
 
-        OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
-        OpSlotB foundAny[$] = AbstractCore.stageRename1.find_first with (item.active);
+        OpSlotB found[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active && hasStaticEvent(item.mid));
+        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
         // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
         if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
@@ -161,28 +157,7 @@ module EventUnit(input logic clk);
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
         uname = decMainUop(slot.mid);
-
-        case (uname)
-            UOP_ctrl_fetchError: $fatal(2, "Handled elsewhere");
-
-            UOP_ctrl_error: evt = PE_SYS_ERROR;
-            UOP_ctrl_undef: evt = PE_SYS_UNDEFINED_INSTRUCTION;
-            UOP_ctrl_call:  evt = PE_SYS_CALL;
-            UOP_ctrl_dbcall:  evt = PE_SYS_DBCALL;
-
-            // ret
-            UOP_ctrl_rete:  evt = PE_HW_RETE;
-            UOP_ctrl_reti:  evt = PE_HW_RETI;
-
-            // Static refetch: does it make sense?
-            UOP_ctrl_refetch: evt = PE_HW_REFETCH;
-
-            // sync
-            UOP_ctrl_sync:  evt = PE_HW_SYNC;
-            UOP_ctrl_send:  evt = PE_HW_SEND;
-
-            default: ;
-        endcase
+        evt = eventFromUop(uname);
 
         return '{1, slot.mid, evt};
     endfunction 
@@ -255,21 +230,15 @@ module EventUnit(input logic clk);
         tmp = replaceEvt(tmp, lqRefetchH);
         tmp = replaceEvt(tmp, frontH);
 
-               // if (lqRefetchH.id == 5203) $error("Setting  general evt for 5203");
-
-        //if (shouldFlushId(tmp.id) || AbstractCore.lastRetired > tmp.id) tmp = EMPTY_EVENT_DESC;
-
         return tmp;
     endfunction
-
-       // assign chp = (general.id == theExecBlock.currentEventReg); 
 
 
     function automatic logic hasEvent();
         return general.active
             || resetEvt.active
             || interruptEvt.active
-                ;
+            ;
     endfunction 
 
 

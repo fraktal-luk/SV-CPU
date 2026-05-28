@@ -6,12 +6,12 @@ package ExecDefs;
     import UopList::*;
     import Asm::*;
     import Emulation::*;
-    
+
     import AbstractSim::*;
     import Insmap::*;
 
     import CacheDefs::*;
-    
+
 
     typedef enum {
         BS_NONE,
@@ -64,9 +64,9 @@ package ExecDefs;
         ES_FP_OVERFLOW
     } ExecStatus;
 
+
     function automatic logic needsReplay(input ExecStatus status);
-        return 
-                status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
+        return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
     endfunction
 
 
@@ -228,7 +228,6 @@ package ExecDefs;
 
     
     
-    
     // IQ structures
 
     typedef struct {
@@ -301,7 +300,6 @@ package ExecDefs;
         Poison prevPoisons[3];
         logic all;
     } ReadinessInfo;
-
 
 
     // Handling forwarding network
@@ -530,7 +528,6 @@ package ExecDefs;
     endfunction
 
 
-
         function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
             Mword res = 'x;
             
@@ -627,24 +624,11 @@ package ExecDefs;
             endcase 
         endfunction
 
-            function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
-                ForwardingElement found[$] = elems.find with (item.active && item.status == st);
-                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-                return oldest;
-            endfunction
-
-
-
-        // function automatic OpSlotB getOldestRenameEvSlot();
-        //     // TODO: if stageRename1_N is not empty and has a fetch event, catch it
-
-        //     OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
-        //     // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-
-        //     if (found.size() == 0) return EMPTY_SLOT_B;
-        //     else return found[0];
-        // endfunction
-
+        function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
+            ForwardingElement found[$] = elems.find with (item.active && item.status == st);
+            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+            return oldest;
+        endfunction
 
         function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
             ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);

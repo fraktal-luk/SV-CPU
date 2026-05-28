@@ -136,7 +136,6 @@ package Emulation;
             if (isBranchIns(ins))
                 return adr + 4;
             
-            // TODO: set exception if any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
                 Translation tr = translateDataAddress(vadr);

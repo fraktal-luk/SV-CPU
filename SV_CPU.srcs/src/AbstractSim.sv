@@ -139,20 +139,22 @@ package AbstractSim;
 
     typedef struct {
         logic active;
-        InsId id;
+        InsId mid;
         Mword adr;
         Word bits;
         logic takenBranch;
         Mword predictedTarget;
     } OpSlotF;
 
-    // Maybe redundant (OpSlotF has it all)
-    typedef struct {
-        logic active;
-        InsId mid;
-        Mword adr;  // hardly used
-        Word bits;  // hardly used
-    } OpSlotB;
+    // // Maybe redundant (OpSlotF has it all)
+    // typedef struct {
+    //     logic active;
+    //     InsId mid;
+    //     Mword adr;  // hardly used
+    //     Word bits;  // hardly used
+    // } OpSlotB;
+
+    typedef OpSlotF OpSlotB;
 
 
     typedef struct {
@@ -169,7 +171,7 @@ package AbstractSim;
 
 
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
-    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x};
+    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
     localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
 
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
@@ -660,12 +662,15 @@ package AbstractSim;
     endfunction
 
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
-        return '{
-            active: op.active,
-            mid: -1,
-            adr: op.adr,
-            bits: op.bits
-        };
+        return op;
+        // return '{
+        //     active: op.active,
+        //     mid: -1,
+        //     adr: op.adr,
+        //     bits: op.bits,
+        //     takenBranch: 'x,
+        //     predictedTarget: 'x
+        // };
     endfunction;
 
     function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
@@ -928,7 +933,6 @@ package AbstractSim;
 
             return res;
         endfunction
-
 
 
 
