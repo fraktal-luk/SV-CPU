@@ -62,7 +62,7 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
 
     // Filling
     function automatic void allocInDynamicRange(input Dword adr);
-        tryFillWay(ways[1], adr); // TODO - temporary filling always way 1
+        tryFillWay(ways[1], adr, AbstractCore.dataMem); // TODO - temporary filling always way 1
     endfunction
     
     // Write

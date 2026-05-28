@@ -74,9 +74,9 @@ package Testing;
             "lib":      return PROG_P_LIB;
 
             "data0":      return DATA_P_MAIN;
-            "data1":       ;// return 'x;;
-            "data_miss0": ;//return 'x;
-            "data_miss1": ; //return 'x;
+            "data1":      return DATA_P_MAIN + 'h1000 ;// return 'x;;
+            "data_miss0": return DATA_P_MISS; //return 'x;
+            "data_miss1": return DATA_P_MISS + 'h1000; //return 'x;
 
             "output": ; //return 'x; // Not loaded, leave default 0's and wait for tested program to fill it
 
@@ -105,9 +105,9 @@ package Testing;
 
 
                 "data0":     dmem.writeWordArray(DATA_P_MAIN, sections[i].words);
-                "data1": ;
-                "data_miss0": ;
-                "data_miss1": ;
+                "data1":     dmem.writeWordArray(DATA_P_MAIN + 'h1000, sections[i].words);
+                "data_miss0": dmem.writeWordArray(DATA_P_MISS, sections[i].words);
+                "data_miss1": dmem.writeWordArray(DATA_P_MISS + 'h1000, sections[i].words);
 
                 "output": ; // Not loaded, leave default 0's and wait for tested program to fill it
 

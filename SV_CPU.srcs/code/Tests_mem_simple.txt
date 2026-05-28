@@ -18,6 +18,7 @@ mem_byte_store  ;  store byte, sync, load containing word
 mem_byte_forward ; a few store bytes, load bytes, some adrs matching
 
 mem_data_miss_0  ; load from range not in L1, fill
+mem_data_miss_1  ; load from range not in L1, fill
 mem_data_miss_store ; store to range not in L!, fill, then sync and load it
 
 mem_tlb_miss_0  ; load from adr not in L! TLB, fill (!!! probaby mistake, adr like in mem_data_miss_0)

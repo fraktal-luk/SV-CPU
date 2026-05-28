@@ -329,8 +329,8 @@ package CacheDefs;
         return 1;
     endfunction
 
-    // TODO: write actual data
-    function automatic logic tryFillWay(ref DataWay way, input Dword adr);
+
+    function automatic logic tryFillWay(ref DataWay way, input Dword adr, input SparseDataMemory mem);
         int blockIndex = getBlockIndex(adr);
 
         DataCacheBlock block = way[blockIndex];
@@ -348,7 +348,7 @@ package CacheDefs;
         block.valid = 1;
         block.pbase = fillPbase;
         block.lock = 0;
-        block.array = '{default: 0};
+        block.array = mem.readBlock(adr);
 
         return 1;
     endfunction
