@@ -71,11 +71,9 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
         foreach (ways[i]) void'(tryWriteWay(ways[i], wrInfo));
     endtask
 
-
     // Init/DB
     task automatic resetArray();
         ways = '{default: '{default: null}};
-        //clearLocks(); // No need to clear locks on nulls
     endtask
 
     task automatic clearLocks();
@@ -106,21 +104,17 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
     endfunction
 
 
-
     always @(posedge clk) begin
-        if (dataFillEngine.notifyFill) begin
+        if (dataFillEngine.notifyFill)
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
-        end
 
-        //if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
-        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.etype == PE_HW_SYNC) clearLocks();
+        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.etype == PE_HW_SYNC)
+            clearLocks();
 
         doCachedWrite(writeReqs[0]);
     end
 
 endmodule
-
-
 
 
 
@@ -178,9 +172,7 @@ module InstructionCacheArray
 
 
     always @(posedge clk) begin
-        if (notify) begin
-            allocInDynamicRange(fillTr.padr);
-        end
+        if (notify) allocInDynamicRange(fillTr.padr);
     end
 
 endmodule

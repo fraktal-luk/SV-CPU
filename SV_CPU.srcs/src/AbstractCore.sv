@@ -44,8 +44,6 @@ module AbstractCore
 
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
-    logic sig_N;
-
     Mword insAdr;       // DB?
     logic fetchEnable;  // DB?
 
@@ -92,9 +90,6 @@ module AbstractCore
 
 
     SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, sysWriteInfos);
-
-    // Event control
-    //Mword retiredTarget = 0;
 
     logic barrierUnlocking;
     InsId barrierUnlockingMid;
@@ -152,7 +147,6 @@ module AbstractCore
     assign fetchEnable = theFrontend.fetchEnable;
     assign insAdr = theFrontend.fetchAdr;
 
-        assign sig_N = lateEventInfo.cOp == CO_send; // Deprec
     assign sig = lateEventInfo.etype == PE_HW_SEND;
 
 
@@ -449,14 +443,7 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
-
-            //if (lateEventInfoWaiting.etype != PE_EXT_RESET) 
-            begin
-              //  assert (retiredTarget === theRob.trg) else $error("Diff; rt = %X, trg = %X", retiredTarget, theRob.trg);
-            end
-
             sysUnit.saveStateAsync(theRob.trg /*retiredTarget*/, lateEventInfoWaiting.etype);
-           // retiredTarget <= lateEventInfoWaiting.target;
             lateEventInfo <= lateEventInfoWaiting;
         end
         else begin
@@ -467,9 +454,6 @@ module AbstractCore
             sysUnit.modifyStateSync(lateEventInfoWaiting.adr,
                                     eventUnit.lastEvtAD, eventUnit.lastEvtTr,
                                     eventUnit.general.etype);
-            assert (eventUnit.general.etype == lateEventInfoWaiting.etype) else $error("nieeee\n%p, %p", eventUnit.general.etype, lateEventInfoWaiting.etype);
-
-            //retiredTarget <= lateEvt.target;
             lateEventInfo <= lateEvt;
         end
 
@@ -483,19 +467,11 @@ module AbstractCore
         logic foundEvent = 0;
         EventInfo lateEvt;
 
-        //foreach (theRob.retirementGroup[i]) begin
         foreach (theRob.prevRow[i]) begin
-        //    InsId theId = theRob.retirementGroup[i].mid;
             InsId theId = theRob.prevRow[i].mid;
-
-                //assert (theId == theRob.prevRow[i].mid) else $error("mids: %d, %d", theId, theRob.prevRow[i].mid);
 
             if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
             if (foundEvent) $fatal(2, "Committing after break");
-
-
-                //assert (theRob.retirementGroup[i].mid == theRob.prevRow[i].mid) else $error("mids: %d, %d", theRob.retirementGroup[i].mid, theRob.prevRow[i].mid);
-
 
             commitOp(theId);
 
@@ -631,19 +607,8 @@ module AbstractCore
 
         retiredEmul.catchDbTrap();
 
-        // Normal (branches don't cause exceptions so far, check for exc can be omitted)
-        // if (!info.exception && isBranchUop(decMainUop(id))) begin // DB
-        //     if (retInfo.takenBranch === 1) begin
-        //         assert (retInfo.target === nextTrg) else begin
-        //             retiredEmul.getBasicDbView();
-        //             $fatal(2, "Mismatch of trg: %d, %d", retInfo.target, nextTrg);
-        //         end
-        //     end
-        // end
-
         putMilestoneM(id, retireType);
         insMap.setRetired(id);
-
     endtask
 
 
@@ -690,9 +655,6 @@ module AbstractCore
 
         updateInds(commitInds, id); // All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
-
-        // RET: update target
-       // retiredTarget <= getCommitTarget(decMainUop(id), insInfo.basicData.adr, retInfo.target, retInfo.takenBranch, abnormal);
     endtask
 
 
@@ -871,8 +833,7 @@ module AbstractCore
         syncRegsFromRetiredCregs();
         syncCurrentConfigFromRegs();
 
-            theRob.trg <= IP_RESET;
-       // retiredTarget <= IP_RESET;
+        theRob.trg <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
         csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
@@ -941,11 +902,7 @@ module AbstractCore
             taken = entries[0].taken;
         end
 
-        if (0) ;
-        //if (info.dynamicEvt || info.refetch) return 'x;
-        //else if (uname == UOP_ctrl_sync) return own + 4;
-        else if (isBranchUop(uname) && taken) return executed;
-        //else if (isControlUop(uname)) return 'x;
+        if (isBranchUop(uname) && taken) return executed;
         else return own + 4;
     endfunction
 

@@ -23,15 +23,6 @@ module ReorderBuffer
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
 
-    // Alt_ROB#(.WIDTH(WIDTH)) altRob(insMap, branchEventInfo, lateEventInfo, inGroup);
-    
-    // logic allow, isEmpty;
-
-    // assign isEmpty = altRob.isEmpty;
-    // assign allow = altRob.allow;
-
-
-
     OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
 
     OpRecordA currentRow = '{default: EMPTY_RECORD}, prevRow = '{default: EMPTY_RECORD}, lastRec = '{default: EMPTY_RECORD};
@@ -54,10 +45,9 @@ module ReorderBuffer
     assign allow = (size < ROB_SIZE - WIDTH*N_RENAME_STAGES);
 
 
-
     always @(posedge AbstractCore.clk) begin
         commit();
-        alt_markCompleted();
+        markCompleted();
 
         if (lateEventInfo.redirect) begin
             handleLateEvent();
@@ -70,8 +60,6 @@ module ReorderBuffer
             writeInput(inGroup);
         end
     end
-
-
 
 
     task automatic commit();
@@ -151,13 +139,10 @@ module ReorderBuffer
     endtask
 
 
-
     task automatic handleLateEvent();
         trg <= lateEventInfo.target;
         eventFound <= 0;
     endtask
-
-
 
     task automatic flushAll();
         int lc = 0;
@@ -244,28 +229,28 @@ module ReorderBuffer
     endtask
 
 
-    task automatic alt_markCompleted();
-        alt_markPacketCompleted(theExecBlock.doneRegular0_E);
-        alt_markPacketCompleted(theExecBlock.doneRegular1_E);
+    task automatic markCompleted();
+        markPacketCompleted(theExecBlock.doneRegular0_E);
+        markPacketCompleted(theExecBlock.doneRegular1_E);
 
-        alt_markPacketCompleted(theExecBlock.doneBranch_E);
+        markPacketCompleted(theExecBlock.doneBranch_E);
 
-        alt_markPacketCompleted(theExecBlock.doneDivider_E);
+        markPacketCompleted(theExecBlock.doneDivider_E);
 
-        alt_markPacketCompleted(theExecBlock.doneMultiplier0_E);
-        alt_markPacketCompleted(theExecBlock.doneMultiplier1_E);
+        markPacketCompleted(theExecBlock.doneMultiplier0_E);
+        markPacketCompleted(theExecBlock.doneMultiplier1_E);
 
 
-        alt_markPacketCompleted(theExecBlock.doneFloat0_E);
-        alt_markPacketCompleted(theExecBlock.doneFloat1_E);
-        alt_markPacketCompleted(theExecBlock.doneFloatDiv_E);
+        markPacketCompleted(theExecBlock.doneFloat0_E);
+        markPacketCompleted(theExecBlock.doneFloat1_E);
+        markPacketCompleted(theExecBlock.doneFloatDiv_E);
 
-        alt_markPacketCompleted(theExecBlock.doneMem0_E);
-        alt_markPacketCompleted(theExecBlock.doneMem2_E);
-        alt_markPacketCompleted(theExecBlock.doneStoreData_E);
+        markPacketCompleted(theExecBlock.doneMem0_E);
+        markPacketCompleted(theExecBlock.doneMem2_E);
+        markPacketCompleted(theExecBlock.doneStoreData_E);
     endtask
 
-    task automatic alt_markPacketCompleted(input UopPacket p);         
+    task automatic markPacketCompleted(input UopPacket p);         
         int found[$];
         int sub = SUBOP(p.TMP_oid);
 
@@ -291,19 +276,19 @@ module ReorderBuffer
         lastScannedIdVar = mid;
     endfunction
 
-            function automatic void handleRead(input OpRecord rec);
-                lastReadIdVar = rec.mid;
-            endfunction
 
-        generate
-            OpRecord recCommit, recScan, recScanPrev, recEnd;
+    function automatic void handleRead(input OpRecord rec);
+        lastReadIdVar = rec.mid;
+    endfunction
 
-            assign recCommit = array[p2i(pCommit)];        
-            assign recScan = array[p2i(pScan)];        
-            assign recScanPrev = array[p2i(pScanPrev)];        
-            assign recEnd = array[p2i(pEnd)];        
-        endgenerate
+    generate
+        OpRecord recCommit, recScan, recScanPrev, recEnd;
 
+        assign recCommit = array[p2i(pCommit)];        
+        assign recScan = array[p2i(pScan)];        
+        assign recScanPrev = array[p2i(pScanPrev)];        
+        assign recEnd = array[p2i(pEnd)];        
+    endgenerate
 
 
     function automatic int properMod(input int what, input int by);
@@ -337,14 +322,6 @@ module ReorderBuffer
         return pNew;
     endfunction
 
-
-    function automatic CompletedVec initCompletedVec(input int n);
-        CompletedVec res = '{default: 'x};
-        for (int i = 0; i < n; i++)
-            res[i] = 0;
-        return res;
-    endfunction
-
     function automatic OpRecordA makeRecord(input OpSlotAB ops);
         OpRecordA res = '{default: EMPTY_RECORD};
         foreach (ops[i]) begin
@@ -357,12 +334,5 @@ module ReorderBuffer
         end
         return res;
     endfunction
-
-    function automatic int TMP_int(input TableIndex ind);
-        return ind.row * WIDTH + ind.slot;
-    endfunction
-
-
-
 
 endmodule

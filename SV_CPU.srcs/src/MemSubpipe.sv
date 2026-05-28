@@ -399,8 +399,6 @@ module MemSubpipe#()
         end
 
         if (isStoreMemUop(decUname(uid))) begin
-              //  if (lqResp.active) $error("Stre has SOV\n%p", p);
-
             res.status = ES_OK;
         end
 

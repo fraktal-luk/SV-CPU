@@ -15,6 +15,7 @@ import CacheDefs::*;
 
 import Queues::*;
 
+
 module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input MemWriteInfo writeReqs[1]);
 
     Mword sysRegs[32];
@@ -39,7 +40,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         assert (isValidSysReg(adr)) else $fatal("Reading incorrect sys reg: adr = %d", adr);
         return sysRegs[adr];
     endfunction
-    
+
 
     function automatic void setSysReg(input Mword adr, input Mword val);
         assert (isValidSysReg(adr)) else $fatal("Writing incorrect sys reg: adr = %d, val = %d", adr, val);
@@ -69,9 +70,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
 
     function automatic void modifyStateSync(
-                                            input Mword adr,
-                                            input AccessDesc ad, input Translation tr,
-                                            input ProgramEvent pe);
+                                input Mword adr,
+                                input AccessDesc ad, input Translation tr,
+                                input ProgramEvent pe);
         case (pe) inside
             PE_SYS_CALL, PE_SYS_DBCALL: begin
                 sysRegs[4] = sysRegs[1];

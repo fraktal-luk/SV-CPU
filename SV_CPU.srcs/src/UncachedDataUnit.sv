@@ -182,7 +182,6 @@ module UncachedDataUnit(
         if (0) begin end
         // sys regs
         else if (aDesc.sys) begin end
-
         // uncached access
         else if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read              

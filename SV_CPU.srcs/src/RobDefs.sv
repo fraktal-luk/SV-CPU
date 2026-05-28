@@ -16,9 +16,6 @@ package RobDefs;
 
 
 
-   // localparam int ROB_WIDTH = 4;
-
-
     typedef logic CompletedVec[N_UOP_MAX];
 
     typedef struct {
@@ -63,6 +60,14 @@ package RobDefs;
         
         typedef RobResult RRQ[$];
 
+
+
+    function automatic CompletedVec initCompletedVec(input int n);
+        CompletedVec res = '{default: 'x};
+        for (int i = 0; i < n; i++)
+            res[i] = 0;
+        return res;
+    endfunction
 
 
 endpackage

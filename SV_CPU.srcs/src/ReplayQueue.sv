@@ -38,7 +38,7 @@ module ReplayQueue(
     } TMP_Entry;
 
     localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UIDT_NONE, 0, 0, -1,
-                                                0, -1,
+                                             0, -1,
                                             EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
     int numUsed = 0;
@@ -47,9 +47,7 @@ module ReplayQueue(
 
     TMP_Entry entries[SIZE] = '{default: TMP_EMPTY_ENTRY};
 
-
     typedef int InputLocs[N_MEM_PORTS];
-
 
     UopPacket issued0 = EMPTY_UOP_PACKET,
               issued1 = EMPTY_UOP_PACKET;
@@ -82,15 +80,13 @@ module ReplayQueue(
             if (inputUops[i].active) begin 
                 // Already present?
                 int inds[$] = entries.find_first_index with (item.uid == inputUops[i].TMP_oid);
-                if (inds.size() > 0) begin
-                    continue;
-                end
+                if (inds.size() > 0) continue;
+
                 entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, 0, -1,
                                         0, 15,
                                         EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
                 putMilestone(inputUops[i].TMP_oid, InstructionMap::RqEnter);
-
             end
         end
 
@@ -158,13 +154,7 @@ module ReplayQueue(
                 end
 
                 ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1: begin
-                    if (U2M(entries[i].uid) == //theRob.indToCommitSig.mid
-                                                theRob.recScan.mid
-                        && eventUnit.backendState != BS_HANDLING && AbstractCore.wqFree) begin
-                           // $error("NExt to commit ready:\n%p\n%d, %d", theRob.indToCommitSig, theRob.pScan, theRob.recScan);
-
-                           // assert (theRob.indToCommitSig.mid == theRob.recScan.mid) else $fatal("not the same mid nextto comit");
-
+                    if (U2M(entries[i].uid) == theRob.recScan.mid && eventUnit.backendState != BS_HANDLING && AbstractCore.wqFree) begin
                         entries[i].ready = 1;
                     end
                 end
