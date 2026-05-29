@@ -29,12 +29,16 @@ package ControlHandling;
     endfunction
 
 
-    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc);
+    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
         Mword adr = ii.basicData.adr;
         EventInfo res = '{1, id, CO_none, eDesc.etype, 1, adr, 'x};
 
-        if (eDesc.etype == PE_EXT_DEBUG)
-            res = DB_EVENT; 
+
+        if (eDesc.etype == PE_EXT_DEBUG) begin
+            res = DB_EVENT;
+        end
+        else if (eDesc.etype == PE_NONE && dbDesc.active)
+            res = DB_EVENT;
         else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
             res.target = adr + 4;
         else if (eDesc.etype == PE_HW_REFETCH)
@@ -42,7 +46,7 @@ package ControlHandling;
         else
             res.target = programEvent2trg(eDesc.etype);
 
-        res.cOp = CO_none;
+        res.cOp = CO_none; // TODO: remove field?
 
         return res;
     endfunction

@@ -492,7 +492,7 @@ module AbstractCore
             if (breaksCommitId(theId)) begin
                 InstructionInfo ii = insMap.get(theId);
                 foundEvent = 1; // Don't commit anything more if event is being handled
-                lateEvt = eventFromOp(theId, ii, eventUnit.general);
+                lateEvt = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
 
                 if (eventUnit.general.id == theId) begin
                     assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
@@ -511,6 +511,15 @@ module AbstractCore
         // TODO: correctly prioritize event sources
 
         if (foundEvent) begin
+
+                if (eventUnit.general.etype == PE_EXT_DEBUG) begin
+                    assert (eventUnit.dbEvt.active && eventUnit.dbEvt.id == eventUnit.general.id) else $error("Wrong evts?");
+                end
+                else begin
+                    assert (eventUnit.dbEvt === EMPTY_EVENT_DESC) else $error("DB shich shouldnt;\n%p\n%p", eventUnit.general, eventUnit.dbEvt);
+                end
+
+
             lateEventInfoWaiting <= lateEvt;
             eventUnit.setHandling();
         end

@@ -48,6 +48,7 @@ module EventUnit(input logic clk);
 
     always @(negedge clk) begin
         frontH <= getFrontEv();
+        dbEvtH <= getDbEv();
 
         fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
         fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
@@ -72,6 +73,8 @@ module EventUnit(input logic clk);
 
             interruptEvt <= EMPTY_EVENT_DESC;
             resetEvt <= EMPTY_EVENT_DESC;
+            dbEvt <= EMPTY_EVENT_DESC;
+
             backendState <= BS_NORMAL;
         end
 
@@ -90,6 +93,13 @@ module EventUnit(input logic clk);
             if (backendState == BS_NORMAL) backendState <= BS_WAIT;
         end
         else if (intCounter > 0) intCounter <= intCounter - 1;
+
+        // // TODO: set DB event
+        // if (frontH.active && frontH.etype == PE_EXT_DEBUG) begin
+        //     dbEvt <= frontH;
+
+        //      if (backendState == BS_NORMAL) backendState <= BS_WAIT;
+        // end
 
     end
 
@@ -111,6 +121,15 @@ module EventUnit(input logic clk);
             return EMPTY_EVENT_DESC;
         end
         else return edFromFront(found[0]);
+    endfunction
+
+    function automatic EventDesc getDbEv();
+        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
+
+        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+
+        if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
+        else return EMPTY_EVENT_DESC;
     endfunction
 
 
@@ -173,11 +192,13 @@ module EventUnit(input logic clk);
         //          Because general can be cleared by branch redirect, and this should not be a reason to reject interrupt
 
         if (backendState != BS_HANDLING) begin
-            if (newValue.active) backendState <= BS_WAIT;
+            if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
         end
 
         general <= newValue;
+
+        dbEvt <= replaceEvt(dbEvt, dbEvtH);
 
         front <= replaceEvt(front, frontH);
 

@@ -119,3 +119,8 @@ sim:/ArchDesc0/core/theRob/size \
 sim:/ArchDesc0/core/theRob/allow \
 sim:/ArchDesc0/core/theRob/isEmpty
 
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/eventUnit/dbEvt \
+sim:/ArchDesc0/core/eventUnit/dbEvtH \
+sim:/ArchDesc0/core/eventUnit/front \
+sim:/ArchDesc0/core/eventUnit/frontH

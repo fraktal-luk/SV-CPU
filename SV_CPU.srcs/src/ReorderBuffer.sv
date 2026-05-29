@@ -87,7 +87,7 @@ module ReorderBuffer
 
         if (!eventFound) begin
             while (array[p2i(p)].mid == -1 || (array[p2i(p)].completed.and() !== 0)) begin
-                if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id)) begin
+                if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id || array[p2i(p)].mid == eventUnit.dbEvt.id)) begin
                     // This slot has an event
                     eventFound <= 1;
                     handleScan(array[p2i(p)]);
