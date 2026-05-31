@@ -94,13 +94,6 @@ module EventUnit(input logic clk);
         end
         else if (intCounter > 0) intCounter <= intCounter - 1;
 
-        // // TODO: set DB event
-        // if (frontH.active && frontH.etype == PE_EXT_DEBUG) begin
-        //     dbEvt <= frontH;
-
-        //      if (backendState == BS_NORMAL) backendState <= BS_WAIT;
-        // end
-
     end
 
 
@@ -115,19 +108,8 @@ module EventUnit(input logic clk);
 
         if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
 
+        if (found.size() == 0) return EMPTY_EVENT_DESC;
 
-            if (found.size() == 0) begin
-                //if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
-
-                return EMPTY_EVENT_DESC;
-            end
-            else if (found[0].mid > foundAny[0].mid && AbstractCore.CurrentConfig.dbStep) begin
-                //if (AbstractCore.CurrentConfig.dbStep) 
-                 //   return '{1, foundAny[0].mid, PE_EXT_DEBUG};
-
-                //return EMPTY_EVENT_DESC;
-            end
-        
         return edFromFront(found[0]);
     endfunction
 
@@ -195,10 +177,6 @@ module EventUnit(input logic clk);
         if (!newValue.active && general.active) clearEvent <= 1;
         else clearEvent <= 0;
 
-        // TODO: when new event is being set, clear interruptEvt and signal a reject - exceptions have higher prio
-        //      Or maybe interruptEvt should exist in parallel with general, and only get rejected when general is moving to lateEventInfoWaiting
-        //          Because general can be cleared by branch redirect, and this should not be a reason to reject interrupt
-
         if (backendState != BS_HANDLING) begin
             if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
@@ -235,8 +213,7 @@ module EventUnit(input logic clk);
 
         if (prevId == -1) older = next;
         else if (nextId != -1 && prevId > nextId) older = next;
-        else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions 
-        // TODO: formalize. Assure that exception vs refetch in complex mem cases is defined and predictable
+        //else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions 
 
         assert (olderId == (older.id)) else $error("Ids differ");
 

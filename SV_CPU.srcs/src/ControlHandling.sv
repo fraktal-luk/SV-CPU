@@ -52,7 +52,7 @@ package ControlHandling;
         end
         else $fatal(2, "Wrongly detected event\n%p", ii);
 
-        res.cOp = CO_none; // TODO: remove field?
+        //res.cOp = CO_none; // TODO: remove field?
 
         return res;
     endfunction
