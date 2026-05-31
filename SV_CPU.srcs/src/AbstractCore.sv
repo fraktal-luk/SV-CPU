@@ -368,9 +368,12 @@ module AbstractCore
             ii.exception = 1;
             ii.hwEventType = eventFromUop(uopName);
         end
+        else if (CurrentConfig.dbStep) begin 
+            ii.hwEventType = PE_EXT_DEBUG;
+        end
 
         if (renamedEmul.status.exceptionRaised) begin
-            ii.eventType = renamedEmul.status.eventType;
+            ii.hwEventType = renamedEmul.status.eventType;
         end
 
         // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
@@ -512,12 +515,12 @@ module AbstractCore
 
         if (foundEvent) begin
 
-                if (eventUnit.general.etype == PE_EXT_DEBUG) begin
-                    assert (eventUnit.dbEvt.active && eventUnit.dbEvt.id == eventUnit.general.id) else $error("Wrong evts?");
-                end
-                else begin
-                    assert (eventUnit.dbEvt === EMPTY_EVENT_DESC) else $error("DB shich shouldnt;\n%p\n%p", eventUnit.general, eventUnit.dbEvt);
-                end
+                // if (eventUnit.general.etype == PE_EXT_DEBUG) begin
+                //     assert (eventUnit.dbEvt.active && eventUnit.dbEvt.id == eventUnit.general.id) else $error("Wrong evts?");
+                // end
+                // else begin
+                //     assert (eventUnit.dbEvt === EMPTY_EVENT_DESC) else $error("DB shich shouldnt;\n%p\n%p", eventUnit.general, eventUnit.dbEvt);
+                // end
 
 
             lateEventInfoWaiting <= lateEvt;
@@ -578,7 +581,7 @@ module AbstractCore
 
         InstructionMap::Milestone retireType = info.dynamicEvt ? InstructionMap::RetireException : (info.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
-       logic eventPresent = (
+        logic eventPresent = (
                     CurrentConfig.dbStep ||
                     info.refetch ||
                     info.dynamicEvt ||
@@ -586,15 +589,18 @@ module AbstractCore
                     info.silentEvt
             );
 
+        logic generalEvent = (eventUnit.general.id == id);
+        logic debugEvent = (eventUnit.dbEvt.id == id);
+
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
-        assert ((eventUnit.general.id == id) === eventPresent)
+        assert ((generalEvent || debugEvent) === eventPresent)
         else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, eventUnit.general, CurrentConfig.dbStep);
 
         if (eventPresent) begin
             assert ((eventUnit.general.etype == info.hwEventType)
-                    || (eventUnit.general.etype == PE_EXT_DEBUG && info.hwEventType == PE_NONE)
-                ) else $error("wrong: %p / %p", eventUnit.general.etype, info.hwEventType);
+                    || (eventUnit.dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG)
+                ) else $error("wrong: %p / %p / %p", eventUnit.general.etype, info.hwEventType, eventUnit.dbEvt);
         end
 
         assert (expectedTargetFloor === info.basicData.adr) else begin

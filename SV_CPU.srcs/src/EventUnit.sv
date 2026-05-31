@@ -115,12 +115,20 @@ module EventUnit(input logic clk);
 
         if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
 
-        if (found.size() == 0 || (found[0].mid > foundAny[0].mid && AbstractCore.CurrentConfig.dbStep)) begin
-            if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
 
-            return EMPTY_EVENT_DESC;
-        end
-        else return edFromFront(found[0]);
+            if (found.size() == 0) begin
+                //if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
+
+                return EMPTY_EVENT_DESC;
+            end
+            else if (found[0].mid > foundAny[0].mid && AbstractCore.CurrentConfig.dbStep) begin
+                //if (AbstractCore.CurrentConfig.dbStep) 
+                 //   return '{1, foundAny[0].mid, PE_EXT_DEBUG};
+
+                //return EMPTY_EVENT_DESC;
+            end
+        
+        return edFromFront(found[0]);
     endfunction
 
     function automatic EventDesc getDbEv();
@@ -255,6 +263,7 @@ module EventUnit(input logic clk);
 
     function automatic logic hasEvent();
         return general.active
+            || dbEvt.active
             || resetEvt.active
             || interruptEvt.active
             ;
