@@ -59,6 +59,7 @@ package ExecDefs;
 
         ES_ILLEGAL,
         ES_INVALID,
+            ES_NONEXISTENT,
 
         ES_FP_INVALID,
         ES_FP_OVERFLOW

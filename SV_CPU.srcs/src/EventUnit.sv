@@ -132,6 +132,9 @@ module EventUnit(input logic clk);
         uname = decUname(p.TMP_oid);
 
         case (p.status)
+            ES_NONEXISTENT: begin
+                evt = PE_MEM_NONEXISTENT_ADDRESS;
+            end
             ES_INVALID: begin
                 if (isMemUop(uname)) evt = PE_MEM_INVALID_ADDRESS;
                 else if (isStoreSysUop(uname) || isLoadSysUop(uname)) evt = PE_SYS_INVALID_ADDRESS;

@@ -16,7 +16,7 @@ package ControlHandling;
         res.target = info.target;
         res.active = 1;
         res.eventMid = info.eventMid;
-        res.cOp = info.cOp;
+        //res.cOp = info.cOp;
         res.etype = info.etype;
         res.redirect = 1;
 
@@ -52,7 +52,7 @@ package ControlHandling;
         end
         else $fatal(2, "Wrongly detected event\n%p", ii);
 
-        //res.cOp = CO_none; // TODO: remove field?
+        //res.cOp = CO_none;
 
         return res;
     endfunction
