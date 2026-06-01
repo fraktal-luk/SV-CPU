@@ -34,8 +34,8 @@ package Testing;
 
 
 
-    localparam Dword PROG_P_NONEXISTENT = 'h2000000000000000;
-    localparam Dword DATA_P_NONEXISTENT = 'h2000000000000000;
+    localparam Dword PROG_P_NONEXISTENT = 'h20000000000;
+    localparam Dword DATA_P_NONEXISTENT = 'h20000000000;
 
 
     localparam Dword PROG_V_INVALID = 'h8000000000000000;

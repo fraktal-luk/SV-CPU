@@ -269,9 +269,9 @@ module MemSubpipe#()
                             return res;
                         end
                         else if (uncachedResp.status == CR_INVALID) begin
-                            res.status = ES_ILLEGAL;
+                            res.status = ES_NONEXISTENT;
                             res.result = 0;
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS); // TODO: NONEXISTENT_ADDRESS?
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_NONEXISTENT_ADDRESS);
                             return res;
                         end
                         else

@@ -825,6 +825,8 @@ package InsDefs;
 
 
 
+
+
     function automatic logic isValidSysReg(Mword adr);
         return adr >= 0 && adr <= 31;    
     endfunction       

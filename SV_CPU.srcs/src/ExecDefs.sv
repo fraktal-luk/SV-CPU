@@ -642,7 +642,7 @@ package ExecDefs;
         endfunction
 
         function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
+            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT});
             ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
             
             if (found.size() == 0) return EMPTY_UOP_PACKET;
