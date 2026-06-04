@@ -66,9 +66,7 @@ package AbstractSim;
         CO_send,
         CO_call,
             CO_dbcall,
-
-        //CO_exception,
-            CO_specificException, // 
+            CO_specificException,
         
         CO_sync,
         CO_refetch,
@@ -145,14 +143,6 @@ package AbstractSim;
         logic takenBranch;
         Mword predictedTarget;
     } OpSlotF;
-
-    // // Maybe redundant (OpSlotF has it all)
-    // typedef struct {
-    //     logic active;
-    //     InsId mid;
-    //     Mword adr;  // hardly used
-    //     Word bits;  // hardly used
-    // } OpSlotB;
 
     typedef OpSlotF OpSlotB;
 
@@ -663,14 +653,6 @@ package AbstractSim;
 
     function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
         return op;
-        // return '{
-        //     active: op.active,
-        //     mid: -1,
-        //     adr: op.adr,
-        //     bits: op.bits,
-        //     takenBranch: 'x,
-        //     predictedTarget: 'x
-        // };
     endfunction;
 
     function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
@@ -801,67 +783,68 @@ package AbstractSim;
         return res;        
     endfunction
 
-        function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
-            FrontStage res = fs;
-            OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
 
-            int brSlot = scanBranches(arrayF2, ENABLE_FRONT_BRANCHES);
+    function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
+        FrontStage res = fs;
+        OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
 
-            if (!fs.active) return DEFAULT_FRONT_STAGE;
+        int brSlot = scanBranches(arrayF2, ENABLE_FRONT_BRANCHES);
 
-            arrayF2 = clearAfterBranch(arrayF2, brSlot);
+        if (!fs.active) return DEFAULT_FRONT_STAGE;
 
-            // Set prediction info
-            if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
+        arrayF2 = clearAfterBranch(arrayF2, brSlot);
 
-            res.padr = 'x;
-            res.arr = arrayF2;
+        // Set prediction info
+        if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
 
-            return res;
-        endfunction
+        res.padr = 'x;
+        res.arr = arrayF2;
 
-        function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
-            // If no taken branches, increment base adr. Otherwise get taken target
-            OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
-            Mword adr = res[FETCH_WIDTH-1].adr + 4;
-            
-            if (!fs.active) return 'x;
+        return res;
+    endfunction
 
-            foreach (res[i]) 
-                if (res[i].active) begin
-                    AbstractInstruction ins = decodeAbstract(res[i].bits);
-                    adr = res[i].adr + 4;   // Last active
-                    
-                    if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                        if (isBranchAlwaysIns(ins)) begin
-                            adr = res[i].adr + Mword'(ins.sources[1]);
-                            break;
-                        end
+    function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
+        // If no taken branches, increment base adr. Otherwise get taken target
+        OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
+        Mword adr = res[FETCH_WIDTH-1].adr + 4;
+        
+        if (!fs.active) return 'x;
+
+        foreach (res[i]) 
+            if (res[i].active) begin
+                AbstractInstruction ins = decodeAbstract(res[i].bits);
+                adr = res[i].adr + 4;   // Last active
+                
+                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
+                    if (isBranchAlwaysIns(ins)) begin
+                        adr = res[i].adr + Mword'(ins.sources[1]);
+                        break;
                     end
                 end
-            
-            return adr;
-        endfunction
-
-        function automatic FrontStage makeStage_IP(input Mword target, input logic on);
-            FrontStage res = DEFAULT_FRONT_STAGE;
-            Mword baseAdr = fetchLineBase(target);
-            logic already = 0;
-            Mword targetFloor = target;
-            targetFloor[1:0] = 0;
-
-            res.active = on;
-            res.status = CR_HIT;
-            res.vadr = target;
-
-            foreach (res.arr[i]) begin
-                Mword adr = baseAdr + 4*i;
-                logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
-                res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
             end
-            
-            return res;
-        endfunction
+        
+        return adr;
+    endfunction
+
+    function automatic FrontStage makeStage_IP(input Mword target, input logic on);
+        FrontStage res = DEFAULT_FRONT_STAGE;
+        Mword baseAdr = fetchLineBase(target);
+        logic already = 0;
+        Mword targetFloor = target;
+        targetFloor[1:0] = 0;
+
+        res.active = on;
+        res.status = CR_HIT;
+        res.vadr = target;
+
+        foreach (res.arr[i]) begin
+            Mword adr = baseAdr + 4*i;
+            logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
+            res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+        end
+        
+        return res;
+    endfunction
 
 
     function automatic int scanBranches(input OpSlotAF st, input logic ENABLE_FRONT_BRANCHES);
@@ -901,40 +884,38 @@ package AbstractSim;
     endfunction
 
 
-        function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
-            FrontStage res = DEFAULT_FRONT_STAGE;
-            logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
+    function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
+        FrontStage res = DEFAULT_FRONT_STAGE;
+        logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
 
-            res.active = on && !(guardPageCross && pageCross);
-            res.status = CR_HIT;
-            res.vadr = target;
-            res.padr = target;
+        res.active = on && !(guardPageCross && pageCross);
+        res.status = CR_HIT;
+        res.vadr = target;
+        res.padr = target;
 
-            res.arr[0] = '{1, -1, target, 'x, 0, 'x};
+        res.arr[0] = '{1, -1, target, 'x, 0, 'x};
 
-            return res;
-        endfunction
-
-
-        function automatic FrontStage getFrontStageF2_U(input FrontStage fs, input logic ENABLE_FRONT_BRANCHES);
-            FrontStage res = fs;
-            OpSlotF slot0 = fs.arr[0];
-
-            AbstractInstruction ins = decodeAbstract(slot0.bits);
-            logic takeBranch = fs.active && (fs.status == CR_HIT) && slot0.active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
-
-            if (takeBranch) slot0.predictedTarget = slot0.adr + Mword'(ins.sources[1]);
-            else slot0.predictedTarget = slot0.adr + 4;
-
-            slot0.takenBranch = takeBranch;
-
-            res.padr = 'x;
-            res.arr[0] = slot0;
-
-            return res;
-        endfunction
+        return res;
+    endfunction
 
 
+    function automatic FrontStage getFrontStageF2_U(input FrontStage fs, input logic ENABLE_FRONT_BRANCHES);
+        FrontStage res = fs;
+        OpSlotF slot0 = fs.arr[0];
+
+        AbstractInstruction ins = decodeAbstract(slot0.bits);
+        logic takeBranch = fs.active && (fs.status == CR_HIT) && slot0.active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
+
+        if (takeBranch) slot0.predictedTarget = slot0.adr + Mword'(ins.sources[1]);
+        else slot0.predictedTarget = slot0.adr + 4;
+
+        slot0.takenBranch = takeBranch;
+
+        res.padr = 'x;
+        res.arr[0] = slot0;
+
+        return res;
+    endfunction
 
 
     typedef struct {
@@ -944,7 +925,5 @@ package AbstractSim;
     } EventDesc;
 
     localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
-
-
 
 endpackage

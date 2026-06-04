@@ -49,12 +49,6 @@ module StoreQueue
 
     QEntry content[SIZE] = '{default: EMPTY_QENTRY};
 
-    QEntry outputQ[$:3*ROB_WIDTH];
-    QEntry outputQM[3*ROB_WIDTH] = '{default: EMPTY_QENTRY}; 
-
-    typedef QEntry QM[3*ROB_WIDTH];
-
-
 
     always @(posedge AbstractCore.clk) begin    
         advance();
@@ -80,7 +74,6 @@ module StoreQueue
         end
         endPointer = startPointer;
         scanPointer = startPointer;
-        outputQ.delete();
     endtask
 
 
@@ -153,16 +146,7 @@ module StoreQueue
         end
         else
             drainPointer = startPointer;
-
-        outputQM = makeQM(outputQ);
     endtask
-
-
-    function automatic QM makeQM(input QEntry q[$:3*ROB_WIDTH]);
-        QM res = '{default: EMPTY_QENTRY};
-        foreach (q[i]) res[i] = q[i];
-        return res;
-    endfunction
 
 
     function automatic int findIndex(input UopId uid);

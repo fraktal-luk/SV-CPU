@@ -16,7 +16,6 @@ package ControlHandling;
         res.target = info.target;
         res.active = 1;
         res.eventMid = info.eventMid;
-        //res.cOp = info.cOp;
         res.etype = info.etype;
         res.redirect = 1;
 
@@ -35,11 +34,8 @@ package ControlHandling;
 
         if (eDesc.id == id) begin
             if (eDesc.etype == PE_EXT_DEBUG) begin
-                res = DB_EVENT;
-                    $error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                $fatal(2, "DB event should not be here");
             end
-            // else if (eDesc.etype == PE_NONE && dbDesc.active)
-            //     res = DB_EVENT;
             else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
                 res.target = adr + 4;
             else if (eDesc.etype == PE_HW_REFETCH)
@@ -52,22 +48,11 @@ package ControlHandling;
         end
         else $fatal(2, "Wrongly detected event\n%p", ii);
 
-        //res.cOp = CO_none;
-
         return res;
     endfunction
 
     task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
         if (ins.def.o == O_halt) $error("halt not implemented");
     endtask
-
-    // UNUSED
-    function automatic Mword getCommitTarget(input UopName uname, input Mword own, input Mword executed, input logic taken, input logic abnormal);
-        if (abnormal) return 'x;
-        else if (isBranchUop(uname) && taken) return executed;
-        else if (uname == UOP_ctrl_sync) return own + 4;
-        else if (isControlUop(uname)) return 'x;
-        else return own + 4;
-    endfunction;
 
 endpackage

@@ -97,7 +97,7 @@ module AbstractCore
 
     ///////////////////////////
 
-    DataL1        dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
+    DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
@@ -263,12 +263,9 @@ module AbstractCore
             renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr);
         end
 
-       // stageRename1 <= ops;
-            stageRename1_N <= theFrontend.stageRename0;
-            stageRename1_N.arr <= ops;
+        stageRename1_N <= theFrontend.stageRename0;
+        stageRename1_N.arr <= ops;
     endtask
-
-//            assign dummy = stageRename1 === stageRename1_N.arr;
 
 
     task automatic redirectRest();
@@ -514,15 +511,6 @@ module AbstractCore
         // TODO: correctly prioritize event sources
 
         if (foundEvent) begin
-
-                // if (eventUnit.general.etype == PE_EXT_DEBUG) begin
-                //     assert (eventUnit.dbEvt.active && eventUnit.dbEvt.id == eventUnit.general.id) else $error("Wrong evts?");
-                // end
-                // else begin
-                //     assert (eventUnit.dbEvt === EMPTY_EVENT_DESC) else $error("DB shich shouldnt;\n%p\n%p", eventUnit.general, eventUnit.dbEvt);
-                // end
-
-
             lateEventInfoWaiting <= lateEvt;
             eventUnit.setHandling();
         end

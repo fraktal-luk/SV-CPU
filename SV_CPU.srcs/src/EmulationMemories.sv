@@ -20,7 +20,7 @@ package EmulationMemories;
 
 
         function automatic void setLike(input PageBasedProgramMemory other);
-            pages = other.pages; // TODO: pages are copied as references?
+            pages = other.pages;
         endfunction
 
 
@@ -48,9 +48,6 @@ package EmulationMemories;
 
         function automatic void assignPage(input Dword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
-
-            //if (!hasPage())
-
             pages[index] = new[PAGE_WORDS](arr);// arr;
         endfunction
 

@@ -651,29 +651,10 @@ package ExecDefs;
             return oldest[0];
         endfunction
 
-
-
         function automatic InsId replaceEvId(input InsId prev, input InsId next);
             if (prev == -1) return next;
             else if (next != -1 && prev > next) return next;
             else return prev;
         endfunction
 
-        // function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
-        //     UopPacket older = prev;
-        //     InsId prevId = U2M(prev.TMP_oid);
-        //     InsId nextId = U2M(next.TMP_oid);
-        //     InsId olderId = replaceEvId(prevId, nextId);
-
-        //     if (prevId == -1) older = next;
-        //     else if (nextId != -1 && prevId > nextId) older = next;
-
-        //     assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
-
-        //     if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
-        //     else return older;
-        // endfunction
-
-
-    
 endpackage
