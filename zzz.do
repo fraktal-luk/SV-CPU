@@ -47,18 +47,6 @@ sim:/ArchDesc0/core/theExecBlock/dcacheOuts_E1
 
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/mn/accessDescs_E0 \
-sim:/ArchDesc0/core/mn/accessDescs_E2 \
-sim:/ArchDesc0/core/mn/dcacheOuts_E1 \
-sim:/ArchDesc0/core/mn/dcacheTranslations_E1 \
-sim:/ArchDesc0/core/mn/dcacheTranslations_E2 \
-sim:/ArchDesc0/core/mn/dcacheTranslations_EE0 \
-sim:/ArchDesc0/core/mn/lqResponse_E1 \
-sim:/ArchDesc0/core/mn/sqResponse_E1 \
-sim:/ArchDesc0/core/mn/sysOuts_E1 \
-sim:/ArchDesc0/core/mn/toLqE0 \
-sim:/ArchDesc0/core/mn/toLqE1 \
-sim:/ArchDesc0/core/mn/toLqE2 \
 sim:/ArchDesc0/core/mn/uopE0 \
 sim:/ArchDesc0/core/mn/uopE1 \
 sim:/ArchDesc0/core/mn/uopE2 \
@@ -69,5 +57,4 @@ sim:/ArchDesc0/core/mn/trPreE0 \
 sim:/ArchDesc0/core/mn/trE0 \
 sim:/ArchDesc0/core/mn/trE1 \
 sim:/ArchDesc0/core/mn/trE2 \
-sim:/ArchDesc0/core/mn/uncachedOuts_E1
 

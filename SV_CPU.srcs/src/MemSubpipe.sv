@@ -17,8 +17,6 @@ module MemSubpipe#()
     input EventInfo lateEventInfo,
     input UopPacket opP,
 
-    output AccessDesc accessDescOut,
-
     input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
     input DataCacheOutput uncachedResp,
@@ -38,8 +36,6 @@ module MemSubpipe#()
     AccessDesc ad0;
 
     AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
-
-    assign accessDescOut = accessDescE0;
 
     always_comb stage0_E = pE2_E;
     always_comb stage1_E = pD0_E;

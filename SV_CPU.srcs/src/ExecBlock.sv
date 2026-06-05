@@ -29,23 +29,15 @@ module ExecBlock(ref InstructionMap insMap,
     
     UopMemPacket issuedReplayQueue;
 
-    UopMemPacket toLqE0[N_MEM_PORTS];
-    UopMemPacket toLqE1[N_MEM_PORTS];
-    UopMemPacket toLqE2[N_MEM_PORTS];
-
-    AccessDesc accessDescs_E0[N_MEM_PORTS];
-    AccessDesc accessDescs_E2[N_MEM_PORTS];
-
     Translation dcacheTranslations_EE0[N_MEM_PORTS]; // source: DataL1
-    Translation dcacheTranslations_E1[N_MEM_PORTS];
-    Translation dcacheTranslations_E2[N_MEM_PORTS];
 
-    DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
-    DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
-    DataCacheOutput sysOuts_E1[N_MEM_PORTS];
+
+        DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
+        DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
+        DataCacheOutput sysOuts_E1[N_MEM_PORTS];
     
-    UopMemPacket sqResponse_E1[N_MEM_PORTS];
-    UopMemPacket lqResponse_E1[N_MEM_PORTS];
+        UopMemPacket sqResponse_E1[N_MEM_PORTS];
+        UopMemPacket lqResponse_E1[N_MEM_PORTS];
 
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
@@ -117,7 +109,6 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
-        accessDescs_E0[0],
         dcacheTranslations_EE0[0],
         dcacheOuts_E1[0],
         uncachedOuts_E1[0],
@@ -133,7 +124,6 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         issuedReplayQueue,
-        accessDescs_E0[2],
         dcacheTranslations_EE0[2],
         dcacheOuts_E1[2],
         uncachedOuts_E1[2],
@@ -193,8 +183,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneBranch_E = branch0.stage0_E;
     assign doneDivider_E = divider.stage0_E;
-    //assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
-    //assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
         assign doneMem0_E = TMP_mp(memToComplete(mem0.stage1_E));
         assign doneMem2_E = TMP_mp(memToComplete(mem2.stage1_E));
     assign doneFloat0_E = float0.stage0_E;
@@ -204,20 +192,8 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign storeDataE0_E = storeData0.stage0_E;
 
-    assign accessDescs_E2 = '{0: mem0.accessDescE2, 1: DEFAULT_ACCESS_DESC, 2: mem2.accessDescE2, 3: DEFAULT_ACCESS_DESC};
-    assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
-    assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
-    
-//    assign trsReplayQueue = '{0: mem0.tr0, 2: mem2.tr0, default: DEFAULT_TRANSLATION};
-//    assign adsReplayQueue = '{0: mem0.ad0, 2: mem2.ad0, default: DEFAULT_ACCESS_DESC};
-
-    assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
-    assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
-    assign toLqE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
-
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
-
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
