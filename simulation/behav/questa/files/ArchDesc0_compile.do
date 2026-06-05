@@ -20,6 +20,7 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/ControlHandling.sv" \
 "../../../../SV_CPU.srcs/src/Queues.sv" \
 "../../../../SV_CPU.srcs/src/Testing.sv" \
+"../../../../SV_CPU.srcs/src/RobDefs.sv" \
 "../../../../SV_CPU.srcs/src/AbstractCore.sv" \
 "../../../../SV_CPU.srcs/src/DataL1.sv" \
 "../../../../SV_CPU.srcs/src/MemModules.sv" \
@@ -32,7 +33,6 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/MemSubpipe.sv" \
 "../../../../SV_CPU.srcs/src/Modules.sv" \
 "../../../../SV_CPU.srcs/src/Alt_ROB.sv" \
-"../../../../SV_CPU.srcs/src/RobDefs.sv" \
 "../../../../SV_CPU.srcs/src/ReorderBuffer.sv" \
 "../../../../SV_CPU.srcs/src/ReplayQueue.sv" \
 "../../../../SV_CPU.srcs/src/SystemRegisterUnit.sv" \

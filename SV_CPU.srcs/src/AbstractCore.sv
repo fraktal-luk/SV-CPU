@@ -122,6 +122,9 @@ module AbstractCore
 
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
+    MemoryNetwork mn();
+
+
     //////////////////////////////////////////
     assign barrierUnlocking = (drainHead.barrierFw === 1);
     assign barrierUnlockingMid = barrierUnlocking ? (drainHead.mid) : -1;

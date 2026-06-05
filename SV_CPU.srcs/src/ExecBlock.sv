@@ -40,9 +40,6 @@ module ExecBlock(ref InstructionMap insMap,
     Translation dcacheTranslations_E1[N_MEM_PORTS];
     Translation dcacheTranslations_E2[N_MEM_PORTS];
 
-    Translation trsReplayQueue[N_MEM_PORTS];
-    AccessDesc adsReplayQueue[N_MEM_PORTS];
-
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
     DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
     DataCacheOutput sysOuts_E1[N_MEM_PORTS];
@@ -211,8 +208,8 @@ module ExecBlock(ref InstructionMap insMap,
     assign dcacheTranslations_E1 = '{0: mem0.trE1, 1: DEFAULT_TRANSLATION, 2: mem2.trE1, 3: DEFAULT_TRANSLATION};
     assign dcacheTranslations_E2 = '{0: mem0.trE2, 1: DEFAULT_TRANSLATION, 2: mem2.trE2, 3: DEFAULT_TRANSLATION};
     
-    assign trsReplayQueue = '{0: mem0.tr0, 2: mem2.tr0, default: DEFAULT_TRANSLATION};
-    assign adsReplayQueue = '{0: mem0.ad0, 2: mem2.ad0, default: DEFAULT_ACCESS_DESC};
+//    assign trsReplayQueue = '{0: mem0.tr0, 2: mem2.tr0, default: DEFAULT_TRANSLATION};
+//    assign adsReplayQueue = '{0: mem0.ad0, 2: mem2.ad0, default: DEFAULT_ACCESS_DESC};
 
     assign toLqE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign toLqE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
@@ -234,6 +231,19 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.mems = memImagesTr;
     assign allByStage.vecs = floatImagesTr;
 
+
+            assign mn.uopE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
+            assign mn.uopE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
+            assign mn.uopE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
+
+            assign mn.adE0 = '{0: mem0.accessDescE0, 2: mem2.accessDescE0, default: DEFAULT_ACCESS_DESC};
+            assign mn.adE1 = '{0: mem0.accessDescE1, 2: mem2.accessDescE1, default: DEFAULT_ACCESS_DESC};
+            assign mn.adE2 = '{0: mem0.accessDescE2, 2: mem2.accessDescE2, default: DEFAULT_ACCESS_DESC};
+
+            assign mn.trPreE0 = '{0: dcacheTranslations_EE0[0], 2: dcacheTranslations_EE0[2], default: DEFAULT_TRANSLATION};
+            assign mn.trE0 = '{0: mem0.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
+            assign mn.trE1 = '{0: mem0.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
+            assign mn.trE2 = '{0: mem0.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};
 
 
     function automatic UopPacket performRegularE0(input UopPacket p);
