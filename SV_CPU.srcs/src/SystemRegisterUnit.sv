@@ -32,7 +32,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
     task automatic handleReads();
         foreach (readOuts[p])
-            readOuts[p] <= getSysReadResponse(theExecBlock.accessDescs_E0[p]);
+            readOuts[p] <= getSysReadResponse(mn.adE0[p]); //theExecBlock.accessDescs_E0[p]);
     endtask
 
 

@@ -30,7 +30,7 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
             AccessDesc prevDesc = DEFAULT_ACCESS_DESC;
 
             task automatic readArray();
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
+                AccessDesc aDesc = mn.adE0[j];// theExecBlock.accessDescs_E0[j];
                 foreach (ways[i]) aResults[i] = readWay(ways[i], aDesc);
                 prevDesc <= aDesc;
                 aq <= aDesc.active && aDesc.acq;
@@ -48,7 +48,7 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
             task automatic handleLocks();
                 Translation tr = tlb.translationsH[j];
                 ReadResult selectedResult = selectWayResultArray(tr, aResults);
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
+                AccessDesc aDesc = mn.adE0[j];//theExecBlock.accessDescs_E0[j];
 
                 if (selectedResult.way < 0 || selectedResult.way >= N_WAYS) return;
 

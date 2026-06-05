@@ -202,8 +202,10 @@ module EventUnit(input logic clk);
             int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
-            lastEvtAD <= theExecBlock.accessDescs_E2[inds[0]];
-            lastEvtTr <= theExecBlock.dcacheTranslations_E2[inds[0]];
+            lastEvtAD <= //theExecBlock.accessDescs_E2[inds[0]];
+                            mn.adE2[inds[0]];
+            lastEvtTr <= //theExecBlock.dcacheTranslations_E2[inds[0]];
+                            mn.trE2[inds[0]];
         end
     endtask
 

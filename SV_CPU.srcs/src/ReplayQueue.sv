@@ -73,8 +73,8 @@ module ReplayQueue(
     task automatic writeInput();
         InputLocs inLocs = getInputLocs();
 
-        AccessDesc adsE2[N_MEM_PORTS] = theExecBlock.accessDescs_E2;
-        Translation trsE2[N_MEM_PORTS] = theExecBlock.dcacheTranslations_E2;
+        AccessDesc adsE2[N_MEM_PORTS] = mn.adE2; // theExecBlock.accessDescs_E2;
+        Translation trsE2[N_MEM_PORTS] = mn.trE2; //theExecBlock.dcacheTranslations_E2;
 
         foreach (inputUops[i]) begin
             if (inputUops[i].active) begin 
