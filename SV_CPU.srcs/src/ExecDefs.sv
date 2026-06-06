@@ -552,33 +552,6 @@ package ExecDefs;
 
 
 
-
-
-
-    // > Needs ForwardingElement
-    function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
-        ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-        ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-
-        if (found.size() == 0) return EMPTY_UOP_PACKET;
-
-        assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-        return oldest[0];
-    endfunction
-
-    // > Needs ForwardingElement
-    function automatic UopPacket findOldestMemEvt(input ForwardingElement stages[]);
-        ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT});
-        ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-        
-        if (found.size() == 0) return EMPTY_UOP_PACKET;
-        
-        assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-        return oldest[0];
-    endfunction
-
-
-
     // > needs InsMap (InstructionInfo)
     function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
         Mword adr = ii.basicData.adr;
