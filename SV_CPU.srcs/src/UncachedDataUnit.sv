@@ -15,7 +15,7 @@ import CacheDefs::*;
 
 module UncachedDataUnit(
     input logic clk,
-    input MemWriteInfo TMP_writeReqs[2]
+    input MemWriteInfo writeReqs[2]
 );
 
     typedef struct {
@@ -148,8 +148,8 @@ module UncachedDataUnit(
     always @(posedge clk) begin
         UNC_handleUncachedData();        
 
-        if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
-            UNC_write(TMP_writeReqs[0]);
+        if (writeReqs[0].req && writeReqs[0].uncached) begin
+            UNC_write(writeReqs[0]);
         end
 
         handleReadsUnc();

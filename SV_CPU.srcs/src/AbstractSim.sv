@@ -44,39 +44,41 @@ package AbstractSim;
     localparam int FW_LAST = 1;
 
 
-
     localparam int N_WAYS_INS = 6;
     localparam int N_WAYS_DATA = 6;
+
+
+
+
 
     ///////////////////////////////////
 
 
+    // typedef enum {
+    //     CO_none,
+        
+    //     CO_reset,
+    //     CO_int,
 
-    typedef enum {
-        CO_none,
-        
-        CO_reset,
-        CO_int,
+    //     CO_fetchError,
 
-        CO_fetchError,
+    //     CO_undef,
+        
+    //     CO_error,
+    //     CO_send,
+    //     CO_call,
+    //         CO_dbcall,
+    //         CO_specificException,
+        
+    //     CO_sync,
+    //     CO_refetch,
+        
+    //     CO_retE,
+    //     CO_retI,
+        
+    //     CO_break
 
-        CO_undef,
-        
-        CO_error,
-        CO_send,
-        CO_call,
-            CO_dbcall,
-            CO_specificException,
-        
-        CO_sync,
-        CO_refetch,
-        
-        CO_retE,
-        CO_retI,
-        
-        CO_break
-
-    } ControlOp;
+    // } ControlOp;
 
 
 ////////////////////////////
@@ -104,9 +106,13 @@ package AbstractSim;
         return uid.s;
     endfunction
 
-
     typedef UidT UidQueueT[$];
-    
+
+
+
+
+
+
     typedef UidT WriterId;
     localparam WriterId WID_NONE = UIDT_NONE;
 
@@ -147,26 +153,26 @@ package AbstractSim;
     typedef OpSlotF OpSlotB;
 
 
-    typedef struct {
-        logic active;
-        InsId mid;
-        Mword adr;
+    // typedef struct {
+    //     logic active;
+    //     InsId mid;
+    //     Mword adr;
 
-        logic takenBranch;
-        logic exception;
-        logic refetch;
+    //     logic takenBranch;
+    //     logic exception;
+    //     logic refetch;
 
-        Mword target;
-    } RetirementInfo;
+    //     Mword target;
+    // } RetirementInfo;
 
 
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
-    localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
+  //  localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
 
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
-    typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
+//    typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
 
     localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
@@ -180,16 +186,19 @@ package AbstractSim;
         CR_HIT
     } CacheReadStatus;
 
-    typedef struct {
-        logic active;
-        CacheReadStatus status;
-        ProgramEvent evt;
-        Mword vadr;
-        Dword padr;
-        OpSlotAF arr;
-    } FrontStage;
 
-    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE};
+
+            typedef struct {
+                logic active;
+                CacheReadStatus status;
+                ProgramEvent evt;
+                Mword vadr;
+                Dword padr;
+                OpSlotAF arr;
+            } FrontStage;
+
+            localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE};
+
 
 
 
@@ -198,17 +207,17 @@ package AbstractSim;
     typedef struct {
         logic active;
         InsId eventMid;
-        ControlOp cOp;
+        //ControlOp cOp;
         ProgramEvent etype;
         logic redirect;
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, CO_none, PE_NONE,  0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, CO_reset,PE_EXT_RESET, 1, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, CO_int,  PE_EXT_INTERRUPT, 1, 'x, IP_INT};
-    localparam EventInfo DB_EVENT =         '{1, -1, CO_break,PE_EXT_DEBUG, 1, 'x, IP_DB_BREAK};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, PE_NONE,  0, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, PE_EXT_RESET, 1, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, PE_EXT_INTERRUPT, 1, 'x, IP_INT};
+    localparam EventInfo DB_EVENT =         '{1, -1, PE_EXT_DEBUG, 1, 'x, IP_DB_BREAK};
 
     typedef struct {
         int iqRegular;
@@ -643,44 +652,12 @@ package AbstractSim;
     endclass
 
 
-//////////////////
-// General
-
-    function automatic logic anyActiveB(input OpSlotAB s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
-
-    function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
-        return op;
-    endfunction;
-
-    function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
-        OpSlotAB res;
-        foreach (ops[i]) res[i] = TMP_translateFrontToRename(ops[i]);
-        return res;
-    endfunction;
 
 
-    function automatic IqLevels getBufferAccepts(input IqLevels levels);
-        IqLevels res = '{
-            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
-        };
-        return res;
-    endfunction
+    /////////////////////////////////////////////////////////////////////////////////
+    // Mem
+    /////////////////////////////////////////////////////////////////////////////////
 
-    function automatic logic iqsAccept(input IqLevels acc);
-        return 1
-                && acc.iqRegular
-                && acc.iqFloat
-                && acc.iqBranch
-                && acc.iqMem
-                && acc.iqStoreData;
-    endfunction
 
 
     function automatic Mword loadValue(input Mword w, input UopName uop);
@@ -721,8 +698,6 @@ package AbstractSim;
     endfunction
 
 
-    // Mem handling
-
     function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
         Dword aEnd = wa + Dword'(sizeA); // Exclusive end
         Dword bEnd = wb + Dword'(sizeB); // Exclusive end
@@ -740,10 +715,6 @@ package AbstractSim;
         return (wa >= wb && aEnd <= bEnd);
     endfunction
 
-    function automatic Mword fetchLineBase(input Mword adr);
-        return adr & ~(4*FETCH_WIDTH-1);
-    endfunction;
-
 
     function automatic AccessSize getTransactionSize(input UopName uname);
         if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
@@ -753,12 +724,15 @@ package AbstractSim;
     endfunction
 
 
-    function automatic UopName decodeUop(input AbstractInstruction ins);
-        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
 
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
-        return OP_DECODING_TABLE[ins.mnemonic];
-    endfunction
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Frontend
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    function automatic Mword fetchLineBase(input Mword adr);
+        return adr & ~(4*FETCH_WIDTH-1);
+    endfunction;
 
 
     function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
@@ -772,6 +746,7 @@ package AbstractSim;
         return res;       
     endfunction
 
+    // ONCE
     function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
         OpSlotAF res = st;
 
@@ -918,6 +893,12 @@ package AbstractSim;
     endfunction
 
 
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////
+
     typedef struct {
         logic active;
         InsId id;
@@ -925,5 +906,57 @@ package AbstractSim;
     } EventDesc;
 
     localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
+
+
+
+
+    function automatic UopName decodeUop(input AbstractInstruction ins);
+        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
+
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
+        return OP_DECODING_TABLE[ins.mnemonic];
+    endfunction
+
+
+
+
+    function automatic logic anyActiveB(input OpSlotAB s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+    // function automatic OpSlotB TMP_translateFrontToRename(input OpSlotF op);
+    //     return op;
+    // endfunction;
+
+    function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
+        OpSlotAB res = ops;
+        //foreach (ops[i]) res[i] = TMP_translateFrontToRename(ops[i]);
+        return res;
+    endfunction;
+
+
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res = '{
+            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+        };
+        return res;
+    endfunction
+
+    function automatic logic iqsAccept(input IqLevels acc);
+        return 1
+                && acc.iqRegular
+                && acc.iqFloat
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqStoreData;
+    endfunction
+
+
+
 
 endpackage

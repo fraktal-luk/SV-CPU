@@ -30,7 +30,6 @@ module EmulTest();
         test_MEM_UNMAPPED();
 
         $display("DONE\n");
-        //$stop(2);
     endtask
 
 
@@ -71,7 +70,7 @@ module EmulTest();
         emul.coreState.target = 0;
         emul.progMem.writePage(0, '{0: asm("ldi_i r10, r0, 24")});
 
-            emul.programMappings.push_back(DEFAULT_PAGE0);
+        emul.programMappings.push_back(DEFAULT_PAGE0);
 
         emul.executeStep();
 

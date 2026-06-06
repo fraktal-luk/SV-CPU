@@ -25,19 +25,17 @@ module ExecBlock(ref InstructionMap insMap,
 
     UopPacket storeDataE0, storeDataE0_E;
 
-    logic memIssueAllow;
-    
     UopMemPacket issuedReplayQueue;
+
+    logic memIssueAllow;
+
 
     Translation dcacheTranslations_EE0[N_MEM_PORTS]; // source: DataL1
 
+    DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
+    DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
+    DataCacheOutput sysOuts_E1[N_MEM_PORTS];
 
-        DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
-        DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
-        DataCacheOutput sysOuts_E1[N_MEM_PORTS];
-    
-        // UopMemPacket sqResponse_E1[N_MEM_PORTS];
-        // UopMemPacket lqResponse_E1[N_MEM_PORTS];
 
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
@@ -110,11 +108,11 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
         dcacheTranslations_EE0[0],
-        mn.cacheOutE1[0], //dcacheOuts_E1[0],
-        mn.uncachedOutE1[0], //uncachedOuts_E1[0],
-        mn.sysOutE1[0],// sysOuts_E1[0],
-        mn.sqOutE1[0],// sqResponse_E1[0],
-        mn.lqOutE1[0]//lqResponse_E1[0]        
+        mn.cacheOutE1[0],
+        mn.uncachedOutE1[0],
+        mn.sysOutE1[0],
+        mn.sqOutE1[0],
+        mn.lqOutE1[0]
     );
 
     // Mem 2 - for ReplayQueue only!
@@ -125,11 +123,11 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
         dcacheTranslations_EE0[2],
-        mn.cacheOutE1[2],//dcacheOuts_E1[2],
-        mn.uncachedOutE1[2],//uncachedOuts_E1[2],
-        mn.sysOutE1[2],//sysOuts_E1[2],
-        mn.sqOutE1[2],// sqResponse_E1[2],
-        mn.lqOutE1[2] //lqResponse_E1[2]
+        mn.cacheOutE1[2],
+        mn.uncachedOutE1[2],
+        mn.sysOutE1[2],
+        mn.sqOutE1[2],
+        mn.lqOutE1[2]
     );
 
     // Vec 0
@@ -208,34 +206,27 @@ module ExecBlock(ref InstructionMap insMap,
     assign allByStage.vecs = floatImagesTr;
 
 
-            assign mn.uopE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
-            assign mn.uopE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
-            assign mn.uopE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
 
-            assign mn.adE0 = '{0: mem0.accessDescE0, 2: mem2.accessDescE0, default: DEFAULT_ACCESS_DESC};
-            assign mn.adE1 = '{0: mem0.accessDescE1, 2: mem2.accessDescE1, default: DEFAULT_ACCESS_DESC};
-            assign mn.adE2 = '{0: mem0.accessDescE2, 2: mem2.accessDescE2, default: DEFAULT_ACCESS_DESC};
+    assign mn.uopE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
+    assign mn.uopE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
+    assign mn.uopE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
 
-            assign mn.trPreE0 = '{0: dcacheTranslations_EE0[0], 2: dcacheTranslations_EE0[2], default: DEFAULT_TRANSLATION};
-            assign mn.trE0 = '{0: mem0.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
-            assign mn.trE1 = '{0: mem0.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
-            assign mn.trE2 = '{0: mem0.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};
+    assign mn.adE0 = '{0: mem0.accessDescE0, 2: mem2.accessDescE0, default: DEFAULT_ACCESS_DESC};
+    assign mn.adE1 = '{0: mem0.accessDescE1, 2: mem2.accessDescE1, default: DEFAULT_ACCESS_DESC};
+    assign mn.adE2 = '{0: mem0.accessDescE2, 2: mem2.accessDescE2, default: DEFAULT_ACCESS_DESC};
 
+    assign mn.trPreE0 = '{0: dcacheTranslations_EE0[0], 2: dcacheTranslations_EE0[2], default: DEFAULT_TRANSLATION};
+    assign mn.trE0 = '{0: mem0.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
+    assign mn.trE1 = '{0: mem0.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
+    assign mn.trE2 = '{0: mem0.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};
 
+    assign mn.cacheOutE1 = dcacheOuts_E1;
+    assign mn.uncachedOutE1 = uncachedOuts_E1;
+    assign mn.sysOutE1 = sysOuts_E1;
 
-            // DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
-            // DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
-            // DataCacheOutput sysOuts_E1[N_MEM_PORTS];
-        
-            // UopMemPacket sqResponse_E1[N_MEM_PORTS];
-            // UopMemPacket lqResponse_E1[N_MEM_PORTS];
+    assign mn.sqOutE1 = theSq.responseE1;
+    assign mn.lqOutE1 = theLq.responseE1;
 
-            assign mn.cacheOutE1 = dcacheOuts_E1;
-            assign mn.uncachedOutE1 = uncachedOuts_E1;
-            assign mn.sysOutE1 = sysOuts_E1;
-    
-            assign mn.sqOutE1 = theSq.responseE1; //sqResponse_E1;
-            assign mn.lqOutE1 = theLq.responseE1; //lqResponse_E1;
 
 
 

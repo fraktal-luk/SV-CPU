@@ -346,19 +346,11 @@ module MemoryNetwork();
     Translation trE2[N_MEM_PORTS];
 
 
-        // DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
-        // DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
-        // DataCacheOutput sysOuts_E1[N_MEM_PORTS];
-    
-        // UopMemPacket sqResponse_E1[N_MEM_PORTS];
-        // UopMemPacket lqResponse_E1[N_MEM_PORTS];
+    DataCacheOutput cacheOutE1[N_MEM_PORTS];
+    DataCacheOutput uncachedOutE1[N_MEM_PORTS];
+    DataCacheOutput sysOutE1[N_MEM_PORTS];
 
-
-        DataCacheOutput cacheOutE1[N_MEM_PORTS];
-        DataCacheOutput uncachedOutE1[N_MEM_PORTS];
-        DataCacheOutput sysOutE1[N_MEM_PORTS];
-    
-        UopMemPacket sqOutE1[N_MEM_PORTS];
-        UopMemPacket lqOutE1[N_MEM_PORTS];
+    UopMemPacket sqOutE1[N_MEM_PORTS];
+    UopMemPacket lqOutE1[N_MEM_PORTS];
 
 endmodule

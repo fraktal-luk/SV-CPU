@@ -379,10 +379,10 @@ module MemSubpipe#()
                     assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
 
                     if (res.memClass == MC_UPPER_B) begin
-                        Mword cacheVal = cacheResp.data;
-                        Mword uopVal = p.result;
+                        //Mword cacheVal = cacheResp.data;
+                        //Mword uopVal = p.result;
                         res.status = ES_OK;
-                        res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
+                        res.result = combineLoadValues(p.result, cacheResp.data, ad.shift, decUname(uid));
                     end
                     else begin
                         res.status = ES_OK;
