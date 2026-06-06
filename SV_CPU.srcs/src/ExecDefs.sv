@@ -13,158 +13,23 @@ package ExecDefs;
     import CacheDefs::*;
 
 
-    typedef enum {
-        BS_NONE,
-        BS_NORMAL, // accepts renamed ops
-        BS_WAIT,   // event to handle is present, don't accept new ops
-        BS_HANDLING // event processing ongoing
-    } BackendState;
-
-
-    typedef enum {
-        MC_NONE,
-        MC_NORMAL,
-        MC_BARRIER,
-        MC_UNCACHED,
-        MC_AQ_REL,
-        MC_SYS,
-
-        MC_UPPER_B // block cross replay
-        //MC_UPPER_P  // page cross replay
-    } MemClass;
-
-
-    typedef enum {
-        ES_BEGIN,
-
-        ES_OK,
-        
-        ES_UNALIGNED,
-        
-        ES_UNCACHED_1,
-        ES_UNCACHED_2,
-
-        ES_BARRIER_1,
-        ES_AQ_REL_1,
-
-        ES_SQ_MISS,
-        ES_DATA_MISS,
-        ES_TLB_MISS,
-        
-        ES_REFETCH, // cause refetch
-        ES_CANT_FORWARD,
-        
-        ES_LOWER_DONE,
-
-
-        ES_ILLEGAL,
-        ES_INVALID,
-        ES_NONEXISTENT,
-
-        ES_FP_INVALID,
-        ES_FP_OVERFLOW
-    } ExecStatus;
-
-
     function automatic logic needsReplay(input ExecStatus status);
         return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
     endfunction
 
 
-    // Poison
-    typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
-    localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
 
-
-    // For routing to IQs
-    typedef struct {
-        logic active;
-        UopId uid;
-    } TMP_Uop;
-
-    localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
-
-
-    typedef struct {
-        logic active;
-        UidT TMP_oid;
-        MemClass memClass;
-        ExecStatus status;
-        Poison poison;
-        Mword result;
-    } UopPacket;    
-    
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
-
-        typedef UopPacket UopMemPacket;
-    
-        function automatic UopPacket TMP_mp(input UopMemPacket p);
-            return p;
-        endfunction
-
-        function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
-            return p;
-        endfunction
-
-
-    function automatic UopPacket memToComplete(input UopPacket p);
-        if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
-        else return p;
-    endfunction
-
-    function automatic UopPacket memToReplay(input UopPacket p);
-        if (needsReplay(p.status)) return p;
-        else return EMPTY_UOP_PACKET;
-    endfunction
-
-
-    typedef struct {
-        TMP_Uop regular[RENAME_WIDTH];
-        TMP_Uop multiply[RENAME_WIDTH];
-        TMP_Uop branch[RENAME_WIDTH];
-        TMP_Uop idivider[RENAME_WIDTH];
-        TMP_Uop float[RENAME_WIDTH];
-        TMP_Uop fdivider[RENAME_WIDTH];
-        TMP_Uop mem[RENAME_WIDTH];
-        TMP_Uop storeData[RENAME_WIDTH];
-    } RoutedUops;
-
-    localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
-        regular: '{default: TMP_UOP_NONE},
-        multiply: '{default: TMP_UOP_NONE},
-        branch: '{default: TMP_UOP_NONE},
-        idivider: '{default: TMP_UOP_NONE},
-        float: '{default: TMP_UOP_NONE},
-        fdivider: '{default: TMP_UOP_NONE},
-        mem: '{default: TMP_UOP_NONE},
-        storeData: '{default: TMP_UOP_NONE}
-    };
-
-
-    typedef UopPacket ForwardingElement;
-
-    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
-    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
-
-
-
+    ////////////////////////////////////////////////////////////////////
     ///// START poison
-           
+
+        // Poison
+        typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
+        localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
+
+
         typedef logic IdMap[UidT];
         
-        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            IdMap res;
-            
-            foreach (fea[p]) begin
-                ForwardingElement subpipe[-3:1] = fea[p];
-                foreach (subpipe[s]) begin
-                    if (subpipe[s].TMP_oid != UIDT_NONE) res[subpipe[s].TMP_oid] = 1;
-                end
-            end
-    
-            return res;
-        endfunction
-        
+
         function automatic IdMap poison2map(input Poison p);
             IdMap res;
             foreach (p[i])
@@ -186,6 +51,84 @@ package ExecDefs;
         endfunction 
     
             
+
+            
+            
+        function automatic Poison mergePoisons(input Poison ap[3]);
+            IdMap m0 = poison2map(ap[0]);
+            IdMap m1 = poison2map(ap[1]);
+            IdMap m2 = poison2map(ap[2]);
+            
+            foreach (m1[uid]) m0[uid] = 1;
+            foreach (m2[uid]) m0[uid] = 1;
+            
+            // put into 1 poison
+            return map2poison(m0);
+        endfunction
+
+    ///// END poison
+    
+
+
+
+
+
+    typedef struct {
+        logic active;
+        UidT TMP_oid;
+        MemClass memClass;
+        ExecStatus status;
+        Poison poison;
+        Mword result;
+    } UopPacket;    
+    
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
+
+            typedef UopPacket UopMemPacket;
+        
+            function automatic UopPacket TMP_mp(input UopMemPacket p);
+                return p;
+            endfunction
+
+            function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
+                return p;
+            endfunction
+
+
+            function automatic UopPacket memToComplete(input UopPacket p);
+                if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
+                else return p;
+            endfunction
+
+            function automatic UopPacket memToReplay(input UopPacket p);
+                if (needsReplay(p.status)) return p;
+                else return EMPTY_UOP_PACKET;
+            endfunction
+
+
+
+
+
+    typedef UopPacket ForwardingElement;
+
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
+    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
+
+
+        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            IdMap res;
+            
+            foreach (fea[p]) begin
+                ForwardingElement subpipe[-3:1] = fea[p];
+                foreach (subpipe[s]) begin
+                    if (subpipe[s].TMP_oid != UIDT_NONE) res[subpipe[s].TMP_oid] = 1;
+                end
+            end
+    
+            return res;
+        endfunction
+        
+
         function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
             IdMap present = getPresentMemM(fea);
             IdMap old = poison2map(p);
@@ -211,22 +154,68 @@ package ExecDefs;
             
             return map2poison(map);
         endfunction
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // Args, forwarding
+    ////////////////////////////////////////////////////////////////////////////////
+
+
+        // Handling forwarding network
+        
+        typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
+        typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
+        typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
+
+
+        typedef struct {
+            IntByStage ints;
+            MemByStage mems;
+            VecByStage vecs;
+        } ForwardsByStage_0;
+
+
+        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+            IntByStage res;
             
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
             
-        function automatic Poison mergePoisons(input Poison ap[3]);
-            IdMap m0 = poison2map(ap[0]);
-            IdMap m1 = poison2map(ap[1]);
-            IdMap m2 = poison2map(ap[2]);
-            
-            foreach (m1[uid]) m0[uid] = 1;
-            foreach (m2[uid]) m0[uid] = 1;
-            
-            // put into 1 poison
-            return map2poison(m0);
+            return res;
         endfunction
 
-    ///// END poison
-    
+        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+            MemByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+            VecByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+
+        typedef ForwardingElement FEQ[$];
+
+
     // IQ structures
             typedef struct {
                 logic ready;
@@ -302,66 +291,7 @@ package ExecDefs;
             } ReadinessInfo;
 
 
-    // Handling forwarding network
-    
-    typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
-    typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
-    typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
 
-
-    typedef struct {
-        IntByStage ints;
-        MemByStage mems;
-        VecByStage vecs;
-    } ForwardsByStage_0;
-
-
-    function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
-        IntByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-    function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
-        MemByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-    function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
-        VecByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-
-    typedef ForwardingElement FEQ[$];
-
-
-
-
-
-
-    //////////////////////////////////////////
-    // IQ and Exec0
     function automatic logic3 checkArgsReady(input InsDependencies deps, input logic intReadyV[N_REGS_INT], input logic floatReadyV[N_REGS_FLOAT]);
         logic3 res = '{0, 0, 0};
         foreach (deps.types[i])
@@ -395,7 +325,6 @@ package ExecDefs;
         assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
-
 
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
                                             input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
@@ -527,6 +456,14 @@ package ExecDefs;
 
 
 
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    // Exec calculations
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
@@ -613,24 +550,12 @@ package ExecDefs;
         endcase            
     endfunction
 
-    function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
-        case (uname)
-            UOP_br_z, UOP_br_nz:  return args[1];
-            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
-            default: $fatal(2, "Wrong branch uop");
-        endcase  
-    endfunction
 
-    function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
-        if (dir === 0) return bqLink;
 
-        case (uname)
-            UOP_br_z, UOP_br_nz:  return regValue;
-            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
-            default: $fatal(2, "Wrong branch uop");
-        endcase 
-    endfunction
 
+
+
+    // > Needs ForwardingElement
     function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
         ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
         ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
@@ -641,6 +566,7 @@ package ExecDefs;
         return oldest[0];
     endfunction
 
+    // > Needs ForwardingElement
     function automatic UopPacket findOldestMemEvt(input ForwardingElement stages[]);
         ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT});
         ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
@@ -651,10 +577,30 @@ package ExecDefs;
         return oldest[0];
     endfunction
 
-    function automatic InsId replaceEvId(input InsId prev, input InsId next);
-        if (prev == -1) return next;
-        else if (next != -1 && prev > next) return next;
-        else return prev;
+
+
+    // > needs InsMap (InstructionInfo)
+    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
+        Mword adr = ii.basicData.adr;
+        EventInfo res = '{1, id, eDesc.etype, 1, adr, 'x};
+
+        if (eDesc.id == id) begin
+            if (eDesc.etype == PE_EXT_DEBUG) begin
+                $fatal(2, "DB event should not be here");
+            end
+            else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
+                res.target = adr + 4;
+            else if (eDesc.etype == PE_HW_REFETCH)
+                res.target = adr;
+            else
+                res.target = programEvent2trg(eDesc.etype);
+        end
+        else if (dbDesc.id == id) begin
+            res = DB_EVENT;
+        end
+        else $fatal(2, "Wrongly detected event\n%p", ii);
+
+        return res;
     endfunction
 
 endpackage

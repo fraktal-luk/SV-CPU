@@ -898,22 +898,22 @@ module AbstractCore
     endfunction
 
 
-        // Depends on insMap
-        function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
-            UopName uname = info.mainUop;
-            Mword own = info.basicData.adr;
-            Mword executed = 'x;
-            logic taken = 'x;
+    // Depends on insMap
+    function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
+        UopName uname = info.mainUop;
+        Mword own = info.basicData.adr;
+        Mword executed = 'x;
+        logic taken = 'x;
 
-            if (isBranchUop(uname)) begin 
-                assert (entries.size() == 1) else $fatal(2, "Brnhc not in BQ\n%p", info);
-                executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
-                taken = entries[0].taken;
-            end
+        if (isBranchUop(uname)) begin 
+            assert (entries.size() == 1) else $fatal(2, "Brnhc not in BQ\n%p", info);
+            executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
+            taken = entries[0].taken;
+        end
 
-            if (isBranchUop(uname) && taken) return executed;
-            else return own + 4;
-        endfunction
+        if (isBranchUop(uname) && taken) return executed;
+        else return own + 4;
+    endfunction
 
 
         logic ch0, ch1, ch2;

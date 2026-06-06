@@ -48,37 +48,16 @@ package AbstractSim;
     localparam int N_WAYS_DATA = 6;
 
 
+    // Impl specific
+    localparam int BLOCK_SIZE = 64;
+    localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
+    localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
+    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
 
 
 
-    ///////////////////////////////////
 
 
-    // typedef enum {
-    //     CO_none,
-        
-    //     CO_reset,
-    //     CO_int,
-
-    //     CO_fetchError,
-
-    //     CO_undef,
-        
-    //     CO_error,
-    //     CO_send,
-    //     CO_call,
-    //         CO_dbcall,
-    //         CO_specificException,
-        
-    //     CO_sync,
-    //     CO_refetch,
-        
-    //     CO_retE,
-    //     CO_retI,
-        
-    //     CO_break
-
-    // } ControlOp;
 
 
 ////////////////////////////
@@ -88,7 +67,7 @@ package AbstractSim;
         int m;
         int s;
     } UopId;
-    
+
     localparam UopId UID_NONE = '{-1, -1};
 
     typedef UopId UidT; // FUTURE change to UopId
@@ -112,7 +91,6 @@ package AbstractSim;
 
 
 
-
     typedef UidT WriterId;
     localparam WriterId WID_NONE = UIDT_NONE;
 
@@ -127,8 +105,6 @@ package AbstractSim;
     } InsDependencies;
 
     localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
-
-
 
 
     // Transfer size in bytes
@@ -153,40 +129,23 @@ package AbstractSim;
     typedef OpSlotF OpSlotB;
 
 
-    // typedef struct {
-    //     logic active;
-    //     InsId mid;
-    //     Mword adr;
-
-    //     logic takenBranch;
-    //     logic exception;
-    //     logic refetch;
-
-    //     Mword target;
-    // } RetirementInfo;
-
-
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
-  //  localparam RetirementInfo EMPTY_RETIREMENT_INFO = '{'0, -1, 'x, 'x, 'x, 'x, 'x};
 
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
-//    typedef RetirementInfo RetirementInfoA[RENAME_WIDTH];
 
     localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
-    typedef enum {
-        CR_UNCACHED,
-        CR_INVALID, // Address illegal
-        CR_TLB_MISS,
-        CR_NOT_ALLOWED,
-        CR_TAG_MISS,
-        CR_HIT
-    } CacheReadStatus;
-
-
+        typedef enum {
+            CR_UNCACHED,
+            CR_INVALID, // Address illegal
+            CR_TLB_MISS,
+            CR_NOT_ALLOWED,
+            CR_TAG_MISS,
+            CR_HIT
+        } CacheReadStatus;
 
             typedef struct {
                 logic active;
@@ -202,7 +161,61 @@ package AbstractSim;
 
 
 
+            typedef enum {
+                MC_NONE,
+                MC_NORMAL,
+                MC_BARRIER,
+                MC_UNCACHED,
+                MC_AQ_REL,
+                MC_SYS,
+
+                MC_UPPER_B // block cross replay
+                //MC_UPPER_P  // page cross replay
+            } MemClass;
+
+
+            typedef enum {
+                ES_BEGIN,
+
+                ES_OK,
+                
+                ES_UNALIGNED,
+                
+                ES_UNCACHED_1,
+                ES_UNCACHED_2,
+
+                ES_BARRIER_1,
+                ES_AQ_REL_1,
+
+                ES_SQ_MISS,
+                ES_DATA_MISS,
+                ES_TLB_MISS,
+                
+                ES_REFETCH, // cause refetch
+                ES_CANT_FORWARD,
+                
+                ES_LOWER_DONE,
+
+
+                ES_ILLEGAL,
+                ES_INVALID,
+                ES_NONEXISTENT,
+
+                ES_FP_INVALID,
+                ES_FP_OVERFLOW
+            } ExecStatus;
+
+
+
     //////////////////////////////////////
+
+    typedef enum {
+        BS_NONE,
+        BS_NORMAL, // accepts renamed ops
+        BS_WAIT,   // event to handle is present, don't accept new ops
+        BS_HANDLING // event processing ongoing
+    } BackendState;
+
 
     typedef struct {
         logic active;
@@ -895,9 +908,10 @@ package AbstractSim;
 
 
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Control
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
 
     typedef struct {
         logic active;
@@ -906,6 +920,61 @@ package AbstractSim;
     } EventDesc;
 
     localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
+
+
+    function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
+        case (uname)
+            UOP_br_z, UOP_br_nz:  return args[1];
+            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
+            default: $fatal(2, "Wrong branch uop");
+        endcase  
+    endfunction
+
+    function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
+        if (dir === 0) return bqLink;
+
+        case (uname)
+            UOP_br_z, UOP_br_nz:  return regValue;
+            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase 
+    endfunction
+
+
+    function automatic InsId replaceEvId(input InsId prev, input InsId next);
+        if (prev == -1) return next;
+        else if (next != -1 && prev > next) return next;
+        else return prev;
+    endfunction
+
+
+    function automatic EventInfo getLateEvent(input EventInfo info, input Mword sr2, input Mword sr3);
+        EventInfo res = EMPTY_EVENT_INFO;
+
+        res.target = info.target;
+        res.active = 1;
+        res.eventMid = info.eventMid;
+        res.etype = info.etype;
+        res.redirect = 1;
+
+        if (info.etype == PE_HW_RETE) res.target = sr2;
+        if (info.etype == PE_HW_RETI) res.target = sr3;
+
+        return res;
+
+        return res;
+    endfunction
+
+
+    task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
+        if (ins.def.o == O_halt) $error("halt not implemented");
+    endtask
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 
 
@@ -955,6 +1024,206 @@ package AbstractSim;
                 && acc.iqMem
                 && acc.iqStoreData;
     endfunction
+
+
+                // For routing to IQs
+                typedef struct {
+                    logic active;
+                    UopId uid;
+                } TMP_Uop;
+
+                localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
+
+
+            typedef struct {
+                TMP_Uop regular[RENAME_WIDTH];
+                TMP_Uop multiply[RENAME_WIDTH];
+                TMP_Uop branch[RENAME_WIDTH];
+                TMP_Uop idivider[RENAME_WIDTH];
+                TMP_Uop float[RENAME_WIDTH];
+                TMP_Uop fdivider[RENAME_WIDTH];
+                TMP_Uop mem[RENAME_WIDTH];
+                TMP_Uop storeData[RENAME_WIDTH];
+            } RoutedUops;
+
+            localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
+                regular: '{default: TMP_UOP_NONE},
+                multiply: '{default: TMP_UOP_NONE},
+                branch: '{default: TMP_UOP_NONE},
+                idivider: '{default: TMP_UOP_NONE},
+                float: '{default: TMP_UOP_NONE},
+                fdivider: '{default: TMP_UOP_NONE},
+                mem: '{default: TMP_UOP_NONE},
+                storeData: '{default: TMP_UOP_NONE}
+            };
+
+
+
+
+                //////////////////////////////////////////////////////////////////
+                // General mem
+                ////////////////////////////////////////////////////////////////////
+
+                typedef Translation TranslationA[N_MEM_PORTS];
+
+
+                typedef struct {
+                    Dword adr;
+                    AccessSize size;
+                    int block;
+                    int blockOffset;
+                    logic unaligned;
+                    logic blockCross;
+                    logic pageCross;
+                } AccessInfo;
+
+                localparam AccessInfo DEFAULT_ACCESS_INFO = '{
+                    adr: 'x,
+                    size: SIZE_NONE,
+                    block: -1,
+                    blockOffset: -1,
+                    unaligned: 'x,
+                    blockCross: 'x,
+                    pageCross: 'x 
+                };
+
+
+                 typedef struct {
+                    logic active;
+
+                    logic invalid;
+
+                    logic sys;
+                    logic store;
+                    logic uncachedReq;
+                    logic uncachedCollect;
+                    logic uncachedStore;
+                    logic acq;
+                    logic rel;
+
+                    AccessSize size;
+                    Mword vadr;
+                    int blockIndex;
+                    int blockOffset;
+                    logic unaligned;
+                    logic blockCross;
+                    logic pageCross;
+                    int shift; // Applies to block-crossing: bytes to shift at combining 
+                 } AccessDesc;
+
+                localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+
+
+                function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
+                    Mword adr = aDesc.vadr;
+                    Translation res = DEFAULT_TRANSLATION;
+                    Translation found[$];
+
+                    if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
+                    if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+
+                    found = tq.find with (item.vadr == getPageBaseM(adr));
+
+                    assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
+
+                    if (found.size() == 0) begin
+                        res.vadr = adr; // It's needed because TLB fill is based on this adr
+                        return res;
+                    end
+
+                    res = found[0];
+
+                    res.vadr = adr;
+                    res.padr = res.padr + (adr - getPageBaseM(adr));
+
+                    return res;
+                endfunction
+
+
+                ////////////////////////////////////
+                // Dep on BLOCK_SIZE
+
+                function automatic Dword getBlockBaseD(input Dword adr);
+                    Dword res = adr;
+                    res[BLOCK_OFFSET_BITS-1:0] = 0;
+                    return res;
+                endfunction
+
+                function automatic Mword getBlockBaseM(input Mword adr);
+                    Mword res = adr;
+                    res[BLOCK_OFFSET_BITS-1:0] = 0;
+                    return res;
+                endfunction
+
+
+                function automatic int getBlockIndex(input Dword adr);
+                    return (adr % WAY_SIZE)/BLOCK_SIZE;
+                endfunction
+
+                function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
+                    AccessInfo res;
+
+                    Dword aLow = adr % WAY_SIZE;
+                    int block = aLow / BLOCK_SIZE;
+                    int blockOffset = aLow % BLOCK_SIZE;
+
+                    if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
+
+                    res.adr = adr;
+                    res.size = accessSize;
+                    
+                    res.block = block;
+                    res.blockOffset = blockOffset;
+                    
+                    res.unaligned = (aLow % accessSize) > 0;
+                    res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+                    res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+                    return res;
+                endfunction
+
+
+
+
+                // DCache specific
+
+                typedef struct {
+                    logic req;
+                    Mword adr;
+                    Dword padr;
+                    Mword value;
+                    AccessSize size;
+                    logic uncached;
+                } MemWriteInfo;
+
+                localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+
+
+                typedef struct {
+                    logic active;
+                    CacheReadStatus status;
+                    logic lock;
+                    Mword data;
+                } DataCacheOutput;
+
+                localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
+                    0,
+                    CR_INVALID,
+                    'x,
+                    'x
+                };
+
+                typedef struct {
+                    logic valid;
+                    integer way;
+                    Dword tag;
+                    logic locked;
+                    Mword value;
+                } ReadResult;
+
+
+
+
 
 
 endpackage
