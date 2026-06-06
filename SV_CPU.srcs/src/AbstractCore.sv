@@ -759,6 +759,7 @@ module AbstractCore
     endfunction
 
 
+
     function automatic UopPacket tickP(input UopPacket op);
         if (!op.active) return EMPTY_UOP_PACKET;
 
@@ -781,23 +782,22 @@ module AbstractCore
         return op;
     endfunction
 
-    
-    function automatic logic shouldFlushId(input InsId id);
-        if (id == -1) return 0;
-        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
-    endfunction 
 
-
-    function automatic logic shouldFlushEventId(input InsId id);
-        InsId lastRet = lastRetired;
-        if (id == -1) return 0;
-        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid) || (lastRet != -1 && lastRet >= id);
-    endfunction
+    // function automatic logic shouldFlushEventId(input InsId id);
+    //     InsId lastRet = lastRetired;
+    //     if (id == -1) return 0;
+    //     return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid) || (lastRet != -1 && lastRet >= id);
+    // endfunction
 
 
     function automatic logic shouldFlushEvent(input UidT uid);
         return shouldFlushId(U2M(uid));
     endfunction
+
+    function automatic logic shouldFlushId(input InsId id);
+        if (id == -1) return 0;
+        return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid);
+    endfunction 
 
     function automatic logic shouldFlushPoison(input Poison poison);
         ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
@@ -898,21 +898,22 @@ module AbstractCore
     endfunction
 
 
-    function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
-        UopName uname = info.mainUop;
-        Mword own = info.basicData.adr;
-        Mword executed = 'x;
-        logic taken = 'x;
+        // Depends on insMap
+        function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
+            UopName uname = info.mainUop;
+            Mword own = info.basicData.adr;
+            Mword executed = 'x;
+            logic taken = 'x;
 
-        if (isBranchUop(uname)) begin 
-            assert (entries.size() == 1) else $fatal(2, "Brnhc not in BQ\n%p", info);
-            executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
-            taken = entries[0].taken;
-        end
+            if (isBranchUop(uname)) begin 
+                assert (entries.size() == 1) else $fatal(2, "Brnhc not in BQ\n%p", info);
+                executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
+                taken = entries[0].taken;
+            end
 
-        if (isBranchUop(uname) && taken) return executed;
-        else return own + 4;
-    endfunction
+            if (isBranchUop(uname) && taken) return executed;
+            else return own + 4;
+        endfunction
 
 
         logic ch0, ch1, ch2;

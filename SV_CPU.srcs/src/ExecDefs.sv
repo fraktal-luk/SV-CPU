@@ -146,8 +146,8 @@ package ExecDefs;
     localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
     localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
 
-    
-    
+
+
     ///// START poison
            
         typedef logic IdMap[UidT];
@@ -224,83 +224,82 @@ package ExecDefs;
             // put into 1 poison
             return map2poison(m0);
         endfunction
-    
-    ///// END poison        
 
-    
+    ///// END poison
     
     // IQ structures
+            typedef struct {
+                logic ready;
+                logic readyArgs[3];
+                logic cancelledArgs[3];
+            } IqArgState;
+            
+            localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
+            localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
-    typedef struct {
-        logic ready;
-        logic readyArgs[3];
-        logic cancelledArgs[3];
-    } IqArgState;
+            
+            // Poison
+            typedef struct {
+                Poison poisoned[3];
+            } IqPoisonState;
+            
+            localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
+
+            typedef enum {
+                IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
+            } SlotStatus;
+
+            typedef struct {
+                logic used;
+                UidT uid;
+                logic active_;
+                SlotStatus status;
+                IqArgState state;
+                InsId barrier;
+                IqPoisonState poisons;
+                int issueCounter;
+            } IqEntry;
+
+            localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
+                                        status: IqEmpty,
+                                        state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
+
+            typedef enum {
+                PG_NONE, PG_INT, PG_MEM, PG_VEC
+            } PipeGroup;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
-    
-    // Poison
-    typedef struct {
-        Poison poisoned[3];
-    } IqPoisonState;
-    
-    localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
+            ////////////////////////////////////////////////////////////////////
+            // IQ
+            ////////////////////////////////////////////////////////////////////
 
+            typedef struct {
+                logic active;
+                UidT producer;
+                PipeGroup group;
+                int port;
+                int stage;
+                Poison poison;
+            } Wakeup;
+            
+            localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
-    typedef enum {
-        IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
-    } SlotStatus;
-
-    typedef struct {
-        logic used;
-        UidT uid;
-        logic active_;
-        SlotStatus status;
-        IqArgState state;
-        InsId barrier;
-        IqPoisonState poisons;
-        int issueCounter;
-    } IqEntry;
-
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
-                                status: IqEmpty,
-                                state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
-
-    
-    typedef enum {
-        PG_NONE, PG_INT, PG_MEM, PG_VEC
-    } PipeGroup;
-    
-    
-    typedef struct {
-        logic active;
-        UidT producer;
-        PipeGroup group;
-        int port;
-        int stage;
-        Poison poison;
-    } Wakeup;
-    
-    localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
-
-    typedef Wakeup Wakeup3[3];
-    typedef Wakeup WakeupMatrixD[][3];
+            typedef Wakeup Wakeup3[3];
+            typedef Wakeup WakeupMatrixD[][3];
 
 
-    typedef struct {
-        UidT uid;
-        logic used;
-        logic active;
-        logic3 registers;
-        logic3 bypasses;
-        logic3 combined;
-        logic3 prevReady;
-        Poison poisons[3];
-        Poison prevPoisons[3];
-        logic all;
-    } ReadinessInfo;
+            typedef struct {
+                UidT uid;
+                logic used;
+                logic active;
+                logic3 registers;
+                logic3 bypasses;
+                logic3 combined;
+                logic3 prevReady;
+                Poison poisons[3];
+                Poison prevPoisons[3];
+                logic all;
+            } ReadinessInfo;
 
 
     // Handling forwarding network
@@ -315,7 +314,6 @@ package ExecDefs;
         MemByStage mems;
         VecByStage vecs;
     } ForwardsByStage_0;
-
 
 
     function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
@@ -355,8 +353,11 @@ package ExecDefs;
     endfunction
 
 
-
     typedef ForwardingElement FEQ[$];
+
+
+
+
 
 
     //////////////////////////////////////////
@@ -629,12 +630,6 @@ package ExecDefs;
             default: $fatal(2, "Wrong branch uop");
         endcase 
     endfunction
-
-    // function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
-    //     ForwardingElement found[$] = elems.find with (item.active && item.status == st);
-    //     ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-    //     return oldest;
-    // endfunction
 
     function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
         ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
