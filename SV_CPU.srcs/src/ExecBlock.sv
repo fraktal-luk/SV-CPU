@@ -36,8 +36,8 @@ module ExecBlock(ref InstructionMap insMap,
         DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
         DataCacheOutput sysOuts_E1[N_MEM_PORTS];
     
-        UopMemPacket sqResponse_E1[N_MEM_PORTS];
-        UopMemPacket lqResponse_E1[N_MEM_PORTS];
+        // UopMemPacket sqResponse_E1[N_MEM_PORTS];
+        // UopMemPacket lqResponse_E1[N_MEM_PORTS];
 
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
@@ -110,11 +110,11 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
         dcacheTranslations_EE0[0],
-        dcacheOuts_E1[0],
-        uncachedOuts_E1[0],
-        sysOuts_E1[0],
-        sqResponse_E1[0],
-        lqResponse_E1[0]        
+        mn.cacheOutE1[0], //dcacheOuts_E1[0],
+        mn.uncachedOutE1[0], //uncachedOuts_E1[0],
+        mn.sysOutE1[0],// sysOuts_E1[0],
+        mn.sqOutE1[0],// sqResponse_E1[0],
+        mn.lqOutE1[0]//lqResponse_E1[0]        
     );
 
     // Mem 2 - for ReplayQueue only!
@@ -125,11 +125,11 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
         dcacheTranslations_EE0[2],
-        dcacheOuts_E1[2],
-        uncachedOuts_E1[2],
-        sysOuts_E1[2],
-        sqResponse_E1[2],
-        lqResponse_E1[2]
+        mn.cacheOutE1[2],//dcacheOuts_E1[2],
+        mn.uncachedOutE1[2],//uncachedOuts_E1[2],
+        mn.sysOutE1[2],//sysOuts_E1[2],
+        mn.sqOutE1[2],// sqResponse_E1[2],
+        mn.lqOutE1[2] //lqResponse_E1[2]
     );
 
     // Vec 0
@@ -220,6 +220,23 @@ module ExecBlock(ref InstructionMap insMap,
             assign mn.trE0 = '{0: mem0.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
             assign mn.trE1 = '{0: mem0.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
             assign mn.trE2 = '{0: mem0.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};
+
+
+
+            // DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
+            // DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
+            // DataCacheOutput sysOuts_E1[N_MEM_PORTS];
+        
+            // UopMemPacket sqResponse_E1[N_MEM_PORTS];
+            // UopMemPacket lqResponse_E1[N_MEM_PORTS];
+
+            assign mn.cacheOutE1 = dcacheOuts_E1;
+            assign mn.uncachedOutE1 = uncachedOuts_E1;
+            assign mn.sysOutE1 = sysOuts_E1;
+    
+            assign mn.sqOutE1 = theSq.responseE1; //sqResponse_E1;
+            assign mn.lqOutE1 = theLq.responseE1; //lqResponse_E1;
+
 
 
     function automatic UopPacket performRegularE0(input UopPacket p);

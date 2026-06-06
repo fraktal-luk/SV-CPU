@@ -44,10 +44,12 @@ module StoreQueue
     int size;
     logic allow;
 
-    assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
-    assign allow = (size < SIZE - N_RENAME_STAGES * RENAME_WIDTH); // Must account for N_RENAME_STAGES stages possibly full of applicable ops 
+    UopMemPacket responseE1[N_MEM_PORTS];
 
     QEntry content[SIZE] = '{default: EMPTY_QENTRY};
+
+    assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
+    assign allow = (size < SIZE - N_RENAME_STAGES * RENAME_WIDTH); // Must account for N_RENAME_STAGES stages possibly full of applicable ops 
 
 
     always @(posedge AbstractCore.clk) begin    
@@ -195,11 +197,13 @@ module TmpSubSq();
             AccessDesc ad = mn.adE0[p];
             Translation tr = mn.trPreE0[p];
 
-            theExecBlock.sqResponse_E1[p] <= EMPTY_UOP_PACKET;
+             //   theExecBlock.sqResponse_E1[p] <= EMPTY_UOP_PACKET;
+            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            theExecBlock.sqResponse_E1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+             //   theExecBlock.sqResponse_E1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+            StoreQueue.responseE1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
         end
     endtask
 
@@ -227,7 +231,8 @@ module TmpSubSq();
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];
+               DataCacheOutput dcOut = //theExecBlock.dcacheOuts_E1[p];
+                                        mn.cacheOutE1[p];
                int index = findIndex(packet.TMP_oid);
                if (isStoreRelUop(uname) && dcOut.lock == 1) StoreQueue.content[index].suppress = 0;
                     // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
@@ -440,10 +445,12 @@ module TmpSubLq();
             UopMemPacket storeUop = mn.uopE2[p];
 
             //theExecBlock.lqResponse_E1[p] <= EMPTY_UOP_PACKET;
+            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            //theExecBlock.lqResponse_E1[p]  <= 
+            //theExecBlock.lqResponse_E1[p]  <=
+            //StoreQueue.responseE1[p] <= 
                 void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE2[p].padr, mn.adE2[p].size));
         end
 
