@@ -119,6 +119,10 @@ package EmulationDefs;
 //        return ins.def.o inside {O_floatStoreW};
 //    endfunction
 
+    function automatic logic isStoreRelIns(input AbstractInstruction ins);
+        return (ins.def.o inside {O_intStoreRelW});
+    endfunction
+
     function automatic logic isStoreSysIns(input AbstractInstruction ins);
         return ins.def.o inside {O_sysStore};
     endfunction

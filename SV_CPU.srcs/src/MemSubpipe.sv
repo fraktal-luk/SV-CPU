@@ -236,7 +236,24 @@ module MemSubpipe#()
             MC_AQ_REL: begin
                 case (p.status)
                     ES_BEGIN: begin
-                        if (ad.unaligned) $fatal(2, "aq-rel uncached!");
+                        if (ad.unaligned) begin
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
+                            res.status = ES_UNALIGNED;
+                            res.result = 0;
+                            return res;
+                        end
+                        else if (cacheResp.status == CR_NOT_ALLOWED) begin
+                            res.status = ES_ILLEGAL;
+                            res.result = 0;
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                            return res;
+                        end
+                        else if (cacheResp.status == CR_UNCACHED) begin
+                            res.status = ES_ILLEGAL;
+                            res.result = 0;
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                            return res;
+                        end
 
                         res.status = ES_AQ_REL_1;
                         return res;
@@ -301,11 +318,13 @@ module MemSubpipe#()
         end
         else if (cacheResp.status == CR_UNCACHED) begin
             if (p.memClass != MC_NORMAL) begin
+                insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
                 res.status = ES_ILLEGAL;
                 return res;
             end
             if (ad.unaligned) begin
-                res.status = ES_ILLEGAL;
+                insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
+                res.status = ES_UNALIGNED;
                 return res;
             end
 

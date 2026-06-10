@@ -132,6 +132,8 @@ module EventUnit(input logic clk);
         uname = decUname(p.TMP_oid);
 
         case (p.status)
+            ES_UNALIGNED:
+                evt = PE_MEM_UNALIGNED_ADDRESS;
             ES_NONEXISTENT: begin
                 evt = PE_MEM_NONEXISTENT_ADDRESS;
             end
@@ -270,7 +272,7 @@ module EventUnit(input logic clk);
 
     // > Needs ForwardingElement
     function automatic UopPacket findOldestMemEvt(input ForwardingElement stages[]);
-        ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT});
+        ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT, ES_UNALIGNED});
         ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
         
         if (found.size() == 0) return EMPTY_UOP_PACKET;
