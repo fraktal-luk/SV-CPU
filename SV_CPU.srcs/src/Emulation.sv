@@ -136,7 +136,6 @@ package Emulation;
             if (isBranchIns(ins))
                 return adr + 4;
             
-            // TODO: set exception if any is generated? If so, include store and sys instructions
             if (isMemIns(ins) || isLoadSysIns(ins)) begin
                 Mword vadr = calculateEffectiveAddress(ins, args);
                 Translation tr = translateDataAddress(vadr);
@@ -530,7 +529,13 @@ package Emulation;
             // PE_MEM_DISALLOWED_ACCESS = 3*16 + 4,
             else if (!tr.desc.canRead) // TEMPORARY; need to discern reads and writes
                 evt = PE_MEM_DISALLOWED_ACCESS;
-                
+            
+            else if ((isLoadAqIns(ins) || isStoreRelIns(ins)) && !tr.desc.cached)
+                evt = PE_MEM_DISALLOWED_ACCESS;
+
+            else if ((isLoadAqIns(ins) || isStoreRelIns(ins) || !tr.desc.cached) && (vadr % 4 != 0)) // TODO: proper alignemnt per size
+                evt = PE_MEM_UNALIGNED_ADDRESS;
+
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,
             else if (!physicalAddressValid(tr.padr))
                 evt = PE_MEM_NONEXISTENT_ADDRESS;

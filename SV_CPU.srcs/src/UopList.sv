@@ -423,8 +423,6 @@ package UopList;
     localparam int N_UOP_MAX = 2; // Biggest number for uops for any instruction
 
 
-
-    // TODO: this duplicates func in EventUnit
     function automatic ProgramEvent eventFromUop(input UopName uname);
         case (uname)
             UOP_ctrl_fetchError: $fatal(2, "Should be handled outside this function");

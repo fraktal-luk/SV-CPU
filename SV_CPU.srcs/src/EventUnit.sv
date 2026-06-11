@@ -17,9 +17,7 @@ import Queues::*;
 
 module EventUnit(input logic clk);
 
-
     BackendState backendState = BS_NONE;
-
 
     logic chp, chq;
 
@@ -50,6 +48,7 @@ module EventUnit(input logic clk);
 
     always @(negedge clk) begin
         frontH <= getFrontEv();
+        dbEvtH <= getDbEv();
 
         fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
         fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
@@ -73,8 +72,8 @@ module EventUnit(input logic clk);
             end
 
             interruptEvt <= EMPTY_EVENT_DESC;
-
             resetEvt <= EMPTY_EVENT_DESC;
+            dbEvt <= EMPTY_EVENT_DESC;
 
             backendState <= BS_NORMAL;
         end
@@ -99,10 +98,8 @@ module EventUnit(input logic clk);
 
 
     function automatic EventDesc getFrontEv();
-        // TODO: if stageRename1_N is not empty and has a fetch event, catch it
-
-        OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
-        OpSlotB foundAny[$] = AbstractCore.stageRename1.find_first with (item.active);
+        OpSlotB found[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active && hasStaticEvent(item.mid));
+        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
         // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
         if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
@@ -111,12 +108,18 @@ module EventUnit(input logic clk);
 
         if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
 
-        if (found.size() == 0 || (found[0].mid > foundAny[0].mid && AbstractCore.CurrentConfig.dbStep)) begin
-            if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
+        if (found.size() == 0) return EMPTY_EVENT_DESC;
 
-            return EMPTY_EVENT_DESC;
-        end
-        else return edFromFront(found[0]);
+        return edFromFront(found[0]);
+    endfunction
+
+    function automatic EventDesc getDbEv();
+        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
+
+        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+
+        if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
+        else return EMPTY_EVENT_DESC;
     endfunction
 
 
@@ -129,6 +132,11 @@ module EventUnit(input logic clk);
         uname = decUname(p.TMP_oid);
 
         case (p.status)
+            ES_UNALIGNED:
+                evt = PE_MEM_UNALIGNED_ADDRESS;
+            ES_NONEXISTENT: begin
+                evt = PE_MEM_NONEXISTENT_ADDRESS;
+            end
             ES_INVALID: begin
                 if (isMemUop(uname)) evt = PE_MEM_INVALID_ADDRESS;
                 else if (isStoreSysUop(uname) || isLoadSysUop(uname)) evt = PE_SYS_INVALID_ADDRESS;
@@ -161,28 +169,7 @@ module EventUnit(input logic clk);
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
         uname = decMainUop(slot.mid);
-
-        case (uname)
-            UOP_ctrl_fetchError: $fatal(2, "Handled elsewhere");
-
-            UOP_ctrl_error: evt = PE_SYS_ERROR;
-            UOP_ctrl_undef: evt = PE_SYS_UNDEFINED_INSTRUCTION;
-            UOP_ctrl_call:  evt = PE_SYS_CALL;
-            UOP_ctrl_dbcall:  evt = PE_SYS_DBCALL;
-
-            // ret
-            UOP_ctrl_rete:  evt = PE_HW_RETE;
-            UOP_ctrl_reti:  evt = PE_HW_RETI;
-
-            // Static refetch: does it make sense?
-            UOP_ctrl_refetch: evt = PE_HW_REFETCH;
-
-            // sync
-            UOP_ctrl_sync:  evt = PE_HW_SYNC;
-            UOP_ctrl_send:  evt = PE_HW_SEND;
-
-            default: ;
-        endcase
+        evt = eventFromUop(uname);
 
         return '{1, slot.mid, evt};
     endfunction 
@@ -195,16 +182,14 @@ module EventUnit(input logic clk);
         if (!newValue.active && general.active) clearEvent <= 1;
         else clearEvent <= 0;
 
-        // TODO: when new event is being set, clear interruptEvt and signal a reject - exceptions have higher prio
-        //      Or maybe interruptEvt should exist in parallel with general, and only get rejected when general is moving to lateEventInfoWaiting
-        //          Because general can be cleared by branch redirect, and this should not be a reason to reject interrupt
-
         if (backendState != BS_HANDLING) begin
-            if (newValue.active) backendState <= BS_WAIT;
+            if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
         end
 
         general <= newValue;
+
+        dbEvt <= replaceEvt(dbEvt, dbEvtH);
 
         front <= replaceEvt(front, frontH);
 
@@ -219,8 +204,10 @@ module EventUnit(input logic clk);
             int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
-            lastEvtAD <= theExecBlock.accessDescs_E2[inds[0]];
-            lastEvtTr <= theExecBlock.dcacheTranslations_E2[inds[0]];
+            lastEvtAD <= //theExecBlock.accessDescs_E2[inds[0]];
+                            mn.adE2[inds[0]];
+            lastEvtTr <= //theExecBlock.dcacheTranslations_E2[inds[0]];
+                            mn.trE2[inds[0]];
         end
     endtask
 
@@ -233,8 +220,7 @@ module EventUnit(input logic clk);
 
         if (prevId == -1) older = next;
         else if (nextId != -1 && prevId > nextId) older = next;
-        else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions  TODO: formalize
-        // TODO: assure that exception vs refetch in complex mem cases is defined and predictable
+        //else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions 
 
         assert (olderId == (older.id)) else $error("Ids differ");
 
@@ -255,26 +241,45 @@ module EventUnit(input logic clk);
         tmp = replaceEvt(tmp, lqRefetchH);
         tmp = replaceEvt(tmp, frontH);
 
-               // if (lqRefetchH.id == 5203) $error("Setting  general evt for 5203");
-
-        //if (shouldFlushId(tmp.id) || AbstractCore.lastRetired > tmp.id) tmp = EMPTY_EVENT_DESC;
-
         return tmp;
     endfunction
-
-       // assign chp = (general.id == theExecBlock.currentEventReg); 
 
 
     function automatic logic hasEvent();
         return general.active
+            || dbEvt.active
             || resetEvt.active
             || interruptEvt.active
-                ;
+            ;
     endfunction 
 
 
     function automatic void setHandling();
         backendState <= BS_HANDLING;
     endfunction
+
+
+    // > Needs ForwardingElement
+    function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
+        ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
+        ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+
+        if (found.size() == 0) return EMPTY_UOP_PACKET;
+
+        assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+        return oldest[0];
+    endfunction
+
+    // > Needs ForwardingElement
+    function automatic UopPacket findOldestMemEvt(input ForwardingElement stages[]);
+        ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT, ES_UNALIGNED});
+        ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+        
+        if (found.size() == 0) return EMPTY_UOP_PACKET;
+        
+        assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+        return oldest[0];
+    endfunction
+
 
 endmodule

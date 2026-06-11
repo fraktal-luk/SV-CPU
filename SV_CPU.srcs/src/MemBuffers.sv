@@ -44,16 +44,12 @@ module StoreQueue
     int size;
     logic allow;
 
-    assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
-    assign allow = (size < SIZE - N_RENAME_STAGES * RENAME_WIDTH); // Must account for N_RENAME_STAGES stages possibly full of applicable ops 
+    UopMemPacket responseE1[N_MEM_PORTS];
 
     QEntry content[SIZE] = '{default: EMPTY_QENTRY};
 
-    QEntry outputQ[$:3*ROB_WIDTH];
-    QEntry outputQM[3*ROB_WIDTH] = '{default: EMPTY_QENTRY}; 
-
-    typedef QEntry QM[3*ROB_WIDTH];
-
+    assign size = (endPointer - drainPointer + 2*SIZE) % (2*SIZE);
+    assign allow = (size < SIZE - N_RENAME_STAGES * RENAME_WIDTH); // Must account for N_RENAME_STAGES stages possibly full of applicable ops 
 
 
     always @(posedge AbstractCore.clk) begin    
@@ -80,7 +76,6 @@ module StoreQueue
         end
         endPointer = startPointer;
         scanPointer = startPointer;
-        outputQ.delete();
     endtask
 
 
@@ -101,13 +96,8 @@ module StoreQueue
     endtask
 
 
-    // function automatic logic isScanned(input InsId id);
-    //     return id != -1 && id <= AbstractCore.theRob.lastScanned;
-    // endfunction
-
     function automatic logic isCommittable(input InsId id);
-        return id != -1 && id <= //AbstractCore.theRob.lastOut;
-                                    AbstractCore.theRob.prevReadId;
+        return id != -1 && id <= AbstractCore.theRob.prevReadId;
     endfunction
 
 
@@ -140,16 +130,8 @@ module StoreQueue
 
 
     task automatic advance();
-        // while (isScanned(content[scanPointer % SIZE].mid)) begin 
-        //    // outputQ.push_back(content[scanPointer % SIZE]);
-        //     scanPointer = (scanPointer+1) % (2*SIZE);
-        // end
-
         while (isCommittable(content[startPointer % SIZE].mid)) begin
             InsId thisId = content[startPointer % SIZE].mid;
-
-          //  assert (outputQ[0].mid == thisId) else $error("mismatch at outputQ %p", outputQ[0]);
-          //  outputQ.pop_front();
 
             putMilestoneM(thisId, QUEUE_EXIT);
             checkOnCommit();
@@ -166,16 +148,7 @@ module StoreQueue
         end
         else
             drainPointer = startPointer;
-
-        outputQM = makeQM(outputQ);
     endtask
-
-
-    function automatic QM makeQM(input QEntry q[$:3*ROB_WIDTH]);
-        QM res = '{default: EMPTY_QENTRY};
-        foreach (q[i]) res[i] = q[i];
-        return res;
-    endfunction
 
 
     function automatic int findIndex(input UopId uid);
@@ -219,24 +192,26 @@ module TmpSubSq();
 
 
     task automatic readImpl();
-        foreach (theExecBlock.toLqE0[p]) begin
-            UopMemPacket loadOp = theExecBlock.toLqE0[p];
-            AccessDesc ad = theExecBlock.accessDescs_E0[p];
-            Translation tr = theExecBlock.dcacheTranslations_EE0[p];
+        foreach (mn.uopE0[p]) begin
+            UopMemPacket loadOp = mn.uopE0[p];
+            AccessDesc ad = mn.adE0[p];
+            Translation tr = mn.trPreE0[p];
 
-            theExecBlock.sqResponse_E1[p] <= EMPTY_UOP_PACKET;
+             //   theExecBlock.sqResponse_E1[p] <= EMPTY_UOP_PACKET;
+            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-            theExecBlock.sqResponse_E1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+             //   theExecBlock.sqResponse_E1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+            StoreQueue.responseE1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
         end
     endtask
 
 
     task automatic updateMain();
-        UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toLqE0;
-        UopMemPacket packetsE1[N_MEM_PORTS] = theExecBlock.toLqE1;
-        UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toLqE2;
+        UopMemPacket packetsE0[N_MEM_PORTS] = mn.uopE0;
+        UopMemPacket packetsE1[N_MEM_PORTS] = mn.uopE1;
+        UopMemPacket packetsE2[N_MEM_PORTS] = mn.uopE2;
 
         foreach (packetsE0[p]) begin
             UopMemPacket packet = packetsE0[p];
@@ -245,7 +220,7 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations_EE0[p], theExecBlock.accessDescs_E0[p]);
+               updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
             end
         end
@@ -256,7 +231,8 @@ module TmpSubSq();
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               DataCacheOutput dcOut = theExecBlock.dcacheOuts_E1[p];
+               DataCacheOutput dcOut = //theExecBlock.dcacheOuts_E1[p];
+                                        mn.cacheOutE1[p];
                int index = findIndex(packet.TMP_oid);
                if (isStoreRelUop(uname) && dcOut.lock == 1) StoreQueue.content[index].suppress = 0;
                     // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
@@ -343,14 +319,12 @@ module TmpSubSq();
 
     function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
         UopName uname = decUname(p.TMP_oid);
-        //assert (isStoreUop(uname)) else $fatal(2, "This op is not. it is %p", uname);
 
         if (isStoreUop(uname)) begin
             entry.accessDesc = desc;
             entry.translation = tr;
         end
         else if (isMemBarrierUop(uname)) begin
-            
         end
         else $fatal(2, "This op is not. it is %p", uname);
     endfunction
@@ -428,9 +402,9 @@ module TmpSubLq();
     endtask
 
     task automatic updateMain();
-        UopMemPacket packetsE0[N_MEM_PORTS] = theExecBlock.toLqE0;
-        UopMemPacket packetsE1[N_MEM_PORTS] = theExecBlock.toLqE1;
-        UopMemPacket packetsE2[N_MEM_PORTS] = theExecBlock.toLqE2;
+        UopMemPacket packetsE0[N_MEM_PORTS] = mn.uopE0;
+        UopMemPacket packetsE1[N_MEM_PORTS] = mn.uopE1;
+        UopMemPacket packetsE2[N_MEM_PORTS] = mn.uopE2;
 
         foreach (packetsE0[p]) begin
             UopMemPacket packet = packetsE0[p];
@@ -439,7 +413,7 @@ module TmpSubLq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, theExecBlock.dcacheTranslations_EE0[p], theExecBlock.accessDescs_E0[p]);
+               updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
             end
         end
@@ -467,42 +441,20 @@ module TmpSubLq();
             end
         end
 
-        // Scan entries which need to be refetched and find the oldest
-        // begin
-        //     LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
-        //     LqEntry oldestFound[$] = found.min with (item.mid);
-
-        //     int foundAgain[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntry.mid);
-        //     int foundAgainP0[$] = StoreQueue.content.find_first_index with (item.mid == oldestRefetchEntryP0.mid);            
-
-        //     if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
-        //     else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
-
-        //             if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
-
-
-        //     // If wasn't killed in queue, pass on
-        //     if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
-        //     else oldestRefetchEntryP0 <= LoadQueueHelper::EMPTY_QENTRY;
-
-        //     // If wasn't killed in queue, pass on
-        //     if (foundAgainP0.size() > 0) oldestRefetchEntryP1 <= oldestRefetchEntryP0;
-        //     else oldestRefetchEntryP1 <= LoadQueueHelper::EMPTY_QENTRY;
-        // end
-
-        foreach (theExecBlock.toLqE2[p]) begin
-            UopMemPacket storeUop = theExecBlock.toLqE2[p];
+        foreach (mn.uopE2[p]) begin
+            UopMemPacket storeUop = mn.uopE2[p];
 
             //theExecBlock.lqResponse_E1[p] <= EMPTY_UOP_PACKET;
+            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
 
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
 
-            //theExecBlock.lqResponse_E1[p]  <= 
-                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), theExecBlock.dcacheTranslations_E2[p].padr, theExecBlock.accessDescs_E2[p].size));
+            //theExecBlock.lqResponse_E1[p]  <=
+            //StoreQueue.responseE1[p] <= 
+                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE2[p].padr, mn.adE2[p].size));
         end
 
-            handleSOV();
-
+        handleSOV();
     endtask
 
 
@@ -515,9 +467,6 @@ module TmpSubLq();
 
         if (oldestFound.size() > 0) oldestRefetchEntry <= oldestFound[0];
         else oldestRefetchEntry <= LoadQueueHelper::EMPTY_QENTRY;
-
-             //   if (oldestFound.size() > 0) $error("Set evt for SOV: %d", oldestFound[0].mid);
-
 
         // If wasn't killed in queue, pass on
         if (foundAgain.size() > 0) oldestRefetchEntryP0 <= oldestRefetchEntry;
@@ -540,8 +489,6 @@ module TmpSubLq();
         begin // 'active' indicates that some match has happened without further details
             int oldestFound[$] = found.min with (entries[item].mid);
             StoreQueue.insMap.setRefetch(entries[oldestFound[0]].mid);
-
-              //  $error("Found SOV:\n%d -> %d", id, entries[oldestFound[0]].mid);
         end
 
         return '{1, FIRST_U(id), MC_NONE, ES_OK, EMPTY_POISON, 'x};
@@ -552,7 +499,6 @@ module TmpSubLq();
         entry.accessDesc = desc;
         entry.translation = tr;
     endfunction
-
 
     function automatic logic isCommitted(input LqEntry entry);
         return 0;

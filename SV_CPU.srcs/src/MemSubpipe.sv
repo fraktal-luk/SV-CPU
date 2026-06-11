@@ -17,8 +17,6 @@ module MemSubpipe#()
     input EventInfo lateEventInfo,
     input UopPacket opP,
 
-    output AccessDesc accessDescOut,
-
     input Translation cacheTranslation,
     input DataCacheOutput cacheResp,
     input DataCacheOutput uncachedResp,
@@ -38,8 +36,6 @@ module MemSubpipe#()
     AccessDesc ad0;
 
     AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
-
-    assign accessDescOut = accessDescE0;
 
     always_comb stage0_E = pE2_E;
     always_comb stage1_E = pD0_E;
@@ -240,7 +236,24 @@ module MemSubpipe#()
             MC_AQ_REL: begin
                 case (p.status)
                     ES_BEGIN: begin
-                        if (ad.unaligned) $fatal(2, "aq-rel uncached!");
+                        if (ad.unaligned) begin
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
+                            res.status = ES_UNALIGNED;
+                            res.result = 0;
+                            return res;
+                        end
+                        else if (cacheResp.status == CR_NOT_ALLOWED) begin
+                            res.status = ES_ILLEGAL;
+                            res.result = 0;
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                            return res;
+                        end
+                        else if (cacheResp.status == CR_UNCACHED) begin
+                            res.status = ES_ILLEGAL;
+                            res.result = 0;
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                            return res;
+                        end
 
                         res.status = ES_AQ_REL_1;
                         return res;
@@ -269,9 +282,9 @@ module MemSubpipe#()
                             return res;
                         end
                         else if (uncachedResp.status == CR_INVALID) begin
-                            res.status = ES_ILLEGAL;
+                            res.status = ES_NONEXISTENT;
                             res.result = 0;
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS); // TODO: NONEXISTENT_ADDRESS?
+                            insMap.setException(U2M(p.TMP_oid), PE_MEM_NONEXISTENT_ADDRESS);
                             return res;
                         end
                         else
@@ -305,11 +318,13 @@ module MemSubpipe#()
         end
         else if (cacheResp.status == CR_UNCACHED) begin
             if (p.memClass != MC_NORMAL) begin
+                insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
                 res.status = ES_ILLEGAL;
                 return res;
             end
             if (ad.unaligned) begin
-                res.status = ES_ILLEGAL;
+                insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
+                res.status = ES_UNALIGNED;
                 return res;
             end
 
@@ -383,10 +398,10 @@ module MemSubpipe#()
                     assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
 
                     if (res.memClass == MC_UPPER_B) begin
-                        Mword cacheVal = cacheResp.data;
-                        Mword uopVal = p.result;
+                        //Mword cacheVal = cacheResp.data;
+                        //Mword uopVal = p.result;
                         res.status = ES_OK;
-                        res.result = combineLoadValues(uopVal, cacheResp.data, ad.shift, decUname(uid));
+                        res.result = combineLoadValues(p.result, cacheResp.data, ad.shift, decUname(uid));
                     end
                     else begin
                         res.status = ES_OK;
@@ -399,8 +414,6 @@ module MemSubpipe#()
         end
 
         if (isStoreMemUop(decUname(uid))) begin
-              //  if (lqResp.active) $error("Stre has SOV\n%p", p);
-
             res.status = ES_OK;
         end
 

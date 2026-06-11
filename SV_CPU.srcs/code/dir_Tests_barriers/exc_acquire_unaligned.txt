@@ -1,20 +1,35 @@
-
 @section prog_main
 
-; Page with no read permission
-$start
-	
+		;sys_dbcall
+
 	add_i r20, r0, 0x4000 ; initialize exc stack
 
-	; 0x20000000000 DATA_P_NONEXISTENT
-	add_i r8, r0, 0x2
-	shl_i r8, r8, 40
-	ldi_i r9, r8, 40   ; cause exception
+	; DATA_V_DISALLOWED = 'h9000;
+	add_i r8, r0, 0x0
+	;shl_i r8, r8, 8
 
-$check
+
+	;	ldi_i r5, r8, 16
+	e_ldaq r5, r8, 18 ; reserve
+
+	ldi_i  r8, r0, 16 ; drop reservation
+
+	e_stc  r6, r0, 16 ; store
+
+	sys_sync
+
+	ldi_i r10, r0, 16 ; load stored value
+	add_i r11, r10, 0PE_MEM_UNALIGNED_ADDRESS
+
+	jnz_i r11, $error
+
+
 	sys_dbcall
+
 $error
-    sys_error
+	sys_error
+
+
 
 @section output
 ; here write expected exc info that should be written to exc stack
@@ -24,7 +39,7 @@ $error
 0x11
 0 ; hi
 ; c2 - excSavedIP
-0xc
+0x8
 0 ; hi
 ; c3 - intSavedIP
 0
@@ -36,7 +51,7 @@ $error
 0
 0 ; hi
 ; c6 - excSyndrome
-0x37
+0x31
 0; hi
 ; c7 - intSyndrome
 0
@@ -48,6 +63,5 @@ $error
 0
 0 ; hi  
 ; c10 - memControl
-0
+7
 0 ; hi
-

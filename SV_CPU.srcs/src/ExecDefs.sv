@@ -6,164 +6,30 @@ package ExecDefs;
     import UopList::*;
     import Asm::*;
     import Emulation::*;
-    
+
     import AbstractSim::*;
     import Insmap::*;
 
     import CacheDefs::*;
-    
 
-    typedef enum {
-        BS_NONE,
-        BS_NORMAL, // accepts renamed ops
-        BS_WAIT,   // event to handle is present, don't accept new ops
-        BS_HANDLING // event processing ongoing
-    } BackendState;
-
-
-    typedef enum {
-        MC_NONE,
-        MC_NORMAL,
-        MC_BARRIER,
-        MC_UNCACHED,
-        MC_AQ_REL,
-        MC_SYS,
-
-        MC_UPPER_B // block cross replay
-        //MC_UPPER_P  // page cross replay
-    } MemClass;
-
-
-    typedef enum {
-            ES_BEGIN,
-
-        ES_OK,
-        
-        ES_UNALIGNED,
-        
-        ES_UNCACHED_1,
-        ES_UNCACHED_2,
-
-        ES_BARRIER_1,
-        ES_AQ_REL_1,
-
-        ES_SQ_MISS,
-        ES_DATA_MISS,
-        ES_TLB_MISS,
-        
-        ES_REFETCH, // cause refetch
-        ES_CANT_FORWARD,
-        
-        ES_LOWER_DONE,
-
-
-        ES_ILLEGAL,
-        ES_INVALID,
-
-        ES_FP_INVALID,
-        ES_FP_OVERFLOW
-    } ExecStatus;
 
     function automatic logic needsReplay(input ExecStatus status);
-        return 
-                status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
+        return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE};
     endfunction
 
 
-    // Poison
-    typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
-    localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
 
-
-    // For routing to IQs
-    typedef struct {
-        logic active;
-        UopId uid;
-    } TMP_Uop;
-
-    localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
-
-
-    typedef struct {
-        logic active;
-        UidT TMP_oid;
-        MemClass memClass;
-        ExecStatus status;
-        Poison poison;
-        Mword result;
-    } UopPacket;    
-    
-    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
-
-        typedef UopPacket UopMemPacket;
-    
-        function automatic UopPacket TMP_mp(input UopMemPacket p);
-            return p;
-        endfunction
-
-        function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
-            return p;
-        endfunction
-
-
-    function automatic UopPacket memToComplete(input UopPacket p);
-        if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
-        else return p;
-    endfunction
-
-    function automatic UopPacket memToReplay(input UopPacket p);
-        if (needsReplay(p.status)) return p;
-        else return EMPTY_UOP_PACKET;
-    endfunction
-
-
-    typedef struct {
-        TMP_Uop regular[RENAME_WIDTH];
-        TMP_Uop multiply[RENAME_WIDTH];
-        TMP_Uop branch[RENAME_WIDTH];
-        TMP_Uop idivider[RENAME_WIDTH];
-        TMP_Uop float[RENAME_WIDTH];
-        TMP_Uop fdivider[RENAME_WIDTH];
-        TMP_Uop mem[RENAME_WIDTH];
-        TMP_Uop storeData[RENAME_WIDTH];
-    } RoutedUops;
-
-    localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
-        regular: '{default: TMP_UOP_NONE},
-        multiply: '{default: TMP_UOP_NONE},
-        branch: '{default: TMP_UOP_NONE},
-        idivider: '{default: TMP_UOP_NONE},
-        float: '{default: TMP_UOP_NONE},
-        fdivider: '{default: TMP_UOP_NONE},
-        mem: '{default: TMP_UOP_NONE},
-        storeData: '{default: TMP_UOP_NONE}
-    };
-
-
-    typedef UopPacket ForwardingElement;
-
-    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
-    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
-
-    
-    
+    ////////////////////////////////////////////////////////////////////
     ///// START poison
-           
+
+        // Poison
+        typedef UidT Poison[N_MEM_PORTS * (1 - -3 + 1)];
+        localparam Poison EMPTY_POISON = '{default: UIDT_NONE};
+
+
         typedef logic IdMap[UidT];
         
-        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-            IdMap res;
-            
-            foreach (fea[p]) begin
-                ForwardingElement subpipe[-3:1] = fea[p];
-                foreach (subpipe[s]) begin
-                    if (subpipe[s].TMP_oid != UIDT_NONE) res[subpipe[s].TMP_oid] = 1;
-                end
-            end
-    
-            return res;
-        endfunction
-        
+
         function automatic IdMap poison2map(input Poison p);
             IdMap res;
             foreach (p[i])
@@ -185,6 +51,84 @@ package ExecDefs;
         endfunction 
     
             
+
+            
+            
+        function automatic Poison mergePoisons(input Poison ap[3]);
+            IdMap m0 = poison2map(ap[0]);
+            IdMap m1 = poison2map(ap[1]);
+            IdMap m2 = poison2map(ap[2]);
+            
+            foreach (m1[uid]) m0[uid] = 1;
+            foreach (m2[uid]) m0[uid] = 1;
+            
+            // put into 1 poison
+            return map2poison(m0);
+        endfunction
+
+    ///// END poison
+    
+
+
+
+
+
+    typedef struct {
+        logic active;
+        UidT TMP_oid;
+        MemClass memClass;
+        ExecStatus status;
+        Poison poison;
+        Mword result;
+    } UopPacket;    
+    
+    localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
+
+            typedef UopPacket UopMemPacket;
+        
+            function automatic UopPacket TMP_mp(input UopMemPacket p);
+                return p;
+            endfunction
+
+            function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
+                return p;
+            endfunction
+
+
+            function automatic UopPacket memToComplete(input UopPacket p);
+                if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
+                else return p;
+            endfunction
+
+            function automatic UopPacket memToReplay(input UopPacket p);
+                if (needsReplay(p.status)) return p;
+                else return EMPTY_UOP_PACKET;
+            endfunction
+
+
+
+
+
+    typedef UopPacket ForwardingElement;
+
+    localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
+    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
+
+
+        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+            IdMap res;
+            
+            foreach (fea[p]) begin
+                ForwardingElement subpipe[-3:1] = fea[p];
+                foreach (subpipe[s]) begin
+                    if (subpipe[s].TMP_oid != UIDT_NONE) res[subpipe[s].TMP_oid] = 1;
+                end
+            end
+    
+            return res;
+        endfunction
+        
+
         function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
             IdMap present = getPresentMemM(fea);
             IdMap old = poison2map(p);
@@ -210,158 +154,144 @@ package ExecDefs;
             
             return map2poison(map);
         endfunction
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////
+    // Args, forwarding
+    ////////////////////////////////////////////////////////////////////////////////
+
+
+        // Handling forwarding network
+        
+        typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
+        typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
+        typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
+
+
+        typedef struct {
+            IntByStage ints;
+            MemByStage mems;
+            VecByStage vecs;
+        } ForwardsByStage_0;
+
+
+        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+            IntByStage res;
             
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
             
-        function automatic Poison mergePoisons(input Poison ap[3]);
-            IdMap m0 = poison2map(ap[0]);
-            IdMap m1 = poison2map(ap[1]);
-            IdMap m2 = poison2map(ap[2]);
-            
-            foreach (m1[uid]) m0[uid] = 1;
-            foreach (m2[uid]) m0[uid] = 1;
-            
-            // put into 1 poison
-            return map2poison(m0);
+            return res;
         endfunction
-    
-    ///// END poison        
 
-    
-    
-    
+        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+            MemByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+            VecByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+
+        typedef ForwardingElement FEQ[$];
+
+
     // IQ structures
+            typedef struct {
+                logic ready;
+                logic readyArgs[3];
+                logic cancelledArgs[3];
+            } IqArgState;
+            
+            localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
+            localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
-    typedef struct {
-        logic ready;
-        logic readyArgs[3];
-        logic cancelledArgs[3];
-    } IqArgState;
+            
+            // Poison
+            typedef struct {
+                Poison poisoned[3];
+            } IqPoisonState;
+            
+            localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
+
+            typedef enum {
+                IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
+            } SlotStatus;
+
+            typedef struct {
+                logic used;
+                UidT uid;
+                logic active_;
+                SlotStatus status;
+                IqArgState state;
+                InsId barrier;
+                IqPoisonState poisons;
+                int issueCounter;
+            } IqEntry;
+
+            localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
+                                        status: IqEmpty,
+                                        state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
+
+            typedef enum {
+                PG_NONE, PG_INT, PG_MEM, PG_VEC
+            } PipeGroup;
     
-    localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-    localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
 
-    
-    // Poison
-    typedef struct {
-        Poison poisoned[3];
-    } IqPoisonState;
-    
-    localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
+            ////////////////////////////////////////////////////////////////////
+            // IQ
+            ////////////////////////////////////////////////////////////////////
 
+            typedef struct {
+                logic active;
+                UidT producer;
+                PipeGroup group;
+                int port;
+                int stage;
+                Poison poison;
+            } Wakeup;
+            
+            localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
-    typedef enum {
-        IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
-    } SlotStatus;
-
-    typedef struct {
-        logic used;
-        UidT uid;
-        logic active_;
-        SlotStatus status;
-        IqArgState state;
-        InsId barrier;
-        IqPoisonState poisons;
-        int issueCounter;
-    } IqEntry;
-
-    localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
-                                status: IqEmpty,
-                                state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
-
-    
-    typedef enum {
-        PG_NONE, PG_INT, PG_MEM, PG_VEC
-    } PipeGroup;
-    
-    
-    typedef struct {
-        logic active;
-        UidT producer;
-        PipeGroup group;
-        int port;
-        int stage;
-        Poison poison;
-    } Wakeup;
-    
-    localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
-
-    typedef Wakeup Wakeup3[3];
-    typedef Wakeup WakeupMatrixD[][3];
+            typedef Wakeup Wakeup3[3];
+            typedef Wakeup WakeupMatrixD[][3];
 
 
-    typedef struct {
-        UidT uid;
-        logic used;
-        logic active;
-        logic3 registers;
-        logic3 bypasses;
-        logic3 combined;
-        logic3 prevReady;
-        Poison poisons[3];
-        Poison prevPoisons[3];
-        logic all;
-    } ReadinessInfo;
+            typedef struct {
+                UidT uid;
+                logic used;
+                logic active;
+                logic3 registers;
+                logic3 bypasses;
+                logic3 combined;
+                logic3 prevReady;
+                Poison poisons[3];
+                Poison prevPoisons[3];
+                logic all;
+            } ReadinessInfo;
 
 
 
-    // Handling forwarding network
-    
-    typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
-    typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
-    typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
-
-
-    typedef struct {
-        IntByStage ints;
-        MemByStage mems;
-        VecByStage vecs;
-    } ForwardsByStage_0;
-
-    
-    
-    function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
-        IntByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-    function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
-        MemByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-    function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
-        VecByStage res;
-        
-        foreach (imgs[p]) begin
-            ForwardingElement img[-3:1] = imgs[p];
-            foreach (img[s])
-                res[s][p] = img[s];
-        end
-        
-        return res;
-    endfunction
-
-
-
-    typedef ForwardingElement FEQ[$];
-
-
-    //////////////////////////////////////////
-    // IQ and Exec0
     function automatic logic3 checkArgsReady(input InsDependencies deps, input logic intReadyV[N_REGS_INT], input logic floatReadyV[N_REGS_FLOAT]);
         logic3 res = '{0, 0, 0};
         foreach (deps.types[i])
@@ -395,7 +325,6 @@ package ExecDefs;
         assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
-
 
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
                                             input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
@@ -525,170 +454,126 @@ package ExecDefs;
     endfunction
 
 
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    // Exec calculations
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+
     function automatic Mword calcEffectiveAddress(Mword3 args);
         return args[0] + args[1];
     endfunction
 
 
-
-        function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
-            Mword res = 'x;
+    function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
+        Mword res = 'x;
+        
+        case (name)
+            UOP_int_and:  res = args[0] & args[1];
+            UOP_int_or:   res = args[0] | args[1];
+            UOP_int_xor:  res = args[0] ^ args[1];
             
-            case (name)
-                UOP_int_and:  res = args[0] & args[1];
-                UOP_int_or:   res = args[0] | args[1];
-                UOP_int_xor:  res = args[0] ^ args[1];
-                
-                UOP_int_addc: res = args[0] + args[1];
-                UOP_int_addh: res = args[0] + (args[1] << 16);
-                
-                UOP_int_add:  res = args[0] + args[1];
-                UOP_int_sub:  res = args[0] - args[1];
-                
-                    UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
-                    UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
-                
-                UOP_int_shlc:
-                                if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                                else                       res = $unsigned(args[0]) >> -args[1];
-                UOP_int_shac:
-                                if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                                else                       res = $unsigned(args[0]) >> -args[1];                     
-                UOP_int_rotc:
-                                if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
-                                else                       res = {args[0], args[0]} >> -args[1];
-                
-                // mul/div/rem
-                UOP_int_mul:   res = w2m( multiplyW(args[0], args[1]) );
-                UOP_int_mulhu: res = w2m( multiplyHighUnsignedW(args[0], args[1]) );
-                UOP_int_mulhs: res = w2m( multiplyHighSignedW(args[0], args[1]) );
-                UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
-                UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
-                UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
-                UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
-                
-                UOP_int_link: res = linkAdr;
-                
-                // FP
-                UOP_fp_move:   res = args[0];
-                UOP_fp_xor:     res = args[0] ^ args[1];
-                UOP_fp_and:     res = args[0] & args[1];
-                UOP_fp_or:     res = args[0] | args[1];
-                UOP_fp_addi:   res = args[0] + args[1];
-                    UOP_fp_muli:   res = args[0] * args[1];
-                    UOP_fp_divi:   res = args[0] / args[1];
-                    UOP_fp_inv:   res = 1;
-                    UOP_fp_ov:   res = 1;
-
-                    UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
-                    UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
-                    UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-                    UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
-                    UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
-                    UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
-                    UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
-
-                default: $fatal(2, "Wrong uop");
-            endcase
+            UOP_int_addc: res = args[0] + args[1];
+            UOP_int_addh: res = args[0] + (args[1] << 16);
             
-            // Handling of cases of division by 0  
-            if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
-    
-            return res;
-        endfunction
+            UOP_int_add:  res = args[0] + args[1];
+            UOP_int_sub:  res = args[0] - args[1];
 
-
-        function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
-            assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
             
-            case (uname)
-                UOP_bc_z, UOP_br_z:  return condArg === 0;
-                UOP_bc_nz, UOP_br_nz: return condArg !== 0;
-                UOP_bc_a, UOP_bc_l: return 1;  
-                default: $fatal(2, "Wrong branch uop");
-            endcase            
-        endfunction
-    
-        function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
-            case (uname)
-                UOP_br_z, UOP_br_nz:  return args[1];
-                UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
-                default: $fatal(2, "Wrong branch uop");
-            endcase  
-        endfunction
-    
-        function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
-            if (dir === 0) return bqLink;
-    
-            case (uname)
-                UOP_br_z, UOP_br_nz:  return regValue;
-                UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
-                default: $fatal(2, "Wrong branch uop");
-            endcase 
-        endfunction
+            UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
+            UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
 
-            function automatic FEQ findOldestWithStatus(input ForwardingElement elems[], input ExecStatus st);
-                ForwardingElement found[$] = elems.find with (item.active && item.status == st);
-                ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-                return oldest;
-            endfunction
-
-
-
-        // function automatic OpSlotB getOldestRenameEvSlot();
-        //     // TODO: if stageRename1_N is not empty and has a fetch event, catch it
-
-        //     OpSlotB found[$] = AbstractCore.stageRename1.find_first with (item.active && hasStaticEvent(item.mid));
-        //     // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
-
-        //     if (found.size() == 0) return EMPTY_SLOT_B;
-        //     else return found[0];
-        // endfunction
-
-
-        function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
-
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
-
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
-
-        function automatic UopPacket findOldestMemEvt(/*input ExecStatus refSt,*/ input ForwardingElement stages[]);
-            ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID});
-            ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+        
+            UOP_int_shlc:
+                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                            else                       res = $unsigned(args[0]) >> -args[1];
+            UOP_int_shac:
+                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                            else                       res = $unsigned(args[0]) >> -args[1];                     
+            UOP_int_rotc:
+                            if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
+                            else                       res = {args[0], args[0]} >> -args[1];
             
-            if (found.size() == 0) return EMPTY_UOP_PACKET;
+            // mul/div/rem
+            UOP_int_mul:   res = w2m( multiplyW(args[0], args[1]) );
+            UOP_int_mulhu: res = w2m( multiplyHighUnsignedW(args[0], args[1]) );
+            UOP_int_mulhs: res = w2m( multiplyHighSignedW(args[0], args[1]) );
+            UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
+            UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
+            UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
+            UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
             
-            assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
-            return oldest[0];
-        endfunction
+            UOP_int_link: res = linkAdr;
+            
+            // FP
+            UOP_fp_move:   res = args[0];
+            UOP_fp_xor:     res = args[0] ^ args[1];
+            UOP_fp_and:     res = args[0] & args[1];
+            UOP_fp_or:     res = args[0] | args[1];
+            UOP_fp_addi:   res = args[0] + args[1];
+
+            UOP_fp_muli:   res = args[0] * args[1];
+            UOP_fp_divi:   res = args[0] / args[1];
+            UOP_fp_inv:   res = 1;
+            UOP_fp_ov:   res = 1;
+
+            UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
+            UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
+            UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
+            UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+            UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
+            UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
+            UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+
+            default: $fatal(2, "Wrong uop");
+        endcase
+        
+        // Handling of cases of division by 0  
+        if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
+
+        return res;
+    endfunction
+
+
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
+        
+        case (uname)
+            UOP_bc_z, UOP_br_z:  return condArg === 0;
+            UOP_bc_nz, UOP_br_nz: return condArg !== 0;
+            UOP_bc_a, UOP_bc_l: return 1;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase            
+    endfunction
 
 
 
-        function automatic InsId replaceEvId(input InsId prev, input InsId next);
-            if (prev == -1) return next;
-            else if (next != -1 && prev > next) return next;
-            else return prev;
-        endfunction
+    // > needs InsMap (InstructionInfo)
+    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
+        Mword adr = ii.basicData.adr;
+        EventInfo res = '{1, id, eDesc.etype, 1, adr, 'x};
 
-        // function automatic UopPacket replaceEvP(input UopPacket prev, input UopPacket next);
-        //     UopPacket older = prev;
-        //     InsId prevId = U2M(prev.TMP_oid);
-        //     InsId nextId = U2M(next.TMP_oid);
-        //     InsId olderId = replaceEvId(prevId, nextId);
+        if (eDesc.id == id) begin
+            if (eDesc.etype == PE_EXT_DEBUG) begin
+                $fatal(2, "DB event should not be here");
+            end
+            else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
+                res.target = adr + 4;
+            else if (eDesc.etype == PE_HW_REFETCH)
+                res.target = adr;
+            else
+                res.target = programEvent2trg(eDesc.etype);
+        end
+        else if (dbDesc.id == id) begin
+            res = DB_EVENT;
+        end
+        else $fatal(2, "Wrongly detected event\n%p", ii);
 
-        //     if (prevId == -1) older = next;
-        //     else if (nextId != -1 && prevId > nextId) older = next;
+        return res;
+    endfunction
 
-        //     assert (olderId == U2M(older.TMP_oid)) else $error("Ids differ");
-
-        //     if (shouldFlushId(olderId) || AbstractCore.lastRetired > olderId) return EMPTY_UOP_PACKET;
-        //     else return older;
-        // endfunction
-
-
-    
 endpackage

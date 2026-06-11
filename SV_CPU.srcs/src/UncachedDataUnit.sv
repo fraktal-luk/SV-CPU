@@ -15,7 +15,7 @@ import CacheDefs::*;
 
 module UncachedDataUnit(
     input logic clk,
-    input MemWriteInfo TMP_writeReqs[2]
+    input MemWriteInfo writeReqs[2]
 );
 
     typedef struct {
@@ -136,8 +136,8 @@ module UncachedDataUnit(
             end
         end
 
-        foreach (theExecBlock.accessDescs_E0[p]) begin
-            AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+        foreach (mn.adE0[p]) begin
+            AccessDesc aDesc = mn.adE0[p];
             if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
             else if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aDesc); // request for uncached read
             else if (aDesc.uncachedCollect) UNC_clearUncachedRead();
@@ -148,8 +148,8 @@ module UncachedDataUnit(
     always @(posedge clk) begin
         UNC_handleUncachedData();        
 
-        if (TMP_writeReqs[0].req && TMP_writeReqs[0].uncached) begin
-            UNC_write(TMP_writeReqs[0]);
+        if (writeReqs[0].req && writeReqs[0].uncached) begin
+            UNC_write(writeReqs[0]);
         end
 
         handleReadsUnc();
@@ -158,13 +158,13 @@ module UncachedDataUnit(
 
 
     task automatic handleReadsUnc();
-        foreach (theExecBlock.accessDescs_E0[p]) begin
+        foreach (mn.adE0[p]) begin
             handleSingleReadUnc(p);
         end
     endtask
 
     task automatic handleSingleReadUnc(input int p);
-        AccessDesc aDesc = theExecBlock.accessDescs_E0[p];
+        AccessDesc aDesc = mn.adE0[p];
 
         uncachedResults[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
@@ -182,7 +182,6 @@ module UncachedDataUnit(
         if (0) begin end
         // sys regs
         else if (aDesc.sys) begin end
-
         // uncached access
         else if (aDesc.uncachedReq) begin end
         else if (aDesc.uncachedCollect) begin // Completion of uncached read              

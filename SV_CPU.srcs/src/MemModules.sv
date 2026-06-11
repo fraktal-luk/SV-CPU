@@ -30,7 +30,7 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
             AccessDesc prevDesc = DEFAULT_ACCESS_DESC;
 
             task automatic readArray();
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
+                AccessDesc aDesc = mn.adE0[j];// theExecBlock.accessDescs_E0[j];
                 foreach (ways[i]) aResults[i] = readWay(ways[i], aDesc);
                 prevDesc <= aDesc;
                 aq <= aDesc.active && aDesc.acq;
@@ -48,7 +48,7 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
             task automatic handleLocks();
                 Translation tr = tlb.translationsH[j];
                 ReadResult selectedResult = selectWayResultArray(tr, aResults);
-                AccessDesc aDesc = theExecBlock.accessDescs_E0[j];
+                AccessDesc aDesc = mn.adE0[j];//theExecBlock.accessDescs_E0[j];
 
                 if (selectedResult.way < 0 || selectedResult.way >= N_WAYS) return;
 
@@ -62,7 +62,7 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
 
     // Filling
     function automatic void allocInDynamicRange(input Dword adr);
-        tryFillWay(ways[1], adr); // TODO - temporary filling always way 1
+        tryFillWay(ways[1], adr, AbstractCore.dataMem); // TODO - temporary filling always way 1
     endfunction
     
     // Write
@@ -71,11 +71,9 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
         foreach (ways[i]) void'(tryWriteWay(ways[i], wrInfo));
     endtask
 
-
     // Init/DB
     task automatic resetArray();
         ways = '{default: '{default: null}};
-        //clearLocks(); // No need to clear locks on nulls
     endtask
 
     task automatic clearLocks();
@@ -106,21 +104,17 @@ module DataCacheArray#(parameter int N_WAYS, parameter int WIDTH = N_MEM_PORTS)
     endfunction
 
 
-
     always @(posedge clk) begin
-        if (dataFillEngine.notifyFill) begin
+        if (dataFillEngine.notifyFill)
             allocInDynamicRange(dataFillEngine.notifiedTr.padr);
-        end
 
-        //if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.cOp == CO_sync) clearLocks();
-        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.etype == PE_HW_SYNC) clearLocks();
+        if (AbstractCore.lateEventInfo.redirect && AbstractCore.lateEventInfo.etype == PE_HW_SYNC)
+            clearLocks();
 
         doCachedWrite(writeReqs[0]);
     end
 
 endmodule
-
-
 
 
 
@@ -178,9 +172,7 @@ module InstructionCacheArray
 
 
     always @(posedge clk) begin
-        if (notify) begin
-            allocInDynamicRange(fillTr.padr);
-        end
+        if (notify) allocInDynamicRange(fillTr.padr);
     end
 
 endmodule
@@ -333,5 +325,32 @@ module DataFillEngine#(parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 
         handleBlockFills();
         scheduleBlockFills();
     end
+
+endmodule
+
+
+
+module MemoryNetwork();
+
+    UopPacket uopE0[N_MEM_PORTS];
+    UopPacket uopE1[N_MEM_PORTS];
+    UopPacket uopE2[N_MEM_PORTS];
+
+    AccessDesc adE0[N_MEM_PORTS];
+    AccessDesc adE1[N_MEM_PORTS];
+    AccessDesc adE2[N_MEM_PORTS];
+
+    Translation trPreE0[N_MEM_PORTS];
+    Translation trE0[N_MEM_PORTS];
+    Translation trE1[N_MEM_PORTS];
+    Translation trE2[N_MEM_PORTS];
+
+
+    DataCacheOutput cacheOutE1[N_MEM_PORTS];
+    DataCacheOutput uncachedOutE1[N_MEM_PORTS];
+    DataCacheOutput sysOutE1[N_MEM_PORTS];
+
+    UopMemPacket sqOutE1[N_MEM_PORTS];
+    UopMemPacket lqOutE1[N_MEM_PORTS];
 
 endmodule

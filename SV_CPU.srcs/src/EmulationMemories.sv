@@ -6,7 +6,9 @@ package EmulationMemories;
     import EmulationDefs::*;
     
 
-        localparam int TMP_BLOCK_SIZE = 64;
+    localparam int TMP_BLOCK_SIZE = 64;
+
+    typedef Mbyte DataBlock[TMP_BLOCK_SIZE];
 
     // 4kB pages
     class PageBasedProgramMemory;
@@ -18,7 +20,7 @@ package EmulationMemories;
 
 
         function automatic void setLike(input PageBasedProgramMemory other);
-            pages = other.pages; // TODO: pages are copied as references?
+            pages = other.pages;
         endfunction
 
 
@@ -46,9 +48,6 @@ package EmulationMemories;
 
         function automatic void assignPage(input Dword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
-
-            //if (!hasPage())
-
             pages[index] = new[PAGE_WORDS](arr);// arr;
         endfunction
 
@@ -120,8 +119,7 @@ package EmulationMemories;
         endfunction
 
         function automatic void setLike(input SparseDataMemory other);
-            reservations = //new [other.reservations.size()](other.reservations);
-                            other.reservations;
+            reservations = other.reservations;
             content = other.content;
             usedBlocks = other.usedBlocks;
         endfunction
@@ -206,6 +204,19 @@ package EmulationMemories;
 
             foreach (data[i])
                 RW#(Word, 4)::write(adr + 4*i, data[i], content);
+        endfunction
+
+
+        function automatic DataBlock readBlock(input Dword adr);
+            Dword base = TMP_bbase(adr);
+            DataBlock res;
+
+            clearLock(base);
+
+            foreach (res[i])
+                res[i] = content.exists(base + i) ? content[base + i] : 0;
+
+            return res;
         endfunction
 
     endclass

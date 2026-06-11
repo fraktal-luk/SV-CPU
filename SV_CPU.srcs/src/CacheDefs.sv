@@ -12,170 +12,6 @@ package CacheDefs;
     import Insmap::*;
 
 
-    // Impl specific
-    localparam int BLOCK_SIZE = 64;
-    localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
-    localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
-    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
-
-
-
-    typedef Translation TranslationA[N_MEM_PORTS];
-
-
-    typedef struct {
-        Dword adr;
-        AccessSize size;
-        int block;
-        int blockOffset;
-        logic unaligned;
-        logic blockCross;
-        logic pageCross;
-    } AccessInfo;
-
-    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-        adr: 'x,
-        size: SIZE_NONE,
-        block: -1,
-        blockOffset: -1,
-        unaligned: 'x,
-        blockCross: 'x,
-        pageCross: 'x 
-    };
-
-
-     typedef struct {
-        logic active;
-
-        logic invalid;
-
-        logic sys;
-        logic store;
-        logic uncachedReq;
-        logic uncachedCollect;
-        logic uncachedStore;
-        logic acq;
-        logic rel;
-
-        AccessSize size;
-        Mword vadr;
-        int blockIndex;
-        int blockOffset;
-        logic unaligned;
-        logic blockCross;
-        logic pageCross;
-        int shift; // Applies to block-crossing: bytes to shift at combining 
-     } AccessDesc;
-
-    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
-
-
-    function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
-        Mword adr = aDesc.vadr;
-        Translation res = DEFAULT_TRANSLATION;
-        Translation found[$];
-
-        if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
-        if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
-
-        found = tq.find with (item.vadr == getPageBaseM(adr));
-
-        assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
-
-        if (found.size() == 0) begin
-            res.vadr = adr; // It's needed because TLB fill is based on this adr
-            return res;
-        end
-
-        res = found[0];
-
-        res.vadr = adr;
-        res.padr = res.padr + (adr - getPageBaseM(adr));
-
-        return res;
-    endfunction
-
-
-    ////////////////////////////////////
-    // Dep on BLOCK_SIZE
-
-    function automatic Dword getBlockBaseD(input Dword adr);
-        Dword res = adr;
-        res[BLOCK_OFFSET_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-    function automatic Mword getBlockBaseM(input Mword adr);
-        Mword res = adr;
-        res[BLOCK_OFFSET_BITS-1:0] = 0;
-        return res;
-    endfunction
-
-
-    function automatic int getBlockIndex(input Dword adr);
-        return (adr % WAY_SIZE)/BLOCK_SIZE;
-    endfunction
-
-    function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
-        AccessInfo res;
-
-        Dword aLow = adr % WAY_SIZE;
-        int block = aLow / BLOCK_SIZE;
-        int blockOffset = aLow % BLOCK_SIZE;
-
-        if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-        res.adr = adr;
-        res.size = accessSize;
-        
-        res.block = block;
-        res.blockOffset = blockOffset;
-        
-        res.unaligned = (aLow % accessSize) > 0;
-        res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-        res.pageCross = (aLow + accessSize) > PAGE_SIZE;
-
-        return res;
-    endfunction
-
-
-
-
-    // DCache specific
-
-    typedef struct {
-        logic req;
-        Mword adr;
-        Dword padr;
-        Mword value;
-        AccessSize size;
-        logic uncached;
-    } MemWriteInfo;
-
-    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
-
-
-    typedef struct {
-        logic active;
-        CacheReadStatus status;
-        logic lock;
-        Mword data;
-    } DataCacheOutput;
-
-    localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
-        0,
-        CR_INVALID,
-        'x,
-        'x
-    };
-
-    typedef struct {
-        logic valid;
-        integer way;
-        Dword tag;
-        logic locked;
-        Mword value;
-    } ReadResult;
 
 
     class DataCacheBlock;
@@ -329,8 +165,8 @@ package CacheDefs;
         return 1;
     endfunction
 
-    // TODO: write actual data
-    function automatic logic tryFillWay(ref DataWay way, input Dword adr);
+
+    function automatic logic tryFillWay(ref DataWay way, input Dword adr, input SparseDataMemory mem);
         int blockIndex = getBlockIndex(adr);
 
         DataCacheBlock block = way[blockIndex];
@@ -348,7 +184,7 @@ package CacheDefs;
         block.valid = 1;
         block.pbase = fillPbase;
         block.lock = 0;
-        block.array = '{default: 0};
+        block.array = mem.readBlock(adr);
 
         return 1;
     endfunction

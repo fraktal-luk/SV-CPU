@@ -473,7 +473,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     // FUTURE: split along with split between FETCH_WIDTH and RENAME_WIDTH
     task automatic markKilledFrontStage(ref OpSlotAF stage);
         foreach (stage[i])
-            if (stage[i].active) putMilestoneF(stage[i].id, InstructionMap::FlushFront);
+            if (stage[i].active) putMilestoneF(stage[i].mid, InstructionMap::FlushFront);
     endtask
 
     function automatic Mword redirectedTarget();
