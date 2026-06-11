@@ -26,8 +26,8 @@ module MemSubpipe#()
 );
 
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
-    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
-        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pD0_Emp, pD1_Emp;
+    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pE3_E, pD0_E, pD1_E;
+        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pE3_Emp, pD0_Emp, pD1_Emp;
     Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION, trE3 = DEFAULT_TRANSLATION;
 
 
@@ -37,8 +37,8 @@ module MemSubpipe#()
 
     AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC, accessDescE3 = DEFAULT_ACCESS_DESC;
 
-    always_comb stage0_E = pE2_E;
-    always_comb stage1_E = pD0_E;
+    always_comb stage0_E = pE3_E;
+    always_comb stage1_E = pD1_E;
     assign tr0 = trE2;
     assign ad0 = accessDescE2;
 
@@ -72,6 +72,7 @@ module MemSubpipe#()
     always_comb pE0_E = effP(pE0);
     always_comb pE1_E = effP(pE1);
     always_comb pE2_E = effP(pE2);
+        always_comb pE3_E = effP(pD0);
     always_comb pD0_E = effP(pD0);
     always_comb pD1_E = effP(pD1);
 
@@ -81,6 +82,7 @@ module MemSubpipe#()
         always_comb pE0_Emp = TMP_mp(pE0_E);
         always_comb pE1_Emp = TMP_mp(pE1_E);
         always_comb pE2_Emp = TMP_mp(pE2_E);
+        always_comb pE3_Emp = TMP_mp(pE3_E);
         always_comb pD0_Emp = TMP_mp(pD0_E);
         always_comb pD1_Emp = TMP_mp(pD1_E);
 
@@ -88,11 +90,12 @@ module MemSubpipe#()
     ForwardingElement image_E[-3:1];
     
     assign image_E = '{
-        -3: p1_Emp,
-        -2: pE0_Emp,
-        -1: pE1_Emp,
-        0: pE2_Emp,
-        1: pD0_Emp,
+        //-3: p1_Emp,
+        -3: pE0_Emp,
+        -2: pE1_Emp,
+        -1: pE2_Emp,
+        0: pE3_Emp,
+        1: pD1_Emp,
         default: EMPTY_FORWARDING_ELEMENT
     };
     
