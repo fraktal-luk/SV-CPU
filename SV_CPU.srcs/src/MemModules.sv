@@ -335,15 +335,18 @@ module MemoryNetwork();
     UopPacket uopE0[N_MEM_PORTS];
     UopPacket uopE1[N_MEM_PORTS];
     UopPacket uopE2[N_MEM_PORTS];
+    UopPacket uopE3[N_MEM_PORTS];
 
     AccessDesc adE0[N_MEM_PORTS];
     AccessDesc adE1[N_MEM_PORTS];
     AccessDesc adE2[N_MEM_PORTS];
+    AccessDesc adE3[N_MEM_PORTS];
 
     Translation trPreE0[N_MEM_PORTS];
     Translation trE0[N_MEM_PORTS];
     Translation trE1[N_MEM_PORTS];
     Translation trE2[N_MEM_PORTS];
+    Translation trE3[N_MEM_PORTS];
 
 
     DataCacheOutput cacheOutE1[N_MEM_PORTS];

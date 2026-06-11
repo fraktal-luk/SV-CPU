@@ -210,15 +210,18 @@ module ExecBlock(ref InstructionMap insMap,
     assign mn.uopE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign mn.uopE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
     assign mn.uopE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
+    assign mn.uopE3 = '{0: mem0.pD0_E, 2: mem2.pD0_E, default: EMPTY_UOP_PACKET};
 
     assign mn.adE0 = '{0: mem0.accessDescE0, 2: mem2.accessDescE0, default: DEFAULT_ACCESS_DESC};
     assign mn.adE1 = '{0: mem0.accessDescE1, 2: mem2.accessDescE1, default: DEFAULT_ACCESS_DESC};
     assign mn.adE2 = '{0: mem0.accessDescE2, 2: mem2.accessDescE2, default: DEFAULT_ACCESS_DESC};
+    assign mn.adE3 = '{0: mem0.accessDescE3, 2: mem2.accessDescE3, default: DEFAULT_ACCESS_DESC};
 
     assign mn.trPreE0 = '{0: dcacheTranslations_EE0[0], 2: dcacheTranslations_EE0[2], default: DEFAULT_TRANSLATION};
     assign mn.trE0 = '{0: mem0.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
     assign mn.trE1 = '{0: mem0.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
     assign mn.trE2 = '{0: mem0.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};
+    assign mn.trE3 = '{0: mem0.trE3, 2: mem2.trE3, default: DEFAULT_TRANSLATION};
 
     assign mn.cacheOutE1 = dcacheOuts_E1;
     assign mn.uncachedOutE1 = uncachedOuts_E1;

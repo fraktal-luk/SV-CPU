@@ -28,14 +28,14 @@ module MemSubpipe#()
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
         UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pD0_Emp, pD1_Emp;
-    Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION;
+    Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION, trE3 = DEFAULT_TRANSLATION;
 
 
     UopMemPacket stage0, stage0_E, stage1_E;
     Translation tr0;
     AccessDesc ad0;
 
-    AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
+    AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC, accessDescE3 = DEFAULT_ACCESS_DESC;
 
     always_comb stage0_E = pE2_E;
     always_comb stage1_E = pD0_E;
@@ -59,9 +59,11 @@ module MemSubpipe#()
 
         trE1 <= trE0;
         trE2 <= trE1;
+        trE3 <= trE2;
 
         accessDescE1 <= accessDescE0;
         accessDescE2 <= accessDescE1;
+        accessDescE3 <= accessDescE2;
     end
 
 
