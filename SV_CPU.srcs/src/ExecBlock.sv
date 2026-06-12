@@ -181,8 +181,8 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign doneBranch_E = branch0.stage0_E;
     assign doneDivider_E = divider.stage0_E;
-        assign doneMem0_E = TMP_mp(memToComplete(mem0.stage1_E));
-        assign doneMem2_E = TMP_mp(memToComplete(mem2.stage1_E));
+        assign doneMem0_E = TMP_mp(memToComplete(mem0.stage0_E));
+        assign doneMem2_E = TMP_mp(memToComplete(mem2.stage0_E));
     assign doneFloat0_E = float0.stage0_E;
     assign doneFloat1_E = float1.stage0_E;
     assign doneFloatDiv_E = fdiv.stage0_E;
@@ -210,7 +210,7 @@ module ExecBlock(ref InstructionMap insMap,
     assign mn.uopE0 = '{0: mem0.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
     assign mn.uopE1 = '{0: mem0.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
     assign mn.uopE2 = '{0: mem0.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
-    assign mn.uopE3 = '{0: mem0.pD0_E, 2: mem2.pD0_E, default: EMPTY_UOP_PACKET};
+    assign mn.uopE3 = '{0: mem0.pE3_E, 2: mem2.pE3_E, default: EMPTY_UOP_PACKET};
 
     assign mn.adE0 = '{0: mem0.accessDescE0, 2: mem2.accessDescE0, default: DEFAULT_ACCESS_DESC};
     assign mn.adE1 = '{0: mem0.accessDescE1, 2: mem2.accessDescE1, default: DEFAULT_ACCESS_DESC};

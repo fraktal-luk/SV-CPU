@@ -25,7 +25,8 @@ module MemSubpipe#()
     input UopPacket lqResp
 );
 
-    UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET,
+                 pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pE3_E, pD0_E, pD1_E;
         UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pE3_Emp, pD0_Emp, pD1_Emp;
     Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION, trE3 = DEFAULT_TRANSLATION;
@@ -38,7 +39,7 @@ module MemSubpipe#()
     AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC, accessDescE3 = DEFAULT_ACCESS_DESC;
 
     always_comb stage0_E = pE3_E;
-    always_comb stage1_E = pD1_E;
+    always_comb stage1_E = pD0_E;
     assign tr0 = trE2;
     assign ad0 = accessDescE2;
 
@@ -54,7 +55,10 @@ module MemSubpipe#()
         performE1();
         performE2();
 
+        pE3 <= tickP(pE2);
+        
         pD0 <= tickP(pE2);
+            pD0 <= tickP(pE3);
         pD1 <= tickP(pD0);
 
         trE1 <= trE0;
@@ -72,7 +76,7 @@ module MemSubpipe#()
     always_comb pE0_E = effP(pE0);
     always_comb pE1_E = effP(pE1);
     always_comb pE2_E = effP(pE2);
-        always_comb pE3_E = effP(pD0);
+    always_comb pE3_E = effP(pE3);
     always_comb pD0_E = effP(pD0);
     always_comb pD1_E = effP(pD1);
 
