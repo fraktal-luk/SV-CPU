@@ -58,3 +58,9 @@ sim:/ArchDesc0/core/mn/trE0 \
 sim:/ArchDesc0/core/mn/trE1 \
 sim:/ArchDesc0/core/mn/trE2 \
 
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theSq/content
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theSq/responseE1
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/memImages

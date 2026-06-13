@@ -231,11 +231,17 @@ module TmpSubSq();
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               DataCacheOutput dcOut = //theExecBlock.dcacheOuts_E1[p];
-                                        mn.cacheOutE1[p];
+               DataCacheOutput dcOut = mn.cacheOutE1[p];
                int index = findIndex(packet.TMP_oid);
-               if (isStoreRelUop(uname) && dcOut.lock == 1) StoreQueue.content[index].suppress = 0;
-                    // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
+
+               // On first run of StoreRel we find out whether the store succeeds
+               if (isStoreRelUop(uname) && packet.status != ES_BEGIN) begin
+                    StoreQueue.content[index].waitCond = 0;
+                    if (dcOut.lock == 1)
+                        StoreQueue.content[index].suppress = 0;
+                    else
+                        StoreQueue.content[index].suppress = 1;
+               end
             end
         end
 
@@ -266,7 +272,8 @@ module TmpSubSq();
                                             && memOverlap(item.translation.padr, item.accessDesc.size, tr.padr, loadSize));
         SqEntry fwEntry;
 
-        if (found.size() == 0) return EMPTY_UOP_PACKET;
+        if (found.size() == 0)
+            return EMPTY_UOP_PACKET;
         else begin // Youngest older overlapping store:
             SqEntry vmax[$] = found.max with (item.mid);
             fwEntry = vmax[0];
@@ -276,7 +283,7 @@ module TmpSubSq();
 
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-        else if (!fwEntry.valReady || fwEntry.suppress)         // Covers, not has data -> to RQ (or store conditional not executed)
+        else if (!fwEntry.valReady || fwEntry.waitCond)         // Covers, not has data -> to RQ (or store conditional not executed)
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_SQ_MISS,   EMPTY_POISON, 'x};
         else                                // Covers and has data -> OK
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
@@ -375,7 +382,8 @@ module TmpSubSq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: isMemBarrierUop(decMainUop(mid)),
-            suppress: isStoreRelUop(decMainUop(mid)),
+            waitCond: isStoreRelUop(decMainUop(mid)),
+            suppress: 0,
 
             committed: 0,
             error: 0,
@@ -516,6 +524,7 @@ module TmpSubLq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: 0,
+            waitCond: 0,
             suppress: 0,
 
             committed: 0,
