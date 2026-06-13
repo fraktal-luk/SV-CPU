@@ -159,7 +159,7 @@ module ReplayQueue(
                     end
                 end
 
-                ES_LOWER_DONE:
+                ES_LOWER_DONE, ES_INSTANT_REPLAY:
                     entries[i].ready = 1;
 
                 default: begin

@@ -168,6 +168,8 @@ package AbstractSim;
             ES_REFETCH, // cause refetch
             ES_CANT_FORWARD,
             
+            ES_INSTANT_REPLAY,
+
             ES_LOWER_DONE,
 
 

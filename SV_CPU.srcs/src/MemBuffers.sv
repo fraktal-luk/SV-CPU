@@ -283,8 +283,10 @@ module TmpSubSq();
 
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-        else if (!fwEntry.valReady || fwEntry.waitCond)         // Covers, not has data -> to RQ (or store conditional not executed)
+        else if (!fwEntry.valReady)         // Covers, not has data -> to RQ (or store conditional not executed)
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_SQ_MISS,   EMPTY_POISON, 'x};
+        else if (fwEntry.waitCond)
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_INSTANT_REPLAY,   EMPTY_POISON, 'x};
         else                                // Covers and has data -> OK
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
 

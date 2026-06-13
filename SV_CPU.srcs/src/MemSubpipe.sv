@@ -244,7 +244,7 @@ module MemSubpipe#()
 
             MC_AQ_REL: begin
                 case (p.status)
-                    ES_BEGIN: begin
+                    ES_BEGIN, ES_INSTANT_REPLAY: begin
                         if (ad.unaligned) begin
                             insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
                             res.status = ES_UNALIGNED;
@@ -391,6 +391,10 @@ module MemSubpipe#()
                     if (sqResp.status == ES_CANT_FORWARD) begin
                         res.status = ES_REFETCH;
                         insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
+                        res.result = 0; // TMP
+                    end
+                    else if (sqResp.status == ES_INSTANT_REPLAY) begin
+                        res.status = ES_INSTANT_REPLAY;
                         res.result = 0; // TMP
                     end
                     else if (sqResp.status == ES_SQ_MISS) begin   
