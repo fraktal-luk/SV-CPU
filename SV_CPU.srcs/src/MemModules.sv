@@ -356,4 +356,23 @@ module MemoryNetwork();
     UopMemPacket sqOutE1[N_MEM_PORTS];
     UopMemPacket lqOutE1[N_MEM_PORTS];
 
+
+    DataCacheOutput cacheOutE1d[N_MEM_PORTS];
+    DataCacheOutput uncachedOutE1d[N_MEM_PORTS];
+    DataCacheOutput sysOutE1d[N_MEM_PORTS];
+
+    UopMemPacket sqOutE1d[N_MEM_PORTS];
+    UopMemPacket lqOutE1d[N_MEM_PORTS];
+
+
+    always @(negedge AbstractCore.clk) begin
+        cacheOutE1d <= cacheOutE1;
+        uncachedOutE1d <= uncachedOutE1;
+        sysOutE1d <= sysOutE1;
+
+        //sqOutE1d <= sqOutE1;
+        lqOutE1d <= lqOutE1;
+    end
+
+
 endmodule

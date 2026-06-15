@@ -50,6 +50,9 @@ module ExecBlock(ref InstructionMap insMap,
     ForwardsByStage_0 allByStage;
     
 
+            logic ch0, ch1, ch2, ch3;
+
+
     // Int 0
     RegularSubpipe regular0(
         insMap,
@@ -108,11 +111,11 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
         dcacheTranslations_EE0[0],
-        mn.cacheOutE1[0],
-        mn.uncachedOutE1[0],
-        mn.sysOutE1[0],
-        mn.sqOutE1[0],
-        mn.lqOutE1[0]
+        mn.cacheOutE1d[0],
+        mn.uncachedOutE1d[0],
+        mn.sysOutE1d[0],
+        mn.sqOutE1d[0],
+        mn.lqOutE1d[0]
     );
 
     // Mem 2 - for ReplayQueue only!
@@ -123,11 +126,11 @@ module ExecBlock(ref InstructionMap insMap,
         lateEventInfo,
         issuedReplayQueue,
         dcacheTranslations_EE0[2],
-        mn.cacheOutE1[2],
-        mn.uncachedOutE1[2],
-        mn.sysOutE1[2],
-        mn.sqOutE1[2],
-        mn.lqOutE1[2]
+        mn.cacheOutE1d[2],
+        mn.uncachedOutE1d[2],
+        mn.sysOutE1d[2],
+        mn.sqOutE1d[2],
+        mn.lqOutE1d[2]
     );
 
     // Vec 0
@@ -229,6 +232,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign mn.sqOutE1 = theSq.responseE1;
     assign mn.lqOutE1 = theLq.responseE1;
+
+        assign mn.sqOutE1d = theSq.responseE1d_N;
+
+        //assign ch0 = (theSq.responseE1d_N === mn.sqOutE1d); // Yes
 
 
 

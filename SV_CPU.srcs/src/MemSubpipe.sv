@@ -372,7 +372,7 @@ module MemSubpipe#()
 
 
     function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp,
-                                                        input UopPacket sqResp, input UopPacket lqResp);
+                                                     input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
@@ -411,8 +411,6 @@ module MemSubpipe#()
                     assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
 
                     if (res.memClass == MC_UPPER_B) begin
-                        //Mword cacheVal = cacheResp.data;
-                        //Mword uopVal = p.result;
                         res.status = ES_OK;
                         res.result = combineLoadValues(p.result, cacheResp.data, ad.shift, decUname(uid));
                     end

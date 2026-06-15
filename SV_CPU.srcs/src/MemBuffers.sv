@@ -44,7 +44,7 @@ module StoreQueue
     int size;
     logic allow;
 
-    UopMemPacket responseE1[N_MEM_PORTS];
+    UopMemPacket responseE1[N_MEM_PORTS], responseE1d_N[N_MEM_PORTS];;
 
     QEntry content[SIZE] = '{default: EMPTY_QENTRY};
 
@@ -64,6 +64,11 @@ module StoreQueue
             
         submod.updateMain();
         submod.readImpl();
+    end
+
+    always @(negedge AbstractCore.clk) begin
+        
+        submod.readHalfCycle();
     end
 
 
@@ -192,18 +197,30 @@ module TmpSubSq();
 
 
     task automatic readImpl();
-        foreach (mn.uopE0[p]) begin
-            UopMemPacket loadOp = mn.uopE0[p];
-            AccessDesc ad = mn.adE0[p];
-            Translation tr = mn.trPreE0[p];
+        // foreach (mn.uopE0[p]) begin
+        //     UopMemPacket loadOp = mn.uopE0[p];
+        //     AccessDesc ad = mn.adE0[p];
+        //     Translation tr = mn.trPreE0[p];
 
-             //   theExecBlock.sqResponse_E1[p] <= EMPTY_UOP_PACKET;
-            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
+        //     StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
+
+        //     if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
+
+        //     StoreQueue.responseE1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+        // end
+    endtask
+
+    task automatic readHalfCycle();
+        foreach (mn.uopE1[p]) begin
+            UopMemPacket loadOp = mn.uopE1[p];
+            AccessDesc ad = mn.adE1[p];
+            Translation tr = mn.trE1[p];
+
+            StoreQueue.responseE1d_N[p] <= EMPTY_UOP_PACKET;
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-             //   theExecBlock.sqResponse_E1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
-            StoreQueue.responseE1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+            StoreQueue.responseE1d_N[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
         end
     endtask
 
@@ -213,17 +230,31 @@ module TmpSubSq();
         UopMemPacket packetsE1[N_MEM_PORTS] = mn.uopE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = mn.uopE2;
 
-        foreach (packetsE0[p]) begin
-            UopMemPacket packet = packetsE0[p];
-            UopName uname = decUname(packet.TMP_oid);
-            if (!packet.active || !appliesU(uname)) continue;
+        // foreach (packetsE0[p]) begin
+        //     UopMemPacket packet = packetsE0[p];
+        //     UopName uname = decUname(packet.TMP_oid);
+        //     if (!packet.active || !appliesU(uname)) continue;
 
-            begin
-               int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
-               putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
+        //     begin
+        //        int index = findIndex(packet.TMP_oid);
+        //        updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
+        //        putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
+        //     end
+        // end
+
+
+            foreach (packetsE1[p]) begin
+                UopMemPacket packet = packetsE1[p];
+                UopName uname = decUname(packet.TMP_oid);
+                if (!packet.active || !appliesU(uname)) continue;
+
+                begin
+                   int index = findIndex(packet.TMP_oid);
+                   updateEntry(StoreQueue.content[index], packet, mn.trE1[p], mn.adE1[p]);
+                   putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
+                end
             end
-        end
+/**/
 
         foreach (packetsE1[p]) begin
             UopMemPacket packet = packetsE1[p];
@@ -305,7 +336,7 @@ module TmpSubSq();
         assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
         assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
-        if (sr.status == ES_CANT_FORWARD) begin //
+        if (sr.status == ES_CANT_FORWARD) begin
             logic isOverlapping = memOverlap(padr, esize, tr.padr, trSize);
             assert (isOverlapping && ((esize != trSize) || !isInside) ) else $error("Adr (same size and inside) or not overlapping");
         end
@@ -411,10 +442,22 @@ module TmpSubLq();
     task automatic readImpl();
     endtask
 
+    task automatic readHalfCycle();
+    endtask
+
     task automatic updateMain();
         UopMemPacket packetsE0[N_MEM_PORTS] = mn.uopE0;
         UopMemPacket packetsE1[N_MEM_PORTS] = mn.uopE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = mn.uopE2;
+
+
+            foreach (mn.uopE1[p]) begin
+                UopMemPacket storeUop = mn.uopE1[p];
+                //StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
+                if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE1[p].padr, mn.adE1[p].size));
+            end
+
 
         foreach (packetsE0[p]) begin
             UopMemPacket packet = packetsE0[p];
@@ -451,18 +494,14 @@ module TmpSubLq();
             end
         end
 
-        foreach (mn.uopE2[p]) begin
-            UopMemPacket storeUop = mn.uopE2[p];
 
-            //theExecBlock.lqResponse_E1[p] <= EMPTY_UOP_PACKET;
-            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
 
-            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-
-            //theExecBlock.lqResponse_E1[p]  <=
-            //StoreQueue.responseE1[p] <= 
-                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE2[p].padr, mn.adE2[p].size));
-        end
+        // foreach (mn.uopE2[p]) begin
+        //     UopMemPacket storeUop = mn.uopE2[p];
+        //     StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
+        //     if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+        //     void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE2[p].padr, mn.adE2[p].size));
+        // end
 
         handleSOV();
     endtask
@@ -556,7 +595,10 @@ module TmpSubBr();
             lookupLink <= 'x;
         end
     endtask
-    
+
+    task automatic readHalfCycle();
+    endtask
+
     task automatic verify(input BqEntry entry);
         InstructionMap imap = StoreQueue.insMap;
         UopName uname = decUname(FIRST_U(entry.mid));

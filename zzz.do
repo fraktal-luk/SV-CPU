@@ -64,3 +64,15 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/theSq/responseE1
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/memImages
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/ch0 \
+sim:/ArchDesc0/core/theExecBlock/ch1 \
+sim:/ArchDesc0/core/theExecBlock/ch2 \
+sim:/ArchDesc0/core/theExecBlock/ch3
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/mn/sqOutE1 \
+sim:/ArchDesc0/core/mn/sqOutE1d
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theSq/responseE1 \
+sim:/ArchDesc0/core/theSq/responseE1d_N
