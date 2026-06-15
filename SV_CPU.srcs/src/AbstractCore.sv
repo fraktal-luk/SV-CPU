@@ -97,7 +97,7 @@ module AbstractCore
 
     ///////////////////////////
 
-    DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
+    DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 

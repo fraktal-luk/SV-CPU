@@ -30,7 +30,8 @@ module ExecBlock(ref InstructionMap insMap,
     logic memIssueAllow;
 
 
-    Translation dcacheTranslations_EE0[N_MEM_PORTS]; // source: DataL1
+        Translation dcacheTranslationsE0d[N_MEM_PORTS]; // source: DataL1
+
 
     DataCacheOutput dcacheOuts_E1[N_MEM_PORTS];
     DataCacheOutput uncachedOuts_E1[N_MEM_PORTS];
@@ -110,7 +111,7 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         theIssueQueues.issuedMemP[0],
-        dcacheTranslations_EE0[0],
+        dcacheTranslationsE0d[0],
         mn.cacheOutE1d[0],
         mn.uncachedOutE1d[0],
         mn.sysOutE1d[0],
@@ -125,7 +126,7 @@ module ExecBlock(ref InstructionMap insMap,
         branchEventInfo,
         lateEventInfo,
         issuedReplayQueue,
-        dcacheTranslations_EE0[2],
+        dcacheTranslationsE0d[2],
         mn.cacheOutE1d[2],
         mn.uncachedOutE1d[2],
         mn.sysOutE1d[2],
@@ -220,7 +221,8 @@ module ExecBlock(ref InstructionMap insMap,
     assign mn.adE2 = '{0: mem0.accessDescE2, 2: mem2.accessDescE2, default: DEFAULT_ACCESS_DESC};
     assign mn.adE3 = '{0: mem0.accessDescE3, 2: mem2.accessDescE3, default: DEFAULT_ACCESS_DESC};
 
-    assign mn.trPreE0 = '{0: dcacheTranslations_EE0[0], 2: dcacheTranslations_EE0[2], default: DEFAULT_TRANSLATION};
+//        assign mn.trPreE0 = '{0: dcacheTranslationsE0d[0], 2: dcacheTranslationsE0d[2], default: DEFAULT_TRANSLATION};
+    assign mn.trE0d = '{0: dcacheTranslationsE0d[0], 2: dcacheTranslationsE0d[2], default: DEFAULT_TRANSLATION};
     assign mn.trE0 = '{0: mem0.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
     assign mn.trE1 = '{0: mem0.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
     assign mn.trE2 = '{0: mem0.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};

@@ -342,8 +342,9 @@ module MemoryNetwork();
     AccessDesc adE2[N_MEM_PORTS];
     AccessDesc adE3[N_MEM_PORTS];
 
-    Translation trPreE0[N_MEM_PORTS];
+    //Translation trPreE0[N_MEM_PORTS];
     Translation trE0[N_MEM_PORTS];
+        Translation trE0d[N_MEM_PORTS];
     Translation trE1[N_MEM_PORTS];
     Translation trE2[N_MEM_PORTS];
     Translation trE3[N_MEM_PORTS];

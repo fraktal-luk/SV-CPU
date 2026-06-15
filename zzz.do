@@ -53,8 +53,8 @@ sim:/ArchDesc0/core/mn/uopE2 \
 sim:/ArchDesc0/core/mn/adE0 \
 sim:/ArchDesc0/core/mn/adE1 \
 sim:/ArchDesc0/core/mn/adE2 \
-sim:/ArchDesc0/core/mn/trPreE0 \
 sim:/ArchDesc0/core/mn/trE0 \
+sim:/ArchDesc0/core/mn/trE0d \
 sim:/ArchDesc0/core/mn/trE1 \
 sim:/ArchDesc0/core/mn/trE2 \
 
