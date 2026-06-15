@@ -459,17 +459,31 @@ module TmpSubLq();
             end
 
 
-        foreach (packetsE0[p]) begin
-            UopMemPacket packet = packetsE0[p];
-            UopName uname = decUname(packet.TMP_oid);
-            if (!packet.active || !appliesU(uname)) continue;
+            // foreach (packetsE0[p]) begin
+            //     UopMemPacket packet = packetsE0[p];
+            //     UopName uname = decUname(packet.TMP_oid);
+            //     if (!packet.active || !appliesU(uname)) continue;
 
-            begin
-               int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
-               putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
+            //     begin
+            //        int index = findIndex(packet.TMP_oid);
+            //        updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
+            //        putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
+            //     end
+            // end
+
+
+            foreach (packetsE1[p]) begin
+                UopMemPacket packet = packetsE1[p];
+                UopName uname = decUname(packet.TMP_oid);
+                if (!packet.active || !appliesU(uname)) continue;
+
+                begin
+                   int index = findIndex(packet.TMP_oid);
+                   updateEntry(StoreQueue.content[index], packet, mn.trE1[p], mn.adE1[p]);
+                   putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
+                end
             end
-        end
+
 
         foreach (packetsE1[p]) begin
             UopMemPacket packet = packetsE1[p];
