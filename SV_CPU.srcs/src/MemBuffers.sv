@@ -197,17 +197,6 @@ module TmpSubSq();
 
 
     task automatic readImpl();
-        // foreach (mn.uopE0[p]) begin
-        //     UopMemPacket loadOp = mn.uopE0[p];
-        //     AccessDesc ad = mn.adE0[p];
-        //     Translation tr = mn.trPreE0[p];
-
-        //     StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
-
-        //     if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
-
-        //     StoreQueue.responseE1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
-        // end
     endtask
 
     task automatic readHalfCycle();
@@ -241,20 +230,6 @@ module TmpSubSq();
                putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
             end
         end
-
-/*
-            foreach (packetsE1[p]) begin
-                UopMemPacket packet = packetsE1[p];
-                UopName uname = decUname(packet.TMP_oid);
-                if (!packet.active || !appliesU(uname)) continue;
-
-                begin
-                   int index = findIndex(packet.TMP_oid);
-                   updateEntry(StoreQueue.content[index], packet, mn.trE1[p], mn.adE1[p]);
-                   putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
-                end
-            end
-/**/
 
         foreach (packetsE1[p]) begin
             UopMemPacket packet = packetsE1[p];
@@ -309,8 +284,6 @@ module TmpSubSq();
             SqEntry vmax[$] = found.max with (item.mid);
             fwEntry = vmax[0];
         end
-
-        // Note: in this scheme store-release, if not successful, will block loads forwarding from it until it gets committed and drained
 
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
@@ -442,10 +415,8 @@ module TmpSubLq();
     task automatic readImpl();
         // Scan triggering ST uop enters at E1 and result is ready at E2
         // So loads performed in previous cycle, which stored .valRedy at E2 1 cycle earlier, are ready to be scanned
-
         foreach (mn.uopE1[p]) begin
             UopMemPacket storeUop = mn.uopE1[p];
-            //StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
             void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE1[p].padr, mn.adE1[p].size));
         end
@@ -459,35 +430,17 @@ module TmpSubLq();
         UopMemPacket packetsE1[N_MEM_PORTS] = mn.uopE1;
         UopMemPacket packetsE2[N_MEM_PORTS] = mn.uopE2;
 
+        foreach (packetsE0[p]) begin
+            UopMemPacket packet = packetsE0[p];
+            UopName uname = decUname(packet.TMP_oid);
+            if (!packet.active || !appliesU(uname)) continue;
 
-
-
-
-            foreach (packetsE0[p]) begin
-                UopMemPacket packet = packetsE0[p];
-                UopName uname = decUname(packet.TMP_oid);
-                if (!packet.active || !appliesU(uname)) continue;
-
-                begin
-                   int index = findIndex(packet.TMP_oid);
-                   updateEntry(StoreQueue.content[index], packet, mn.trE0d[p], mn.adE0[p]);
-                   putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
-                end
+            begin
+               int index = findIndex(packet.TMP_oid);
+               updateEntry(StoreQueue.content[index], packet, mn.trE0d[p], mn.adE0[p]);
+               putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
             end
-
-
-            // foreach (packetsE1[p]) begin
-            //     UopMemPacket packet = packetsE1[p];
-            //     UopName uname = decUname(packet.TMP_oid);
-            //     if (!packet.active || !appliesU(uname)) continue;
-
-            //     begin
-            //        int index = findIndex(packet.TMP_oid);
-            //        updateEntry(StoreQueue.content[index], packet, mn.trE1[p], mn.adE1[p]);
-            //        putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
-            //     end
-            // end
-
+        end
 
         foreach (packetsE1[p]) begin
             UopMemPacket packet = packetsE1[p];
@@ -511,15 +464,6 @@ module TmpSubLq();
                else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;  // CAREFUL: this is critical because needed to find order violations
             end
         end
-
-
-
-        // foreach (mn.uopE2[p]) begin
-        //     UopMemPacket storeUop = mn.uopE2[p];
-        //     StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
-        //     if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-        //     void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE2[p].padr, mn.adE2[p].size));
-        // end
 
         handleSOV();
     endtask

@@ -55,9 +55,11 @@ package AbstractSim;
     localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
 
 
+    localparam int DATA_ARRAY_FILL_DELAY = 14;
+    localparam int DATA_TLB_FILL_DELAY = 11;
 
-
-
+    localparam int INS_ARRAY_FILL_DELAY = 14;
+    localparam int INS_TLB_FILL_DELAY = 11;
 
 
 ////////////////////////////
@@ -147,7 +149,6 @@ package AbstractSim;
         } MemClass;
 
 
-
         typedef enum {
             ES_BEGIN,
 
@@ -204,8 +205,6 @@ package AbstractSim;
 
 
 
-
-
         typedef struct {
             logic active;
             InsId mid;
@@ -245,8 +244,6 @@ package AbstractSim;
         function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
             return ops;
         endfunction;
-
-
 
 
 
@@ -313,8 +310,6 @@ package AbstractSim;
         if (info.etype == PE_HW_RETI) res.target = sr3;
 
         return res;
-
-        return res;
     endfunction
 
 
@@ -324,7 +319,6 @@ package AbstractSim;
 
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 
         /////////////////////////////////////////////////////////////////////////////////
         // Mem
@@ -444,82 +438,77 @@ package AbstractSim;
         endfunction
 
 
+        function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
+            Mword adr = aDesc.vadr;
+            Translation res = DEFAULT_TRANSLATION;
+            Translation found[$];
 
-            function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
-                Mword adr = aDesc.vadr;
-                Translation res = DEFAULT_TRANSLATION;
-                Translation found[$];
+            if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
+            if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
 
-                if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
-                if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+            found = tq.find with (item.vadr == getPageBaseM(adr));
 
-                found = tq.find with (item.vadr == getPageBaseM(adr));
+            assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
 
-                assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
-
-                if (found.size() == 0) begin
-                    res.vadr = adr; // It's needed because TLB fill is based on this adr
-                    return res;
-                end
-
-                res = found[0];
-
-                res.vadr = adr;
-                res.padr = res.padr + (adr - getPageBaseM(adr));
-
+            if (found.size() == 0) begin
+                res.vadr = adr; // It's needed because TLB fill is based on this adr
                 return res;
-            endfunction
+            end
+
+            res = found[0];
+
+            res.vadr = adr;
+            res.padr = res.padr + (adr - getPageBaseM(adr));
+
+            return res;
+        endfunction
 
 
-            ////////////////////////////////////
-            // Dep on BLOCK_SIZE
+        ////////////////////////////////////
+        // Dep on BLOCK_SIZE
 
-            function automatic Dword getBlockBaseD(input Dword adr);
-                Dword res = adr;
-                res[BLOCK_OFFSET_BITS-1:0] = 0;
-                return res;
-            endfunction
+        function automatic Dword getBlockBaseD(input Dword adr);
+            Dword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
 
-            function automatic Mword getBlockBaseM(input Mword adr);
-                Mword res = adr;
-                res[BLOCK_OFFSET_BITS-1:0] = 0;
-                return res;
-            endfunction
-
-
-            function automatic int getBlockIndex(input Dword adr);
-                return (adr % WAY_SIZE)/BLOCK_SIZE;
-            endfunction
-
-            function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
-                AccessInfo res;
-
-                Dword aLow = adr % WAY_SIZE;
-                int block = aLow / BLOCK_SIZE;
-                int blockOffset = aLow % BLOCK_SIZE;
-
-                if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-                res.adr = adr;
-                res.size = accessSize;
-                
-                res.block = block;
-                res.blockOffset = blockOffset;
-                
-                res.unaligned = (aLow % accessSize) > 0;
-                res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-                res.pageCross = (aLow + accessSize) > PAGE_SIZE;
-
-                return res;
-            endfunction
+        function automatic Mword getBlockBaseM(input Mword adr);
+            Mword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
 
 
+        function automatic int getBlockIndex(input Dword adr);
+            return (adr % WAY_SIZE)/BLOCK_SIZE;
+        endfunction
 
+        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
+            AccessInfo res;
 
-        /////////////////////////////////////////////////////////////////////
+            Dword aLow = adr % WAY_SIZE;
+            int block = aLow / BLOCK_SIZE;
+            int blockOffset = aLow % BLOCK_SIZE;
+
+            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
+
+            res.adr = adr;
+            res.size = accessSize;
+            
+            res.block = block;
+            res.blockOffset = blockOffset;
+            
+            res.unaligned = (aLow % accessSize) > 0;
+            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+            return res;
+        endfunction
 
 
 
+        ////////////////////////////////////////////////////////////////////
 
     typedef struct {
         int iqRegular;
@@ -940,10 +929,6 @@ package AbstractSim;
 
 
 
-
-
-
-
     ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Frontend
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1112,8 +1097,6 @@ package AbstractSim;
 
 
 
-
-
     //////////////////////////////////////////////////////////////////////
     // Core general
     //////////////////////////////////////////////////////////////////////
@@ -1140,38 +1123,36 @@ package AbstractSim;
     endfunction
 
 
-                // For routing to IQs
-                typedef struct {
-                    logic active;
-                    UopId uid;
-                } TMP_Uop;
+        // For routing to IQs
+        typedef struct {
+            logic active;
+            UopId uid;
+        } TMP_Uop;
 
-                localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
-
-
-            typedef struct {
-                TMP_Uop regular[RENAME_WIDTH];
-                TMP_Uop multiply[RENAME_WIDTH];
-                TMP_Uop branch[RENAME_WIDTH];
-                TMP_Uop idivider[RENAME_WIDTH];
-                TMP_Uop float[RENAME_WIDTH];
-                TMP_Uop fdivider[RENAME_WIDTH];
-                TMP_Uop mem[RENAME_WIDTH];
-                TMP_Uop storeData[RENAME_WIDTH];
-            } RoutedUops;
-
-            localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
-                regular: '{default: TMP_UOP_NONE},
-                multiply: '{default: TMP_UOP_NONE},
-                branch: '{default: TMP_UOP_NONE},
-                idivider: '{default: TMP_UOP_NONE},
-                float: '{default: TMP_UOP_NONE},
-                fdivider: '{default: TMP_UOP_NONE},
-                mem: '{default: TMP_UOP_NONE},
-                storeData: '{default: TMP_UOP_NONE}
-            };
+        localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
 
 
+        typedef struct {
+            TMP_Uop regular[RENAME_WIDTH];
+            TMP_Uop multiply[RENAME_WIDTH];
+            TMP_Uop branch[RENAME_WIDTH];
+            TMP_Uop idivider[RENAME_WIDTH];
+            TMP_Uop float[RENAME_WIDTH];
+            TMP_Uop fdivider[RENAME_WIDTH];
+            TMP_Uop mem[RENAME_WIDTH];
+            TMP_Uop storeData[RENAME_WIDTH];
+        } RoutedUops;
+
+        localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
+            regular: '{default: TMP_UOP_NONE},
+            multiply: '{default: TMP_UOP_NONE},
+            branch: '{default: TMP_UOP_NONE},
+            idivider: '{default: TMP_UOP_NONE},
+            float: '{default: TMP_UOP_NONE},
+            fdivider: '{default: TMP_UOP_NONE},
+            mem: '{default: TMP_UOP_NONE},
+            storeData: '{default: TMP_UOP_NONE}
+        };
 
 
         // DCache specific

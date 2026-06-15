@@ -26,12 +26,11 @@ module DataL1(
 
     UncachedDataUnit uncachedSubsystem(clk, writeReqs);
 
-
-    DataTlb tlb(clk, mn.adE0 /*theExecBlock.accessDescs_E0*/, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
+    DataTlb tlb(clk, mn.adE0, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
     DataCacheArray#(.N_WAYS(N_WAYS_DATA)) dataArray(clk, writeReqs);
 
-    DataFillEngine#(N_MEM_PORTS, 14) dataFillEngine(clk, dataFillEnA, mn.trE1);//theExecBlock.dcacheTranslations_E1);
-    DataFillEngine#(N_MEM_PORTS, 11) tlbFillEngine(clk, tlbFillEnA, mn.trE1);//theExecBlock.dcacheTranslations_E1);
+    DataFillEngine#(N_MEM_PORTS, DATA_ARRAY_FILL_DELAY) dataFillEngine(clk, dataFillEnA, mn.trE1);
+    DataFillEngine#(N_MEM_PORTS, DATA_TLB_FILL_DELAY) tlbFillEngine(clk, tlbFillEnA, mn.trE1);
 
     ReadResult cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
 
@@ -84,8 +83,7 @@ module DataL1(
 
 
     task automatic handleSingleRead(input int p);
-        AccessDesc aDesc = //theExecBlock.accessDescs_E0[p];
-                            mn.adE0[p];
+        AccessDesc aDesc = mn.adE0[p];
 
         cacheResults[p] <= '{0, -1, 'x, 'x, 'x};
         cacheReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
@@ -105,7 +103,6 @@ module DataL1(
 
 
     task automatic handleReads();
-        //foreach (theExecBlock.accessDescs_E0[p]) begin
         foreach (mn.adE0[p]) begin
             handleSingleRead(p);
         end
@@ -126,8 +123,8 @@ module DataL1(
     endfunction
 
 
-/////////////////
-// Init and DB
+    /////////////////
+    // Init and DB
 
     task automatic reset();
         cacheReadOut <= '{default: EMPTY_DATA_CACHE_OUTPUT};
