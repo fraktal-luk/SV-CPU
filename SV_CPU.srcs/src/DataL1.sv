@@ -94,7 +94,9 @@ module DataL1(
             ReadResult selectedResult;
 
             if (p == 0) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[0].aResults);
+            else if (p == 1) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[1].aResults);
             else if (p == 2) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[2].aResults);
+            else if (p == 3) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[3].aResults);
 
             cacheResults[p] <= selectedResult;
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
