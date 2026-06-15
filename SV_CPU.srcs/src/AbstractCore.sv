@@ -197,6 +197,7 @@ module AbstractCore
         writeResult(theExecBlock.doneFloatDiv_E);
 
         writeResult(theExecBlock.doneMem0_E);
+        writeResult(theExecBlock.doneMem1_E);
         writeResult(theExecBlock.doneMem2_E);
         writeResult(theExecBlock.doneStoreData_E);
     endtask
