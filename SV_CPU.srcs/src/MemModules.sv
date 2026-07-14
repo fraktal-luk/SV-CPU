@@ -179,7 +179,6 @@ endmodule
 
 
 
-
 /******************************************************************/
 module DataTlb#(parameter int L1_SIZE = 32, parameter int WIDTH = N_MEM_PORTS)
 (
@@ -320,7 +319,6 @@ module DataFillEngine#(parameter int WIDTH = N_MEM_PORTS, parameter int DELAY = 
             blockFillCounters[tr] = DELAY;
     endfunction
     
-
     always @(posedge clk) begin
         handleBlockFills();
         scheduleBlockFills();
@@ -335,15 +333,19 @@ module MemoryNetwork();
     UopPacket uopE0[N_MEM_PORTS];
     UopPacket uopE1[N_MEM_PORTS];
     UopPacket uopE2[N_MEM_PORTS];
+    UopPacket uopE3[N_MEM_PORTS];
 
     AccessDesc adE0[N_MEM_PORTS];
     AccessDesc adE1[N_MEM_PORTS];
     AccessDesc adE2[N_MEM_PORTS];
+    AccessDesc adE3[N_MEM_PORTS];
 
-    Translation trPreE0[N_MEM_PORTS];
     Translation trE0[N_MEM_PORTS];
     Translation trE1[N_MEM_PORTS];
     Translation trE2[N_MEM_PORTS];
+    Translation trE3[N_MEM_PORTS];
+
+        Translation trE0d[N_MEM_PORTS];
 
 
     DataCacheOutput cacheOutE1[N_MEM_PORTS];
@@ -352,5 +354,22 @@ module MemoryNetwork();
 
     UopMemPacket sqOutE1[N_MEM_PORTS];
     UopMemPacket lqOutE1[N_MEM_PORTS];
+
+
+    DataCacheOutput cacheOutE1d[N_MEM_PORTS];
+    DataCacheOutput uncachedOutE1d[N_MEM_PORTS];
+    DataCacheOutput sysOutE1d[N_MEM_PORTS];
+
+    UopMemPacket sqOutE1d[N_MEM_PORTS];
+    UopMemPacket lqOutE1d[N_MEM_PORTS];
+
+
+    always @(negedge AbstractCore.clk) begin
+        cacheOutE1d <= cacheOutE1;
+        uncachedOutE1d <= uncachedOutE1;
+        sysOutE1d <= sysOutE1;
+
+        lqOutE1d <= lqOutE1;
+    end
 
 endmodule

@@ -97,7 +97,7 @@ module AbstractCore
 
     ///////////////////////////
 
-    DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslations_EE0, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
+    DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
@@ -197,6 +197,7 @@ module AbstractCore
         writeResult(theExecBlock.doneFloatDiv_E);
 
         writeResult(theExecBlock.doneMem0_E);
+        writeResult(theExecBlock.doneMem1_E);
         writeResult(theExecBlock.doneMem2_E);
         writeResult(theExecBlock.doneStoreData_E);
     endtask
@@ -759,7 +760,6 @@ module AbstractCore
     endfunction
 
 
-
     function automatic UopPacket tickP(input UopPacket op);
         if (!op.active) return EMPTY_UOP_PACKET;
 
@@ -781,14 +781,6 @@ module AbstractCore
         if (shouldFlushEvent(op.TMP_oid)) return EMPTY_UOP_PACKET;
         return op;
     endfunction
-
-
-    // function automatic logic shouldFlushEventId(input InsId id);
-    //     InsId lastRet = lastRetired;
-    //     if (id == -1) return 0;
-    //     return lateEventInfo.redirect || (branchEventInfo.redirect && id > branchEventInfo.eventMid) || (lastRet != -1 && lastRet >= id);
-    // endfunction
-
 
     function automatic logic shouldFlushEvent(input UidT uid);
         return shouldFlushId(U2M(uid));

@@ -14,8 +14,8 @@ module ReplayQueue(
     input logic clk,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input UopPacket inputUops[N_MEM_PORTS],
-    input UopPacket inputUopsE2[N_MEM_PORTS],
+    input UopPacket inputUopsE0[N_MEM_PORTS],
+    input UopPacket inputUopsE3[N_MEM_PORTS],
     output UopPacket outPacket
 );
 
@@ -73,28 +73,28 @@ module ReplayQueue(
     task automatic writeInput();
         InputLocs inLocs = getInputLocs();
 
-        AccessDesc adsE2[N_MEM_PORTS] = mn.adE2; // theExecBlock.accessDescs_E2;
-        Translation trsE2[N_MEM_PORTS] = mn.trE2; //theExecBlock.dcacheTranslations_E2;
+        AccessDesc adsE3[N_MEM_PORTS] = mn.adE3; // theExecBlock.accessDescs_E2;
+        Translation trsE3[N_MEM_PORTS] = mn.trE3; //theExecBlock.dcacheTranslations_E2;
 
-        foreach (inputUops[i]) begin
-            if (inputUops[i].active) begin 
+        foreach (inputUopsE0[i]) begin
+            if (inputUopsE0[i].active) begin 
                 // Already present?
-                int inds[$] = entries.find_first_index with (item.uid == inputUops[i].TMP_oid);
+                int inds[$] = entries.find_first_index with (item.uid == inputUopsE0[i].TMP_oid);
                 if (inds.size() > 0) continue;
 
-                entries[inLocs[i]] = '{1, inputUops[i].TMP_oid, 0, 0, -1,
+                entries[inLocs[i]] = '{1, inputUopsE0[i].TMP_oid, 0, 0, -1,
                                         0, 15,
                                         EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
-                putMilestone(inputUops[i].TMP_oid, InstructionMap::RqEnter);
+                putMilestone(inputUopsE0[i].TMP_oid, InstructionMap::RqEnter);
             end
         end
 
-        foreach (inputUopsE2[i]) begin
-            if (inputUopsE2[i].active) begin 
-                int inds[$] = entries.find_first_index with (item.uid == inputUopsE2[i].TMP_oid);
+        foreach (inputUopsE3[i]) begin
+            if (inputUopsE3[i].active) begin 
+                int inds[$] = entries.find_first_index with (item.uid == inputUopsE3[i].TMP_oid);
 
-                if (needsReplay(inputUopsE2[i].status)) begin
+                if (needsReplay(inputUopsE3[i].status)) begin
                     entries[inds[0]].cancel = 0;
                     entries[inds[0]].issued = 0;
                     entries[inds[0]].outCnt = -1;
@@ -102,9 +102,9 @@ module ReplayQueue(
                     entries[inds[0]].ready = 0;
                     entries[inds[0]].readyCnt = -1;
 
-                    entries[inds[0]].p = inputUopsE2[i];
-                    entries[inds[0]].ad = adsE2[i];
-                    entries[inds[0]].tr = trsE2[i];
+                    entries[inds[0]].p = inputUopsE3[i];
+                    entries[inds[0]].ad = adsE3[i];
+                    entries[inds[0]].tr = trsE3[i];
                     continue;
                 end
 
@@ -159,7 +159,7 @@ module ReplayQueue(
                     end
                 end
 
-                ES_LOWER_DONE:
+                ES_LOWER_DONE, ES_INSTANT_REPLAY:
                     entries[i].ready = 1;
 
                 default: begin

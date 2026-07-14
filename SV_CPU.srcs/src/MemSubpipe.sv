@@ -25,19 +25,20 @@ module MemSubpipe#()
     input UopPacket lqResp
 );
 
-    UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
-    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pD0_E, pD1_E;
-        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pD0_Emp, pD1_Emp;
-    Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION;
+    UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET,
+                 pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pE3_E, pD0_E, pD1_E;
+        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pE3_Emp, pD0_Emp, pD1_Emp;
+    Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION, trE3 = DEFAULT_TRANSLATION;
 
 
     UopMemPacket stage0, stage0_E, stage1_E;
     Translation tr0;
     AccessDesc ad0;
 
-    AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC;
+    AccessDesc accessDescE0 = DEFAULT_ACCESS_DESC, accessDescE1 = DEFAULT_ACCESS_DESC, accessDescE2 = DEFAULT_ACCESS_DESC, accessDescE3 = DEFAULT_ACCESS_DESC;
 
-    always_comb stage0_E = pE2_E;
+    always_comb stage0_E = pE3_E;
     always_comb stage1_E = pD0_E;
     assign tr0 = trE2;
     assign ad0 = accessDescE2;
@@ -54,14 +55,19 @@ module MemSubpipe#()
         performE1();
         performE2();
 
+        pE3 <= tickP(pE2);
+        
         pD0 <= tickP(pE2);
+            pD0 <= tickP(pE3);
         pD1 <= tickP(pD0);
 
         trE1 <= trE0;
         trE2 <= trE1;
+        trE3 <= trE2;
 
         accessDescE1 <= accessDescE0;
         accessDescE2 <= accessDescE1;
+        accessDescE3 <= accessDescE2;
     end
 
 
@@ -70,6 +76,7 @@ module MemSubpipe#()
     always_comb pE0_E = effP(pE0);
     always_comb pE1_E = effP(pE1);
     always_comb pE2_E = effP(pE2);
+    always_comb pE3_E = effP(pE3);
     always_comb pD0_E = effP(pD0);
     always_comb pD1_E = effP(pD1);
 
@@ -79,6 +86,7 @@ module MemSubpipe#()
         always_comb pE0_Emp = TMP_mp(pE0_E);
         always_comb pE1_Emp = TMP_mp(pE1_E);
         always_comb pE2_Emp = TMP_mp(pE2_E);
+        always_comb pE3_Emp = TMP_mp(pE3_E);
         always_comb pD0_Emp = TMP_mp(pD0_E);
         always_comb pD1_Emp = TMP_mp(pD1_E);
 
@@ -86,11 +94,12 @@ module MemSubpipe#()
     ForwardingElement image_E[-3:1];
     
     assign image_E = '{
-        -3: p1_Emp,
-        -2: pE0_Emp,
-        -1: pE1_Emp,
-        0: pE2_Emp,
-        1: pD0_Emp,
+        //-3: p1_Emp,
+        -3: pE0_Emp,
+        -2: pE1_Emp,
+        -1: pE2_Emp,
+        0: pE3_Emp,
+        1: pD1_Emp,
         default: EMPTY_FORWARDING_ELEMENT
     };
     
@@ -235,7 +244,7 @@ module MemSubpipe#()
 
             MC_AQ_REL: begin
                 case (p.status)
-                    ES_BEGIN: begin
+                    ES_BEGIN, ES_INSTANT_REPLAY: begin
                         if (ad.unaligned) begin
                             insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
                             res.status = ES_UNALIGNED;
@@ -363,7 +372,7 @@ module MemSubpipe#()
 
 
     function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp,
-                                                        input UopPacket sqResp, input UopPacket lqResp);
+                                                     input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
         UidT uid = p.TMP_oid;
 
@@ -384,6 +393,10 @@ module MemSubpipe#()
                         insMap.setRefetch(U2M(uid)); // Refetch load that cannot be forwarded; set in LQ
                         res.result = 0; // TMP
                     end
+                    else if (sqResp.status == ES_INSTANT_REPLAY) begin
+                        res.status = ES_INSTANT_REPLAY;
+                        res.result = 0; // TMP
+                    end
                     else if (sqResp.status == ES_SQ_MISS) begin   
                         res.status = ES_SQ_MISS;
                         res.result = 0; // TMP
@@ -398,8 +411,6 @@ module MemSubpipe#()
                     assert (cacheResp.status != CR_UNCACHED) else $error("unc response"); // NEVER
 
                     if (res.memClass == MC_UPPER_B) begin
-                        //Mword cacheVal = cacheResp.data;
-                        //Mword uopVal = p.result;
                         res.status = ES_OK;
                         res.result = combineLoadValues(p.result, cacheResp.data, ad.shift, decUname(uid));
                     end

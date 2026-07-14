@@ -39,8 +39,8 @@ module InstructionL1(
     DataTlb#(.WIDTH(1)) tlb(clk, '{0: aDesc_T}, tlbFillEngine.notifyFill, tlbFillEngine.notifiedTr);
     InstructionCacheArray#(.N_WAYS(N_WAYS_INS)) insArray(clk, blockFillEngine.notifyFill, blockFillEngine.notifiedTr);
 
-    DataFillEngine#(1, 14) blockFillEngine(clk, blockFillEnA, tr_Reg);
-    DataFillEngine#(1, 11) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
+    DataFillEngine#(1, INS_ARRAY_FILL_DELAY) blockFillEngine(clk, blockFillEnA, tr_Reg);
+    DataFillEngine#(1, INS_TLB_FILL_DELAY) tlbFillEngine(clk, tlbFillEnA, tr_Reg);
 
 
     always_comb aDesc_T = getAccessDesc_I(readEn, readAddress);

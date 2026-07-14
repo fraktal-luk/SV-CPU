@@ -38,6 +38,7 @@ package Queues;
         Translation translation;
 
         logic barrierFw;
+        logic waitCond;
         logic suppress;
 
         logic committed;

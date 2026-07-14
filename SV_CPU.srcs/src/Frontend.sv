@@ -14,7 +14,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
-
     localparam int FQ_SLACK = 3;    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
 
     
@@ -22,7 +21,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
     localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 3;
     localparam int UFQ_SIZE = UFQ_SLACK + 20;
-
 
 
     typedef enum {
@@ -92,7 +90,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         assign finalFetchStage = stageFetch2;
 
 
-
         task automatic flushFrontendBeforeF2();
             markKilledFrontStage(stageIP.arr);
             markKilledFrontStage(stageFetch0.arr);
@@ -131,13 +128,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedWaitCtrl();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_WAIT_CTRL;
-            //stageIP <= DEFAULT_FRONT_STAGE;
         endtask
 
         task automatic cachedWaitMiss();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_WAIT_MISS;
-            //stageIP <= DEFAULT_FRONT_STAGE;
         endtask
 
         task automatic cachedResumeFill();
@@ -240,7 +235,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 if (arr[i].active) begin // Verify correct fetch
                     Translation tr = AbstractCore.retiredEmul.translateProgramAddress(arr[i].adr);
                     Word memBits = AbstractCore.programMem.fetch(tr.padr);
-    
                     assert (realBits === memBits) else $fatal(2, "Bits fetched at %X not same: %X, %X", arr[i].adr, realBits, memBits);
                 end
                 
@@ -280,7 +274,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         assign uncachedOn = FETCH_UNC; // UP in
 
-
         assign stageFetchUncLast = stageFetchUncArr[MAX_STAGE_UNCACHED];
 
         assign frontRedUnc = stageFetch2_U.active && stageFetch2_U.arr[0].takenBranch;
@@ -299,13 +292,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (lateEventInfo.redirect || branchEventInfo.redirect) begin
                 flushUncachedPipe();
                 stageUnc_IP <= makeStageUnc_IP(redirectedTarget(), uncachedOn, stageUnc_IP.vadr, 0);
-                    uncachedFetcherState <= FS_RUN;
+                uncachedFetcherState <= FS_RUN;
             end
             else if (frontRedUnc) begin
                 FrontStage stageNext = makeStageUnc_IP(expectedTargetF2_U, uncachedOn, stageUnc_IP.vadr, 1);
                 flushUncachedPipe();
                 stageUnc_IP <= stageNext;
-                    uncachedFetcherState = stageNext.active ? FS_RUN : FS_WAIT_PAGE;
+                uncachedFetcherState = stageNext.active ? FS_RUN : FS_WAIT_PAGE;
             end
             else begin
                 fetchNormalUncached();
@@ -321,11 +314,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 if (!(uncachedFetcherState inside {FS_NONE, FS_OFF})) begin
 
                     stageUnc_IP.active <= 1; // Resume fetching after miss
-                        uncachedFetcherState <= FS_RUN;
+                    uncachedFetcherState <= FS_RUN;
                 end
             end
 
-                if (!FETCH_UNC) uncachedFetcherState <= FS_OFF;
+            if (!FETCH_UNC) uncachedFetcherState <= FS_OFF;
         endtask
 
 
@@ -333,13 +326,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (eventUnit.hasEvent()) begin
                 FrontStage stageNext = makeStageUnc_IP(stageUnc_IP.vadr + 4, 0, stageUnc_IP.vadr, 1);
                 stageUnc_IP <= stageNext;
-                    uncachedFetcherState <= FS_WAIT_CTRL;
+                uncachedFetcherState <= FS_WAIT_CTRL;
                 stageFetchUnc0 <= DEFAULT_FRONT_STAGE;
             end
             if (stageUnc_IP.active && ufqSize < UFQ_SIZE - UFQ_SLACK) begin
                 FrontStage stageNext = makeStageUnc_IP(stageUnc_IP.vadr + 4, stageUnc_IP.active, stageUnc_IP.vadr, 1);
                 stageUnc_IP <= stageNext;
-                    uncachedFetcherState <= stageNext.active ? FS_RUN : FS_WAIT_PAGE;
+                uncachedFetcherState <= stageNext.active ? FS_RUN : FS_WAIT_PAGE;
                 stageFetchUnc0 <= stageUnc_IP;
             end
             else
@@ -383,7 +376,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (!stage.active) return DEFAULT_FRONT_STAGE;                 
 
             if (resFS.evt != PE_NONE) return resFS;
-
 
             if (uncachedOut.status == CR_HIT) begin // Verify correct fetch
                 Word bits = AbstractCore.programMem.fetch(stage.arr[0].adr);
@@ -510,10 +502,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     endfunction
 
 
-
     task automatic reset();
-        //stageIP.active <= 0;
-
         if (cachedFetcherState != FS_OFF) begin
             cachedWaitCtrl();
         end
@@ -522,7 +511,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             uncachedFetcherState <= FS_WAIT_CTRL;
             stageUnc_IP <= DEFAULT_FRONT_STAGE;
         end
-
     endtask
 
 

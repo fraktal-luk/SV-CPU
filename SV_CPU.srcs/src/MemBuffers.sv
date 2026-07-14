@@ -44,7 +44,7 @@ module StoreQueue
     int size;
     logic allow;
 
-    UopMemPacket responseE1[N_MEM_PORTS];
+    UopMemPacket responseE1[N_MEM_PORTS], responseE1d_N[N_MEM_PORTS];;
 
     QEntry content[SIZE] = '{default: EMPTY_QENTRY};
 
@@ -64,6 +64,11 @@ module StoreQueue
             
         submod.updateMain();
         submod.readImpl();
+    end
+
+    always @(negedge AbstractCore.clk) begin
+        
+        submod.readHalfCycle();
     end
 
 
@@ -192,18 +197,19 @@ module TmpSubSq();
 
 
     task automatic readImpl();
-        foreach (mn.uopE0[p]) begin
-            UopMemPacket loadOp = mn.uopE0[p];
-            AccessDesc ad = mn.adE0[p];
-            Translation tr = mn.trPreE0[p];
+    endtask
 
-             //   theExecBlock.sqResponse_E1[p] <= EMPTY_UOP_PACKET;
-            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
+    task automatic readHalfCycle();
+        foreach (mn.uopE1[p]) begin
+            UopMemPacket loadOp = mn.uopE1[p];
+            AccessDesc ad = mn.adE1[p];
+            Translation tr = mn.trE1[p];
+
+            StoreQueue.responseE1d_N[p] <= EMPTY_UOP_PACKET;
 
             if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
 
-             //   theExecBlock.sqResponse_E1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
-            StoreQueue.responseE1[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+            StoreQueue.responseE1d_N[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
         end
     endtask
 
@@ -220,7 +226,7 @@ module TmpSubSq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
+               updateEntry(StoreQueue.content[index], packet, mn.trE0d[p], mn.adE0[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
             end
         end
@@ -231,11 +237,17 @@ module TmpSubSq();
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               DataCacheOutput dcOut = //theExecBlock.dcacheOuts_E1[p];
-                                        mn.cacheOutE1[p];
+               DataCacheOutput dcOut = mn.cacheOutE1[p];
                int index = findIndex(packet.TMP_oid);
-               if (isStoreRelUop(uname) && dcOut.lock == 1) StoreQueue.content[index].suppress = 0;
-                    // TODO: assure that suppresses store is not "ready to forward" the cycle before setting suppress 
+
+               // On first run of StoreRel we find out whether the store succeeds
+               if (isStoreRelUop(uname) && packet.status != ES_BEGIN) begin
+                    StoreQueue.content[index].waitCond = 0;
+                    if (dcOut.lock == 1)
+                        StoreQueue.content[index].suppress = 0;
+                    else
+                        StoreQueue.content[index].suppress = 1;
+               end
             end
         end
 
@@ -266,18 +278,19 @@ module TmpSubSq();
                                             && memOverlap(item.translation.padr, item.accessDesc.size, tr.padr, loadSize));
         SqEntry fwEntry;
 
-        if (found.size() == 0) return EMPTY_UOP_PACKET;
+        if (found.size() == 0)
+            return EMPTY_UOP_PACKET;
         else begin // Youngest older overlapping store:
             SqEntry vmax[$] = found.max with (item.mid);
             fwEntry = vmax[0];
         end
 
-        // Note: in this scheme store-release, if not successful, will block loads forwarding from it until it gets committed and drained
-
         if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
-        else if (!fwEntry.valReady || fwEntry.suppress)         // Covers, not has data -> to RQ (or store conditional not executed)
+        else if (!fwEntry.valReady)         // Covers, not has data -> to RQ (or store conditional not executed)
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_SQ_MISS,   EMPTY_POISON, 'x};
+        else if (fwEntry.waitCond)
+            res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_INSTANT_REPLAY,   EMPTY_POISON, 'x};
         else                                // Covers and has data -> OK
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
 
@@ -296,7 +309,7 @@ module TmpSubSq();
         assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
         assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
 
-        if (sr.status == ES_CANT_FORWARD) begin //
+        if (sr.status == ES_CANT_FORWARD) begin
             logic isOverlapping = memOverlap(padr, esize, tr.padr, trSize);
             assert (isOverlapping && ((esize != trSize) || !isInside) ) else $error("Adr (same size and inside) or not overlapping");
         end
@@ -375,7 +388,8 @@ module TmpSubSq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: isMemBarrierUop(decMainUop(mid)),
-            suppress: isStoreRelUop(decMainUop(mid)),
+            waitCond: isStoreRelUop(decMainUop(mid)),
+            suppress: 0,
 
             committed: 0,
             error: 0,
@@ -399,6 +413,16 @@ module TmpSubLq();
     endtask
 
     task automatic readImpl();
+        // Scan triggering ST uop enters at E1 and result is ready at E2
+        // So loads performed in previous cycle, which stored .valRedy at E2 1 cycle earlier, are ready to be scanned
+        foreach (mn.uopE1[p]) begin
+            UopMemPacket storeUop = mn.uopE1[p];
+            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
+            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE1[p].padr, mn.adE1[p].size));
+        end
+    endtask
+
+    task automatic readHalfCycle();
     endtask
 
     task automatic updateMain();
@@ -413,7 +437,7 @@ module TmpSubLq();
 
             begin
                int index = findIndex(packet.TMP_oid);
-               updateEntry(StoreQueue.content[index], packet, mn.trPreE0[p], mn.adE0[p]);
+               updateEntry(StoreQueue.content[index], packet, mn.trE0d[p], mn.adE0[p]);
                putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
             end
         end
@@ -439,19 +463,6 @@ module TmpSubLq();
                else if (packet.status inside {ES_ILLEGAL, ES_INVALID}) StoreQueue.content[index].error = 1;
                else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;  // CAREFUL: this is critical because needed to find order violations
             end
-        end
-
-        foreach (mn.uopE2[p]) begin
-            UopMemPacket storeUop = mn.uopE2[p];
-
-            //theExecBlock.lqResponse_E1[p] <= EMPTY_UOP_PACKET;
-            StoreQueue.responseE1[p] <= EMPTY_UOP_PACKET;
-
-            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-
-            //theExecBlock.lqResponse_E1[p]  <=
-            //StoreQueue.responseE1[p] <= 
-                void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE2[p].padr, mn.adE2[p].size));
         end
 
         handleSOV();
@@ -516,6 +527,7 @@ module TmpSubLq();
             translation: DEFAULT_TRANSLATION,
             
             barrierFw: 0,
+            waitCond: 0,
             suppress: 0,
 
             committed: 0,
@@ -545,7 +557,10 @@ module TmpSubBr();
             lookupLink <= 'x;
         end
     endtask
-    
+
+    task automatic readHalfCycle();
+    endtask
+
     task automatic verify(input BqEntry entry);
         InstructionMap imap = StoreQueue.insMap;
         UopName uname = decUname(FIRST_U(entry.mid));

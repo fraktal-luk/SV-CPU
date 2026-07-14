@@ -579,7 +579,7 @@ module IssueQueueComplex(
     UopPacket issuedBranchP[1];
     UopPacket issuedFloatP[2];
     UopPacket issuedFdivP[1];
-    UopPacket issuedMemP[1];
+    UopPacket issuedMemP[1 + 1];
     UopPacket issuedStoreDataP[1];
 
 
@@ -605,7 +605,7 @@ module IssueQueueComplex(
     IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, routedUops.fdivider, theExecBlock.fdiv.allowIssue,
                                             issuedFdivP);                                           
 
-    IssueQueue#(.OUT_WIDTH(1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, theExecBlock.memIssueAllow,
+    IssueQueue#(.OUT_WIDTH(1  + 1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, theExecBlock.memIssueAllow,
                                             issuedMemP);
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
                                             issuedStoreDataP);
