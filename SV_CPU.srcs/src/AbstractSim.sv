@@ -224,6 +224,45 @@ package AbstractSim;
 
         localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
+
+
+
+            typedef struct {
+                integer ct;
+                logic hist[15:0];
+                logic last;
+            } TMP_PredState;
+
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, 0}; 
+
+
+            function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic last);
+                TMP_PredState res = prev;
+                res.ct++;
+                res.hist = {res.hist[14:0], prev.last};
+                res.last = last;
+                return res;
+            endfunction
+
+
+            function automatic TMP_PredState restorePred(input TMP_PredState pred, input logic corrected);
+                TMP_PredState res = pred;
+                res.last = corrected;
+                return res;
+            endfunction
+
+            function automatic logic TMP_getPrediction(input TMP_PredState pred);
+                // Dummy function -> pred from history
+                //logic masked[15:0] = (pred.hist | 'h3086);
+                logic xored = //masked.xor();
+                                pred.hist[3]^pred.hist[5]^pred.hist[10]^pred.hist[11];
+                return xored ^ pred.last;
+            endfunction
+
+
+
+
+
         typedef struct {
             logic active;
             CacheReadStatus status;
@@ -231,9 +270,10 @@ package AbstractSim;
             Mword vadr;
             Dword padr;
             OpSlotAF arr;
+            TMP_PredState predState;
         } FrontStage;
 
-        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE};
+        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
 
 
         function automatic logic anyActiveB(input OpSlotAB s);
@@ -545,7 +585,7 @@ package AbstractSim;
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
-                    input Emulator em);
+                    input Emulator em, input TMP_PredState predState);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
@@ -555,6 +595,7 @@ package AbstractSim;
             this.markers = markerSet;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
+            this.predState = predState;
         endfunction
 
         InsId id;
@@ -565,6 +606,7 @@ package AbstractSim;
         IndexSet inds;
         MarkerSet markers;
         Emulator emul;
+        TMP_PredState predState;
     endclass
 
 
@@ -1094,7 +1136,6 @@ package AbstractSim;
 
         return res;
     endfunction
-
 
 
     //////////////////////////////////////////////////////////////////////

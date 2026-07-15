@@ -68,6 +68,8 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
+        TMP_PredState /*UNUSED*/ execPredState = DEFAULT_PRED_STATE, committedPredState = DEFAULT_PRED_STATE;
+
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
@@ -253,6 +255,7 @@ module AbstractCore
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
         OpSlotAF opsF = theFrontend.stageRename0.arr;
+        TMP_PredState predState = theFrontend.stageRename0.predState;
         OpSlotAB ops = TMP_front2rename(opsF);
 
         // ops: .active, .mid, .adr, .bits,
@@ -264,7 +267,7 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr);
+            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState);
         end
 
         stageRename1_N <= theFrontend.stageRename0;
@@ -326,18 +329,19 @@ module AbstractCore
         end
     endtask
 
-    task automatic saveCP(input InsId id);
+    task automatic saveCP(input InsId id, input TMP_PredState predState);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds, renameMarkers,
-                                    renamedEmul);
+                                    renamedEmul,
+                                    predState);
         branchCheckpointQueue.push_back(cp);
     endtask
 
 
     task automatic renameOp(input InsId id, input int currentSlot, input Mword iadr, input Word bits, input logic predictedDir,
-                            input ProgramEvent evt, input Mword vadr);
+                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
         AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : iadr;
@@ -430,7 +434,7 @@ module AbstractCore
             memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
-        if (isBranchIns(ins)) saveCP(id); // Crucial state
+        if (isBranchIns(ins)) saveCP(id, predState); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
         updateMarkers(renameMarkers, id); // Crucial state
@@ -656,6 +660,7 @@ module AbstractCore
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
+            committedPredState = bce.predState;
         end
 
         // Elements related to crucial signals:

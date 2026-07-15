@@ -81,6 +81,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
 
+
+        TMP_PredState predState, predStateF2;
+
+
         assign groupMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
         assign frontRedCa = stageFetch1.active && groupMismatchF2;
         assign frontRedOnMiss = (stageFetch1.active && stageFetch1.status inside {CR_TLB_MISS, CR_TAG_MISS}) && !frontRedCa;
@@ -108,6 +112,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             cachedFetcherState <= FS_RUN;
             stageIP <= makeStage_IP(lateEventInfo.target, 1);
 
+            // @pred: restore from late
+            predState <= restorePred(AbstractCore.committedPredState, 1);
+            predStateF2 <= restorePred(AbstractCore.committedPredState, 1);
+
             expectedTargetF2 <= lateEventInfo.target;
         endtask
 
@@ -116,13 +124,25 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             cachedFetcherState <= FS_RUN;
             stageIP <= makeStage_IP(branchEventInfo.target, 1);
 
+            // @pred: restore from branch
+            begin
+                BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
+                BranchCheckpoint causingCP = foundCP[0];
+                predState <= restorePred(causingCP.predState, 1);
+                predStateF2 <= restorePred(causingCP.predState, 1);
+            end
+            
             expectedTargetF2 <= branchEventInfo.target;
+
         endtask
 
         task automatic cachedRedirectFront();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
             stageIP <= makeStage_IP(expectedTargetF2, 1);
+
+            // @pred: restore from front
+            predState <= restorePred(predStateF2, 1);
         endtask
 
         task automatic cachedWaitCtrl();
@@ -159,9 +179,15 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     else if (frontRedCa)
                         cachedRedirectFront();
                     else if (fetchAllowCa && stageIP.active) begin // Normal flow
-                        Mword nextTrg = fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4;
+                        Mword nextTrg = fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4; // @pred use
+                        logic nextPred = TMP_getPrediction(predState);
                         stageIP <= makeStage_IP(nextTrg, 1);
+                        
+                        // @pred update
+                        predState <= updatePred(predState, nextPred);
+
                         stageFetch0 <= stageIP;
+                            stageFetch0.predState <= predState; // TMP
                         cachedMoveStagesToF2();
                     end
                     else begin
@@ -207,13 +233,15 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (stageFetch1.active) begin
                 assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
                 expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2, ENABLE_FRONT_BRANCHES);
+
+                    predStateF2 <= stageFetch1.predState;
             end
         endtask
 
 
         function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cacheOut, input Dword padr);
             OpSlotAF arr = stage.arr;
-            FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr};
+            FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr, stage.predState};
             ProgramEvent pe = PE_NONE;
 
             if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
@@ -247,6 +275,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         endfunction
 
     endgenerate
+
+
 
 
     ////////////////////////////////////
@@ -365,7 +395,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
             OpSlotAF arr = EMPTY_STAGE;
-            FrontStage resFS = '{stage.active, uncachedOut.status, PE_NONE, stage.vadr, stage.vadr, stage.arr};
+            FrontStage resFS = '{stage.active, uncachedOut.status, PE_NONE, stage.vadr, stage.vadr, stage.arr, stage.predState};
             ProgramEvent pe = PE_NONE;
 
             if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;

@@ -76,3 +76,20 @@ sim:/ArchDesc0/core/mn/sqOutE1d
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theSq/responseE1 \
 sim:/ArchDesc0/core/theSq/responseE1d_N
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/predState \
+sim:/ArchDesc0/core/theFrontend/stageIP
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/branchEventInfo \
+sim:/ArchDesc0/core/theFrontend/frontRedCa \
+sim:/ArchDesc0/core/theFrontend/lateEventInfo \
+sim:/ArchDesc0/core/theFrontend/predState \
+sim:/ArchDesc0/core/theFrontend/predStateF2
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/stageRename0
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/committedPredState
