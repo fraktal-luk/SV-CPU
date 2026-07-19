@@ -228,35 +228,59 @@ package AbstractSim;
 
 
             typedef struct {
-                integer ct;
-                logic hist[15:0];
-                logic last;
+                // integer ct;
+                //     logic hist[15:0];
+                //     logic last;
+                integer sct;
+                logic[1:0] strHist[16];
+                logic[1:0] recentHist[2];
             } TMP_PredState;
 
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, 0}; 
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{//-1, '{default: 0}, 0, 
+                                                            -1,
+                                                            '{default: 0}, '{default: 'z}}; 
 
 
-            function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic last);
-                TMP_PredState res = prev;
-                res.ct++;
-                res.hist = {res.hist[14:0], prev.last};
-                res.last = last;
-                return res;
-            endfunction
+            // function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic last);
+            //     TMP_PredState res = prev;
+            //     res.ct++;
+            //     res.hist = {res.hist[14:0], prev.last};
+            //     res.last = last;
+            //     return res;
+            // endfunction
+
+
+                function automatic TMP_PredState updatePred_S(input TMP_PredState prev, input logic[1:0] last);
+                    TMP_PredState res = prev;
+
+                    if (res.recentHist[1] !== 'z) begin
+                        res.sct++;
+                        res.strHist = {res.recentHist[1], res.strHist[0:14]};
+                    end
+                    else begin
+                        
+                    end
+
+                    res.recentHist = {last, res.recentHist[0]};
+
+                    return res;
+                endfunction
 
 
             function automatic TMP_PredState restorePred(input TMP_PredState pred, input logic corrected);
                 TMP_PredState res = pred;
-                res.last = corrected;
+                //res.last = corrected;
                 return res;
             endfunction
+
 
             function automatic logic TMP_getPrediction(input TMP_PredState pred);
                 // Dummy function -> pred from history
                 //logic masked[15:0] = (pred.hist | 'h3086);
-                logic xored = //masked.xor();
-                                pred.hist[3]^pred.hist[5]^pred.hist[10]^pred.hist[11];
-                return xored ^ pred.last;
+                // logic xored = //masked.xor();
+                //                 pred.hist[3]^pred.hist[5]^pred.hist[10]^pred.hist[11];
+                // return xored ^ pred.last;
+                return 'z;
             endfunction
 
 
@@ -292,14 +316,15 @@ package AbstractSim;
         InsId eventMid;
         ProgramEvent etype;
         logic redirect;
+        logic dir;  // 0|1 for branches, 'x for control events
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, PE_NONE,  0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, PE_EXT_RESET, 1, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, PE_EXT_INTERRUPT, 1, 'x, IP_INT};
-    localparam EventInfo DB_EVENT =         '{1, -1, PE_EXT_DEBUG, 1, 'x, IP_DB_BREAK};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, PE_NONE,  0, 'x, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, PE_EXT_RESET, 1, 'x, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, PE_EXT_INTERRUPT, 1, 'x, 'x, IP_INT};
+    localparam EventInfo DB_EVENT =         '{1, -1, PE_EXT_DEBUG, 1, 'x, 'x, IP_DB_BREAK};
 
 
     typedef struct {
@@ -585,7 +610,7 @@ package AbstractSim;
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
-                    input Emulator em, input TMP_PredState predState);
+                    input Emulator em, input TMP_PredState predState, logic predDir);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
@@ -596,6 +621,7 @@ package AbstractSim;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
             this.predState = predState;
+            this.predDir = predDir;
         endfunction
 
         InsId id;
@@ -607,6 +633,7 @@ package AbstractSim;
         MarkerSet markers;
         Emulator emul;
         TMP_PredState predState;
+        logic predDir;
     endclass
 
 

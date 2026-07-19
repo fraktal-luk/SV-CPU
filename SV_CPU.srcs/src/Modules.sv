@@ -238,7 +238,9 @@ module BranchSubpipe(
 
         if (redirect) putMilestoneM(U2M(uid), InstructionMap::ExecRedirect);
 
-        AbstractCore.branchEventInfo <= '{1, U2M(uid), PE_NONE, redirect, adr, resolvedTarget};
+        insMap.setBranchDir(U2M(uid), dir);
+
+        AbstractCore.branchEventInfo <= '{1, U2M(uid), PE_NONE, redirect, dir, adr, resolvedTarget};
     endtask
 
 endmodule

@@ -61,6 +61,7 @@ package Insmap;
         IndexSet inds;
 
         logic frontBranch;
+        logic takenBranch;
 
             logic emulException;
 
@@ -80,6 +81,7 @@ package Insmap;
         res.id = id;
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
         res.frontBranch = 'x;
+        res.takenBranch = 'x;
         res.emulException = 0;
         res.exception = 0;
             res.staticEvt = 0;
@@ -292,6 +294,10 @@ package Insmap;
         function automatic void setRefetch(input InsId id);
             insBase.minfos[id].refetch = 1;
             insBase.minfos[id].hwEventType = PE_HW_REFETCH;
+        endfunction
+
+        function automatic void setBranchDir(input InsId id, input logic dir);
+            insBase.minfos[id].takenBranch = 1;
         endfunction
         ////////////
 

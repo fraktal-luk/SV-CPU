@@ -82,7 +82,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
 
 
-        TMP_PredState predState, predStateF2;
+        TMP_PredState predState = DEFAULT_PRED_STATE, predStateF2 = DEFAULT_PRED_STATE;
 
 
         assign groupMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
@@ -113,8 +113,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(lateEventInfo.target, 1);
 
             // @pred: restore from late
-            predState <= restorePred(AbstractCore.committedPredState, 1);
-            predStateF2 <= restorePred(AbstractCore.committedPredState, 1);
+            predState <= restorePred(AbstractCore.committedPredState, 'x);
+            predStateF2 <= restorePred(AbstractCore.committedPredState, 'x);
 
             expectedTargetF2 <= lateEventInfo.target;
         endtask
@@ -128,10 +128,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             begin
                 BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
                 BranchCheckpoint causingCP = foundCP[0];
-                predState <= restorePred(causingCP.predState, 1);
-                predStateF2 <= restorePred(causingCP.predState, 1);
+                predState <= restorePred(updatePred_S(causingCP.predState, branchEventInfo.dir), 'x);   // TODO: update with correct prediction for causingCP
+                predStateF2 <= restorePred(updatePred_S(causingCP.predState, branchEventInfo.dir), 'x);  //  As well
             end
-            
+
             expectedTargetF2 <= branchEventInfo.target;
 
         endtask
@@ -142,7 +142,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(expectedTargetF2, 1);
 
             // @pred: restore from front
-            predState <= restorePred(predStateF2, 1);
+            predState <= restorePred(predStateF2, 'x); // TODO: update by actual prediction for F2 block
         endtask
 
         task automatic cachedWaitCtrl();
@@ -184,7 +184,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                         stageIP <= makeStage_IP(nextTrg, 1);
                         
                         // @pred update
-                        predState <= updatePred(predState, nextPred);
+                        predState <= updatePred_S(predState, 'z);
 
                         stageFetch0 <= stageIP;
                             stageFetch0.predState <= predState; // TMP
@@ -234,7 +234,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
                 expectedTargetF2 <= getNextTargetF2(stageFetch1, expectedTargetF2, ENABLE_FRONT_BRANCHES);
 
-                    predStateF2 <= stageFetch1.predState;
+                predStateF2 <= updatePred_S(stageFetch1.predState, 2);
             end
         endtask
 

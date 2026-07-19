@@ -329,13 +329,14 @@ module AbstractCore
         end
     endtask
 
-    task automatic saveCP(input InsId id, input TMP_PredState predState);
+    task automatic saveCP(input InsId id, input TMP_PredState predState, input logic predictedTaken);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds, renameMarkers,
                                     renamedEmul,
-                                    predState);
+                                    predState,
+                                    predictedTaken);
         branchCheckpointQueue.push_back(cp);
     endtask
 
@@ -434,7 +435,7 @@ module AbstractCore
             memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
-        if (isBranchIns(ins)) saveCP(id, predState); // Crucial state
+        if (isBranchIns(ins)) saveCP(id, predState, predictedDir); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
         updateMarkers(renameMarkers, id); // Crucial state
@@ -660,7 +661,9 @@ module AbstractCore
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
-            committedPredState = bce.predState;
+
+            if (CurrentConfig.enableMmu)
+                committedPredState = updatePred_S(bce.predState, insInfo.takenBranch);
         end
 
         // Elements related to crucial signals:

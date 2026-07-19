@@ -555,7 +555,7 @@ package ExecDefs;
     // > needs InsMap (InstructionInfo)
     function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
         Mword adr = ii.basicData.adr;
-        EventInfo res = '{1, id, eDesc.etype, 1, adr, 'x};
+        EventInfo res = '{1, id, eDesc.etype, 1, 'x, adr, 'x};
 
         if (eDesc.id == id) begin
             if (eDesc.etype == PE_EXT_DEBUG) begin
