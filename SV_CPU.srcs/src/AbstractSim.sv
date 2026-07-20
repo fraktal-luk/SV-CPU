@@ -210,6 +210,8 @@ package AbstractSim;
             InsId mid;
             Mword adr;
             Word bits;
+            logic first;
+            logic branch;
             logic takenBranch;
             Mword predictedTarget;
         } OpSlotF;
@@ -226,29 +228,14 @@ package AbstractSim;
 
 
 
-
             typedef struct {
-                // integer ct;
-                //     logic hist[15:0];
-                //     logic last;
                 integer sct;
                 logic[1:0] strHist[16];
                 logic[1:0] recentHist[2];
             } TMP_PredState;
 
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{//-1, '{default: 0}, 0, 
-                                                            -1,
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1,
                                                             '{default: 0}, '{default: 'z}}; 
-
-
-            // function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic last);
-            //     TMP_PredState res = prev;
-            //     res.ct++;
-            //     res.hist = {res.hist[14:0], prev.last};
-            //     res.last = last;
-            //     return res;
-            // endfunction
-
 
                 function automatic TMP_PredState updatePred_S(input TMP_PredState prev, input logic[1:0] last);
                     TMP_PredState res = prev;
@@ -610,6 +597,7 @@ package AbstractSim;
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
+                    input int branchInd,
                     input Emulator em, input TMP_PredState predState, logic predDir);
             this.id = id;
             this.intWriters = intWr;
@@ -618,6 +606,7 @@ package AbstractSim;
             this.floatMapR = floatMapR;
             this.inds = indexSet;
             this.markers = markerSet;
+            this.branchInd = branchInd;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
             this.predState = predState;
@@ -630,6 +619,7 @@ package AbstractSim;
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
+        int branchInd; // branch index within block (from 0)
         MarkerSet markers;
         Emulator emul;
         TMP_PredState predState;
@@ -1010,10 +1000,17 @@ package AbstractSim;
     function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
         OpSlotAF res = st;
         Mword expectedTargetFloor = expectedTarget;
+        logic anyFound = 0;
         expectedTargetFloor[1:0] = 0;
 
-        foreach (res[i])
-            res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
+        foreach (res[i]) begin
+            logic active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
+            
+            res[i].active = active;
+            res[i].first = active & !anyFound;
+
+            anyFound |= active;
+        end
 
         return res;       
     endfunction
@@ -1087,7 +1084,7 @@ package AbstractSim;
         foreach (res.arr[i]) begin
             Mword adr = baseAdr + 4*i;
             logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
-            res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+            res.arr[i] = '{elemActive, -1, adr, 'x, 0, 0, 0, 'x};
         end
         
         return res;
@@ -1140,7 +1137,7 @@ package AbstractSim;
         res.vadr = target;
         res.padr = target;
 
-        res.arr[0] = '{1, -1, target, 'x, 0, 'x};
+        res.arr[0] = '{1, -1, target, 'x, 0, 0, 0, 'x};
 
         return res;
     endfunction

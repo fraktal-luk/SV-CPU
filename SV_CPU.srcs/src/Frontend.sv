@@ -259,11 +259,16 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             foreach (arr[i]) begin
                 Word realBits = cacheOut.words[i];
+                logic isBranch = 'x; 
 
                 if (arr[i].active) begin // Verify correct fetch
                     Translation tr = AbstractCore.retiredEmul.translateProgramAddress(arr[i].adr);
                     Word memBits = AbstractCore.programMem.fetch(tr.padr);
+                    AbstractInstruction absIns;
                     assert (realBits === memBits) else $fatal(2, "Bits fetched at %X not same: %X, %X", arr[i].adr, realBits, memBits);
+                    
+                    absIns = decodeAbstract(realBits);
+                    arr[i].branch = isBranchIns(absIns);
                 end
                 
                 arr[i].bits = realBits;

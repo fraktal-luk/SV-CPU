@@ -257,18 +257,33 @@ module AbstractCore
         OpSlotAF opsF = theFrontend.stageRename0.arr;
         TMP_PredState predState = theFrontend.stageRename0.predState;
         OpSlotAB ops = TMP_front2rename(opsF);
+        logic branches[RENAME_WIDTH] = '{default: 0};
+        logic used[RENAME_WIDTH] = '{default: 0};
+        int bi = 0;
 
         // ops: .active, .mid, .adr, .bits,
 
         if (anyActiveB(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
-        foreach (ops[i]) begin            
+        foreach (ops[i]) begin
+            used[i] = ops[i].active;
+
             if (ops[i].active !== 1) continue;
 
+            branches[i] = ops[i].branch;
+
+            // ops[i].first
+
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, opsF[i].adr, opsF[i].bits, opsF[i].takenBranch, i,
+            renameOp(ops[i].mid,   
+                            //opsF[i].adr, opsF[i].bits, opsF[i].takenBranch,
+                            opsF[i],
+                        i,
+                        bi,
                      theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState);
+
+            if (ops[i].branch) bi++;
         end
 
         stageRename1_N <= theFrontend.stageRename0;
@@ -330,11 +345,12 @@ module AbstractCore
         end
     endtask
 
-    task automatic saveCP(input InsId id, input TMP_PredState predState, input logic predictedTaken);
+    task automatic saveCP(input InsId id, input int branchInd, input TMP_PredState predState, input logic predictedTaken);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds, renameMarkers,
+                                    branchInd,
                                     renamedEmul,
                                     predState,
                                     predictedTaken);
@@ -342,11 +358,14 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input Mword iadr, input Word bits, input logic predictedDir, input int currentSlot,
+    task automatic renameOp(input InsId id,
+                                input OpSlotF opSlot,
+                            input int currentSlot, // including unused slots before beginning
+                            input int currentBranch, // index of branch within used part of block
                             input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
-        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
-        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : iadr;
+        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
@@ -355,13 +374,13 @@ module AbstractCore
         UopName uopName = decodeUop(ins);
         logic staticExc = isStaticEventIns(ins);
         logic silentEvt = isSilentEventIns(ins);
-        InstructionInfo ii = initInsInfo(id, adr, bits, ins);
+        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-        runInEmulator(renamedEmul, adr, bits);
+        runInEmulator(renamedEmul, adr, opSlot.bits);
 
         if (evt != PE_NONE) begin
             ii.exception = 1;
@@ -400,7 +419,7 @@ module AbstractCore
         ii.firstUop = insMap.insBase.lastU + 1;
         ii.nUops = -1;
 
-        if (isBranchIns(ins)) ii.frontBranch = predictedDir;
+        if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
 
         // Generate info for uops
         mainUinfo.id = '{id, -1};
@@ -436,7 +455,7 @@ module AbstractCore
             memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
-        if (isBranchIns(ins)) saveCP(id, predState, predictedDir); // Crucial state
+        if (isBranchIns(ins)) saveCP(id, currentBranch, predState, opSlot.takenBranch); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
         updateMarkers(renameMarkers, id); // Crucial state
