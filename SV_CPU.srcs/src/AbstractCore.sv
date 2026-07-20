@@ -267,7 +267,8 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState);
+            renameOp(ops[i].mid, opsF[i].adr, opsF[i].bits, opsF[i].takenBranch, i,
+                     theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState);
         end
 
         stageRename1_N <= theFrontend.stageRename0;
@@ -341,7 +342,7 @@ module AbstractCore
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword iadr, input Word bits, input logic predictedDir,
+    task automatic renameOp(input InsId id, input Mword iadr, input Word bits, input logic predictedDir, input int currentSlot,
                             input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
         AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
 
