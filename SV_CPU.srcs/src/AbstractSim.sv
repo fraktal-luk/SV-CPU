@@ -250,9 +250,17 @@ package AbstractSim;
 
                     res.recentHist = {last, res.recentHist[0]};
 
+
+                            assert (res.recentHist[1] === prev.recentHist[0]) else $error("Wrong replacement: %d, %d", res.recentHist[1], prev.recentHist[0]);
+
                     return res;
                 endfunction
 
+                function automatic TMP_PredState replacePred_S(input TMP_PredState prev, input logic[1:0] last);
+                    TMP_PredState res = prev;
+                    res.recentHist[0] = last;
+                    return res;
+                endfunction
 
             function automatic TMP_PredState restorePred(input TMP_PredState pred, input logic corrected);
                 TMP_PredState res = pred;

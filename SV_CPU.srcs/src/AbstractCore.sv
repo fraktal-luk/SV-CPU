@@ -682,8 +682,11 @@ module AbstractCore
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
 
-            if (CurrentConfig.enableMmu)
-                committedPredState = updatePred_S(bce.predState, insInfo.takenBranch);
+            if (CurrentConfig.enableMmu) begin
+                if (bce.branchInd == 0) committedPredState = updatePred_S(bce.predState, 'z);
+                
+                committedPredState = replacePred_S(bce.predState, insInfo.takenBranch);
+            end
         end
 
         // Elements related to crucial signals:

@@ -93,3 +93,8 @@ sim:/ArchDesc0/core/theFrontend/stageRename0
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/committedPredState
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/stageFetch0 \
+sim:/ArchDesc0/core/theFrontend/stageFetch1 \
+sim:/ArchDesc0/core/theFrontend/stageFetch2
