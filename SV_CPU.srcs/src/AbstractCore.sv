@@ -683,9 +683,10 @@ module AbstractCore
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
 
             if (CurrentConfig.enableMmu) begin
-                if (bce.branchInd == 0) committedPredState = updatePred_S(bce.predState, 'z);
+                if (bce.branchInd == 0) committedPredState = updatePred_S(bce.predState, 0);
                 
-                committedPredState = replacePred_S(bce.predState, insInfo.takenBranch);
+                if (insInfo.takenBranch)
+                    committedPredState = replacePred_S(bce.predState, TMP_bpEncode(insInfo.basicData.adr[1:0]));
             end
         end
 

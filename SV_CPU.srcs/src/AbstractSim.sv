@@ -237,6 +237,12 @@ package AbstractSim;
             localparam TMP_PredState DEFAULT_PRED_STATE = '{-1,
                                                             '{default: 0}, '{default: 'z}}; 
 
+                function automatic Mbyte TMP_bpEncode(input int index);
+                    if (index == -1) return 0;
+                    else if (index >= 2) return 3;
+                    else return index + 1;
+                endfunction
+
                 function automatic TMP_PredState updatePred_S(input TMP_PredState prev, input logic[1:0] last);
                     TMP_PredState res = prev;
 

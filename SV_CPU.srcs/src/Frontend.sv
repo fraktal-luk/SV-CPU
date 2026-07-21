@@ -128,8 +128,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             begin
                 BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
                 BranchCheckpoint causingCP = foundCP[0];
-                predState <= restorePred(updatePred_S(causingCP.predState, branchEventInfo.dir), 'x);   // TODO: update with correct prediction for causingCP
-                predStateF2 <= restorePred(updatePred_S(causingCP.predState, branchEventInfo.dir), 'x);  //  As well
+                logic taken = branchEventInfo.dir;
+                Mbyte brEncoding = taken ? TMP_bpEncode(branchEventInfo.adr) : 0;
+                predState <= restorePred(updatePred_S(causingCP.predState, brEncoding), 'x);   // TODO: update with correct prediction for causingCP
+                predStateF2 <= restorePred(updatePred_S(causingCP.predState, brEncoding), 'x);  //  As well
             end
 
             expectedTargetF2 <= branchEventInfo.target;
@@ -258,11 +260,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
                 if (!anyBranch) return 'z;
 
-                // Set prediction info
-                if (brSlot != -1) return 1; // TODO: make proper result
-                            // Temporary: 1 if any branch taken, 0 if all not taken, 'z if no branches
+                // // Set prediction info
+                // if (brSlot != -1) return 1; // TODO: make proper result
+                //             // Temporary: 1 if any branch taken, 0 if all not taken, 'z if no branches
 
-                return 0;
+                // return 0;
+                return TMP_bpEncode(brSlot);
             endfunction
 
 
