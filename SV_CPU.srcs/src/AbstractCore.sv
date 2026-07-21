@@ -68,7 +68,7 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
-        TMP_PredState /*UNUSED*/ execPredState = DEFAULT_PRED_STATE, committedPredState = DEFAULT_PRED_STATE;
+        TMP_PredState /*UNUSED*/ execPredState = DEFAULT_PRED_STATE, committedPredState = DEFAULT_PRED_STATE, committedPredStatePrev = DEFAULT_PRED_STATE;
 
 
     // Exec   FUTURE: encapsulate in backend?
@@ -374,7 +374,7 @@ module AbstractCore
         UopName uopName = decodeUop(ins);
         logic staticExc = isStaticEventIns(ins);
         logic silentEvt = isSilentEventIns(ins);
-        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins);
+        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
@@ -497,6 +497,8 @@ module AbstractCore
     task automatic advanceCommit();
         logic foundEvent = 0;
         EventInfo lateEvt;
+
+        //committedPredStatePrev <= committedPredState;
 
         foreach (theRob.prevRow[i]) begin
             InsId theId = theRob.prevRow[i].mid;
@@ -678,15 +680,32 @@ module AbstractCore
 
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
+
+
+        if (CurrentConfig.enableMmu) begin
+            if (insInfo.firstInGroup) begin
+                 //   $error("First in group, adr %d", insInfo.basicData.adr);
+
+                committedPredStatePrev = committedPredState;
+                committedPredState = updatePred_S(committedPredState, 'z);
+            end
+        end
+
+
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
 
+                assert (bce.predState === committedPredStatePrev) else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits),
+                                        bce.predState, committedPredStatePrev);
+
             if (CurrentConfig.enableMmu) begin
-                if (bce.branchInd == 0) committedPredState = updatePred_S(bce.predState, 0);
-                
-                if (insInfo.takenBranch)
-                    committedPredState = replacePred_S(bce.predState, TMP_bpEncode(insInfo.basicData.adr[1:0]));
+                if (insInfo.takenBranch) begin
+                    committedPredState = replacePred_S(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}));
+                end
+                else begin
+                    committedPredState = replacePred_S(committedPredState, 0);
+                end
             end
         end
 

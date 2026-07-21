@@ -129,7 +129,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
                 BranchCheckpoint causingCP = foundCP[0];
                 logic taken = branchEventInfo.dir;
-                Mbyte brEncoding = taken ? TMP_bpEncode(branchEventInfo.adr) : 0;
+                Mbyte brEncoding = taken ? TMP_bpEncode({0, branchEventInfo.adr[3:2]}) : 0;
                 predState <= restorePred(updatePred_S(causingCP.predState, brEncoding), 'x);   // TODO: update with correct prediction for causingCP
                 predStateF2 <= restorePred(updatePred_S(causingCP.predState, brEncoding), 'x);  //  As well
             end

@@ -60,6 +60,7 @@ package Insmap;
 
         IndexSet inds;
 
+        logic firstInGroup;
         logic frontBranch;
         logic takenBranch;
 
@@ -76,10 +77,11 @@ package Insmap;
     } InstructionInfo; // FUTURE: rename to MopInfo?
 
 
-    function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins);
+    function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins, input logic isFirst);
         InstructionInfo res;
         res.id = id;
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
+        res.firstInGroup = isFirst;
         res.frontBranch = 'x;
         res.takenBranch = 'x;
         res.emulException = 0;
@@ -297,7 +299,9 @@ package Insmap;
         endfunction
 
         function automatic void setBranchDir(input InsId id, input logic dir);
-            insBase.minfos[id].takenBranch = 1;
+             //   if (id >= 3380 && id <= 3396) $error("Seting TB for %d: ");
+
+            insBase.minfos[id].takenBranch = dir;
         endfunction
         ////////////
 
