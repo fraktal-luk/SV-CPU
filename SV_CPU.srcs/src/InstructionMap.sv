@@ -299,10 +299,9 @@ package Insmap;
         endfunction
 
         function automatic void setBranchDir(input InsId id, input logic dir);
-             //   if (id >= 3380 && id <= 3396) $error("Seting TB for %d: ");
-
             insBase.minfos[id].takenBranch = dir;
         endfunction
+
         ////////////
 
 

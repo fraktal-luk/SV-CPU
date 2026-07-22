@@ -666,7 +666,7 @@ module AbstractCore
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePred_S(committedPredState, 'z);
+                committedPredState = updatePred(committedPredState, 'z);
             end
         end
 
@@ -678,9 +678,9 @@ module AbstractCore
 
             if (CurrentConfig.enableMmu) begin
                 if (insInfo.takenBranch)
-                    committedPredState = replacePred_S(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}));
+                    committedPredState = replacePred(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}));
                 else
-                    committedPredState = replacePred_S(committedPredState, 0);
+                    committedPredState = replacePred(committedPredState, 0);
             end
         end
 

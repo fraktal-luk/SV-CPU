@@ -228,62 +228,44 @@ package AbstractSim;
 
 
 
-            typedef struct {
-                integer sct;
-                logic[1:0] strHist[16];
-                logic[1:0] recentHist[2];
-            } TMP_PredState;
+        typedef struct {
+            integer sct;
+            logic[1:0] strHist[16];
+            logic[1:0] recentHist[2];
+        } TMP_PredState;
 
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1,
-                                                            '{default: 0}, '{default: 'z}}; 
+        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
 
-                function automatic Mbyte TMP_bpEncode(input int index);
-                    if (index == -1) return 0;
-                    else if (index >= 2) return 3;
-                    else return index + 1;
-                endfunction
+        function automatic Mbyte TMP_bpEncode(input int index);
+            if (index == -1) return 0;
+            else if (index >= 2) return 3;
+            else return index + 1;
+        endfunction
 
-                function automatic TMP_PredState updatePred_S(input TMP_PredState prev, input logic[1:0] last);
-                    TMP_PredState res = prev;
+        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
+            TMP_PredState res = prev;
 
-                    if (res.recentHist[1] !== 'z) begin
-                        res.sct++;
-                        res.strHist = {res.recentHist[1], res.strHist[0:14]};
-                    end
-                    else begin
-                        
-                    end
+            if (res.recentHist[1] !== 'z) begin
+                res.sct++;
+                res.strHist = {res.recentHist[1], res.strHist[0:14]};
+            end
 
-                    res.recentHist = {last, res.recentHist[0]};
+            res.recentHist = {last, res.recentHist[0]};
 
+            return res;
+        endfunction
 
-                            assert (res.recentHist[1] === prev.recentHist[0]) else $error("Wrong replacement: %d, %d", res.recentHist[1], prev.recentHist[0]);
-
-                    return res;
-                endfunction
-
-                function automatic TMP_PredState replacePred_S(input TMP_PredState prev, input logic[1:0] last);
-                    TMP_PredState res = prev;
-                    res.recentHist[0] = last;
-                    return res;
-                endfunction
-
-            function automatic TMP_PredState restorePred(input TMP_PredState pred, input logic corrected);
-                TMP_PredState res = pred;
-                //res.last = corrected;
-                return res;
-            endfunction
+        function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
+            TMP_PredState res = prev;
+            res.recentHist[0] = last;
+            return res;
+        endfunction
 
 
-            function automatic logic TMP_getPrediction(input TMP_PredState pred);
-                // Dummy function -> pred from history
-                //logic masked[15:0] = (pred.hist | 'h3086);
-                // logic xored = //masked.xor();
-                //                 pred.hist[3]^pred.hist[5]^pred.hist[10]^pred.hist[11];
-                // return xored ^ pred.last;
-                return 'z;
-            endfunction
-
+        function automatic logic TMP_getPrediction(input TMP_PredState pred);
+            // TODO: generate prediction (use VADR too)
+            return 'z;
+        endfunction
 
 
 
