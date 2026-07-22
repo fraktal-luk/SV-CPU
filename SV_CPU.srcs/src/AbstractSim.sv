@@ -306,11 +306,6 @@ package AbstractSim;
             return 0;
         endfunction
 
-        function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
-            return ops;
-        endfunction;
-
-
 
     typedef struct {
         logic active;
@@ -612,7 +607,7 @@ package AbstractSim;
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
                     input int branchInd,
-                    input Emulator em, input TMP_PredState predState, logic predDir);
+                    input Emulator em, input TMP_PredState predState);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
@@ -624,7 +619,6 @@ package AbstractSim;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
             this.predState = predState;
-            this.predDir = predDir;
         endfunction
 
         InsId id;
