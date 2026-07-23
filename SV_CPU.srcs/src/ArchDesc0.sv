@@ -37,6 +37,8 @@ module ArchDesc0();
         "Tests_mem_advanced",
         "Tests_sys_transfers",
 
+        "Tests_fp32",
+
         "Tests_fetch",
         "Tests_DEV_basic"
     };
