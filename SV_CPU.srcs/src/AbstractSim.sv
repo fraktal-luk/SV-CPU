@@ -268,8 +268,6 @@ package AbstractSim;
         endfunction
 
 
-
-
         typedef struct {
             logic active;
             CacheReadStatus status;
@@ -1039,41 +1037,69 @@ package AbstractSim;
     endfunction
 
 
-    function automatic int scanBranches(input OpSlotAF st);
-        OpSlotAF res = st;
-        int branchSlot = -1;
-        Mword takenTargets[FETCH_WIDTH] = '{default: 'x};
-        logic constantBranches[FETCH_WIDTH] = '{default: 'x};
-        logic predictedBranches[FETCH_WIDTH] = '{default: 'x};
-        
-        // Decode branches and decide if taken.
-        foreach (res[i]) begin
-            AbstractInstruction ins = decodeAbstract(res[i].bits);
-            constantBranches[i] = 0;
-            
-            if (isBranchImmIns(ins)) begin
-                takenTargets[i] = res[i].adr + Mword'(ins.sources[1]);
-                constantBranches[i] = 1;
-                predictedBranches[i] = isBranchAlwaysIns(ins);            
-            end
 
-            if (isBranchRegIns(ins)) begin
-                
+    function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
+        FrontStage res = fs;
+
+        logic predictions[FETCH_WIDTH] = '{default: 0}; // TODO: should be provided by BP
+
+        logic branches[FETCH_WIDTH] = '{default: 0};
+        logic unconditional[FETCH_WIDTH] = '{default: 0};
+        logic predictedTaken[FETCH_WIDTH] = '{default: 0};
+
+        OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+
+        if (!fs.active) return DEFAULT_FRONT_STAGE;
+
+        foreach (fs.arr[i]) begin
+            AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
+            branches[i] = isBranchIns(ins);
+            unconditional[i] = isBranchAlwaysIns(ins);
+            predictedTaken[i] = arrayF2[i].active && ((branches[i] && predictions[i]) || unconditional[i]);
+        end
+
+        begin
+            int firstTaken[$] = predictedTaken.find_first_index with (item === 1);
+
+            if (firstTaken.size() != 0) begin
+                arrayF2 = clearAfterBranch(arrayF2, firstTaken[0]);
+                arrayF2[firstTaken[0]].takenBranch = 1;
             end
         end
 
-        // Scan for first taken branch
-        foreach (res[i]) begin
-            if (!res[i].active) continue;
-            
-            if (constantBranches[i] && predictedBranches[i]) begin
-                branchSlot = i;
+        res.padr = 'x;
+        res.arr = arrayF2;
+
+        return res;
+    endfunction
+
+
+    function automatic Mword TMP_trgFromArr(input FrontStage fs);
+        Mword target = fetchLineBase(fs.vadr) + 4*FETCH_WIDTH;
+        
+        foreach (fs.arr[i]) begin
+            if (fs.arr[i].takenBranch) begin
+                AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
+                target = fs.arr[i].adr + Mword'(ins.sources[1]);
                 break;
             end
         end
- 
-        return branchSlot;
+
+        return target;
     endfunction
+
+
+    function automatic Mbyte TMP_predictionFromArr(input FrontStage fs);
+        logic anyBranch = 0;
+
+        foreach (fs.arr[i]) begin
+            if (fs.arr[i].branch) anyBranch = 1;
+            if (fs.arr[i].takenBranch) return TMP_bpEncode(i);
+        end
+
+        return anyBranch ? 0 : 'z;
+    endfunction
+
 
 
     function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
