@@ -68,6 +68,7 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
+    TMP_PredState committedPredState = DEFAULT_PRED_STATE, committedPredStatePrev = DEFAULT_PRED_STATE;
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
@@ -252,19 +253,20 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
-        OpSlotAF opsF = theFrontend.stageRename0.arr;
-        OpSlotAB ops = TMP_front2rename(opsF);
-
-        // ops: .active, .mid, .adr, .bits,
+        OpSlotAF ops = theFrontend.stageRename0.arr;
+        TMP_PredState predState = theFrontend.stageRename0.predState;
+        int bi = 0;
 
         if (anyActiveB(ops))
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
 
-        foreach (ops[i]) begin            
+        foreach (ops[i]) begin
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, i, ops[i].adr, ops[i].bits, opsF[i].takenBranch, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr);
+            renameOp(ops[i].mid, ops[i], i, bi, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState);
+
+            if (ops[i].branch) bi++;
         end
 
         stageRename1_N <= theFrontend.stageRename0;
@@ -326,21 +328,26 @@ module AbstractCore
         end
     endtask
 
-    task automatic saveCP(input InsId id);
+    task automatic saveCP(input InsId id, input int branchInd, input TMP_PredState predState);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds, renameMarkers,
-                                    renamedEmul);
+                                    branchInd,
+                                    renamedEmul,
+                                    predState);
         branchCheckpointQueue.push_back(cp);
     endtask
 
 
-    task automatic renameOp(input InsId id, input int currentSlot, input Mword iadr, input Word bits, input logic predictedDir,
-                            input ProgramEvent evt, input Mword vadr);
-        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+    task automatic renameOp(input InsId id,
+                                input OpSlotF opSlot,
+                            input int currentSlot, // including unused slots before beginning
+                            input int currentBranch, // index of branch within used part of block
+                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
+        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
-        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : iadr;
+        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
@@ -349,13 +356,13 @@ module AbstractCore
         UopName uopName = decodeUop(ins);
         logic staticExc = isStaticEventIns(ins);
         logic silentEvt = isSilentEventIns(ins);
-        InstructionInfo ii = initInsInfo(id, adr, bits, ins);
+        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-        runInEmulator(renamedEmul, adr, bits);
+        runInEmulator(renamedEmul, adr, opSlot.bits);
 
         if (evt != PE_NONE) begin
             ii.exception = 1;
@@ -394,7 +401,7 @@ module AbstractCore
         ii.firstUop = insMap.insBase.lastU + 1;
         ii.nUops = -1;
 
-        if (isBranchIns(ins)) ii.frontBranch = predictedDir;
+        if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
 
         // Generate info for uops
         mainUinfo.id = '{id, -1};
@@ -430,7 +437,7 @@ module AbstractCore
             memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
-        if (isBranchIns(ins)) saveCP(id); // Crucial state
+        if (isBranchIns(ins)) saveCP(id, currentBranch, predState); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
         updateMarkers(renameMarkers, id); // Crucial state
@@ -653,9 +660,28 @@ module AbstractCore
 
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
+
+
+        // Start new block for predictor
+        if (CurrentConfig.enableMmu) begin
+            if (insInfo.firstInGroup) begin
+                committedPredStatePrev = committedPredState;
+                committedPredState = updatePred(committedPredState, 'z);
+            end
+        end
+
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
+            assert (bce.predState === committedPredStatePrev)
+                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
+
+            if (CurrentConfig.enableMmu) begin
+                if (insInfo.takenBranch)
+                    committedPredState = replacePred(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}));
+                else
+                    committedPredState = replacePred(committedPredState, 0);
+            end
         end
 
         // Elements related to crucial signals:

@@ -210,6 +210,8 @@ package AbstractSim;
             InsId mid;
             Mword adr;
             Word bits;
+            logic first;
+            logic branch;
             logic takenBranch;
             Mword predictedTarget;
         } OpSlotF;
@@ -224,6 +226,48 @@ package AbstractSim;
 
         localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
+
+
+        typedef struct {
+            integer sct;
+            logic[1:0] strHist[16];
+            logic[1:0] recentHist[2];
+        } TMP_PredState;
+
+        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
+
+        function automatic Mbyte TMP_bpEncode(input int index);
+            if (index == -1) return 0;
+            else if (index >= 2) return 3;
+            else return index + 1;
+        endfunction
+
+        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
+            TMP_PredState res = prev;
+
+            if (res.recentHist[1] !== 'z) begin
+                res.sct++;
+                res.strHist = {res.recentHist[1], res.strHist[0:14]};
+            end
+
+            res.recentHist = {last, res.recentHist[0]};
+
+            return res;
+        endfunction
+
+        function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
+            TMP_PredState res = prev;
+            res.recentHist[0] = last;
+            return res;
+        endfunction
+
+
+        function automatic logic TMP_getPrediction(input TMP_PredState pred);
+            // TODO: generate prediction (use VADR too)
+            return 'z;
+        endfunction
+
+
         typedef struct {
             logic active;
             CacheReadStatus status;
@@ -231,9 +275,10 @@ package AbstractSim;
             Mword vadr;
             Dword padr;
             OpSlotAF arr;
+            TMP_PredState predState;
         } FrontStage;
 
-        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE};
+        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
 
 
         function automatic logic anyActiveB(input OpSlotAB s);
@@ -241,25 +286,21 @@ package AbstractSim;
             return 0;
         endfunction
 
-        function automatic OpSlotAB TMP_front2rename(input OpSlotAF ops);
-            return ops;
-        endfunction;
-
-
 
     typedef struct {
         logic active;
         InsId eventMid;
         ProgramEvent etype;
         logic redirect;
+        logic dir;  // 0|1 for branches, 'x for control events
         Mword adr;
         Mword target;
     } EventInfo;
     
-    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, PE_NONE,  0, 'x, 'x};
-    localparam EventInfo RESET_EVENT =      '{1, -1, PE_EXT_RESET, 1, 'x, IP_RESET};
-    localparam EventInfo INT_EVENT =        '{1, -1, PE_EXT_INTERRUPT, 1, 'x, IP_INT};
-    localparam EventInfo DB_EVENT =         '{1, -1, PE_EXT_DEBUG, 1, 'x, IP_DB_BREAK};
+    localparam EventInfo EMPTY_EVENT_INFO = '{0, -1, PE_NONE,  0, 'x, 'x, 'x};
+    localparam EventInfo RESET_EVENT =      '{1, -1, PE_EXT_RESET, 1, 'x, 'x, IP_RESET};
+    localparam EventInfo INT_EVENT =        '{1, -1, PE_EXT_INTERRUPT, 1, 'x, 'x, IP_INT};
+    localparam EventInfo DB_EVENT =         '{1, -1, PE_EXT_DEBUG, 1, 'x, 'x, IP_DB_BREAK};
 
 
     typedef struct {
@@ -545,7 +586,8 @@ package AbstractSim;
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
-                    input Emulator em);
+                    input int branchInd,
+                    input Emulator em, input TMP_PredState predState);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
@@ -553,8 +595,10 @@ package AbstractSim;
             this.floatMapR = floatMapR;
             this.inds = indexSet;
             this.markers = markerSet;
+            this.branchInd = branchInd;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
+            this.predState = predState;
         endfunction
 
         InsId id;
@@ -563,8 +607,11 @@ package AbstractSim;
         int intMapR[32];
         int floatMapR[32];
         IndexSet inds;
+        int branchInd; // branch index within block (from 0)
         MarkerSet markers;
         Emulator emul;
+        TMP_PredState predState;
+        logic predDir;
     endclass
 
 
@@ -941,15 +988,22 @@ package AbstractSim;
     function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
         OpSlotAF res = st;
         Mword expectedTargetFloor = expectedTarget;
+        logic anyFound = 0;
         expectedTargetFloor[1:0] = 0;
 
-        foreach (res[i])
-            res[i].active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
+        foreach (res[i]) begin
+            logic active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
+            
+            res[i].active = active;
+            res[i].first = active & !anyFound;
+
+            anyFound |= active;
+        end
 
         return res;       
     endfunction
 
-    // ONCE
+
     function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
         OpSlotAF res = st;
 
@@ -961,48 +1015,6 @@ package AbstractSim;
         return res;        
     endfunction
 
-
-    function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
-        FrontStage res = fs;
-        OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
-
-        int brSlot = scanBranches(arrayF2, ENABLE_FRONT_BRANCHES);
-
-        if (!fs.active) return DEFAULT_FRONT_STAGE;
-
-        arrayF2 = clearAfterBranch(arrayF2, brSlot);
-
-        // Set prediction info
-        if (brSlot != -1) arrayF2[brSlot].takenBranch = 1;
-
-        res.padr = 'x;
-        res.arr = arrayF2;
-
-        return res;
-    endfunction
-
-    function automatic Mword getNextTargetF2(input FrontStage fs, input Mword expectedTarget, input logic ENABLE_FRONT_BRANCHES);
-        // If no taken branches, increment base adr. Otherwise get taken target
-        OpSlotAF res = clearBeforeStart(fs.arr, expectedTarget);
-        Mword adr = res[FETCH_WIDTH-1].adr + 4;
-        
-        if (!fs.active) return 'x;
-
-        foreach (res[i]) 
-            if (res[i].active) begin
-                AbstractInstruction ins = decodeAbstract(res[i].bits);
-                adr = res[i].adr + 4;   // Last active
-                
-                if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                    if (isBranchAlwaysIns(ins)) begin
-                        adr = res[i].adr + Mword'(ins.sources[1]);
-                        break;
-                    end
-                end
-            end
-        
-        return adr;
-    endfunction
 
     function automatic FrontStage makeStage_IP(input Mword target, input logic on);
         FrontStage res = DEFAULT_FRONT_STAGE;
@@ -1018,48 +1030,76 @@ package AbstractSim;
         foreach (res.arr[i]) begin
             Mword adr = baseAdr + 4*i;
             logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
-            res.arr[i] = '{elemActive, -1, adr, 'x, 0, 'x};
+            res.arr[i] = '{elemActive, -1, adr, 'x, 0, 0, 0, 'x};
         end
         
         return res;
     endfunction
 
 
-    function automatic int scanBranches(input OpSlotAF st, input logic ENABLE_FRONT_BRANCHES);
-        OpSlotAF res = st;
-        int branchSlot = -1;
-        Mword takenTargets[FETCH_WIDTH] = '{default: 'x};
-        logic constantBranches[FETCH_WIDTH] = '{default: 'x};
-        logic predictedBranches[FETCH_WIDTH] = '{default: 'x};
-        
-        // Decode branches and decide if taken.
-        foreach (res[i]) begin
-            AbstractInstruction ins = decodeAbstract(res[i].bits);
-            constantBranches[i] = 0;
-            
-            if (ENABLE_FRONT_BRANCHES && isBranchImmIns(ins)) begin
-                takenTargets[i] = res[i].adr + Mword'(ins.sources[1]);
-                constantBranches[i] = 1;
-                predictedBranches[i] = isBranchAlwaysIns(ins);            
-            end
 
-            if (isBranchRegIns(ins)) begin
-                
+    function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
+        FrontStage res = fs;
+
+        logic predictions[FETCH_WIDTH] = '{default: 0}; // TODO: should be provided by BP
+
+        logic branches[FETCH_WIDTH] = '{default: 0};
+        logic unconditional[FETCH_WIDTH] = '{default: 0};
+        logic predictedTaken[FETCH_WIDTH] = '{default: 0};
+
+        OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+
+        if (!fs.active) return DEFAULT_FRONT_STAGE;
+
+        foreach (fs.arr[i]) begin
+            AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
+            branches[i] = isBranchIns(ins);
+            unconditional[i] = isBranchAlwaysIns(ins);
+            predictedTaken[i] = arrayF2[i].active && ((branches[i] && predictions[i]) || unconditional[i]);
+        end
+
+        begin
+            int firstTaken[$] = predictedTaken.find_first_index with (item === 1);
+
+            if (firstTaken.size() != 0) begin
+                arrayF2 = clearAfterBranch(arrayF2, firstTaken[0]);
+                arrayF2[firstTaken[0]].takenBranch = 1;
             end
         end
 
-        // Scan for first taken branch
-        foreach (res[i]) begin
-            if (!res[i].active) continue;
-            
-            if (constantBranches[i] && predictedBranches[i]) begin
-                branchSlot = i;
+        res.padr = 'x;
+        res.arr = arrayF2;
+
+        return res;
+    endfunction
+
+
+    function automatic Mword TMP_trgFromArr(input FrontStage fs);
+        Mword target = fetchLineBase(fs.vadr) + 4*FETCH_WIDTH;
+        
+        foreach (fs.arr[i]) begin
+            if (fs.arr[i].takenBranch) begin
+                AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
+                target = fs.arr[i].adr + Mword'(ins.sources[1]);
                 break;
             end
         end
- 
-        return branchSlot;
+
+        return target;
     endfunction
+
+
+    function automatic Mbyte TMP_predictionFromArr(input FrontStage fs);
+        logic anyBranch = 0;
+
+        foreach (fs.arr[i]) begin
+            if (fs.arr[i].branch) anyBranch = 1;
+            if (fs.arr[i].takenBranch) return TMP_bpEncode(i);
+        end
+
+        return anyBranch ? 0 : 'z;
+    endfunction
+
 
 
     function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
@@ -1071,7 +1111,7 @@ package AbstractSim;
         res.vadr = target;
         res.padr = target;
 
-        res.arr[0] = '{1, -1, target, 'x, 0, 'x};
+        res.arr[0] = '{1, -1, target, 'x, 0, 0, 0, 'x};
 
         return res;
     endfunction
@@ -1094,7 +1134,6 @@ package AbstractSim;
 
         return res;
     endfunction
-
 
 
     //////////////////////////////////////////////////////////////////////

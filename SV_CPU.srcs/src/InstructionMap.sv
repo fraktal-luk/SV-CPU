@@ -60,7 +60,9 @@ package Insmap;
 
         IndexSet inds;
 
+        logic firstInGroup;
         logic frontBranch;
+        logic takenBranch;
 
             logic emulException;
 
@@ -75,11 +77,13 @@ package Insmap;
     } InstructionInfo; // FUTURE: rename to MopInfo?
 
 
-    function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins);
+    function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins, input logic isFirst);
         InstructionInfo res;
         res.id = id;
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
+        res.firstInGroup = isFirst;
         res.frontBranch = 'x;
+        res.takenBranch = 'x;
         res.emulException = 0;
         res.exception = 0;
             res.staticEvt = 0;
@@ -293,6 +297,11 @@ package Insmap;
             insBase.minfos[id].refetch = 1;
             insBase.minfos[id].hwEventType = PE_HW_REFETCH;
         endfunction
+
+        function automatic void setBranchDir(input InsId id, input logic dir);
+            insBase.minfos[id].takenBranch = dir;
+        endfunction
+
         ////////////
 
 
