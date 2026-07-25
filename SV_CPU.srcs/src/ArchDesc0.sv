@@ -217,11 +217,13 @@ module ArchDesc0();
             runIntTestEmul(mainEmul, "events_int");
 
             trEm.gp = Test_fillGpCached();
-            trEm.gp.initialCregs.memControl = 7;
+            trEm.gp.initialCregs.memControl = 7; // enable all
+            trEm.gp.initialCregs.fpStatus = 'h8000; // enable FP
             #CYCLE $display("\n>>>>>> Em  Dev tests");
             trEm.runSuites(testsDevCached);
 
             trEm.gp.initialCregs.memControl = 0;
+            trEm.gp.initialCregs.fpStatus = 0;
             #CYCLE $display("\n>>>>>> Em  Dev tests unc");
             trEm.runSuites(devTestsUnc);
 
@@ -231,13 +233,15 @@ module ArchDesc0();
         if (RUN_SIM_TESTS) begin
             trSim.gp = Test_fillGpCached();
             trSim.gp.initialCregs.memControl = 0;
+            trSim.gp.initialCregs.fpStatus = 0;
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
             trSim.runSuites(devTestsUnc);
 
 
             trSim.gp = Test_fillGpCached();
-            trSim.gp.initialCregs.memControl = 7;
+            trSim.gp.initialCregs.memControl = 7; // enable all
+            trSim.gp.initialCregs.fpStatus = 'h8000; // enable FP 
 
             #CYCLE $display("\n>>>>>> Sim  Dev tests");
             trSim.runSuites(testsDevCached);

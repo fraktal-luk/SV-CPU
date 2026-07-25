@@ -9,6 +9,7 @@ import UopList::*;
 import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
+import ControlRegisters::*;
 import ControlHandling::*;
 
 import CacheDefs::*;
@@ -58,6 +59,13 @@ module AbstractCore
         logic enableMmu = 0;
         logic dbStep = 0;
         logic enArithExc = 0;
+            logic enableFP = 0;
+            RoundingMode rm = RM_Even;
+            logic enTrapInv = 0;
+            logic enTrapDiv0 = 0;
+            logic enTrapOv = 0;
+            logic enTrapUnd = 0;
+            logic enTrapInex = 0; 
     } CurrentConfig;
 
     // Overall
@@ -898,8 +906,32 @@ module AbstractCore
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
         CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
+            CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
+            CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
+            CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];
+            CurrentConfig.enTrapDiv0 = sysUnit.sysRegs[8][9];
+            CurrentConfig.enTrapOv = sysUnit.sysRegs[8][8];
+            CurrentConfig.enTrapUnd = sysUnit.sysRegs[8][7];
+            CurrentConfig.enTrapInex = sysUnit.sysRegs[8][6];
     endfunction
 
+            logic OV;   // 30
+            logic [29:16] resB;
+            logic enableFP; // 15
+            logic resC; // 14
+            logic [13:12] roundingMode;
+            logic resD;      // 11
+            logic trapInv; // 10
+            logic trapDiv0; // 9
+            logic trapOverflow; // 8
+            logic trapUnderflow; // 7
+            logic trapInexact; // 6
+            logic resE; // 5
+            logic Invalid; // 4
+            logic Div0; // 3
+            logic Overflow; // 2
+            logic Underflow; // 1
+            logic Inexact; // 0
 
     function automatic logic pipesEmpty();
         return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1_N.active;
