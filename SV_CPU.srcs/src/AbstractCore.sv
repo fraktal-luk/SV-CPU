@@ -915,23 +915,6 @@ module AbstractCore
             CurrentConfig.enTrapInex = sysUnit.sysRegs[8][6];
     endfunction
 
-            logic OV;   // 30
-            logic [29:16] resB;
-            logic enableFP; // 15
-            logic resC; // 14
-            logic [13:12] roundingMode;
-            logic resD;      // 11
-            logic trapInv; // 10
-            logic trapDiv0; // 9
-            logic trapOverflow; // 8
-            logic trapUnderflow; // 7
-            logic trapInexact; // 6
-            logic resE; // 5
-            logic Invalid; // 4
-            logic Div0; // 3
-            logic Overflow; // 2
-            logic Underflow; // 1
-            logic Inexact; // 0
 
     function automatic logic pipesEmpty();
         return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1_N.active;

@@ -18,7 +18,6 @@ mem_sys
 use_lib0
 mem_illegal_address
 
-fp_tmp_3
 
 dbstep_NEW
 dbstep_jump_NEW
