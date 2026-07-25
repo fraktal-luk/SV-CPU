@@ -231,8 +231,11 @@ module EventUnit(input logic clk);
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
 
-        if (AbstractCore.CurrentConfig.enArithExc) begin
+        if (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInv) begin
             tmp = replaceEvt(tmp, fpInvH);
+        end
+
+        if (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapOv) begin
             tmp = replaceEvt(tmp, fpOvH);
         end
 

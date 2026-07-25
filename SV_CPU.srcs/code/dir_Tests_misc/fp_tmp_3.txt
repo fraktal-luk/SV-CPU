@@ -9,10 +9,15 @@ $start
 	add_i r2, r0, 3
 	shl_i r2, r2, 30  ; INV | OV set
 
-	add_h r3, r0, 2   ; bit 17 set
+	add_h r3, r0, 0 ;   add_h r3, r0, 2   ; bit 17 set
 	lds   r10, r0, r1
 	or_r  r10, r10, r3
-	sts   r10, r0, 1  ; enable FP exc
+	sts   r10, r0, 1  ; enable FP exc (old)
+
+	lds   r11, r0, 8
+	add_i r11, r11, 0x07c0 ; set all 1's in FP trap enables
+	sts   r11, r0, 8  ; enable FP exc (new)
+
 
 	sys_sync
 	addi_f f5, f2, f3
@@ -36,16 +41,16 @@ $error
 0
 0
 ; c1 - currentStatus
-0x20011
+0x00011
 0 ; hi
 ; c2 - excSavedIP
-0x30
+0x3c
 0 ; hi
 ; c3 - intSavedIP
 0
 0 ; hi
 ; c4 - excSavedStatus
-0x20010
+0x00010
 0 ; hi
 ; c5 - intSavedStatus
 0
@@ -57,7 +62,7 @@ $error
 0
 0 ; hi
 ; c8 - fpStatus
-0x80008010
+0x800087d0
 0 ; hi  
 ; c9 -
 0

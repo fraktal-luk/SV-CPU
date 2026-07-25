@@ -50,7 +50,7 @@ package ControlRegisters;
             logic resC; // 14
             logic [13:12] roundingMode;
             logic resD;      // 11
-            logic trapInv; // 10
+            logic trapInvalid; // 10
             logic trapDiv0; // 9
             logic trapOverflow; // 8
             logic trapUnderflow; // 7

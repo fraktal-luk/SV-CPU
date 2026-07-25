@@ -391,22 +391,37 @@ package Emulation;
         
         function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result);
             logic excGenerated = 0;
+                logic fpInv = 0;
+                logic fpDiv0 = 0;
+                logic fpOv = 0;
+                logic fpUnd = 0;
+                logic fpInex = 0;
+
                 status.arithException = 0; // TMP
             
             if (ins.def.o == O_floatGenInv) begin
                 cregs.fpStatus.INV = 1;
                     cregs.fpStatus.Invalid = 1;
                 excGenerated = 1;
+                fpInv = 1;
             end
             else if (ins.def.o == O_floatGenOv) begin
                 cregs.fpStatus.OV = 1;
                     cregs.fpStatus.Overflow = 1;
                 excGenerated = 1;
+                fpOv = 1;
             end
             
             syncSysRegsFromCregs();
-            
-            if (excGenerated && cregs.currentStatus.enArithExc) begin
+
+            if (
+                fpInv && cregs.fpStatus.trapInvalid
+             || fpDiv0 && cregs.fpStatus.trapDiv0
+             || fpOv && cregs.fpStatus.trapOverflow
+             || fpUnd && cregs.fpStatus.trapUnderflow
+             || fpInex && cregs.fpStatus.trapInexact
+            ) begin
+            //if (excGenerated && cregs.currentStatus.enArithExc) begin
                 setExecState(PE_ARITH_EXCEPTION, ip);
                 syncStatusFromRegs();
                 status.exceptionRaised = 1;

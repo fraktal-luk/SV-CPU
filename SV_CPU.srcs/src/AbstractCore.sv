@@ -905,7 +905,7 @@ module AbstractCore
     function automatic void syncCurrentConfigFromRegs();
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-        CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
+        CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17]; // TODO: drop it
             CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
             CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
             CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];
