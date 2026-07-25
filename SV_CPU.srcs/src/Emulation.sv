@@ -395,10 +395,12 @@ package Emulation;
             
             if (ins.def.o == O_floatGenInv) begin
                 cregs.fpStatus.INV = 1;
+                    cregs.fpStatus.Invalid = 1;
                 excGenerated = 1;
             end
             else if (ins.def.o == O_floatGenOv) begin
                 cregs.fpStatus.OV = 1;
+                    cregs.fpStatus.Overflow = 1;
                 excGenerated = 1;
             end
             

@@ -119,10 +119,12 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
     function automatic void setFpInv();
         sysRegs[8][31] = 1;
+        sysRegs[8][4] = 1;
     endfunction
 
     function automatic void setFpOv();
         sysRegs[8][30] = 1;
+        sysRegs[8][2] = 1;
     endfunction
 
 endmodule
