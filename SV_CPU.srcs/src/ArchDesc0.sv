@@ -211,10 +211,10 @@ module ArchDesc0();
         SimRunner runner = new();
         TestRunner trSim = runner;
 
-        handlers = processFile(readFile({codeDir, "handlers.txt"}));;
+        handlers = processFile(readFile({codeDir, "common_code/handlers.txt"}));;
 
         if (RUN_EMUL_TESTS) begin
-            runIntTestEmul(mainEmul, "events_int");
+            runIntTestEmul(mainEmul, "dir_interrupts/events_int");
 
             trEm.gp = Test_fillGpCached();
             trEm.gp.initialCregs.memControl = 7; // enable all
@@ -249,8 +249,8 @@ module ArchDesc0();
             core.insMap.assertReissue();
 
             #CYCLE $display("\n>>>>>> Event/int tests");
-            runIntTestSim("events_int");
-            runIntTestSim("events_int2");
+            runIntTestSim("dir_interrupts/events_int");
+            runIntTestSim("dir_interrupts/events_int2");
         end
 
         $display("\nAll tests done\n");
