@@ -1,0 +1,42 @@
+
+
+Need fp32 and fp64
+
+
+Areas: 
+
+flags and enables
+ - FP enable when off, FP op causes exception
+ - setting and clearing flags works (by ctrl reg operations)
+ - setting flags by FP operations works
+ - when trap enabled, setting flag also causes proper exception
+ - when trap disabled, setting flag doesn't cause excpetion
+
+ !! Important: setting flag by ctrl reg write when trap enabled: should not cause the trap? FP trap from ctrl op could be complicated
+
+
+Operation correctness: - results are affectd by rounding mode (RM)!!
+  by groups of ops
+  checking generated values by transforming mem range into another mem range
+ 	for 2-source ops we have 2 input ranges etc.   - optimally for each RM?
+  checking that proper flags are being set when conditions for exception satisfied:
+  		clear flag, do op, check flag
+
+
+
+Functions needed:
+	setFpEnable(0|1)
+
+	getFlag  - per flag
+	setFlag(0|1) - per flag
+	setTrapEnable(0|1) - per flag
+
+	setRoundingMode
+
+    // how to check exc?
+    	hook in handler: go to specific adr to continue the test
+    	check exc adr register and syndrome register
+    	check also specific FP exc registers? (need to be defined first)
+
+
+Introduce @include directive for easy use of helper functions?

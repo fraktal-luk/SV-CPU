@@ -1,0 +1,107 @@
+
+# Tests_mem_simple
+
+	Everything here is aligned!
+
+
+
+// just generating mem traffic (size: Word)
+stores0  ; rail of store r0 to memory range (to fill SQ)
+loads0   ; rail of loads (to fill LQ)
+loads1   ; store sth to memory block, load it and check equality
+
+
+
+mem_byte  		;  load byte, check
+mem_byte_store  ;  store byte, sync, load containing word
+mem_byte_forward ; a few store bytes, load bytes, some adrs matching
+
+
+tmp_loads_double
+tmp_loads_fp_double
+
+
+
+
+
+// Misses and fills (array and TLB)
+
+mem_data_miss_0  ; load from range not in L1, fill
+mem_data_miss_1  ; load from range not in L1, fill
+mem_data_miss_store ; store to range not in L!, fill, then sync and load it
+
+mem_tlb_miss_0  ; load from adr not in L! TLB, fill (!!! probaby mistake, adr like in mem_data_miss_0)
+mem_tlb_data_miss
+
+
+
+
+
+// Simple forwarding tests
+
+sf_0  ; store to mem range, sync, load from inside the range and check
+		-> store forwarding. Load takes value from a store still in SQ
+
+sf_1  ; store different values to equal adr, interleaved with loads, check correct values
+		-> storing values to te same adr, some loads interleaved inside - check that they get correct values
+
+sf_2  ; interleaved stores (to equal adr) and loads, check loading correct value 
+		-> basically same as sf_1 (UNNEEDED)?
+
+
+
+// Forwarding where producer load takes longer than expected, consuming store starts earlier, so FW miss
+
+sf_deps1  ; load(a) -> store, immediately load(b) from same adr (force SQ forwarding miss because store value waits for load(a) result)
+
+sf_deps2  ; as above but another op depends on load(b)
+
+sf_deps3  ; as above, but load(b) and its consumer is duplicated
+
+sf_deps4  ; as above but 2 load(b)'s are added together and then 3 further deps 
+
+sf_deps5  ; as sf_deps1 but store address, not value is waiting fo load(a)
+
+sf_deps6  ; poison, 2 loads in parallel, dependences, another load and dependence
+
+sf_deps7  ; load(a), store (adr waits for load(a)), 3 parallel loads from same adr
+
+
+
+-> What to do?
+ - simple capacity 
+	 - A rail of stoes
+	 - A rail of loads
+	 - A rail of stores and loads mixed
+
+ - Generate sequence 0:n into memory -> confirms arith + store works
+ 
+ - Copying mem: Word size
+ - Copying mem: Word size, FP
+ - Copying Mem: Dword size
+ - Copying Mem: Dword size, FP
+ - Copying mem mixed size (aligned, int only)
+ 	- Load words, store bytes (tranform wor array into byte array)
+ 	- Load bytes, store words
+
+ - Unaligned copy (int only, no page crossing):
+ 	- copy byte array by unaligned words  (subranges with different unaligned offsets?)
+ 	- copy byte array by unaligned dwords  (subranges with different unaligned offsets?)
+
+
+ - separately: tests with misses
+   - data mises: copy from range with miss to range with miss? (include block cross?)
+   - TLB misses: as above but miss in TLB, not data
+   - both data and TLB misses: combined
+
+
+ - !!! tests for page crossing in separate suite?
+
+ - separately: tests with uncached mem (reading and writing)
+
+
+ - separately: tests for mem forwarding
+
+
+ - separately: mem events
+  all kinds of exceptions? invalid vadr, unaligned aq-rel, unaligned uncached, unmapped mem, forbidden mem etc.

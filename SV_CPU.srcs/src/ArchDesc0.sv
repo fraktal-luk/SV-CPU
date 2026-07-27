@@ -219,12 +219,12 @@ module ArchDesc0();
             trEm.gp = Test_fillGpCached();
             trEm.gp.initialCregs.memControl = 7; // enable all
             trEm.gp.initialCregs.fpStatus = 'h8000; // enable FP
-            #CYCLE $display("\n>>>>>> Em  Dev tests");
+            #CYCLE $display("\n>>>>>> Em  Dev tests\n");
             trEm.runSuites(testsDevCached);
 
             trEm.gp.initialCregs.memControl = 0;
             trEm.gp.initialCregs.fpStatus = 0;
-            #CYCLE $display("\n>>>>>> Em  Dev tests unc");
+            #CYCLE $display("\n>>>>>> Em  Dev tests unc\n");
             trEm.runSuites(devTestsUnc);
 
             @(posedge clk);
@@ -235,7 +235,7 @@ module ArchDesc0();
             trSim.gp.initialCregs.memControl = 0;
             trSim.gp.initialCregs.fpStatus = 0;
 
-            #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
+            #CYCLE $display("\n>>>>>> Sim  Dev tests unc\n");
             trSim.runSuites(devTestsUnc);
 
 
@@ -243,12 +243,12 @@ module ArchDesc0();
             trSim.gp.initialCregs.memControl = 7; // enable all
             trSim.gp.initialCregs.fpStatus = 'h8000; // enable FP 
 
-            #CYCLE $display("\n>>>>>> Sim  Dev tests");
+            #CYCLE $display("\n>>>>>> Sim  Dev tests\n");
             trSim.runSuites(testsDevCached);
 
             core.insMap.assertReissue();
 
-            #CYCLE $display("\n>>>>>> Event/int tests");
+            #CYCLE $display("\n>>>>>> Event/int tests\n");
             runIntTestSim("dir_interrupts/events_int");
             runIntTestSim("dir_interrupts/events_int2");
         end

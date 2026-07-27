@@ -189,6 +189,7 @@ package Testing;
                 if (announceSuites)
                     $display("* Suite: %s", suites[i]);
                 runTests(suites[i], tests);
+                    $display("");
             end
         endtask
 
