@@ -6,6 +6,10 @@ package Asm;
     typedef string string4[4];
     typedef string squeue[$];
 
+
+    localparam string INCLUDE_PATH = "../../../../SV_CPU.srcs/code/";
+
+
     typedef struct {
         bit ref21 = 0;
         bit ref26 = 0;
@@ -452,6 +456,14 @@ package Asm;
             else if (line[i] == ",") begin
                 i++;
             end
+            else if (line[i] == "\"") begin
+                int iStart = i+1;
+                i++;
+                while (line[i] != "\"") i++;
+
+                elems.push_back(line.substr(iStart, i-1));
+                i++;
+            end
             else begin
                 i++;
                 $error("char %s at %d not recognized", line[i-1], i-1);
@@ -463,9 +475,11 @@ package Asm;
     endfunction
 
 
-    function automatic ParsedFile parseLines(input squeue lines);
+    function automatic ParsedFile parseLines(input squeue inLines);
+        squeue lines = inLines;
         ParsedFile pf;
         SectionDesc currentSection;
+        int i = -1;
 
             squeue errors = '{};
             int sectionHeads[$];
@@ -473,8 +487,14 @@ package Asm;
         int nInstructionLines = 0;
     
         // scan lines
-        foreach (lines[i]) begin
-            squeue parts = breakLine({lines[i], 8'h0});
+        while (lines.size() > 0) begin
+            string lineStr = //lines[i];
+                             lines.pop_front();
+            squeue parts = breakLine({lineStr, 8'h0});
+
+            i++;
+
+
             if (parts.size() == 0) continue;
             else if (parts[0][0] == "$") begin
                 currentSection.labels.push_back('{i+1, nInstructionLines+1, parts[0]});
@@ -485,7 +505,22 @@ package Asm;
                 //     currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
                 // end
 
-                if (parts[0] == "@section") begin
+
+                if (parts[0] == "@include") begin
+                    //int incFile = -1;// $fopen();
+
+                    squeue incLines;
+
+                   // $error("Trying to inclde file: %s\n", {INCLUDE_PATH, dl.label});
+
+                    incLines = readFile({INCLUDE_PATH, dl.label});
+
+                  //  $error(incLines[0]);
+
+                    lines = {incLines, lines};
+
+                end
+                else if (parts[0] == "@section") begin
                     SectionDesc newSec;
                     pf.sections.push_back(currentSection);
                     currentSection = newSec;
@@ -695,6 +730,9 @@ package Asm;
             end
         end
         else if (parts[0] == "@section") begin
+            res.label = parts.size() > 1 ? parts[1] : "";
+        end
+        else if (parts[0] == "@include") begin
             res.label = parts.size() > 1 ? parts[1] : "";
         end
         else begin

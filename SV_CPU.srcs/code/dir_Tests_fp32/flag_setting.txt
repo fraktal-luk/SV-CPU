@@ -1,9 +1,12 @@
 
 ;
+
+@section prog_main
 ;
 
-	sys_dbcall
+@include "common_code/example.txt"
 
+	sys_error
 
 $fp_set_flag_Invalid
 $fp_set_flag_Div0
