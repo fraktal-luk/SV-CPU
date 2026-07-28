@@ -225,6 +225,9 @@ package InsDefs;
             T_intCmpGtU = 32*S_intArith + 2,
             T_intCmpGtS = 32*S_intArith + 3,
 
+            T_intShl   = 32*S_intArith + 4,
+
+
         T_intMul   = 32*S_intMul + 0,
         T_intMulHU = 32*S_intMul + 1,
         T_intMulHS = 32*S_intMul + 2,
@@ -402,6 +405,8 @@ package InsDefs;
             "cgt_u":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
             "cgt_s":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
                 
+        "shl_r":       '{F_int2R, P_intAlu, S_intArith, T_intShl, O_intShiftLogical},
+
         "shl_i":      '{F_intImm10, P_intAluImm, S_intShiftLogical, T_none, O_intShiftLogical},//intImm10, 
         "sha_i":      '{F_intImm10, P_intAluImm, S_intShiftArith, T_none, O_intShiftArith},//intImm10, 
         "rot_i":      '{F_intImm10, P_intAluImm, S_intRotate, T_none, O_intRotate},//intImm10, 

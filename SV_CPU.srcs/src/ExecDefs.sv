@@ -487,11 +487,13 @@ package ExecDefs;
             UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
             UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
 
-        
+            UOP_int_shl:
+                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                            else                       res = $unsigned(args[0]) >> -args[1];
             UOP_int_shlc:
                             if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
                             else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shac:
+            UOP_int_shac:       // TODO: arg0 should be signed? 
                             if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
                             else                       res = $unsigned(args[0]) >> -args[1];                     
             UOP_int_rotc:

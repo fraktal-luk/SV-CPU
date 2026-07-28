@@ -25,6 +25,8 @@ package UopList;
             UOP_int_cgtu,
             UOP_int_cgts,
         
+            UOP_int_shl,
+
          UOP_int_shlc,
          UOP_int_shac,
          UOP_int_rotc,
@@ -131,6 +133,7 @@ package UopList;
             "cgt_u":   UOP_int_cgtu,
             "cgt_s":   UOP_int_cgts,
 
+            "shl_r":  UOP_int_shl,
         "shl_i":      UOP_int_shlc,
         "sha_i":      UOP_int_shac,
         "rot_i":      UOP_int_rotc,
@@ -366,6 +369,8 @@ package UopList;
             UOP_int_cgtu,
             UOP_int_cgts,
         
+            UOP_int_shl,
+
          UOP_int_shlc,
          UOP_int_shac,
          UOP_int_rotc,
