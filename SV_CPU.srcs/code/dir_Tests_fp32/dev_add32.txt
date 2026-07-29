@@ -1,0 +1,26 @@
+
+@section prog_main
+	
+	jl r31, $get_adr_data_main
+	or_r  r8, r0, r1
+
+	jl r31, $get_adr_data_output
+	or_r  r9, r0, r1
+
+	
+
+
+	sys_dbcall
+
+@include "common_code/basic_pointers.txt"
+@include "common_code/fp_helpers.txt"
+
+
+
+@section data0
+
+
+
+
+@section output
+

@@ -1,2 +1,3 @@
 
 flag_setting
+dev_add32

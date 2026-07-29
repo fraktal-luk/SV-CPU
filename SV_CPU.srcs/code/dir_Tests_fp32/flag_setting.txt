@@ -2,9 +2,6 @@
 ;
 
 @section prog_main
-;
-
-;@include "common_code/example.txt"
 	
 	add_i r1, r0, 3
 
@@ -44,35 +41,3 @@ $err
 	sys_error
 
 @include "common_code/fp_helpers.txt"
-
-
-
-$fp_set_flag_Invalid
-$fp_set_flag_Div0
-$fp_set_flag_Overflow
-$fp_set_flag_Underflow
-$fp_set_flag_Inexact
-
-$fp_clear_flag_Invalid
-$fp_clear_flag_Div0
-$fp_clear_flag_Overflow
-$fp_clear_flag_Underflow
-$fp_clear_flag_Inexact
-
-$fp_get_flag_Invalid
-$fp_get_flag_Div0
-$fp_get_flag_Overflow
-$fp_get_flag_Underflow
-$fp_get_flag_Inexact
-
-$fp_enable_trap_Invalid
-$fp_enable_trap_Div0
-$fp_enable_trap_Overflow
-$fp_enable_trap_Underflow
-$fp_enable_trap_Inexact
-
-$fp__flag_Invalid
-$fp_get_flag_Div0
-$fp_get_flag_Overflow
-$fp_get_flag_Underflow
-$fp_get_flag_Inexact

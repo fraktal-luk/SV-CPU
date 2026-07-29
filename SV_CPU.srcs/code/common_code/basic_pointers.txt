@@ -1,0 +1,73 @@
+
+
+
+
+;    localparam Dword PROG_P_MAIN = 0; // physical adr of test code
+;    localparam Dword PROG_P_MISS = 'h2000; // page not in instruction L1
+
+;    localparam Dword PROG_P_HANDLERS = 'h4000;
+;    localparam Dword PROG_P_LIB = 'h5000;
+
+
+;    localparam Dword DATA_P_MAIN = 0; // physical adr of input
+$get_adr_data_main
+	add_i r1, r0, 0
+	jz_r r0, r0, r31
+
+;    localparam Dword DATA_P_MISS = 'h2000; // page not in data L1
+$get_adr_data_miss
+	add_i r1, r0, 0x2000
+	jz_r r0, r0, r31
+
+;    localparam Dword DATA_P_OUTPUT = 'h4000; // for writing output data 
+$get_adr_data_output
+	add_i r1, r0, 0x4000
+	jz_r r0, r0, r31
+
+;    localparam Dword DATA_P_UNCACHED = 'h0000000040000000;
+$get_adr_data_uncached
+	add_h r1, r0, 0x4000
+	jz_r r0, r0, r31
+
+
+;    localparam Dword VIRTUAL_OFFSET_TLB_MISS = 'h100000;  // 1 MB
+
+;    localparam Dword PROG_V_OFFSET = 0; // Added to all physical adrs of program
+;    localparam Dword DATA_V_OFFSET = 0; // Likewise, for data
+
+
+
+;    localparam Dword PROG_P_NONEXISTENT = 'h20000000000;
+;    localparam Dword DATA_P_NONEXISTENT = 'h20000000000;
+$get_adr_data_p_nonexistent
+	add_i r1, r0, 0
+	jz_r r0, r0, r31
+
+;    localparam Dword PROG_V_INVALID = 'h8000000000000000;
+;    localparam Dword PROG_V_UNMAPPED = 'h8000;
+;    localparam Dword PROG_V_DISALLOWED = 'h9000;
+;    localparam Dword PROG_V_MAPPED_NONEXISTENT = 'ha000;
+
+;    localparam Dword DATA_V_INVALID = 'h8000000000000000;
+$get_adr_data_v_invalid
+	add_i r1, r0, -1
+	shl_i r1, r1, 63
+	jz_r r0, r0, r31
+
+;    localparam Dword DATA_V_UNMAPPED = 'h8000;
+$get_adr_data_v_unmapped
+	add_i r1, r0, 0x4000  ; add 0x4000 twice to avoid sign ext
+	add_i r1, r1, 0x4000
+	jz_r r0, r0, r31
+
+;    localparam Dword DATA_V_DISALLOWED = 'h9000;
+$get_adr_data_v_disallowed
+	add_i r1, r0, 0x4800  ; add 0x4800 twice to avoid sign ext
+	add_i r1, r1, 0x4800
+	jz_r r0, r0, r31
+
+;    localparam Dword DATA_V_MAPPED_NONEXISTENT = 'ha000;
+$get_adr_data_v_nonexistent
+	add_i r1, r0, 0x5000  ; add 0x5000 twice to avoid sign ext
+	add_i r1, r1, 0x5000
+	jz_r r0, r0, r31
