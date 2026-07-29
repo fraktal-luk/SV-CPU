@@ -602,7 +602,16 @@ package Emulation;
 
             while (firstReg < 32) begin
                 $display("[%02d] %016x [%02d] %016x [%02d] %016x [%02d] %016x",
-                          firstReg+0, coreState.intRegs[firstReg+0], firstReg+1, coreState.intRegs[firstReg+1], firstReg+2, coreState.intRegs[firstReg+2], firstReg+3,coreState.intRegs[firstReg+3], );
+                          firstReg+0, coreState.intRegs[firstReg+0], firstReg+1, coreState.intRegs[firstReg+1], firstReg+2, coreState.intRegs[firstReg+2], firstReg+3, coreState.intRegs[firstReg+3], );
+                firstReg += 4;
+            end
+
+            firstReg = 0;
+            $display("\nFP registers");
+
+            while (firstReg < 32) begin
+                $display("[%02d] %016x [%02d] %016x [%02d] %016x [%02d] %016x",
+                          firstReg+0, coreState.floatRegs[firstReg+0], firstReg+1, coreState.floatRegs[firstReg+1], firstReg+2, coreState.floatRegs[firstReg+2], firstReg+3, coreState.floatRegs[firstReg+3], );
                 firstReg += 4;
             end
 
