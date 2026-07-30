@@ -339,6 +339,10 @@ package Emulation;
 
         function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
             logic dbStepOn = 0;
+
+                // TODO: if instruction is disabled, convert it to static event
+                AbstractInstruction effectiveIns = suppressDisabledInstruction(ins, !cregs.fpStatus.enableFP);
+
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
             MemoryWrite writeToDo = '{default: 0};
@@ -618,7 +622,7 @@ package Emulation;
             $display("\nSys registers");
 
             firstReg = 0;
-            while (firstReg < 6) begin
+            while (firstReg < 10) begin
                 $display("[%02d] %016x",
                           firstReg+0,
                           coreState.sysRegs[firstReg+0]);

@@ -84,6 +84,14 @@ package Asm;
         sources: '{default: 0}
     };
 
+    localparam AbstractInstruction FP_DISABLED_INS = '{
+        mnemonic: "",
+        encoding: 'x,
+        def: '{F_none, P_none, S_none, T_none, O_fpDisabled},
+        dest: 0,
+        sources: '{default: 0}
+    };
+
     typedef struct {
         string name;
         ImportRef imports[$];

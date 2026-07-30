@@ -11,7 +11,8 @@ package UopList;
          
          UOP_ctrl_undef,
             UOP_ctrl_fetchError,
-         
+            UOP_ctrl_fp_disabled,
+
          UOP_int_and,
          UOP_int_or,
          UOP_int_xor,
@@ -431,6 +432,7 @@ package UopList;
     function automatic ProgramEvent eventFromUop(input UopName uname);
         case (uname)
             UOP_ctrl_fetchError: $fatal(2, "Should be handled outside this function");
+                UOP_ctrl_fp_disabled: return PE_SYS_DISABLED_INSTRUCTION;
 
             UOP_ctrl_error: return PE_SYS_ERROR;
             UOP_ctrl_undef: return PE_SYS_UNDEFINED_INSTRUCTION;

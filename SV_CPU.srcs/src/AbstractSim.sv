@@ -111,7 +111,9 @@ package AbstractSim;
     function automatic UopName decodeUop(input AbstractInstruction ins);
         if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
 
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);        
+            if (ins.def.o == O_fpDisabled) return UOP_ctrl_fp_disabled;
+
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
         return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 

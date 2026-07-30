@@ -1,0 +1,20 @@
+
+
+@section prog_main
+	
+	add_i r1, r0, 15
+
+
+		;sys_error
+
+	jl r31, $clear_cr8_bit
+
+		;sys_error
+
+	addf32 f0, f1, f2
+
+
+	sys_dbcall
+
+
+@include "common_code/fp_helpers.txt"

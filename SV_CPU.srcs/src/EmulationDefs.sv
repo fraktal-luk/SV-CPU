@@ -38,6 +38,40 @@ package EmulationDefs;
 //        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
 //    endfunction    
 
+    function automatic logic requiresFP(input AbstractInstruction ins);
+        return ins.mnemonic inside {
+            "mov_f",
+            "xor_f",
+            "and_f",
+            "or_f",
+            "addi_f",
+            "muli_f",
+            "divi_f",
+            "inv_f",
+            "ov_f",
+            "addf32",
+            "subf32",
+            "mulf32",
+            "divf32",
+            "cmpeqf32",
+            "cmpgef32",
+            "cmpgtf32",
+            "addf64",
+            "subf64",
+            "mulf64",
+            "divf64",
+            "cmpeqf64",
+            "cmpgef64",
+            "cmpgtf64",
+
+            "ldf_i",
+            "stf_i",
+            "ldf_d",
+            "stf_d"
+        };
+    endfunction
+
+
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
     endfunction
@@ -80,11 +114,11 @@ package EmulationDefs;
     endfunction
 
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
+        return ins.def.o inside {O_fetchError, O_fpDisabled,    O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
     endfunction
 
     function automatic logic isStaticEventIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_send};
+        return ins.def.o inside {O_fetchError,  O_fpDisabled,   O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_send};
     endfunction
 
     function automatic logic isSilentEventIns(input AbstractInstruction ins); // excluding sys load
@@ -359,6 +393,14 @@ package EmulationDefs;
         // syndrome
         status.eventType = ProgramEvent'(sysRegs[6]);
     endfunction
+
+
+
+        function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
+            if (!fpEnabled && requiresFP(ins))
+                return FP_DISABLED_INS;
+            else return ins;
+        endfunction
 
 
 endpackage

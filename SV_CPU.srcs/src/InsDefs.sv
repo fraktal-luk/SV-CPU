@@ -315,7 +315,8 @@ package InsDefs;
     typedef enum {
         O_undef,
             O_fetchError,
-        
+            O_fpDisabled,
+
         O_call,
             O_dbcall,
         O_sync,

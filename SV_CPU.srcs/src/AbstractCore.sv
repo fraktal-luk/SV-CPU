@@ -355,6 +355,10 @@ module AbstractCore
                             input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
         AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
+                // TODO: based on CurrentConfig, convert disabled instructions to static exceptions
+            AbstractInstruction insEffective = suppressDisabledInstruction(ins, !CurrentConfig.enableFP); // ins converted to static event if applicable
+
+
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;
 
         UopInfo mainUinfo;
