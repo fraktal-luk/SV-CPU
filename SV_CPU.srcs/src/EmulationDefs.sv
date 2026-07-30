@@ -397,9 +397,12 @@ package EmulationDefs;
 
 
         function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
-            if (!fpEnabled && requiresFP(ins))
-                return FP_DISABLED_INS;
-            else return ins;
+            // TODO: handle FP config correctly
+
+            // if (!fpEnabled && requiresFP(ins))
+            //     return FP_DISABLED_INS;
+            // else 
+                return ins;
         endfunction
 
 

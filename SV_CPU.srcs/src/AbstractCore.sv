@@ -353,10 +353,10 @@ module AbstractCore
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
                             input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
-        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
+        AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
                 // TODO: based on CurrentConfig, convert disabled instructions to static exceptions
-            AbstractInstruction insEffective = suppressDisabledInstruction(ins, !CurrentConfig.enableFP); // ins converted to static event if applicable
+            AbstractInstruction ins = suppressDisabledInstruction(insPre, !CurrentConfig.enableFP); // ins converted to static event if applicable
 
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;

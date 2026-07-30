@@ -227,6 +227,13 @@ package Emulation;
                         status.dbEventPending = 0;
                         status.exceptionRaised = 1;
                 end
+
+                    O_fpDisabled: begin
+                        setExecState(PE_SYS_DISABLED_INSTRUCTION, adr);
+                            status.dbEventPending = 0;
+                            status.exceptionRaised = 1;
+                    end
+
                 O_call: begin
                     setExecState(PE_SYS_CALL, adr + 4);
                         status.dbEventPending = 0;
@@ -337,11 +344,13 @@ package Emulation;
         endfunction
 
 
-        function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
+        function automatic void processInstruction(input Mword adr, input AbstractInstruction inputIns);
             logic dbStepOn = 0;
 
+                //AbstractInstruction ins = inputIns;
+
                 // TODO: if instruction is disabled, convert it to static event
-                AbstractInstruction effectiveIns = suppressDisabledInstruction(ins, !cregs.fpStatus.enableFP);
+                AbstractInstruction ins = suppressDisabledInstruction(inputIns, !cregs.fpStatus.enableFP);
 
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);

@@ -707,7 +707,7 @@ package InsDefs;
             PE_SYS_ERROR:
                 return IP_ERROR;
 
-            PE_SYS_UNDEFINED_INSTRUCTION:
+            PE_SYS_UNDEFINED_INSTRUCTION, PE_SYS_DISABLED_INSTRUCTION:
                 return IP_EXC;
 
             PE_SYS_CALL:

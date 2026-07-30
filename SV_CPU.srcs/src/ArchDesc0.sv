@@ -107,7 +107,8 @@ module ArchDesc0();
         string prefix = {"dir_", suiteName, "/"};
         CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
 
-        emulTestName = name;
+        //emulTestName = name;
+            announceEmul(name);
 
         resetAll(emul);
         emul.progMem = new();
@@ -271,6 +272,12 @@ module ArchDesc0();
         wait (done);
         #CYCLE;
             #CYCLE;
+    endtask
+
+
+    task announceEmul(input string name);
+        emulTestName = name;
+        $display("> RUN: %s", name);
     endtask
 
     task announce(input string name);
