@@ -399,9 +399,13 @@ package EmulationDefs;
         function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
             // TODO: handle FP config correctly
 
-            // if (!fpEnabled && requiresFP(ins))
-            //     return FP_DISABLED_INS;
-            // else 
+               // if (requiresFP(ins)) $error("FP rquired:\n%p", ins);
+
+            if (!fpEnabled && requiresFP(ins)) begin
+                  //  $error("sup ins: %p", ins);
+                return FP_DISABLED_INS;
+            end
+            else 
                 return ins;
         endfunction
 

@@ -350,7 +350,7 @@ package Emulation;
                 //AbstractInstruction ins = inputIns;
 
                 // TODO: if instruction is disabled, convert it to static event
-                AbstractInstruction ins = suppressDisabledInstruction(inputIns, !cregs.fpStatus.enableFP);
+                AbstractInstruction ins = suppressDisabledInstruction(inputIns, cregs.fpStatus.enableFP);
 
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);

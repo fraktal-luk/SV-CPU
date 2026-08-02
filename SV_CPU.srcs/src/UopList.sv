@@ -246,6 +246,8 @@ package UopList;
             UOP_ctrl_undef,
                 UOP_ctrl_fetchError,
             
+                UOP_ctrl_fp_disabled,
+
             UOP_ctrl_rete,
             UOP_ctrl_reti,
             UOP_ctrl_halt,

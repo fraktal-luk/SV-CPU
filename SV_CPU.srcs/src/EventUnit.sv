@@ -169,6 +169,9 @@ module EventUnit(input logic clk);
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
         uname = decMainUop(slot.mid);
+
+              //  if (uname == UOP_ctrl_fp_disabled) $error("We have FP disabled");
+
         evt = eventFromUop(uname);
 
         return '{1, slot.mid, evt};
