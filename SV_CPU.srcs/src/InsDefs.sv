@@ -34,87 +34,87 @@ package InsDefs;
 
 
 
-    class MnemonicClass;
-        typedef 
-        enum {
-            // set, mov, clr, nop, -- pseudoinstructions
+    // class MnemonicClass;
+    //     typedef 
+    //     enum {
+    //         // set, mov, clr, nop, -- pseudoinstructions
 
-            and_r,
-            or_r,
-            xor_r,
+    //         and_r,
+    //         or_r,
+    //         xor_r,
 
-            add_i,
-            add_h,
-            add_r,
-            sub_r,
+    //         add_i,
+    //         add_h,
+    //         add_r,
+    //         sub_r,
 
-                cgt_u, cgt_s,
+    //             cgt_u, cgt_s,
 
-            shl_i, shl_r, //-- direction defined by shift value, not opcode 
-            sha_i, sha_r, //--   
-            rot_i, rot_r,
+    //         shl_i, shl_r, //-- direction defined by shift value, not opcode 
+    //         sha_i, sha_r, //--   
+    //         rot_i, rot_r,
 
-            mult, 
-            mulh_s, mulh_u,
-            div_s, div_u,
-            rem_s, rem_u,
+    //         mult, 
+    //         mulh_s, mulh_u,
+    //         div_s, div_u,
+    //         rem_s, rem_u,
 
-            mov_f,
-            xor_f, and_f,  // Pseudo float operations
-            or_f, addi_f,  // -- Pseudo float operations
-            muli_f, divi_f, // Pseudo float operations
+    //         mov_f,
+    //         xor_f, and_f,  // Pseudo float operations
+    //         or_f, addi_f,  // -- Pseudo float operations
+    //         muli_f, divi_f, // Pseudo float operations
             
-                addf32, subf32, mulf32, divf32,
-                    cmpeqf32, cmpgef32, cmpgtf32,
-                addf64, subf64, mulf64, divf64,
-                    cmpeqf64, cmpgef64, cmpgtf64,
+    //             addf32, subf32, mulf32, divf32,
+    //                 cmpeqf32, cmpgef32, cmpgtf32,
+    //             addf64, subf64, mulf64, divf64,
+    //                 cmpeqf64, cmpgef64, cmpgtf64,
             
-            inv_f, ov_f,  // Setting FP exceptions
+    //         inv_f, ov_f,  // Setting FP exceptions
 
-            ldi_d,
-            sti_d,
+    //         ldi_d,
+    //         sti_d,
 
-            ldi_i, ldi_r, //-- int
-            sti_i, sti_r,
+    //         ldi_i, ldi_r, //-- int
+    //         sti_i, sti_r,
 
-                e_lb,
-                e_sb,
+    //             e_lb,
+    //             e_sb,
 
-            ldf_i, ldf_r, //-- float
-            stf_i, stf_r, 
+    //         ldf_i, ldf_r, //-- float
+    //         stf_i, stf_r, 
 
-            ldf_d,
-            stf_d,
-
-
-            lds, //-- load sys
-
-            sts, //-- store sys
-
-                mb_ld_b, mb_ld_f, mb_ld_bf, mb_st_b, mb_st_f, mb_st_bf,
-                e_ldaq,
-                e_stc,
+    //         ldf_d,
+    //         stf_d,
 
 
-            jz_i, jz_r, jnz_i, jnz_r,
-            ja, jl, //-- jump always, jump link
+    //         lds, //-- load sys
+
+    //         sts, //-- store sys
+
+    //             mb_ld_b, mb_ld_f, mb_ld_bf, mb_st_b, mb_st_f, mb_st_bf,
+    //             e_ldaq,
+    //             e_stc,
 
 
-            sys_rete,
-            sys_reti,
-            sys_halt,
-            sys_sync,
-            sys_replay,
-            sys_error,
-            sys_call,
-            sys_send,
-                sys_dbcall,
+    //         jz_i, jz_r, jnz_i, jnz_r,
+    //         ja, jl, //-- jump always, jump link
 
-            undef
-        } Mnemonic;
-    endclass;
 
-    typedef MnemonicClass::Mnemonic Mnemonic;
+    //         sys_rete,
+    //         sys_reti,
+    //         sys_halt,
+    //         sys_sync,
+    //         sys_replay,
+    //         sys_error,
+    //         sys_call,
+    //         sys_send,
+    //             sys_dbcall,
+
+    //         undef
+    //     } Mnemonic;
+    // endclass;
+
+//    typedef MnemonicClass::Mnemonic Mnemonic;
 
     typedef enum {
         F_none,
@@ -177,9 +177,42 @@ package InsDefs;
         S_intRotate       = 64*P_intAluImm + 2,
          
         // P_floatOp
-        S_floatMove   = 64*P_floatOp + 0,
-        S_floatArith  = 64*P_floatOp + 1,
-         
+        S_floatMove   = 64*P_floatOp + 0, // TMP
+        S_floatArith  = 64*P_floatOp + 1, // TMP
+            S_floatMoveFP = 64*P_floatOp + 3, // FP move, sign ops, with FP dest  
+            S_floatMoveInt = 64*P_floatOp + 4, // FP move with Int dest
+            
+            S_floatArith2_f32  = 64*P_floatOp + 5, // 
+            S_floatCmpFP_f32 = 64*P_floatOp + 6, // FP cmp with FP dest
+            S_floatCmpInt_f32 = 64*P_floatOp + 7, // FP cmp with Int dest
+            S_floatClassFP_f32 = 64*P_floatOp + 8,
+            S_floatClassInt_f32 = 64*P_floatOp + 9,
+            
+            S_floatConvFP       = 64*P_floatOp + 10,
+            S_floatConvFromInt = 64*P_floatOp + 11,
+            S_floatConvToIntFP = 64*P_floatOp + 12,
+            S_floatConvToIntInt = 64*P_floatOp + 13,
+            S_floatIntegerOp  = 64*P_floatOp + 14,
+
+            S_floatArith2_f64  = 64*P_floatOp + 15, // 
+            S_floatCmpFP_f64 = 64*P_floatOp + 16, // FP cmp with FP dest
+            S_floatCmpInt_f64 = 64*P_floatOp + 17, // FP cmp with Int dest
+            S_floatClassFP_f64 = 64*P_floatOp + 18,
+            S_floatClassInt_f64 = 64*P_floatOp + 19,
+
+            // FMA:  xA + yBC, xy is 1 of 4 combinations of +- 
+
+            S_fma32pp         = 64*P_floatOp + 56,
+            S_fma32pm         = 64*P_floatOp + 57,
+            S_fma32mp         = 64*P_floatOp + 58,
+            S_fma32mm         = 64*P_floatOp + 59,
+
+            S_fma64pp         = 64*P_floatOp + 60,
+            S_fma64pm         = 64*P_floatOp + 61,
+            S_fma64mp         = 64*P_floatOp + 62,
+            S_fma64mm         = 64*P_floatOp + 63,
+
+
         // P_intMem
         S_mbLoadB = 64*P_intMem + 0,
         S_mbStoreB = 64*P_intMem + 1,
@@ -191,8 +224,7 @@ package InsDefs;
         S_storeRel   = 64*P_intMem + 7,
 
         // P_floatMem
-        //S_floatLoadW,
-        //S_floatStoreW,
+        // ???
          
         // P_sysMem
         S_sysLoad   = 64*P_sysMem + 0,

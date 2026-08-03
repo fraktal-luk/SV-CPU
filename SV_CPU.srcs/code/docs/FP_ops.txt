@@ -194,3 +194,89 @@ Parallel classification:
 
 	5.7.1, NonComp
 		* conformance: 		boolean <- (void)
+
+
+----------------------------------------------------------
+
+# Classes of ops to implement:
+	* Moves, sign:
+		(signBit ops)
+		?moves int regs <-> FP regs
+	* GenComp  [Exc]
+		1 src, 2 src, 3 src
+	* Conversions [Exc]
+		FP <-> FP
+		int <-> FP, FP regs only
+		?int <-> FP, int regs and FP regs
+	* Comparisons [Exc]
+		FP cmp to FP dest
+		?FP cmp to int dest
+	* classification
+		to FP dest
+		?to int dest
+
+* First batch: only FP registers
+	Moves and sign (f32, f64)
+	GenComp (f32, f64) Exc
+	Conversions (all types to all types: f32, f64, s32, s64, u32, u64)  Exc (unless int -> int)
+	Comparisons: f32, f64 [Exc]   (int types too?, no exc)
+	NonComp
+
+# List
+	* Moves and sign (4) [per FP type = 2]    [[[8]]]
+	  copy, negate, abs
+	  copySign
+	* GenComp   (21) [per FP type = 2]         [[[42]]]
+	  roundIntegral(roundMode(6))     		Even, Away, Zero, Positive, Negative
+	  roundIntergaExact(roundMode(6))   	Dynamic
+	  nextUp, nextDown
+	  remainder, add, sub, mul, div
+	  sqrt
+	  fma
+	* Convert FP [FP types ^2 = 4]           [[[4]]]
+	  convertFP (incuding to same format!)
+	* Convert int (13) [FP types x int types = 8]  [[[104]]]
+	  convertFromInt
+	  convToInt(roundMode (6))      	Even, Away, Zero, Positive, Negative
+	  convToIntExact(roundMode (6)) 	Even, Away, Zero, Positive, Negative
+	* Compare  (24) [per FP type = 2]      [[[48]]]
+	  compare(quiet|sig)(pred = 12)
+	* Classification (12) [per FP type = 2]  [[[24]]]
+	  class
+	  is(categ) (11)
+
+FP value classes: (10)
+	signalingNaN        SN
+	quietNaN			QN
+	negativeInfinity    -Inf
+	negativeNormal      -X
+	negativeSubnormal   -x
+	negativeZero        -0
+	positiveZero        +0
+	positiveSubnormal   +x
+	positiveNormal      +X
+	positiveInfinity    +Inf
+
+categ: (11)
+	minus (including -0 and -NaN)
+	normal
+	finite
+	zero
+	subnormal
+	infinite
+	nan
+	signalling
+	canonical
+	totalOrder (2 src)
+	totalOrderMag (2 src)
+
+pred:
+	Q   (12)
+		eq, ne
+		gt, ge, gu, ng
+		lt, le, lu, nl
+		un, or
+	S   (10)
+		eq, ne,
+		gt, ge, gu, ng,
+		lt, le, lu, nl
