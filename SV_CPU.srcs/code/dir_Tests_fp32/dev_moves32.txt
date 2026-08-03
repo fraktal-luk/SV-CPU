@@ -1,10 +1,44 @@
 
 @section prog_main
-	
-	move_f32  f1, f3
-	abs_f32  f1, f3
-	neg_f32  f1, f7
-	cpys_f32  f1, f3, f2
+
+	jl r31, $get_adr_data_main
+	or_r  r8, r0, r1
+
+	jl r31, $get_adr_data_output
+	or_r  r9, r0, r1
+
+
+	ldf_i  f1, r8, 0
+	ldf_i  f2, r8, 4
+;	ldf_i  f3, r8, 8
+;	ldf_i  f4, r8, 12
+
+
+	move_f32  f5, f1
+	move_f32  f6, f2
+
+	neg_f32   f7, f1
+	neg_f32   f8, f2
+
+	abs_f32   f9, f1
+	abs_f32   f10, f2
+
+	cpys_f32  f11, f1, f2
+	cpys_f32  f12, f2, f1
+	cpys_f32  f13, f1, f1
+	cpys_f32  f14, f2, f2
+
+
+	stf_i   f5, r9, 0
+	stf_i   f6, r9, 4
+	stf_i   f7, r9, 8
+	stf_i   f8, r9, 12
+	stf_i   f9, r9, 16
+	stf_i   f10, r9, 20
+	stf_i   f11, r9, 24
+	stf_i   f12, r9, 28
+	stf_i   f13, r9, 32
+	stf_i   f14, r9, 36
 
 
 	sys_dbcall
@@ -15,7 +49,20 @@
 
 
 @section data0
-
-
+	0x70003000
+	0xc0010028
 
 @section output
+	0x70003000
+	0xc0010028
+
+	0xf0003000
+	0x40010028
+	
+	0x70003000
+	0x40010028
+
+	0xf0003000
+	0x40010028
+	0x70003000
+	0xc0010028
