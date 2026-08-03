@@ -58,6 +58,12 @@ package UopList;
             UOP_fp_cmpge32,
             UOP_fp_cmpgt32,
 
+                UOP_fp_move32,
+                UOP_fp_neg32,
+                UOP_fp_abs32,
+                UOP_fp_cpys,
+
+
          UOP_mem_ldi,
          UOP_mem_sti,
 
@@ -165,6 +171,12 @@ package UopList;
             "cmpgef32":     UOP_fp_cmpge32,
             "cmpgtf32":     UOP_fp_cmpgt32,
         
+            "move_f32":    UOP_fp_move32,
+            "neg_f32":     UOP_fp_neg32,
+            "abs_f32":     UOP_fp_abs32,
+            "cpys_f32":    UOP_fp_cpys,
+
+
         "ldi_i":      UOP_mem_ldi,
         "sti_i":      UOP_mem_sti,
         
@@ -214,7 +226,6 @@ package UopList;
 
 
 
-
 // Classification
 
     // Not including memory
@@ -237,7 +248,12 @@ package UopList;
                 
                 UOP_fp_cmpeq32,
                 UOP_fp_cmpge32,
-                UOP_fp_cmpgt32
+                UOP_fp_cmpgt32,
+
+                UOP_fp_move32,
+                UOP_fp_neg32,
+                UOP_fp_abs32,
+                UOP_fp_cpys
               };
     endfunction    
 
@@ -422,7 +438,12 @@ package UopList;
                 UOP_fp_cmpeq32,
                 UOP_fp_cmpge32,
                 UOP_fp_cmpgt32,
-                
+
+                UOP_fp_move32,
+                UOP_fp_neg32,
+                UOP_fp_abs32,
+                UOP_fp_cpys,
+
              UOP_mem_ldf,
              UOP_mem_ldfd
         };

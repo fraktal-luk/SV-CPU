@@ -1,0 +1,21 @@
+
+@section prog_main
+	
+	move_f32  f1, f3
+	abs_f32  f1, f3
+	neg_f32  f1, f7
+	cpys_f32  f1, f3, f2
+
+
+	sys_dbcall
+
+@include "common_code/basic_pointers.txt"
+@include "common_code/fp_helpers.txt"
+
+
+
+@section data0
+
+
+
+@section output

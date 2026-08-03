@@ -33,89 +33,6 @@ package InsDefs;
     localparam Mword IP_ARITH_EXC = HANDLER_BASE + 'h00000580;
 
 
-
-    // class MnemonicClass;
-    //     typedef 
-    //     enum {
-    //         // set, mov, clr, nop, -- pseudoinstructions
-
-    //         and_r,
-    //         or_r,
-    //         xor_r,
-
-    //         add_i,
-    //         add_h,
-    //         add_r,
-    //         sub_r,
-
-    //             cgt_u, cgt_s,
-
-    //         shl_i, shl_r, //-- direction defined by shift value, not opcode 
-    //         sha_i, sha_r, //--   
-    //         rot_i, rot_r,
-
-    //         mult, 
-    //         mulh_s, mulh_u,
-    //         div_s, div_u,
-    //         rem_s, rem_u,
-
-    //         mov_f,
-    //         xor_f, and_f,  // Pseudo float operations
-    //         or_f, addi_f,  // -- Pseudo float operations
-    //         muli_f, divi_f, // Pseudo float operations
-            
-    //             addf32, subf32, mulf32, divf32,
-    //                 cmpeqf32, cmpgef32, cmpgtf32,
-    //             addf64, subf64, mulf64, divf64,
-    //                 cmpeqf64, cmpgef64, cmpgtf64,
-            
-    //         inv_f, ov_f,  // Setting FP exceptions
-
-    //         ldi_d,
-    //         sti_d,
-
-    //         ldi_i, ldi_r, //-- int
-    //         sti_i, sti_r,
-
-    //             e_lb,
-    //             e_sb,
-
-    //         ldf_i, ldf_r, //-- float
-    //         stf_i, stf_r, 
-
-    //         ldf_d,
-    //         stf_d,
-
-
-    //         lds, //-- load sys
-
-    //         sts, //-- store sys
-
-    //             mb_ld_b, mb_ld_f, mb_ld_bf, mb_st_b, mb_st_f, mb_st_bf,
-    //             e_ldaq,
-    //             e_stc,
-
-
-    //         jz_i, jz_r, jnz_i, jnz_r,
-    //         ja, jl, //-- jump always, jump link
-
-
-    //         sys_rete,
-    //         sys_reti,
-    //         sys_halt,
-    //         sys_sync,
-    //         sys_replay,
-    //         sys_error,
-    //         sys_call,
-    //         sys_send,
-    //             sys_dbcall,
-
-    //         undef
-    //     } Mnemonic;
-    // endclass;
-
-//    typedef MnemonicClass::Mnemonic Mnemonic;
-
     typedef enum {
         F_none,
         F_noRegs,
@@ -125,7 +42,8 @@ package InsDefs;
         F_sysLoad, F_sysStore,
         F_int1R, F_int2R, F_int3R, 
         F_float1R, F_float2R, F_float3R,
-        F_floatToInt, F_intToFloat
+        F_floatToInt, F_intToFloat,
+            F_floatCmpToInt // 2 FP sources, Int dest
     } InstructionFormat;
 
 
@@ -294,6 +212,11 @@ package InsDefs;
             T_floatCmpGe64 = 32*S_floatArith + 21,
             T_floatCmpGt64 = 32*S_floatArith + 22,
 
+            T_floatMove32 = 32*S_floatMoveFP + 0,
+            T_floatNeg32 = 32*S_floatMoveFP + 1,
+            T_floatAbs32 = 32*S_floatMoveFP + 2,
+            T_floatCpys32 = 32*S_floatMoveFP + 3,
+
         T_jumpRegZ  = 32*S_jumpReg + 0,
         T_jumpRegNZ = 32*S_jumpReg + 1,
 
@@ -398,6 +321,11 @@ package InsDefs;
             O_floatCmpGe64,
             O_floatCmpGt64,
 
+            O_floatMove32,
+            O_floatNeg32,
+            O_floatAbs32,
+            O_floatCpys32,
+
         O_intLoadW, O_intStoreW,
         O_intLoadD, O_intStoreD,
         O_floatLoadW, O_floatStoreW,
@@ -476,8 +404,13 @@ package InsDefs;
             "cmpeqf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpEq64, O_floatCmpEq64},
             "cmpgef64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe64, O_floatCmpGe64},
             "cmpgtf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt64, O_floatCmpGt64},
-            
-        
+
+            "move_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatMove32, O_floatMove32},
+            "neg_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatNeg32, O_floatNeg32},
+            "abs_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatAbs32, O_floatAbs32},
+            "cpys_f32": '{F_float2R, P_floatOp, S_floatMoveFP, T_floatCpys32, O_floatCpys32},
+
+
         "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},
         "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},
         
@@ -568,7 +501,8 @@ package InsDefs;
         F_float1R :      '{"d0  ", "a,b00", "f,f00"},
         
         F_floatToInt :   '{"d0  ", "a,b00", "i,f00"},
-        F_intToFloat :   '{"d0  ", "a,b00", "f,i00"}
+        F_intToFloat :   '{"d0  ", "a,b00", "f,i00"},
+        F_floatCmpToInt: '{"d0  ", "a,bc0", "i,ff0"}
     };
 
 

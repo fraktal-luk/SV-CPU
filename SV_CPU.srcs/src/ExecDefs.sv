@@ -531,6 +531,11 @@ package ExecDefs;
             UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
             UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
 
+            UOP_fp_move32: res = Word'(args[0]);
+            UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
+            UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
+            UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
+
             default: $fatal(2, "Wrong uop");
         endcase
         

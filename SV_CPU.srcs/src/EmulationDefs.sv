@@ -67,7 +67,12 @@ package EmulationDefs;
             "ldf_i",
             "stf_i",
             "ldf_d",
-            "stf_d"
+            "stf_d",
+
+            "move_f32",
+            "neg_f32",
+            "abs_f32",
+            "cpys_f32"
         };
     endfunction
 
@@ -214,6 +219,9 @@ package EmulationDefs;
                 O_floatAdd32, O_floatSub32, O_floatMul32, O_floatDiv32, O_floatCmpEq32,O_floatCmpGe32, O_floatCmpGt32,
                 O_floatAdd64, O_floatSub64, O_floatMul64, O_floatDiv64, O_floatCmpEq64,O_floatCmpGe64, O_floatCmpGt64,
                 
+                O_floatMove32, O_floatNeg32, O_floatAbs32, O_floatCpys32,
+
+
             O_floatLoadW,
             O_floatLoadD
         };
@@ -289,6 +297,11 @@ package EmulationDefs;
             O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
             O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
             O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
+
+            O_floatMove32: result = Word'(vals[0]);// $fatal(2, "kfd");
+            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000); // $fatal(2, "kfd");
+            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF); //$fatal(2, "kfd");
+            O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
