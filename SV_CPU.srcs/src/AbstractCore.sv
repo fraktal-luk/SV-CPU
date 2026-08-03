@@ -9,6 +9,7 @@ import UopList::*;
 import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
+import ControlRegisters::*;
 import ControlHandling::*;
 
 import CacheDefs::*;
@@ -58,6 +59,13 @@ module AbstractCore
         logic enableMmu = 0;
         logic dbStep = 0;
         logic enArithExc = 0;
+            logic enableFP = 0;
+            RoundingMode rm = RM_Even;
+            logic enTrapInv = 0;
+            logic enTrapDiv0 = 0;
+            logic enTrapOv = 0;
+            logic enTrapUnd = 0;
+            logic enTrapInex = 0; 
     } CurrentConfig;
 
     // Overall
@@ -345,7 +353,11 @@ module AbstractCore
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
                             input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
-        AbstractInstruction ins = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
+        AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
+
+                // TODO: based on CurrentConfig, convert disabled instructions to static exceptions
+            AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
+
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;
 
@@ -897,7 +909,14 @@ module AbstractCore
     function automatic void syncCurrentConfigFromRegs();
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-        CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17];
+        CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17]; // TODO: drop it
+            CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
+            CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
+            CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];
+            CurrentConfig.enTrapDiv0 = sysUnit.sysRegs[8][9];
+            CurrentConfig.enTrapOv = sysUnit.sysRegs[8][8];
+            CurrentConfig.enTrapUnd = sysUnit.sysRegs[8][7];
+            CurrentConfig.enTrapInex = sysUnit.sysRegs[8][6];
     endfunction
 
 

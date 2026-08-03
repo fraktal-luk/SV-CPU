@@ -487,11 +487,13 @@ package ExecDefs;
             UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
             UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
 
-        
+            UOP_int_shl:
+                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+                            else                       res = $unsigned(args[0]) >> -args[1];
             UOP_int_shlc:
                             if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
                             else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shac:
+            UOP_int_shac:       // TODO: arg0 should be signed? 
                             if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
                             else                       res = $unsigned(args[0]) >> -args[1];                     
             UOP_int_rotc:
@@ -528,6 +530,11 @@ package ExecDefs;
             UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
             UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
             UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+
+            UOP_fp_move32: res = Word'(args[0]);
+            UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
+            UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
+            UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
 
             default: $fatal(2, "Wrong uop");
         endcase

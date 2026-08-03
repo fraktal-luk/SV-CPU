@@ -1,0 +1,282 @@
+
+
+# Groups of operations:
+
+― General-computational
+	FP/int result
+	rounding
+	might exception
+
+― Quiet-computational
+	FP result
+	not exception
+
+― Signaling-computational
+	no FP result
+	might exception
+
+― Non-computational
+	no FP result
+	no excpetion
+
+Parallel classification:
+
+― homogeneous
+	FP operands and FP result - the same format
+
+― formatOf
+	indicate format of result, independent from operands
+
+
+
+# Mandatory operations
+
+
+
+
+5.3 Homogeneous general-computational operations
+	5.3.1 General operations
+		For all supported formats:
+
+			sourceFormat roundToIntegralTiesToEven(source)
+			sourceFormat roundToIntegralTiesToAway(source)
+			sourceFormat roundToIntegralTowardZero(source)
+			sourceFormat roundToIntegralTowardPositive(source)
+			sourceFormat roundToIntegralTowardNegative(source)
+
+			sourceFormat roundToIntegralExact(source)
+		
+			sourceFormat nextUp(source)
+			sourceFormat nextDown(source)
+
+			sourceFormat remainder(source, source)
+
+	5.3.3 logBFormat operations
+		For all supported formats:
+
+			sourceFormat scaleB(source, logBFormat)
+
+			logBFormat logB(source)
+
+
+5.4 formatOf general-computational operations
+	5.4.1 Arithmetic operations
+		for dests of all formats, and for each dest format all src formats of the same radix?
+
+		― formatOf-addition(source1, source2)
+		― formatOf-subtraction(source1, source2)
+		― formatOf-multiplication(source1, source2)
+		― formatOf-division(source1, source2)
+		― formatOf-squareRoot(source1)
+		― formatOf-fusedMultiplyAdd(source1, source2, source3))
+		― formatOf-convertFromInt(int)
+
+		for dests of all int formats, and for sources of each supported formats 
+
+		― intFormatOf-convertToIntegerTiesToEven(source)
+		  intFormatOf-convertToIntegerTowardZero(source)
+		  intFormatOf-convertToIntegerTowardPositive(source)
+		  intFormatOf-convertToIntegerTowardNegative(source)
+		  intFormatOf-convertToIntegerTiesToAway(source)
+
+		― intFormatOf-convertToIntegerExactTiesToEven(source)
+		  intFormatOf-convertToIntegerExactTowardZero(source)
+		  intFormatOf-convertToIntegerExactTowardPositive(source)
+		  intFormatOf-convertToIntegerExactTowardNegative(source)
+		  intFormatOf-convertToIntegerExactTiesToAway(source)
+
+5.5 Quiet-computational operations
+	5.5.1 Sign bit operations
+		― sourceFormat copy(source)
+		  sourceFormat negate(source)
+		  sourceFormat abs(source)
+
+		― sourceFormat copySign(source, source)
+
+5.6 Signaling-computational operations
+	5.6.1 Comparisons
+		  ― boolean compareQuietEqual(source1, source2)
+			boolean compareQuietNotEqual(source1, source2)
+			boolean compareSignalingEqual(source1, source2)
+			boolean compareSignalingGreater(source1, source2)
+			boolean compareSignalingGreaterEqual(source1, source2)
+			boolean compareSignalingLess(source1, source2)
+			boolean compareSignalingLessEqual(source1, source2)
+			boolean compareSignalingNotEqual(source1, source2)
+			boolean compareSignalingNotGreater(source1, source2)
+			boolean compareSignalingLessUnordered(source1, source2)
+			boolean compareSignalingNotLess(source1, source2)
+			boolean compareSignalingGreaterUnordered(source1, source2)
+			boolean compareQuietGreater(source1, source2)
+			boolean compareQuietGreaterEqual(source1, source2)
+			boolean compareQuietLess(source1, source2)
+			boolean compareQuietLessEqual(source1, source2)
+			boolean compareQuietUnordered(source1, source2)
+			boolean compareQuietNotGreater(source1, source2)
+			boolean compareQuietLessUnordered(source1, source2)
+			boolean compareQuietNotLess(source1, source2)
+			boolean compareQuietGreaterUnordered(source1, source2)
+			boolean compareQuietOrdered(source1, source2)
+
+5.7 Non-computational operations
+	5.7.1 Conformance predicates
+		― boolean is754version1985(void)
+		― boolean is754version2008(void)
+		― boolean is754version2019(void)
+
+	5.7.2 General operations 
+		They are never exceptional, even for signaling NaNs
+		― enum class(source)
+		― boolean isSignMinus(source)
+		― boolean isNormal(source)
+		― boolean isFinite(source)
+		― boolean isZero(source)
+		― boolean isSubnormal(source)
+		― boolean isInfinite(source)
+		― boolean isNaN(source)
+		― boolean isSignaling(source)
+		― boolean isCanonical(source)
+		― enum radix(source)   ??  (will be always 2 for binary formats)
+		― boolean totalOrder(source, source)
+		― boolean totalOrderMag(source, source)
+
+	5.7.4 Operations on subsets of flags
+		(don't cause exceptions)
+		― void lowerFlags(exceptionGroup)
+		― void raiseFlags(exceptionGroup)
+		― boolean testFlags(exceptionGroup)
+		― boolean testSavedFlags(flags, exceptionGroup)
+		― void restoreFlags(flags, exceptionGroup)
+		― flags saveAllFlags(void)
+
+
+
+# Summary of op types
+
+	5.5.1, QuietComp
+		* signBit ops
+		  	sourceFormat <- (source)
+			sourceFormat copySign(source, source)
+
+	5.3.1,  homog, GeneralComp [Exc]
+		* rounding, next  	sourceFormat <- (source)
+		* remainder   		sourceFormat <- (source, source)
+
+	5.4.1, formatOf GenComp [Exc]
+		* formatOf - arithmetic
+			formatOf <- (source1, source2)
+			formatOf-squareRoot(source1)
+			formatOf-fusedMultiplyAdd(source1, source2, source3))
+			formatOf-convertFromInt(int)
+		* intFormatOf - conversions
+			intFormatOf <- (source)
+			 !!! include convert to integer using dynamic rounding mode? 
+
+	5.6.1, SignalingComp  [Exc]
+		* comparisons:		boolean <- (source1, source2)
+
+
+
+	5.7.2, NonComp
+		* classification
+				enum <- (source)
+				boolean <- (source)
+				boolean <- (source, source)
+
+	5.7.4, NonComp
+		* flags
+
+
+	5.3.3,  homog, GeneralComp [Exc]
+		* logBFormat
+			sourceFormat scaleB(source, logBFormat)
+			logBFormat logB(source)
+
+	5.7.1, NonComp
+		* conformance: 		boolean <- (void)
+
+
+----------------------------------------------------------
+
+# Classes of ops to implement:
+	* Moves, sign:
+		(signBit ops)
+		?moves int regs <-> FP regs
+	* GenComp  [Exc]
+		1 src, 2 src, 3 src
+	* Conversions [Exc]
+		FP <-> FP
+		int <-> FP, FP regs only
+		?int <-> FP, int regs and FP regs
+	* Comparisons [Exc]
+		FP cmp to FP dest
+		?FP cmp to int dest
+	* classification
+		to FP dest
+		?to int dest
+
+* First batch: only FP registers
+	Moves and sign (f32, f64)
+	GenComp (f32, f64) Exc
+	Conversions (all types to all types: f32, f64, s32, s64, u32, u64)  Exc (unless int -> int)
+	Comparisons: f32, f64 [Exc]   (int types too?, no exc)
+	NonComp
+
+# List
+	* Moves and sign (4) [per FP type = 2]    [[[8]]]
+	  copy, negate, abs
+	  copySign
+	* GenComp   (21) [per FP type = 2]         [[[42]]]
+	  roundIntegral(roundMode(6))     		Even, Away, Zero, Positive, Negative
+	  roundIntergaExact(roundMode(6))   	Dynamic
+	  nextUp, nextDown
+	  remainder, add, sub, mul, div
+	  sqrt
+	  fma
+	* Convert FP [FP types ^2 = 4]           [[[4]]]
+	  convertFP (incuding to same format!)
+	* Convert int (13) [FP types x int types = 8]  [[[104]]]
+	  convertFromInt
+	  convToInt(roundMode (6))      	Even, Away, Zero, Positive, Negative
+	  convToIntExact(roundMode (6)) 	Even, Away, Zero, Positive, Negative
+	* Compare  (24) [per FP type = 2]      [[[48]]]
+	  compare(quiet|sig)(pred = 12)
+	* Classification (12) [per FP type = 2]  [[[24]]]
+	  class
+	  is(categ) (11)
+
+FP value classes: (10)
+	signalingNaN        SN
+	quietNaN			QN
+	negativeInfinity    -Inf
+	negativeNormal      -X
+	negativeSubnormal   -x
+	negativeZero        -0
+	positiveZero        +0
+	positiveSubnormal   +x
+	positiveNormal      +X
+	positiveInfinity    +Inf
+
+categ: (11)
+	minus (including -0 and -NaN)
+	normal
+	finite
+	zero
+	subnormal
+	infinite
+	nan
+	signalling
+	canonical
+	totalOrder (2 src)
+	totalOrderMag (2 src)
+
+pred:
+	Q   (12)
+		eq, ne
+		gt, ge, gu, ng
+		lt, le, lu, nl
+		un, or
+	S   (10)
+		eq, ne,
+		gt, ge, gu, ng,
+		lt, le, lu, nl

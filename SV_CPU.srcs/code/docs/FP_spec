@@ -1,0 +1,211 @@
+FP specification
+
+Based on
+IEEE Std 754-2019
+
+Implementation choice: 
+
+Supported formats: binary 32, binary 64
+
+Supported attributes
+	― rounding-direction attributes
+	
+"Should" but not supported
+	― alternate exception handling attributes
+
+
+# Rounding
+- "shall provide roundTiesToEven and the three directed rounding attributes"
+- "The roundTiesToEven rounding-direction attribute shall be the default rounding-direction attribute for
+results in binary formats.""
+
+- roundTiesToEven (default)
+- roundTowardPositive
+- roundTowardNegative
+- roundTowardZero
+
+
+
+# Groups of operations:
+
+― General-computational operations produce floating-point or integer results, round all results
+	according to Clause 4, and might signal the floating-point exceptions of Clause 7.
+― Quiet-computational operations produce floating-point results and do not signal floating-point
+	exceptions.
+― Signaling-computational operations produce no floating-point results and might signal floating-
+	point exceptions; comparisons are signaling-computational operations.
+― Non-computational operations do not produce floating-point results and do not signal floating-
+	point exceptions.
+
+Parallel classification:
+
+― homogeneous operations, in which the floating-point operands and floating-point result are all of
+	the same format
+― formatOf operations, which indicate the format of the result, independent of the formats of the
+	operands.
+
+
+# Operand and result formats are indicated by:
+
+― source to represent homogeneous floating-point operand formats
+― source1, source2, source3 to represent non-homogeneous floating-point operand formats
+― int to represent integer operand formats
+― boolean to represent a value of false or true (for example, 0 or 1)
+― enum to represent one of a small set of enumerated values
+― sourceFormat to represent a destination format that is the same as the source format
+― integralFormat to represent a format that contains integral values
+― logBFormat to represent an integralFormat for the destination of the logB operation and the scale
+exponent operand of the scaleB operation
+― decimalCharacterSequence to represent a decimal character sequence
+― hexCharacterSequence to represent a hexadecimal-significand character sequence
+― conversionSpecification to represent a language dependent conversion specification
+― decimal to represent a supported decimal floating-point format
+― decimalEncoding to represent a decimal floating-point format encoded in decimal
+― binaryEncoding to represent a decimal floating-point format encoded in binary
+― exceptionGroup to represent a set of exceptions as a set of booleans
+― flags to represent a set of status flags
+― binaryRoundingDirection to represent the rounding direction for binary
+― decimalRoundingDirection to represent the rounding direction for decimal
+― modeGroup to represent dynamically-specifiable modes
+― void to indicate that an operation has no explicit operand or has no explicit result; the operand or
+result might be implicit.
+
+* formatOf: name of op specifies FP destination format,
+	 must have versions for every supported arithmetic format
+* intFormatOf: name of op specifies int destination format.
+	int formats supported:
+	u32, s32, u64, s64,  (hword and byte?)
+
+
+# Mandatory operations
+
+5.3 Homogeneous general-computational operations
+5.3.1 General operations
+//5.3.2 Decimal operations
+5.3.3 logBFormat operations
+
+5.4 formatOf general-computational operations
+5.4.1 Arithmetic operations 
+//5.4.2 Conversion operations for floating-point formats and decimal character sequences
+5.4.3 Conversion operations for binary formats 
+
+5.5 Quiet-computational operations
+5.5.1 Sign bit operations
+5.5.2 Decimal re-encoding operations
+
+5.6 Signaling-computational operations
+5.6.1 Comparisons
+
+5.7 Non-computational operations
+5.7.1 Conformance predicates
+5.7.2 General operations 
+//5.7.3 Decimal operation
+5.7.4 Operations on subsets of flags
+
+
+# 6. Infinity, NaNs, and sign bit
+6.1 Infinity arithmetic
+  no exceptions generated, including:
+	― add(inf, x), add(x, inf), sub(inf, x), sub(x, inf), for finite x
+	― mul(inf, x), mul(x, inf), for finite or infinite x != 0
+	― div(inf, x), div(x, inf), for finite x
+	― squareRoot(+inf)
+	― rem(x, inf) for finite normal x
+	― conversion inf into inf in another format
+  exceptions generated only when
+	― inf is an invalid operand (see 7.2)
+	― inf is created from finite operands by Ov (see 7.4) or Div0 (see 7.3)
+	― rem(subnormal, inf) signals Underflow
+
+6.2 Operations with NaNs
+6.2.1 NaN encodings in binary interchange formats
+6.2.2 NaN encodings in decimal interchange formats
+6.2.3 NaN propagation
+6.3 The sign bit
+
+
+# 7. Exceptions
+
+7.2 Invalid operation
+
+	For ops with FP result: default result when op that signals InvOp is qNaN that should provide some diagnostic info (see 6.2).
+	a) any general-computational op on a signaling NaN (see 6.2), except for some conversions (see 5.12)
+	b) multiplication: multiplication(0, inf) or multiplication(inf, 0)
+	c) fusedMultiplyAdd: fusedMultiplyAdd(0, inf, c) or fusedMultiplyAdd(inf, 0, c) unless c is qNaN;
+		if c is qNaN t-> implementation defined whether we signal InvOp
+	d) add, sub, FMA: magnitude subtraction of infinities, add(+inf, −inf)
+	e) div(0, 0) or div(inf, inf)
+	f) rem(x, y), when y is zero OR x is infinite -  AND neither is a NaN
+	g) squareRoot if the operand is less than zero (BUT sqrt(-0) == -0)?
+	//h) quantize .....
+
+	For ops without FP result:
+	i) any signaling-computational op on a sNaN (see 6.2); then, under default exception
+		handling, the operation is evaluated with qNaN in place of the sNaN operands to
+		determine the result, which for unordered-signaling comparisons might signal another iInvOp
+	j) conversion of FP number to int format
+			when the source is NaN OR inf, 
+			OR output value falls outside range of result format under the applicable rounding
+	k) comparison by way of unordered-signaling predicates listed in Table 5.2, when the operands are unordered
+	l) logB(NaN), logB(inf), or logB(0), when logBFormat is int format (see 5.3.3).
+
+7.3 Division by zero
+	The Div0 - iff an exact inf result is defined for op on finite operands. default result is inf, correctly signed according to op:
+	― div: when the divisor is zero and the dividend is a finite non-zero number -> sign is XOR of the operands’ signs (see 6.3).
+	― For logB(0) when logBFormat is FP format, the sign is minus.
+
+7.4 Overflow  !! tricky details TODO
+	overflow iff destination format’s LargestFiniteNumber is
+	exceeded in magnitude by what would have been the rounded floating-point result (see Clause 4) were the
+	exponent range unbounded. The default result shall be determined by the rounding-direction attribute and
+	the sign of Intermediate as follows:
+	a) roundTiesToEven AND roundTiesToAway: all Ov to inf with sign of Intermediate.
+	b) roundTowardZero:  all Ov to LargestFiniteNumber with sign of the Intermediate
+	c) roundTowardNegative: positive Ov to LargestFiniteNumber, negative Ov to −inf
+	d) roundTowardPositive: negative Ov to MostNegativeFiniteNumber, positive Ov to +inf.
+	In addition, under default exc handling for Ov, Ov flag shall be raised and Inexact shall be signalled
+
+7.5 Underflow  !! tricky details TODO
+	The underflow exception shall be signaled when a tiny non-zero result is detected. For binary formats, this
+	shall be either (implementation CHOICE)
+	a) after rounding — when a non-zero result computed as though the exponent range were unbounded
+	would lie strictly between ± b emin, or
+	b) before rounding — when a non-zero result computed as though both the exponent range and the
+	precision were unbounded would lie strictly between ± b emin
+
+
+7.6 Inexact
+	Except as specified otherwise (e.g., 5.8 and 5.9), op delivering numerical result that signals no
+	other exc shall signal Inexact if its rounded result differs from hypothetical result of (both exponent range and precision unbounded).
+	The rounded result shall be delivered to the destination
+
+
+Exception types:
+	Invalid
+	Div0
+	Overflow
+	Underflow
+	Inexact
+
+
+
+# CPU state needed
+
+32 x 64b registers
+
+Control: 
+
+FP on/off - 1 bit
+
+4 rounding modes - 2 bits
+- RM_Even 	roundTiesToEven (default)
+- RM_Up 	roundTowardPositive
+- RM_Down 	roundTowardNegative
+- RM_Zero 	roundTowardZero
+
+5 exceptions - 10 bits (5 trap enable, 5 flags)
+	Invalid
+	Div0
+	Overflow
+	Underflow
+	Inexact

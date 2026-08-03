@@ -11,7 +11,8 @@ package UopList;
          
          UOP_ctrl_undef,
             UOP_ctrl_fetchError,
-         
+            UOP_ctrl_fp_disabled,
+
          UOP_int_and,
          UOP_int_or,
          UOP_int_xor,
@@ -25,6 +26,8 @@ package UopList;
             UOP_int_cgtu,
             UOP_int_cgts,
         
+            UOP_int_shl,
+
          UOP_int_shlc,
          UOP_int_shac,
          UOP_int_rotc,
@@ -54,6 +57,12 @@ package UopList;
             UOP_fp_cmpeq32,
             UOP_fp_cmpge32,
             UOP_fp_cmpgt32,
+
+                UOP_fp_move32,
+                UOP_fp_neg32,
+                UOP_fp_abs32,
+                UOP_fp_cpys,
+
 
          UOP_mem_ldi,
          UOP_mem_sti,
@@ -131,6 +140,7 @@ package UopList;
             "cgt_u":   UOP_int_cgtu,
             "cgt_s":   UOP_int_cgts,
 
+            "shl_r":  UOP_int_shl,
         "shl_i":      UOP_int_shlc,
         "sha_i":      UOP_int_shac,
         "rot_i":      UOP_int_rotc,
@@ -161,6 +171,12 @@ package UopList;
             "cmpgef32":     UOP_fp_cmpge32,
             "cmpgtf32":     UOP_fp_cmpgt32,
         
+            "move_f32":    UOP_fp_move32,
+            "neg_f32":     UOP_fp_neg32,
+            "abs_f32":     UOP_fp_abs32,
+            "cpys_f32":    UOP_fp_cpys,
+
+
         "ldi_i":      UOP_mem_ldi,
         "sti_i":      UOP_mem_sti,
         
@@ -210,7 +226,6 @@ package UopList;
 
 
 
-
 // Classification
 
     // Not including memory
@@ -233,7 +248,12 @@ package UopList;
                 
                 UOP_fp_cmpeq32,
                 UOP_fp_cmpge32,
-                UOP_fp_cmpgt32
+                UOP_fp_cmpgt32,
+
+                UOP_fp_move32,
+                UOP_fp_neg32,
+                UOP_fp_abs32,
+                UOP_fp_cpys
               };
     endfunction    
 
@@ -242,6 +262,8 @@ package UopList;
             UOP_ctrl_undef,
                 UOP_ctrl_fetchError,
             
+                UOP_ctrl_fp_disabled,
+
             UOP_ctrl_rete,
             UOP_ctrl_reti,
             UOP_ctrl_halt,
@@ -366,6 +388,8 @@ package UopList;
             UOP_int_cgtu,
             UOP_int_cgts,
         
+            UOP_int_shl,
+
          UOP_int_shlc,
          UOP_int_shac,
          UOP_int_rotc,
@@ -414,7 +438,12 @@ package UopList;
                 UOP_fp_cmpeq32,
                 UOP_fp_cmpge32,
                 UOP_fp_cmpgt32,
-                
+
+                UOP_fp_move32,
+                UOP_fp_neg32,
+                UOP_fp_abs32,
+                UOP_fp_cpys,
+
              UOP_mem_ldf,
              UOP_mem_ldfd
         };
@@ -426,6 +455,7 @@ package UopList;
     function automatic ProgramEvent eventFromUop(input UopName uname);
         case (uname)
             UOP_ctrl_fetchError: $fatal(2, "Should be handled outside this function");
+                UOP_ctrl_fp_disabled: return PE_SYS_DISABLED_INSTRUCTION;
 
             UOP_ctrl_error: return PE_SYS_ERROR;
             UOP_ctrl_undef: return PE_SYS_UNDEFINED_INSTRUCTION;

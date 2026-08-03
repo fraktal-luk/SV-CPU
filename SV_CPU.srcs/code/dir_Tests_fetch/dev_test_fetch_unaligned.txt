@@ -41,7 +41,7 @@ $error
 0
 0 ; hi
 ; c8 - fpStatus
-0
+0x8000
 0 ; hi  
 ; c9 -
 0

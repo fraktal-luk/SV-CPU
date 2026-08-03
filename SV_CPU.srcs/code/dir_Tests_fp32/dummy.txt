@@ -1,0 +1,18 @@
+;
+@section prog_main
+
+$start
+
+
+
+$check
+	sys_dbcall
+$error
+    sys_error
+
+
+@section data0
+
+
+@section output
+

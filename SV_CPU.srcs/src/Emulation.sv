@@ -227,6 +227,13 @@ package Emulation;
                         status.dbEventPending = 0;
                         status.exceptionRaised = 1;
                 end
+
+                    O_fpDisabled: begin
+                        setExecState(PE_SYS_DISABLED_INSTRUCTION, adr);
+                            status.dbEventPending = 0;
+                            status.exceptionRaised = 1;
+                    end
+
                 O_call: begin
                     setExecState(PE_SYS_CALL, adr + 4);
                         status.dbEventPending = 0;
@@ -337,8 +344,14 @@ package Emulation;
         endfunction
 
 
-        function automatic void processInstruction(input Mword adr, input AbstractInstruction ins);
+        function automatic void processInstruction(input Mword adr, input AbstractInstruction inputIns);
             logic dbStepOn = 0;
+
+                //AbstractInstruction ins = inputIns;
+
+                // TODO: if instruction is disabled, convert it to static event
+                AbstractInstruction ins = suppressDisabledInstruction(inputIns, cregs.fpStatus.enableFP);
+
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
             MemoryWrite writeToDo = '{default: 0};
@@ -391,20 +404,37 @@ package Emulation;
         
         function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result);
             logic excGenerated = 0;
+                logic fpInv = 0;
+                logic fpDiv0 = 0;
+                logic fpOv = 0;
+                logic fpUnd = 0;
+                logic fpInex = 0;
+
                 status.arithException = 0; // TMP
             
             if (ins.def.o == O_floatGenInv) begin
                 cregs.fpStatus.INV = 1;
+                    cregs.fpStatus.Invalid = 1;
                 excGenerated = 1;
+                fpInv = 1;
             end
             else if (ins.def.o == O_floatGenOv) begin
                 cregs.fpStatus.OV = 1;
+                    cregs.fpStatus.Overflow = 1;
                 excGenerated = 1;
+                fpOv = 1;
             end
             
             syncSysRegsFromCregs();
-            
-            if (excGenerated && cregs.currentStatus.enArithExc) begin
+
+            if (
+                fpInv && cregs.fpStatus.trapInvalid
+             || fpDiv0 && cregs.fpStatus.trapDiv0
+             || fpOv && cregs.fpStatus.trapOverflow
+             || fpUnd && cregs.fpStatus.trapUnderflow
+             || fpInex && cregs.fpStatus.trapInexact
+            ) begin
+            //if (excGenerated && cregs.currentStatus.enArithExc) begin
                 setExecState(PE_ARITH_EXCEPTION, ip);
                 syncStatusFromRegs();
                 status.exceptionRaised = 1;
@@ -585,14 +615,23 @@ package Emulation;
 
             while (firstReg < 32) begin
                 $display("[%02d] %016x [%02d] %016x [%02d] %016x [%02d] %016x",
-                          firstReg+0, coreState.intRegs[firstReg+0], firstReg+1, coreState.intRegs[firstReg+1], firstReg+2, coreState.intRegs[firstReg+2], firstReg+3,coreState.intRegs[firstReg+3], );
+                          firstReg+0, coreState.intRegs[firstReg+0], firstReg+1, coreState.intRegs[firstReg+1], firstReg+2, coreState.intRegs[firstReg+2], firstReg+3, coreState.intRegs[firstReg+3], );
+                firstReg += 4;
+            end
+
+            firstReg = 0;
+            $display("\nFP registers");
+
+            while (firstReg < 32) begin
+                $display("[%02d] %016x [%02d] %016x [%02d] %016x [%02d] %016x",
+                          firstReg+0, coreState.floatRegs[firstReg+0], firstReg+1, coreState.floatRegs[firstReg+1], firstReg+2, coreState.floatRegs[firstReg+2], firstReg+3, coreState.floatRegs[firstReg+3], );
                 firstReg += 4;
             end
 
             $display("\nSys registers");
 
             firstReg = 0;
-            while (firstReg < 6) begin
+            while (firstReg < 10) begin
                 $display("[%02d] %016x",
                           firstReg+0,
                           coreState.sysRegs[firstReg+0]);

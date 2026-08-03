@@ -41,7 +41,7 @@ module IssueQueue
     logic readyForIssue[OUT_WIDTH] = '{default: 0};
     UopPacket pIssued0[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET}, pIssued1[OUT_WIDTH] = '{default: EMPTY_UOP_PACKET};
 
-    int num = 0;    
+    int num = 0;
 
 
     typedef Wakeup WakeupMatrix[TOTAL_SIZE][3];

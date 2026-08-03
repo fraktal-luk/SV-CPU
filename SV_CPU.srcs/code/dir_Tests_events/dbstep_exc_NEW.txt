@@ -57,7 +57,7 @@ $error
 0x62
 0 ; hi
 ; c8 - fpStatus
-0
+0x8000
 0 ; hi  
 ; c9 -
 0
@@ -92,7 +92,7 @@ $error
 0x62
 0 ; hi
 ; c8 - fpStatus
-0
+0x8000
 0 ; hi  
 ; c9 -
 0
@@ -127,7 +127,7 @@ $error
 0x62
 0 ; hi
 ; c8 - fpStatus
-0
+0x8000
 0 ; hi  
 ; c9 -
 0
@@ -161,7 +161,7 @@ $error
 0
 0 ; hi
 ; c8 - fpStatus
-0
+0x8000
 0 ; hi  
 ; c9 -
 0

@@ -1,0 +1,92 @@
+
+; r1 - bit index
+$set_cr8_bit
+
+	add_i r2, r0, 1
+	shl_r r2, r2, r1
+
+	lds   r3, r0, 8
+	or_r  r3, r3, r2
+	sts   r3, r0, 8
+
+	sys_sync
+
+	jz_r r0, r0, r31
+
+
+; r1 - bit index
+$clear_cr8_bit
+
+	add_i r2, r0, 1
+	shl_r r2, r2, r1
+
+	add_i r4, r0, -1
+	sub_r r2, r4, r2 ; r2 = not r2
+
+	lds   r3, r0, 8
+	and_r  r3, r3, r2
+	sts   r3, r0, 8
+
+	sys_sync
+
+	jz_r r0, r0, r31
+
+
+; r1 - bit index
+; r1 - output
+$get_cr8_bit
+	sub_r r2, r0, r1  ; -sh
+
+	lds   r3, r0, 8
+	shl_r r3, r3, r2
+
+	add_i r2, r0, 1
+	and_r r1, r3, r2
+
+	jz_r  r0, r0, r31
+
+
+; Returns all FP exc bits
+; r1 - output
+$get_fp_exc_state
+	lds 	r3, r0, 8
+	add_i   r2, r0, 31
+	and_r   r1, r3, r2
+
+	jz_r  	r0, r0, r31
+
+
+$clear_fp_exc_state
+	lds 	r3, r0, 8
+	add_i   r2, r0, 31
+	and_i	r1, r0, -1
+	sub_r	r2, r1, r2
+
+	and_r   r3, r3, r2
+	sts		r3, r0, 8
+
+	jz_r  	r0, r0, r31
+
+
+
+; r1[1:0] - rm
+$set_rm
+	add_i r2, r0,  3
+	and_r r1, r1, r2
+	shl_i r1, r1, 12 
+
+	; RM is bits 13:12
+	add_i r3, r0, 0x3000
+	add_i r4, r0, -1
+	sub_r r3, r4, r3 ; not r3
+
+	lds   r5, r0, 8
+
+	and_r r5, r5, r3
+	or_r  r5, r5, r1 
+
+	sts   r5, r0, 8
+
+	sys_sync
+
+	jz_r  r0, r0, r31

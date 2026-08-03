@@ -1,0 +1,63 @@
+
+@section prog_main
+	
+	jl r31, $get_adr_data_main
+	or_r  r8, r0, r1
+
+	jl r31, $get_adr_data_output
+	or_r  r9, r0, r1
+
+
+		ldf_i  f2, r8, 4
+		ldf_i  f3, r8, 4
+
+		addf32 f10, f2, f3
+		addf32 f11, f10, f3
+
+
+		ldf_i  f4, r8, 8
+		ldf_i  f5, r8, 0xc
+		addf32 f12, f4, f4
+		addf32 f13, f4, f5
+
+
+		;sys_error
+
+
+	sys_dbcall
+
+@include "common_code/basic_pointers.txt"
+@include "common_code/fp_helpers.txt"
+
+
+
+@section data0
+
+	; sign, exp, frac: 1, 8, 23
+
+	; 007FFFFF - max fraction
+	; 40000000 - 1.0f
+	; 7F800000 - inf
+	; 7FFFFFFF - QNaN?
+	; 7FBFFFFF - SNaN?
+
+	; 7F000000 - max finite exponent
+	; 7F7FFFFF - max finite exponent and max fraction
+	; 7E000000 - half of max exponent
+
+	; 0
+	0x00000000
+	; 4
+	0x40000000  ; 1.0
+	; 8
+	0x7F400000  ; max exponent * 1.5
+	; c
+	0x7F480000  ; max exponent * (1.5 + ...)
+	; 10
+	0x00000000
+	; 14
+	0x00000000
+	; 18
+	0x00000000
+
+@section output

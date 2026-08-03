@@ -2,16 +2,23 @@
 @section prog_main
 
 $start
+	add_i r3, r0, 1
+	shl_i r3, r3, 15  ; fp en bit
+
 	add_i r1, r0, 1
 	shl_i r1, r1, 31  ; INV set
+	add_i r1, r1, 0x10
 	add_i r2, r0, 3
 	shl_i r2, r2, 30  ; INV | OV set
+	add_i r2, r2, 0x14
+	or_r r2, r2, r3
 
 	addi_f f5, f2, f3
 	
-	; check fpStatus == 0
+	; check fpStatus
 	lds    r10, r0, 8
-	jnz_i  r10, $error
+	subr_r r11, r3
+	jnz_i  r11, $error
 	
 	addi_f f7, f2, f3
 

@@ -33,89 +33,6 @@ package InsDefs;
     localparam Mword IP_ARITH_EXC = HANDLER_BASE + 'h00000580;
 
 
-
-    class MnemonicClass;
-        typedef 
-        enum {
-            // set, mov, clr, nop, -- pseudoinstructions
-
-            and_r,
-            or_r,
-            xor_r,
-
-            add_i,
-            add_h,
-            add_r,
-            sub_r,
-
-                cgt_u, cgt_s,
-
-            shl_i, shl_r, //-- direction defined by shift value, not opcode 
-            sha_i, sha_r, //--   
-            rot_i, rot_r,
-
-            mult, 
-            mulh_s, mulh_u,
-            div_s, div_u,
-            rem_s, rem_u,
-
-            mov_f,
-            xor_f, and_f,  // Pseudo float operations
-            or_f, addi_f,  // -- Pseudo float operations
-            muli_f, divi_f, // Pseudo float operations
-            
-                addf32, subf32, mulf32, divf32,
-                    cmpeqf32, cmpgef32, cmpgtf32,
-                addf64, subf64, mulf64, divf64,
-                    cmpeqf64, cmpgef64, cmpgtf64,
-            
-            inv_f, ov_f,  // Setting FP exceptions
-
-            ldi_d,
-            sti_d,
-
-            ldi_i, ldi_r, //-- int
-            sti_i, sti_r,
-
-                e_lb,
-                e_sb,
-
-            ldf_i, ldf_r, //-- float
-            stf_i, stf_r, 
-
-            ldf_d,
-            stf_d,
-
-
-            lds, //-- load sys
-
-            sts, //-- store sys
-
-                mb_ld_b, mb_ld_f, mb_ld_bf, mb_st_b, mb_st_f, mb_st_bf,
-                e_ldaq,
-                e_stc,
-
-
-            jz_i, jz_r, jnz_i, jnz_r,
-            ja, jl, //-- jump always, jump link
-
-
-            sys_rete,
-            sys_reti,
-            sys_halt,
-            sys_sync,
-            sys_replay,
-            sys_error,
-            sys_call,
-            sys_send,
-                sys_dbcall,
-
-            undef
-        } Mnemonic;
-    endclass;
-
-    typedef MnemonicClass::Mnemonic Mnemonic;
-
     typedef enum {
         F_none,
         F_noRegs,
@@ -125,7 +42,8 @@ package InsDefs;
         F_sysLoad, F_sysStore,
         F_int1R, F_int2R, F_int3R, 
         F_float1R, F_float2R, F_float3R,
-        F_floatToInt, F_intToFloat
+        F_floatToInt, F_intToFloat,
+            F_floatCmpToInt // 2 FP sources, Int dest
     } InstructionFormat;
 
 
@@ -177,9 +95,42 @@ package InsDefs;
         S_intRotate       = 64*P_intAluImm + 2,
          
         // P_floatOp
-        S_floatMove   = 64*P_floatOp + 0,
-        S_floatArith  = 64*P_floatOp + 1,
-         
+        S_floatMove   = 64*P_floatOp + 0, // TMP
+        S_floatArith  = 64*P_floatOp + 1, // TMP
+            S_floatMoveFP = 64*P_floatOp + 3, // FP move, sign ops, with FP dest  
+            S_floatMoveInt = 64*P_floatOp + 4, // FP move with Int dest
+            
+            S_floatArith2_f32  = 64*P_floatOp + 5, // 
+            S_floatCmpFP_f32 = 64*P_floatOp + 6, // FP cmp with FP dest
+            S_floatCmpInt_f32 = 64*P_floatOp + 7, // FP cmp with Int dest
+            S_floatClassFP_f32 = 64*P_floatOp + 8,
+            S_floatClassInt_f32 = 64*P_floatOp + 9,
+            
+            S_floatConvFP       = 64*P_floatOp + 10,
+            S_floatConvFromInt = 64*P_floatOp + 11,
+            S_floatConvToIntFP = 64*P_floatOp + 12,
+            S_floatConvToIntInt = 64*P_floatOp + 13,
+            S_floatIntegerOp  = 64*P_floatOp + 14,
+
+            S_floatArith2_f64  = 64*P_floatOp + 15, // 
+            S_floatCmpFP_f64 = 64*P_floatOp + 16, // FP cmp with FP dest
+            S_floatCmpInt_f64 = 64*P_floatOp + 17, // FP cmp with Int dest
+            S_floatClassFP_f64 = 64*P_floatOp + 18,
+            S_floatClassInt_f64 = 64*P_floatOp + 19,
+
+            // FMA:  xA + yBC, xy is 1 of 4 combinations of +- 
+
+            S_fma32pp         = 64*P_floatOp + 56,
+            S_fma32pm         = 64*P_floatOp + 57,
+            S_fma32mp         = 64*P_floatOp + 58,
+            S_fma32mm         = 64*P_floatOp + 59,
+
+            S_fma64pp         = 64*P_floatOp + 60,
+            S_fma64pm         = 64*P_floatOp + 61,
+            S_fma64mp         = 64*P_floatOp + 62,
+            S_fma64mm         = 64*P_floatOp + 63,
+
+
         // P_intMem
         S_mbLoadB = 64*P_intMem + 0,
         S_mbStoreB = 64*P_intMem + 1,
@@ -191,8 +142,7 @@ package InsDefs;
         S_storeRel   = 64*P_intMem + 7,
 
         // P_floatMem
-        //S_floatLoadW,
-        //S_floatStoreW,
+        // ???
          
         // P_sysMem
         S_sysLoad   = 64*P_sysMem + 0,
@@ -224,6 +174,9 @@ package InsDefs;
 
             T_intCmpGtU = 32*S_intArith + 2,
             T_intCmpGtS = 32*S_intArith + 3,
+
+            T_intShl   = 32*S_intArith + 4,
+
 
         T_intMul   = 32*S_intMul + 0,
         T_intMulHU = 32*S_intMul + 1,
@@ -258,6 +211,11 @@ package InsDefs;
             T_floatCmpEq64 = 32*S_floatArith + 20,
             T_floatCmpGe64 = 32*S_floatArith + 21,
             T_floatCmpGt64 = 32*S_floatArith + 22,
+
+            T_floatMove32 = 32*S_floatMoveFP + 0,
+            T_floatNeg32 = 32*S_floatMoveFP + 1,
+            T_floatAbs32 = 32*S_floatMoveFP + 2,
+            T_floatCpys32 = 32*S_floatMoveFP + 3,
 
         T_jumpRegZ  = 32*S_jumpReg + 0,
         T_jumpRegNZ = 32*S_jumpReg + 1,
@@ -312,7 +270,8 @@ package InsDefs;
     typedef enum {
         O_undef,
             O_fetchError,
-        
+            O_fpDisabled,
+
         O_call,
             O_dbcall,
         O_sync,
@@ -362,6 +321,11 @@ package InsDefs;
             O_floatCmpGe64,
             O_floatCmpGt64,
 
+            O_floatMove32,
+            O_floatNeg32,
+            O_floatAbs32,
+            O_floatCpys32,
+
         O_intLoadW, O_intStoreW,
         O_intLoadD, O_intStoreD,
         O_floatLoadW, O_floatStoreW,
@@ -402,6 +366,8 @@ package InsDefs;
             "cgt_u":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
             "cgt_s":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
                 
+        "shl_r":       '{F_int2R, P_intAlu, S_intArith, T_intShl, O_intShiftLogical},
+
         "shl_i":      '{F_intImm10, P_intAluImm, S_intShiftLogical, T_none, O_intShiftLogical},//intImm10, 
         "sha_i":      '{F_intImm10, P_intAluImm, S_intShiftArith, T_none, O_intShiftArith},//intImm10, 
         "rot_i":      '{F_intImm10, P_intAluImm, S_intRotate, T_none, O_intRotate},//intImm10, 
@@ -438,8 +404,13 @@ package InsDefs;
             "cmpeqf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpEq64, O_floatCmpEq64},
             "cmpgef64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe64, O_floatCmpGe64},
             "cmpgtf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt64, O_floatCmpGt64},
-            
-        
+
+            "move_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatMove32, O_floatMove32},
+            "neg_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatNeg32, O_floatNeg32},
+            "abs_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatAbs32, O_floatAbs32},
+            "cpys_f32": '{F_float2R, P_floatOp, S_floatMoveFP, T_floatCpys32, O_floatCpys32},
+
+
         "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},
         "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},
         
@@ -530,7 +501,8 @@ package InsDefs;
         F_float1R :      '{"d0  ", "a,b00", "f,f00"},
         
         F_floatToInt :   '{"d0  ", "a,b00", "i,f00"},
-        F_intToFloat :   '{"d0  ", "a,b00", "f,i00"}
+        F_intToFloat :   '{"d0  ", "a,b00", "f,i00"},
+        F_floatCmpToInt: '{"d0  ", "a,bc0", "i,ff0"}
     };
 
 
@@ -701,7 +673,7 @@ package InsDefs;
             PE_SYS_ERROR:
                 return IP_ERROR;
 
-            PE_SYS_UNDEFINED_INSTRUCTION:
+            PE_SYS_UNDEFINED_INSTRUCTION, PE_SYS_DISABLED_INSTRUCTION:
                 return IP_EXC;
 
             PE_SYS_CALL:

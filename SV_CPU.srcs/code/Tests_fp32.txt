@@ -1,0 +1,5 @@
+
+disable_fp
+flag_setting
+dev_add32
+dev_moves32

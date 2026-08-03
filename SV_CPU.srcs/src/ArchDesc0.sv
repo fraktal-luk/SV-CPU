@@ -37,6 +37,8 @@ module ArchDesc0();
         "Tests_mem_advanced",
         "Tests_sys_transfers",
 
+        "Tests_fp32",
+
         "Tests_fetch",
         "Tests_DEV_basic"
     };
@@ -105,7 +107,8 @@ module ArchDesc0();
         string prefix = {"dir_", suiteName, "/"};
         CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
 
-        emulTestName = name;
+        //emulTestName = name;
+            announceEmul(name);
 
         resetAll(emul);
         emul.progMem = new();
@@ -209,18 +212,20 @@ module ArchDesc0();
         SimRunner runner = new();
         TestRunner trSim = runner;
 
-        handlers = processFile(readFile({codeDir, "handlers.txt"}));;
+        handlers = processFile(readFile({codeDir, "common_code/handlers.txt"}));;
 
         if (RUN_EMUL_TESTS) begin
-            runIntTestEmul(mainEmul, "events_int");
+            runIntTestEmul(mainEmul, "dir_interrupts/events_int");
 
             trEm.gp = Test_fillGpCached();
-            trEm.gp.initialCregs.memControl = 7;
-            #CYCLE $display("\n>>>>>> Em  Dev tests");
+            trEm.gp.initialCregs.memControl = 7; // enable all
+            trEm.gp.initialCregs.fpStatus = 'h8000; // enable FP
+            #CYCLE $display("\n>>>>>> Em  Dev tests\n");
             trEm.runSuites(testsDevCached);
 
             trEm.gp.initialCregs.memControl = 0;
-            #CYCLE $display("\n>>>>>> Em  Dev tests unc");
+            trEm.gp.initialCregs.fpStatus = 0;
+            #CYCLE $display("\n>>>>>> Em  Dev tests unc\n");
             trEm.runSuites(devTestsUnc);
 
             @(posedge clk);
@@ -229,22 +234,24 @@ module ArchDesc0();
         if (RUN_SIM_TESTS) begin
             trSim.gp = Test_fillGpCached();
             trSim.gp.initialCregs.memControl = 0;
+            trSim.gp.initialCregs.fpStatus = 0;
 
-            #CYCLE $display("\n>>>>>> Sim  Dev tests unc");
+            #CYCLE $display("\n>>>>>> Sim  Dev tests unc\n");
             trSim.runSuites(devTestsUnc);
 
 
             trSim.gp = Test_fillGpCached();
-            trSim.gp.initialCregs.memControl = 7;
+            trSim.gp.initialCregs.memControl = 7; // enable all
+            trSim.gp.initialCregs.fpStatus = 'h8000; // enable FP 
 
-            #CYCLE $display("\n>>>>>> Sim  Dev tests");
+            #CYCLE $display("\n>>>>>> Sim  Dev tests\n");
             trSim.runSuites(testsDevCached);
 
             core.insMap.assertReissue();
 
-            #CYCLE $display("\n>>>>>> Event/int tests");
-            runIntTestSim("events_int");
-            runIntTestSim("events_int2");
+            #CYCLE $display("\n>>>>>> Event/int tests\n");
+            runIntTestSim("dir_interrupts/events_int");
+            runIntTestSim("dir_interrupts/events_int2");
         end
 
         $display("\nAll tests done\n");
@@ -265,6 +272,12 @@ module ArchDesc0();
         wait (done);
         #CYCLE;
             #CYCLE;
+    endtask
+
+
+    task announceEmul(input string name);
+        emulTestName = name;
+        $display("> RUN: %s", name);
     endtask
 
     task announce(input string name);

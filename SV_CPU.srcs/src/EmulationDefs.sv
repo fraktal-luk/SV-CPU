@@ -38,6 +38,45 @@ package EmulationDefs;
 //        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
 //    endfunction    
 
+    function automatic logic requiresFP(input AbstractInstruction ins);
+        return ins.mnemonic inside {
+            "mov_f",
+            "xor_f",
+            "and_f",
+            "or_f",
+            "addi_f",
+            "muli_f",
+            "divi_f",
+            "inv_f",
+            "ov_f",
+            "addf32",
+            "subf32",
+            "mulf32",
+            "divf32",
+            "cmpeqf32",
+            "cmpgef32",
+            "cmpgtf32",
+            "addf64",
+            "subf64",
+            "mulf64",
+            "divf64",
+            "cmpeqf64",
+            "cmpgef64",
+            "cmpgtf64",
+
+            "ldf_i",
+            "stf_i",
+            "ldf_d",
+            "stf_d",
+
+            "move_f32",
+            "neg_f32",
+            "abs_f32",
+            "cpys_f32"
+        };
+    endfunction
+
+
     function automatic logic isBranchIns(input AbstractInstruction ins);
         return ins.def.o inside {O_jump};
     endfunction
@@ -80,11 +119,11 @@ package EmulationDefs;
     endfunction
 
     function automatic logic isSysIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
+        return ins.def.o inside {O_fetchError, O_fpDisabled,    O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_halt, O_send,     O_sysStore};
     endfunction
 
     function automatic logic isStaticEventIns(input AbstractInstruction ins); // excluding sys load
-        return ins.def.o inside {O_fetchError,  O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_send};
+        return ins.def.o inside {O_fetchError,  O_fpDisabled,   O_undef,   O_error,  O_call,  O_dbcall, O_sync, O_retE, O_retI, O_replay, O_send};
     endfunction
 
     function automatic logic isSilentEventIns(input AbstractInstruction ins); // excluding sys load
@@ -180,6 +219,9 @@ package EmulationDefs;
                 O_floatAdd32, O_floatSub32, O_floatMul32, O_floatDiv32, O_floatCmpEq32,O_floatCmpGe32, O_floatCmpGt32,
                 O_floatAdd64, O_floatSub64, O_floatMul64, O_floatDiv64, O_floatCmpEq64,O_floatCmpGe64, O_floatCmpGt64,
                 
+                O_floatMove32, O_floatNeg32, O_floatAbs32, O_floatCpys32,
+
+
             O_floatLoadW,
             O_floatLoadD
         };
@@ -255,6 +297,11 @@ package EmulationDefs;
             O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
             O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
             O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
+
+            O_floatMove32: result = Word'(vals[0]);// $fatal(2, "kfd");
+            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000); // $fatal(2, "kfd");
+            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF); //$fatal(2, "kfd");
+            O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
@@ -359,6 +406,21 @@ package EmulationDefs;
         // syndrome
         status.eventType = ProgramEvent'(sysRegs[6]);
     endfunction
+
+
+
+        function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
+            // TODO: handle FP config correctly
+
+               // if (requiresFP(ins)) $error("FP rquired:\n%p", ins);
+
+            if (!fpEnabled && requiresFP(ins)) begin
+                  //  $error("sup ins: %p", ins);
+                return FP_DISABLED_INS;
+            end
+            else 
+                return ins;
+        endfunction
 
 
 endpackage
