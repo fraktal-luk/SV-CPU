@@ -1,0 +1,76 @@
+
+
+$save_sync_exc
+
+; 800
+    add_i r1, r0, 0 
+    add_i r2, r0, 0
+    sti_d r1, r20, 0
+    add_i r0, r20, 4
+
+; 810
+    add_r r0, r0, r0
+    lds   r1, r0, 1
+    sti_d r1, r20, 8
+    add_i r0, r20, 12
+
+; 820
+    add_r r0, r0, r0    
+    lds   r1, r0, 2
+    sti_d r1, r20, 16
+    add_i r0, r20, 20 
+
+; 830
+    add_r r0, r0, r0
+    lds   r1, r0, 3     ; store 0
+    sti_d r0, r20, 24
+    add_i r0, r20, 28
+
+; 840
+    add_r r0, r0, r0
+    lds   r1, r0, 4
+    sti_d r1, r20, 32
+    add_i r0, r20, 36 
+
+; 850
+    add_r r0, r0, r0
+    lds   r1, r0, 5     ; store 0
+    sti_d r0, r20, 40
+    add_i r0, r20, 44
+
+; 860
+    add_r r0, r0, r0
+    lds   r1, r0, 6
+    sti_d r1, r20, 48
+    add_i r0, r20, 52 
+
+; 870
+    add_r r0, r0, r0
+    lds   r1, r0, 7     ; store 0
+    sti_d r0, r20, 56
+    add_i r0, r20, 60
+
+; 880
+    add_r r0, r0, r0
+    lds   r1, r0, 8
+    sti_d r1, r20, 64
+    add_i r0, r20, 68 
+
+; 890
+    add_r r0, r0, r0
+    lds   r1, r0, 9
+    sti_d r0, r20, 72
+    add_i r0, r20, 76
+
+; 8a0
+    add_r r0, r0, r0
+    lds   r1, r0, 10
+    sti_d r1, r20, 80
+    add_i r0, r20, 84
+
+; 8b0
+    ; return to next instruction
+    lds     r1, r0, 2
+    add_i   r1, r1, 4
+    sts     r1, r0, 2
+    jz_r r0, r0, r31
