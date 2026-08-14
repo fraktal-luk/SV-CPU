@@ -21,14 +21,20 @@ $startsteps
 $L2
 	jz_i r10, $error            ; 28
 	lds r12, r0, 34 ; exc       ; 2c
+
+	jl    r31, $save_sync_exc
+	ja $endsteps
+
 $L1
 	jz_i r0, $L2                ; 30
 
 $endsteps
 	sys_dbcall
-
 $error
-	sys_error
+    sys_error
+
+@include "common_code/exc_state.txt"
+
 
 @section output
 
@@ -42,7 +48,7 @@ $error
 0
 0 ; hi
 ; c3 - intSavedIP
-0x30
+0x38
 0 ; hi
 ; c4 - excSavedStatus
 0

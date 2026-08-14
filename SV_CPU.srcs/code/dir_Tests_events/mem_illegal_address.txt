@@ -9,10 +9,14 @@ $start
 	add_i r10, r0, 15
 	lds  r11, r0, 32
 
+	jl    r31, $save_sync_exc
+
 $check
 	sys_dbcall
 $error
     sys_error
+
+@include "common_code/exc_state.txt"
 
 
 @section output
