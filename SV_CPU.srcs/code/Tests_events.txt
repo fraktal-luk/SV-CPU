@@ -1,5 +1,9 @@
 ; Events
 
+mem_sys
+use_lib0
+
+
 dev_test_invalid_memory
 dev_test_disallowed_memory
 ;dev_test_unmapped_memory ; FIX (should happen asynchronously by page table walker?)
@@ -11,12 +15,6 @@ dev_test_sys_undef
 dev_test_sys_call
 ;dev_test_sys_illegal ; not yet implemented
 ;dev_test_sys_error	; off, because emulation treats sys_error as crash condition
-;dev_test_sys_disabled ; not yet implemented
-
-
-mem_sys
-use_lib0
-mem_illegal_address
 
 
 dbstep_NEW
