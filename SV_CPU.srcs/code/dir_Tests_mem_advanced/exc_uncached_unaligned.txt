@@ -13,20 +13,24 @@
 
 	ldi_i  r5, r8, 17 ; 
 
-	;e_stc  r6, r0, 16 ; store
+		;;e_stc  r6, r0, 16 ; store
 
-	sys_sync
+		;sys_sync
 
-	ldi_i r10, r0, 16 ; load stored value
-	add_i r11, r10, 0
+		;ldi_i r10, r0, 16 ; load stored value
+		;add_i r11, r10, 0
 
-	jnz_i r11, $error
+		;jnz_i r11, $error
 
 
+	jl    r31, $save_sync_exc
+
+$check
 	sys_dbcall
-
 $error
-	sys_error
+    sys_error
+
+@include "common_code/exc_state.txt"
 
 
 
