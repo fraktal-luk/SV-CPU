@@ -17,7 +17,7 @@ $start
 	
 	; check fpStatus
 	lds    r10, r0, 8
-	subr_r r11, r3
+	sub_r r11, r10, r3
 	jnz_i  r11, $error
 	
 	addi_f f7, f2, f3

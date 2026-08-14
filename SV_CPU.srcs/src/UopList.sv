@@ -220,7 +220,8 @@ package UopList;
         "sys_error":  UOP_ctrl_error,
         "sys_call":   UOP_ctrl_call,
         "sys_send":   UOP_ctrl_send,
-            "sys_dbcall":   UOP_ctrl_dbcall
+            "sys_dbcall":   UOP_ctrl_dbcall,
+            "sys_undef": UOP_ctrl_undef
         
     }; 
 
