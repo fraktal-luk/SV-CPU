@@ -103,6 +103,43 @@ result might be implicit.
 5.7.4 Operations on subsets of flags
 
 
+
+
+# Details of conversions and rounding
+
+5.8 FP -> Int
+When NaN or Inf cannot be represented in dest fmt: if no other means for indicaing it, Invalid Exc raised
+When number converts to Int outside dest range: just like above
+
+When result value differs from source value, Inexact is raised depending on op family:
+
+Don't signal:
+― intFormatOf-convertToIntegerTiesToEven(source)
+etc
+
+Do signals Inexact:
+― intFormatOf-convertToIntegerExactTiesToEven(source)
+etc
+
+
+5.9 Round to integral
+rounding without "Exact" doesn't signal exceptions other than SNaN input
+
+― sourceFormat roundToIntegralExact(source) signals Inexact if result not equal to input 
+
+
+5.11 Details of comparisons
+Four mutually exclusive relations are possible: less than, equal, greater than, and unordered; unordered
+arises when at least one operand is a NaN. Every NaN shall compare unordered with everything, including
+itself. Comparisons shall ignore the sign of zero (so +0 = −0). Infinite operands of the same sign shall
+compare equal.
+
+The only possible Exc is Invalid.
+	ops with "Signalling" raise it when NaN input (Q or S)
+	ops with "Quiet" raise only when SNaN input
+
+
+
 # 6. Infinity, NaNs, and sign bit
 6.1 Infinity arithmetic
   no exceptions generated, including:
@@ -118,10 +155,41 @@ result might be implicit.
 	― rem(subnormal, inf) signals Underflow
 
 6.2 Operations with NaNs
+	SNaN:
+		uninitialized variables and arith-like enhancements (such as complex-affine inf or extremely wide range) that are not in the scope of this standard. 
+	QNaN:
+		should afford retrospective diagnostic information inherited from invalid or unavailable data and results.
+
+
+	If Invalid excpetion, FP result is QNaN
+
+	SNaN: shall be reserved operands, signal invalid operation exception (see 7.2) for every GenComp and SigComp op, (except conversions described in 5.12. - not appl)
+
+
+	Every GenComp and QuietComp op with input QNaNs, shall signal no exception, except FMA might signal the Invalid (see 7.2).
+	For op QNaN inputs, except as stated otherwise, if FP result is to be delivered, the result shall be a canonical QNaN
+
+	FMT conversions, might be unable to deliver the same NaN. 
+	QNaN signals exc on some ops that do not have FP result: comparison and conversion to a format that has no NaNs, (5.6, 5.8, and 7.2)
+
 6.2.1 NaN encodings in binary interchange formats
-6.2.2 NaN encodings in decimal interchange formats
+	Exponent: all 1s
+	Mantissa: QNaN: 1st bit is 1
+						SNaN: 1st bit is 0, some other must be 1
+
+
 6.2.3 NaN propagation
+	If any NaN input, result is NaN with the same payload as one of input NaNs (not specfied which) 
+	NaN payload must be unaffected by conversion to wrider format and back
+
+
 6.3 The sign bit
+	X + -X = +0 if rounding is not o Negative
+	X + -X = -0 if rounfing towards NEgative
+	z + z and z -(-z) where z is zero: always preserve sign of z
+
+	Addition in FMA follows the same rules
+	sqrt(-0) = -0  (no exception!)
 
 
 # 7. Exceptions
@@ -173,11 +241,22 @@ result might be implicit.
 	b) before rounding — when a non-zero result computed as though both the exponent range and the
 	precision were unbounded would lie strictly between ± b emin
 
+	In addition, under default exception handling for underflow, if the rounded result is inexact — that is, it
+	differs from what would have been computed were both exponent range and precision unbounded — the
+	underflow flag shall be raised and the inexact (see 7.6) exception shall be signaled. I
+
+	If the rounded result is exact, no flag is raised and no inexact exception is signaled. This is the only case in this standard of an
+	exception signal receiving default handling that does not raise the corresponding flag. Such an underflow
+	signal has no observable effect under default handling.
+
 
 7.6 Inexact
 	Except as specified otherwise (e.g., 5.8 and 5.9), op delivering numerical result that signals no
 	other exc shall signal Inexact if its rounded result differs from hypothetical result of (both exponent range and precision unbounded).
 	The rounded result shall be delivered to the destination
+
+	the inexact flag is always
+	raised when either the overflow or underflow flag is raised.
 
 
 Exception types:

@@ -228,7 +228,7 @@ Parallel classification:
 	  copySign
 	* GenComp   (21) [per FP type = 2]         [[[42]]]
 	  roundIntegral(roundMode(6))     		Even, Away, Zero, Positive, Negative
-	  roundIntergaExact(roundMode(6))   	Dynamic
+	  roundIntegralExact(roundMode(6))   	Dynamic
 	  nextUp, nextDown
 	  remainder, add, sub, mul, div
 	  sqrt
