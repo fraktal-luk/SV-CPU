@@ -1,4 +1,5 @@
-;
+; Generate INV with disabled trap
+
 @section prog_main
 
 $start
