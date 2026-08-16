@@ -306,7 +306,7 @@ package Testing;
 
     function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem,
                                             input CodeSecArr handlerSections);
-        CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
+        CodeSecArr testSections = processFile({codeDir, name, ".txt"});
 
         foreach (testSections[importer]) begin
             foreach (testSections[exporter]) begin

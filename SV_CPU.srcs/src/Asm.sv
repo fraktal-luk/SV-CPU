@@ -549,22 +549,7 @@ package Asm;
 
 
 
-    function automatic CodeSec processLines(input squeue lines);
-        CodeSec res;
-        CodeSec sections[];
-
-        ParsedFile pf = parseLines(lines);
-
-        sections = new [pf.sections.size()];
-
-        foreach (pf.sections[i])
-            sections[i] = processOneSection(pf.sections[i]);
-
-        res = sections[0];
-        return res;
-    endfunction
-
-    function automatic CodeSecArr processFile(input squeue lines);
+    function automatic CodeSecArr processLines(input squeue lines);
         CodeSec res;
         CodeSec sections[];
 
@@ -576,6 +561,11 @@ package Asm;
             sections[i] = processOneSection(pf.sections[i]);
 
         return sections;
+    endfunction
+
+
+    function automatic CodeSecArr processFile(input string name);
+        return processLines(readFile(name));
     endfunction
 
 
@@ -749,8 +739,8 @@ package Asm;
 
     function automatic Word asm(input string str);
         squeue q = '{str};
-        CodeSec s = processLines(q);
-        return s.words[0];
+        CodeSecArr arr = processLines(q);
+        return arr[0].words[0];
     endfunction
 
 endpackage

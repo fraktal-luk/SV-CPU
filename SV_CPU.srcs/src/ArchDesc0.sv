@@ -105,7 +105,7 @@ module ArchDesc0();
 
     task automatic runTestEmul(input string suiteName, input string name, ref Emulator emul, input GlobalParams gp);
         string prefix = {"dir_", suiteName, "/"};
-        CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
+        CodeSecArr testSections = processFile({codeDir, prefix, name, ".txt"});
 
         //emulTestName = name;
             announceEmul(name);
@@ -157,7 +157,7 @@ module ArchDesc0();
     task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp);
         string prefix = {"dir_", suiteName, "/"};
 
-        CodeSecArr testSections = processFile(readFile({codeDir, prefix, name, ".txt"}));
+        CodeSecArr testSections = processFile({codeDir, prefix, name, ".txt"});
         WordArray outputWay;
 
         #CYCLE announce(name);
@@ -181,7 +181,7 @@ module ArchDesc0();
 
 
     task automatic runIntTestSim(input string name);
-        CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
+        CodeSecArr testSections = processFile({codeDir, name, ".txt"});
         WordArray outputWay;
 
         GlobalParams gp = Test_fillGpCached();
@@ -212,7 +212,7 @@ module ArchDesc0();
         SimRunner runner = new();
         TestRunner trSim = runner;
 
-        handlers = processFile(readFile({codeDir, "common_code/handlers.txt"}));;
+        handlers = processFile({codeDir, "common_code/handlers.txt"});
 
         if (RUN_EMUL_TESTS) begin
             runIntTestEmul(mainEmul, "dir_interrupts/events_int");
