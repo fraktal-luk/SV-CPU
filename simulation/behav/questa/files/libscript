@@ -1,0 +1,5 @@
+
+$VSIM_PATH  -c -do "do {Cpulib_compile.do}" -l logs/cpulib_compile.log
+$VSIM_PATH  -c -do "do {Cpulib_elaborate.do}" -l logs/cpulib_elaborate.log
+$VSIM_PATH     -do "do {Cpulib_simulate.do}" -l logs/cpulib_simulate.log
+
