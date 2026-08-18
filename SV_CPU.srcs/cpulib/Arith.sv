@@ -47,6 +47,9 @@ package Arith;
 	} FpFormat32;
 
 	localparam FpFormat32 FP32_CANONICAL_QNAN = '{0, EXP_MAX_32, 'h400000};
+	localparam FpFormat32 FP32_SNAN = '{0, EXP_MAX_32, 'h200000};
+
+
 	localparam FpFormat32 FP32_PLUS_ZERO = '{0, 0, 0};
 	localparam FpFormat32 FP32_MINUS_ZERO = '{1, 0, 0};
 	localparam FpFormat32 FP32_PLUS_INF = '{0, EXP_MAX_32, 0};
