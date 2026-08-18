@@ -34,6 +34,8 @@ package Arith;
 		logic inexact;
 	} ExceptionPack;
 
+	localparam ExceptionPack NO_EXCEPTION = '{default: 0};
+
 
 	localparam logic[30:23] EXP_MAX_32 = 'b11111111;
 
@@ -43,6 +45,22 @@ package Arith;
 		logic[30:23] exp;
 		logic[22:0] mantissa;
 	} FpFormat32;
+
+	localparam FpFormat32 FP32_CANONICAL_QNAN = '{0, EXP_MAX_32, 'h400000};
+	localparam FpFormat32 FP32_PLUS_ZERO = '{0, 0, 0};
+	localparam FpFormat32 FP32_MINUS_ZERO = '{1, 0, 0};
+	localparam FpFormat32 FP32_PLUS_INF = '{0, EXP_MAX_32, 0};
+	localparam FpFormat32 FP32_MINUS_INF = '{1, EXP_MAX_32, 0};
+	localparam FpFormat32 FP32_PLUS_MAX_FINITE = '{0, EXP_MAX_32-1, 'h7FFFFF};
+	localparam FpFormat32 FP32_MINUS_MAX_FINITE = '{1, EXP_MAX_32-1, 'h7FFFFF};
+	localparam FpFormat32 FP32_PLUS_MIN_SUBN = '{0, 0, 1};
+	localparam FpFormat32 FP32_MINUS_MIN_SUBN = '{1, 0, 1};
+	localparam FpFormat32 FP32_PLUS_MAX_SUBN = '{0, 0, 'h7FFFFF};
+	localparam FpFormat32 FP32_MINUS_MAX_SUBN = '{1, 0, 'h7FFFFF};
+
+	localparam FpFormat32 FP32_PLUS_MIN_NORM = '{0, 1, 0};
+	localparam FpFormat32 FP32_MINUS_MIN_NORM = '{1, 1, 0};
+
 
 	typedef struct {
 		ExceptionPack exc;
@@ -122,88 +140,27 @@ package Arith;
 
 
     function automatic FpResult32 nextUpF32(input FpFormat32 a);
+    	Word bits = Word'(a);
+
     	// SNaN -> exc Invalid, return QNaN?
-    	// QNaN -> copy
+    	if (isSNaN(a))
+    		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+    	// QNaN, +inf -> copy
+    	if (isQNaN(a) || (isInfinity(a) && !a.sign))
+    		return '{NO_EXCEPTION, a};
+    	
+    	// -0 -> +0
+    	if (isZero(a) && a.sign)
+    		return '{NO_EXCEPTION, FP32_PLUS_ZERO};
 
-    	// -inf -> -MAX_FINITE
-    	// 
-
-
-		// -0 is equal to +0, so next(-0) == next(+0)    	
-
-		FpFormat32 outValue;
-
-		Word exp = a.exp;
-		
-		// This will work for positive values
-		if (exp == 0) begin
-			Word mantissa = a.mantissa;
-			mantissa++;
-			if (mantissa[23]) exp++;
-			outValue.exp = exp;
-			outValue.mantissa = mantissa[22:0];
-		end
-		else if (exp == EXP_MAX_32) begin
-			outValue = a;
-		end
-		else begin
-			Word mantissaFull = 'h00800000 | a.mantissa;
-			mantissaFull++;
-			if (mantissaFull[23]) exp++;
-
-			if (exp == EXP_MAX_32) begin
-				outValue.exp = EXP_MAX_32;
-				outValue.mantissa = 0;
-			end
-			else begin
-				outValue.exp = exp;
-				outValue.mantissa = mantissaFull[22:0];
-			end
-		end
-
-
-    	return '{'{default: 0}, outValue};
+    	// elsif negative: dec
+    	// else (positive): inc
+    	if (a.sign)
+    		return '{NO_EXCEPTION, FpFormat32'(bits-1)};
+    	else
+    		return '{NO_EXCEPTION, FpFormat32'(bits+1)};
     endfunction
 
 
-    // adds eps to positive numbers and adds -eps to negative numbers
-    function automatic FpFormat32 incMag(input FpFormat32 a);
-		FpFormat32 outValue;
-
-		Word exp = a.exp;
-		
-		// This will work for positive values
-		if (exp == 0) begin
-			Word mantissa = a.mantissa;
-			mantissa++;
-			if (mantissa[23]) exp++;
-			outValue.exp = exp;
-			outValue.mantissa = mantissa[22:0];
-		end
-		else if (exp == EXP_MAX_32) begin
-			outValue = a;
-		end
-		else begin // OR: if mantissa is max, {exp+1, 0}, otherwise {exp, mantissa+1}
-			Word mantissaFull = 'h00800000 | a.mantissa;
-			mantissaFull++;
-			if (mantissaFull[24]) begin
-				exp++;
-				mantissaFull >>= 1;
-			end
-
-			if (exp == EXP_MAX_32) begin // We got to infinity
-				outValue.exp = EXP_MAX_32;
-				outValue.mantissa = 0;
-			end
-			else begin
-				outValue.exp = exp;
-				outValue.mantissa = mantissaFull[22:0];
-			end
-		end
-
-		outValue.sign = a.sign;
-
-		return outValue;
-    endfunction;
 
 endpackage
