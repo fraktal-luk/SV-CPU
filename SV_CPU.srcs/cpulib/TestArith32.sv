@@ -4,7 +4,10 @@ package TestArith32;
 	import Arith::*;
 
 
-	`define ASSERT_EQ(a, b) assert (a === b) else $fatal(2, "Failed EQ: '{%x, %X, %X} vs '{%x, %X, %X}", a.sign, a.exp, a.mantissa, b.sign, b.exp, b.mantissa);
+	`define ASSERT_EQ(a, b) assert (a === b) else begin	\
+		$displayh("Failed EQ: %p vs %p", a, b); \
+		$fatal(2, "Assertion failed"); \
+	end
 
 	function automatic void run();
 		testNext();
@@ -54,7 +57,8 @@ package TestArith32;
 			FP32_PLUS_MAX_FINITE: FP32_PLUS_INF,
 			FP32_PLUS_INF: FP32_PLUS_INF,
 
-			FP32_CANONICAL_QNAN: FP32_CANONICAL_QNAN
+			FP32_CANONICAL_QNAN: FP32_CANONICAL_QNAN,
+			negateF32(FP32_CANONICAL_QNAN): negateF32(FP32_CANONICAL_QNAN)
 		};
 
 		foreach (expectedValues[arg]) begin
@@ -63,12 +67,19 @@ package TestArith32;
 			`ASSERT_EQ(result.value, expectedValues[arg]);
 		end
 
+		// Signaling NaN
 		begin
 			FpResult32 result = nextUpF32(FP32_SNAN);
 			assert (result.exc === '{invalid: 1, default: 0}) else $fatal(2, "Exception wrong");
 			`ASSERT_EQ(result.value, FP32_CANONICAL_QNAN);	
 		end
 
+		// Signaling NaN with - sign
+		begin
+			FpResult32 result = nextUpF32(negateF32(FP32_SNAN));
+			assert (result.exc === '{invalid: 1, default: 0}) else $fatal(2, "Exception wrong");
+			`ASSERT_EQ(result.value, FP32_CANONICAL_QNAN);
+		end
 
 	endfunction
 

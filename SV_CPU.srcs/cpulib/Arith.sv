@@ -129,6 +129,7 @@ package Arith;
     endfunction
 
 
+
     // Numbers
     // zero  '{0, 0, 0}
     // subn  '{0, 0, 1}
@@ -141,6 +142,31 @@ package Arith;
     // qnan  '{0, M, 'b10000000000000000000000}
     //       '{0, M, 'b11111111111111111111111} 
 
+
+
+    // These functions don't signal exceptions
+
+    function automatic FpFormat32 negateF32(input FpFormat32 a);
+    	return '{!a.sign, a.exp, a.mantissa};
+    endfunction
+
+    function automatic FpFormat32 absF32(input FpFormat32 a);
+    	return '{0, a.exp, a.mantissa};
+    endfunction
+
+ 	function automatic FpFormat32 copySignF32(input FpFormat32 a, input FpFormat32 b);
+    	return '{b.sign, a.exp, a.mantissa};
+    endfunction
+
+
+
+
+
+
+
+
+
+    // next
 
     function automatic FpResult32 nextUpF32(input FpFormat32 a);
     	Word bits = Word'(a);
