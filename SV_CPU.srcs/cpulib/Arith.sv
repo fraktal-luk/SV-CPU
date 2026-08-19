@@ -341,7 +341,26 @@ package Arith;
 
 			$display("--------------------------");
 
+			// We need to normalize if MSB fell to the right
+			if (expA == 0) begin
+				// TODO: both denorm: don't shift anything
+			end
+			else begin
+				// Find first 1. There may be none because diff can be 0
+				if ($countones(summed) == 0) begin
+					
+				end
+				else begin
+					int expShift;
+					int log = $clog2(summed);
+					if (summed[log] == 0) log--; // $clog2 is ceiling, there may be 1 more to shift
 
+					// We want MSB to be at [32 + 23];
+					expShift = (32+23) - log;
+					summed <<= expShift;
+					expOut -= expShift;
+				end
+			end
 
     	end
 
