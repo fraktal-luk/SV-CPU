@@ -12,6 +12,7 @@ package TestArith32;
 	function automatic void run();
 		testNext();
 
+		TMP_testAdd();
 	endfunction
 
 
@@ -82,5 +83,37 @@ package TestArith32;
 		end
 
 	endfunction
+
+
+
+
+	function automatic void TMP_testAdd();
+		FpFormat32 x = '{0, 60, 'h130303};
+		FpFormat32 y = '{0, 50, 'h140021};
+
+		FpFormat32 u = '{0, 40, 'h100103};
+		FpFormat32 v = '{0, 18, 'h080021};
+
+		FpFormat32 w = '{0, 40, 'h000000};
+
+
+		FpFormat32 p = '{0, 39, 'h7FFFFF};
+		FpFormat32 q = '{0, 38, 'h7FFFFF};
+		FpFormat32 r = '{0, 37, 'h7FFFFF};
+
+		TMP_addMag(x, y);
+		TMP_addMag(u, v);
+
+		TMP_subMag(x, y);
+		TMP_subMag(u, v);
+
+		TMP_subMag(u, p);
+		TMP_subMag(u, q);
+		TMP_subMag(u, r);
+
+		TMP_subMag(w, p);
+
+	endfunction
+
 
 endpackage

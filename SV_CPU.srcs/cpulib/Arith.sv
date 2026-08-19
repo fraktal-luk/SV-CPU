@@ -192,4 +192,164 @@ package Arith;
 
 
 
+
+
+	    // TODO: rounding
+	    function automatic FpResult32 TMP_addF32(input FpFormat32 a, input FpFormat32 b);
+	    	// any SNaN -> Invalid, QNaN
+	    	// any QNaN -> copy the QNaN
+
+	    	logic sign;
+
+
+	    	if (isSNaN(a) || isSNaN(b))
+		   		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+
+		   	if (isQNaN(a))
+		   		return '{NO_EXCEPTION, a};
+
+		   	if (isQNaN(b))
+		   		return '{NO_EXCEPTION, b};
+
+		   	// Which input has bigger exponent?
+		   	if (b.exp > a.exp) begin
+				sign = b.sign;
+
+		   		// Different signs?
+		   		//if (a.sign != b.sign)
+
+
+		   		// Same sign?
+		   	end
+		   	else begin
+		   		
+		   	end
+
+
+	    endfunction
+
+
+
+    function automatic void TMP_addMag(input FpFormat32 a, input FpFormat32 b);
+    	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
+
+    	begin
+			Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
+			Word expB = isSubnormal(b) ? b.exp + 1 : b.exp;
+			Word ediff = a.exp - b.exp;
+
+			Word expOut = expA;
+
+			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
+			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
+
+			// Shift a to upper Word of a Dword
+			Dword fullA = {normA, Word'(0)};
+			Dword fullB = {normB, Word'(0)};
+
+			Dword shiftedB = fullB >> ediff; // TODO: 'persistent' bit
+			Dword summed = fullA + shiftedB;
+
+			Dword compressedB = shiftedB;
+			Dword summed_C;
+
+			if (shiftedB[30:0] === 0) compressedB[30:0] = 'h00000000;
+			else					  compressedB[30:0] = 'h40000000; 
+
+			summed_C = fullA + compressedB;
+
+			$display("Add");
+			$display("normA: %08X", normA);
+			$display("normB: %08X", normB);
+
+			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
+			$display("b: %08X|%08X", shiftedB >> 32, Word'(shiftedB));
+			$display("=: %08X|%08X", summed >> 32, Word'(summed));
+
+			$display("Comp:");
+			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
+			$display("b: %08X|%08X", compressedB >> 32, Word'(compressedB));
+			$display("=: %08X|%08X", summed_C >> 32, Word'(summed_C));
+
+			//if (summed[31:30] !== summed_C[31:30]) $display("     Digits [31:30] differ!");
+
+			$display("--------------------------");
+
+
+			// Denorm: if bit [22] of mantissa becomes 1, we crossed to normal range
+			if (expA == 0
+				  && summed[32 + 22]) begin
+				expOut++;
+				// We don't shift right 
+			end
+			// Normal: if bit [23] becomes 1, exp increased and we need to normalize
+			else if (summed[32 + 23] === 1) begin
+				expOut++;
+				summed >>= 1;
+				// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
+				if (summed[30:29] != 0) summed[30:29] = 'h2;  
+			end
+
+    	end
+    endfunction
+
+
+
+    function automatic void TMP_subMag(input FpFormat32 a, input FpFormat32 b);
+    	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
+
+    	begin
+			Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
+			Word expB = isSubnormal(b) ? b.exp + 1 : b.exp;
+			Word ediff = a.exp - b.exp;
+
+			Word expOut = expA;
+
+			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
+			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
+
+			// Shift a to upper Word of a Dword
+			Dword fullA = {normA, Word'(0)};
+			Dword fullB = {normB, Word'(0)};
+
+			Dword shiftedB = fullB >> ediff; // TODO: 'persistent' bit
+			Dword summed = fullA - shiftedB;
+
+			Dword compressedB = shiftedB;
+			Dword summed_C;
+
+			// !! at bit [-3] in contrast to [-2] of addition! 
+			if (shiftedB[29:0] === 0) compressedB[29:0] = 'h00000000;
+			else					  compressedB[29:0] = 'h20000000; 
+
+			summed_C = fullA - compressedB;
+
+			$display("Sub");
+			$display("normA: %08X", normA);
+			$display("normB: %08X", normB);
+
+			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
+			$display("b: %08X|%08X", shiftedB >> 32, Word'(shiftedB));
+			$display("=: %08X|%08X", summed >> 32, Word'(summed));
+
+			$display("Comp:");
+			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
+			$display("b: %08X|%08X", compressedB >> 32, Word'(compressedB));
+			$display("=: %08X|%08X", summed_C >> 32, Word'(summed_C));
+
+			if (summed[31:30] !== summed_C[31:30]) $display("    Digits [31:30] differ!");
+
+			$display("--------------------------");
+
+
+
+    	end
+
+    endfunction 
+
+
+
+
+
+
 endpackage
