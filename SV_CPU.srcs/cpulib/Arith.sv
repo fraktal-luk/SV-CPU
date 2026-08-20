@@ -5,6 +5,17 @@ package Arith;
 	typedef logic[127:0] Qword; 
 
 
+
+		typedef enum {
+			RoundNearestEven,
+			RoundNearestAway,
+			RoundPlusInf,
+			RoundZero,
+			RoundMinusInf
+		} Rounding;
+
+
+
 	function automatic Qword multiplyU64L(input Dword a, input Dword b);
 		return a*b;
 	endfunction
@@ -530,8 +541,142 @@ package Arith;
     endfunction 
 
 
+    function automatic FpIntermediate multiplyInter(input FpIntermediate a, input FpIntermediate b);
+    	FpIntermediate res, aSh;
+
+    	Word expOut = a.exp + b.exp - 127; // 127 is the exp of 1.0
+
+    	// Shifted by 8 to align with high subword
+    	Dword product = (a.mantissa << 8) * b.mantissa;
+
+    	aSh = '{a.sign, a.subn, a.exp, a.mantissa << 8};
+
+    	res.sign = a.sign ^ b.sign;
+    	res.subn = 'x; // TODO
+    	res.exp = expOut;
+    	res.mantissa = product;
+
+    	$display("Mult");
+    	dispInter("a: ", aSh);
+    	dispInter("b: ", b);
+    	dispInter(" =", res);
+
+    	return res;
+    endfunction
 
 
+
+    function automatic FpIntermediate roundInter(input FpIntermediate x, input Rounding rd);
+    	FpIntermediate res;
+
+    	/*  RM
+
+			nrEven:
+				plus -> tieEven
+				0 -> +0
+				minus -> tieEven
+			nrAway:
+				plus -> tieAway
+				0 -> +0
+				minus -> tieAway
+			+Inf:
+				plus -> magUp
+				0 -> +0
+				minus -> magDown
+			Zero:
+				plus -> magDown
+				0 -> +0
+				minus -> magDown
+			-Inf:
+				plus -> magDown
+				0 -> -0
+				minus -> magUp
+    	*/
+
+    	//  Above: 4 impl modes for nonzero: even, tieAway, magDown, magUp
+    	//		   2 impl modes for zero: -0, +0
+
+    	if (x.mantissa === 0) begin
+    		res = x;
+
+    		if (rd == RoundMinusInf) res.sign = 1;
+    		else res.sign = 0; 
+
+    		return res;
+    	end
+
+    	case (rd)
+    		RoundNearestEven:
+    			res = roundNearestEven(x);
+    		RoundNearestAway:
+    			res = roundNearestAway(x);
+    		RoundPlusInf:
+    			if (x.sign) res = roundMagDown(x);
+    			else res = roundMagUp(x);
+    		RoundZero:
+    			res = roundMagDown(x);
+    		RoundMinusInf:
+    			if (x.sign) res = roundMagUp(x);
+    			else res = roundMagDown(x);
+    	endcase
+
+
+    	return res;
+    endfunction
+
+
+    function automatic FpIntermediate roundMagUp(input FpIntermediate x);
+    	FpIntermediate res, xPlus;
+    	Dword newMantissa;
+
+    	if (x.mantissa[31:30] == 0) return x;
+
+    	newMantissa = x.mantissa + 'h100000000;
+
+    	xPlus = '{x.sign, x.subn, x.exp, newMantissa};
+
+    	res = normalizeAdded(xPlus);
+
+    	return res;
+    endfunction
+
+    function automatic FpIntermediate roundMagDown(input FpIntermediate x);
+    	FpIntermediate res;
+    	Dword newMantissa = x.mantissa;
+    	newMantissa[31:0] = 0;
+
+    	res = '{x.sign, x.subn, x.exp, newMantissa};
+    	return res;
+    endfunction
+
+    function automatic FpIntermediate roundNearestEven(input FpIntermediate x);
+    	FpIntermediate res;
+
+    	/* 
+    	   1|11 u
+    	   1|10 u
+    	   1|01 d
+    	   1|00 d
+    	   0|11 u
+    	   0|10 d
+    	   0|01 d
+    	   0|00 d
+    	*/
+
+    	case (x.mantissa[32:30])
+    		'b111, 'b110, 'b011: return roundMagUp(x);
+    		default: return roundMagDown(x);
+    	endcase
+
+    	//return res;
+    endfunction
+
+     function automatic FpIntermediate roundNearestAway(input FpIntermediate x);
+    	FpIntermediate res;
+
+    	if (x.mantissa[31] == 1) return roundMagUp(x);
+    	else return roundMagDown(x);
+    endfunction
 
 
 endpackage
