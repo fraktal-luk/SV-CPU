@@ -290,6 +290,34 @@ package Arith;
 	endfunction
 
 
+	function automatic FpIntermediate normalizeAdded(input FpIntermediate a);
+		FpIntermediate res;
+		
+		res.sign = a.sign;
+		// Denorm: if bit [23] of mantissa becomes 1, we crossed to normal range
+		if (a.subn) begin
+			if (a.mantissa[32 + 23]) begin
+				res.exp = 1; // We don't shift, the bit at [23] is accounted for by Normal exponent
+				res.subn = 0;
+			end
+			else begin
+				res.exp = 1;
+				res.subn = 1;
+			end
+			res.mantissa = a.mantissa;
+		end
+		// Normal: if bit [24] becomes 1, exp increased and we need to normalize
+		else if (a.mantissa[32 + 24] === 1) begin
+			res.exp = a.exp + 1;
+			res.mantissa = a.mantissa >> 1;
+			// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
+			if (res.mantissa[30:29] != 0) res.mantissa[30:29] = 'h2;  
+		end
+
+		return res;
+	endfunction
+
+
 
 
     function automatic FpIntermediate TMP_addMag(input FpFormat32 a, input FpFormat32 b);
@@ -300,9 +328,9 @@ package Arith;
     	begin
 			Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
 			Word expB = isSubnormal(b) ? b.exp + 1 : b.exp;
-			Word ediff = a.exp - b.exp;
+			//Word ediff = a.exp - b.exp;
 
-			Word expOut = expA;
+			//Word expOut = expA;
 
 			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
 			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
@@ -311,16 +339,16 @@ package Arith;
 			Dword fullA = {normA, Word'(0)};
 			Dword fullB = {normB, Word'(0)};
 
-			Dword shiftedB = fullB >> ediff; // TODO: 'persistent' bit
-			Dword summed = fullA + shiftedB;
+			// Dword shiftedB = fullB >> ediff; // TODO: 'persistent' bit
+			// Dword summed = fullA + shiftedB;
 
-			Dword compressedB = shiftedB;
-			Dword summed_C;
+			// Dword compressedB = shiftedB;
+			// Dword summed_C;
 
-			if (shiftedB[30:0] === 0) compressedB[30:0] = 'h00000000;
-			else					  compressedB[30:0] = 'h40000000; 
+			// if (shiftedB[30:0] === 0) compressedB[30:0] = 'h00000000;
+			// else					  compressedB[30:0] = 'h40000000; 
 
-			summed_C = fullA + compressedB;
+			// summed_C = fullA + compressedB;
 
 			interA = '{a.sign, isSubnormal(a), expA, fullA};
 			interB = '{b.sign, isSubnormal(b), expB, fullB};
@@ -333,28 +361,18 @@ package Arith;
 			interFull = addInter(interA, interB);
 			interFull_Comp = addInter_Comp(interA, interB);
 
-			inter.sign = a.sign;
-			inter.exp = expOut;
-			inter.mantissa = summed;
+			// inter.sign = a.sign;
+			// inter.exp = expOut;
+			// inter.mantissa = summed;
 
-				assert (interFull.mantissa === summed) else $fatal(2, "ggg");
-				assert (interFull_Comp.mantissa === summed_C) else $fatal(2, "ggg C");
+				//assert (interFull.mantissa === summed) else $fatal(2, "ggg");
+				//assert (interFull_Comp.mantissa === summed_C) else $fatal(2, "ggg C");
 
 			$display("--------------------------");
 
 
-			// Denorm: if bit [23] of mantissa becomes 1, we crossed to normal range
-			if (isSubnormal(a)) begin
-				if (summed[32 + 23]) expOut = 1; // We don't shift, the bit at [23] is accounted for by Normal exponent
-				else expOut = 0;
-			end
-			// Normal: if bit [24] becomes 1, exp increased and we need to normalize
-			else if (summed[32 + 24] === 1) begin
-				expOut++;
-				summed >>= 1;
-				// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
-				if (summed[30:29] != 0) summed[30:29] = 'h2;  
-			end
+			interFullN = normalizeAdded(interFull);
+			interFullCN = normalizeAdded(interFull_Comp);
 
     	end
 
