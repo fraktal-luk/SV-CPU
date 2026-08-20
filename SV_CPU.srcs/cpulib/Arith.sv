@@ -243,11 +243,19 @@ package Arith;
 
 
 
+	function automatic FpIntermediate convToIntermediate(input FpFormat32 a);
+		Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
+		Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
 
+		// Shift a to upper Word of a Dword
+		Dword fullA = {normA, Word'(0)};
+
+		return '{a.sign, isSubnormal(a), expA, fullA};
+	endfunction
 
 
 	function automatic FpIntermediate addInter(input FpIntermediate a, FpIntermediate b);
-		FpIntermediate res;
+		FpIntermediate res, bSh;
 
 		Word ediff = a.exp - b.exp;
 		Dword bShifted = b.mantissa >> ediff;
@@ -257,17 +265,22 @@ package Arith;
 		res.exp = a.exp;
 		res.mantissa = a.mantissa + bShifted;
 
-			$display("Nonc");
-			$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
-			$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
-			$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
+			$display("Nonc");
+			//$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
+			//$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
+			//$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+
+			dispInter("a: ", a);
+				dispInter("b: ", bSh);
+				dispInter(" = ", res);
 		return res;
 	endfunction
 
 
 	function automatic FpIntermediate addInter_Comp(input FpIntermediate a, FpIntermediate b);
-		FpIntermediate res;
+		FpIntermediate res, bSh;
 
 		Word ediff = a.exp - b.exp;
 		Dword bShifted = b.mantissa >> ediff;
@@ -281,10 +294,16 @@ package Arith;
 		res.exp = a.exp;
 		res.mantissa = a.mantissa + bShifted;
 
+		bSh = '{b.sign, b.subn, a.exp, bShifted};
+
 			$display("Comp");
-			$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
-			$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
-			$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+			//$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
+			//$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
+			//$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+
+			dispInter("a: ", a);
+				dispInter("b: ", bSh);
+				dispInter(" = ", res);
 
 		return res;
 	endfunction
@@ -318,6 +337,129 @@ package Arith;
 	endfunction
 
 
+		function automatic void dispLong(input string s, input Dword x);
+			$display({s, "%08X|%08X"}, x >> 32, Word'(x));
+		endfunction
+
+
+		function automatic void dispInter(input string s, input FpIntermediate x);
+			$display({s, "%d (%d) %08X|%08X"}, x.sign, x.exp, x.mantissa >> 32, Word'(x.mantissa));
+		endfunction
+
+
+
+
+	function automatic FpIntermediate subInter(input FpIntermediate a, FpIntermediate b);
+		FpIntermediate res;
+
+		FpIntermediate bSh;
+
+		Word ediff = a.exp - b.exp;
+		Dword bShifted = b.mantissa >> ediff;
+
+		bSh = '{b.sign, b.subn, a.exp, bShifted};
+
+		res.sign = a.sign;
+		res.subn = a.subn;
+		res.exp = a.exp;
+		res.mantissa = a.mantissa - bShifted;
+
+			$display("Nonc");
+				dispInter("a: ", a);
+				dispInter("b: ", bSh);
+				dispInter(" = ", res);
+		//	$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
+	//		$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
+//			$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+
+		return res;
+	endfunction
+
+
+	function automatic FpIntermediate subInter_Comp(input FpIntermediate a, FpIntermediate b);
+		FpIntermediate res;
+
+		FpIntermediate bSh;
+
+		Word ediff = a.exp - b.exp;
+		Dword bShifted = b.mantissa >> ediff;
+
+		// bit 30 will represent all bits from it downwards
+		if (bShifted[29:0] == 0) bShifted[29:0] = 0;
+		else					 bShifted[29:0] = 'h20000000;
+
+		bSh = '{b.sign, b.subn, a.exp, bShifted};
+
+		res.sign = a.sign;
+		res.subn = a.subn;
+		res.exp = a.exp;
+		res.mantissa = a.mantissa - bShifted;
+
+			$display("Comp");
+			// $display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
+			// $display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
+			// $display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+
+				dispInter("a: ", a);
+				dispInter("b: ", bSh);
+				dispInter(" = ", res);
+
+
+		return res;
+	endfunction
+
+
+
+
+	function automatic FpIntermediate normalizeSubtracted(input FpIntermediate a);
+		FpIntermediate res;
+
+		res.sign = a.sign;
+
+		// We need to normalize if MSB fell to the right
+		if (a.subn) begin
+			// TODO: both denorm: don't shift anything
+			res.exp = 1;
+			res.subn = 1;
+			res.mantissa = a.mantissa;
+		end
+		else begin
+			// Find first 1. There may be none because diff can be 0
+			if ($countones(a.mantissa) == 0) begin
+				res.exp = 1;
+				res.subn = 1;
+				res.mantissa = 0;
+			end
+			else begin
+				int expShift, newExp;
+				int log = $clog2(a.mantissa);
+				if (a.mantissa[log] == 0) log--; // $clog2 is ceiling, there may be 1 more to shift
+
+				// We want MSB to be at [32 + 23];
+				expShift = (32+23) - log;
+				if (expShift > a.exp) expShift = a.exp;
+				newExp = a.exp - expShift;
+
+				// Maybe we went too far, below exp 0?
+				if (newExp == 0) begin
+					res.exp = 1;
+					res.subn = 1;
+					res.mantissa = a.mantissa << (expShift-1); // We don't want to fill default '1' if subnormal arises
+				end
+				else begin
+					res.exp = newExp;
+					res.subn = 0;
+					res.mantissa = a.mantissa << expShift;
+				end
+			end
+		end
+
+		return res;
+	endfunction
+
+
+
+
 
 
     function automatic FpIntermediate TMP_addMag(input FpFormat32 a, input FpFormat32 b);
@@ -326,33 +468,11 @@ package Arith;
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
 
     	begin
-			Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
-			Word expB = isSubnormal(b) ? b.exp + 1 : b.exp;
-			//Word ediff = a.exp - b.exp;
-
-			//Word expOut = expA;
-
 			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
 			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
 
-			// Shift a to upper Word of a Dword
-			Dword fullA = {normA, Word'(0)};
-			Dword fullB = {normB, Word'(0)};
-
-			// Dword shiftedB = fullB >> ediff; // TODO: 'persistent' bit
-			// Dword summed = fullA + shiftedB;
-
-			// Dword compressedB = shiftedB;
-			// Dword summed_C;
-
-			// if (shiftedB[30:0] === 0) compressedB[30:0] = 'h00000000;
-			// else					  compressedB[30:0] = 'h40000000; 
-
-			// summed_C = fullA + compressedB;
-
-			interA = '{a.sign, isSubnormal(a), expA, fullA};
-			interB = '{b.sign, isSubnormal(b), expB, fullB};
-
+			interA = convToIntermediate(a); //'{a.sign, isSubnormal(a), expA, fullA};
+			interB = convToIntermediate(b); //'{b.sign, isSubnormal(b), expB, fullB};
 
 			$display("Add");
 			$display("normA: %08X", normA);
@@ -361,19 +481,13 @@ package Arith;
 			interFull = addInter(interA, interB);
 			interFull_Comp = addInter_Comp(interA, interB);
 
-			// inter.sign = a.sign;
-			// inter.exp = expOut;
-			// inter.mantissa = summed;
-
-				//assert (interFull.mantissa === summed) else $fatal(2, "ggg");
-				//assert (interFull_Comp.mantissa === summed_C) else $fatal(2, "ggg C");
-
-			$display("--------------------------");
-
-
 			interFullN = normalizeAdded(interFull);
 			interFullCN = normalizeAdded(interFull_Comp);
 
+			dispInter(" n ", interFullN);
+			dispInter("cn ", interFullCN);
+
+			$display("--------------------------");
     	end
 
     	return inter;
@@ -382,71 +496,34 @@ package Arith;
 
 
     function automatic void TMP_subMag(input FpFormat32 a, input FpFormat32 b);
+    	FpIntermediate inter, interA, interB, interFull, interFull_Comp, interFullN, interFullCN;
+
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
 
     	begin
-			Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
-			Word expB = isSubnormal(b) ? b.exp + 1 : b.exp;
-			Word ediff = a.exp - b.exp;
-
-			Word expOut = expA;
-
 			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
 			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
 
-			// Shift a to upper Word of a Dword
-			Dword fullA = {normA, Word'(0)};
-			Dword fullB = {normB, Word'(0)};
-
-			Dword shiftedB = fullB >> ediff; // TODO: 'persistent' bit
-			Dword summed = fullA - shiftedB;
-
-			Dword compressedB = shiftedB;
-			Dword summed_C;
-
-			// !! at bit [-3] in contrast to [-2] of addition! 
-			if (shiftedB[29:0] === 0) compressedB[29:0] = 'h00000000;
-			else					  compressedB[29:0] = 'h20000000; 
-
-			summed_C = fullA - compressedB;
+			interA = convToIntermediate(a);
+			interB = convToIntermediate(b);
 
 			$display("Sub");
 			$display("normA: %08X", normA);
 			$display("normB: %08X", normB);
 
-			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
-			$display("b: %08X|%08X", shiftedB >> 32, Word'(shiftedB));
-			$display("=: %08X|%08X", summed >> 32, Word'(summed));
+			interFull = subInter(interA, interB);
+			interFull_Comp = subInter_Comp(interA, interB);
 
-			$display("Comp:");
-			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
-			$display("b: %08X|%08X", compressedB >> 32, Word'(compressedB));
-			$display("=: %08X|%08X", summed_C >> 32, Word'(summed_C));
+			//if (summed[31:30] !== summed_C[31:30]) $display("    Digits [31:30] differ!");
 
-			if (summed[31:30] !== summed_C[31:30]) $display("    Digits [31:30] differ!");
+
+			interFullN = normalizeSubtracted(interFull);
+			interFullCN = normalizeSubtracted(interFull_Comp);
+
+			dispInter(" n ", interFullN);
+			dispInter("cn ", interFullCN);
 
 			$display("--------------------------");
-
-			// We need to normalize if MSB fell to the right
-			if (expA == 0) begin
-				// TODO: both denorm: don't shift anything
-			end
-			else begin
-				// Find first 1. There may be none because diff can be 0
-				if ($countones(summed) == 0) begin
-					expOut = 0;
-				end
-				else begin
-					int expShift;
-					int log = $clog2(summed);
-					if (summed[log] == 0) log--; // $clog2 is ceiling, there may be 1 more to shift
-
-					// We want MSB to be at [32 + 23];
-					expShift = (32+23) - log;
-					summed <<= expShift;
-					expOut -= expShift;
-				end
-			end
 
     	end
 

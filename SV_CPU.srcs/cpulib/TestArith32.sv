@@ -101,6 +101,17 @@ package TestArith32;
 		FpFormat32 q = '{0, 38, 'h7FFFFF};
 		FpFormat32 r = '{0, 37, 'h7FFFFF};
 
+		FpFormat32 a = '{0, 5, 'h7FFFFF};
+		FpFormat32 a0 = '{0, 5, 'h000000};
+		FpFormat32 b = '{0, 4, 'h7FFFFF};
+
+
+
+		FpFormat32 subX = '{0, 0, 'h080000};
+		FpFormat32 subY = '{0, 0, 'h070100};
+
+
+
 		TMP_addMag(x, y);
 		TMP_addMag(u, v);
 
@@ -112,6 +123,11 @@ package TestArith32;
 		TMP_subMag(u, r);
 
 		TMP_subMag(w, p);
+
+		TMP_subMag(a, b);
+		TMP_subMag(a0, b);
+
+		TMP_subMag(subX, subY);
 
 	endfunction
 
