@@ -197,6 +197,7 @@ package Arith;
 
     typedef struct {
     	logic sign;
+    	logic subn;
     	Word exp;
     	Dword mantissa;
     } FpIntermediate;
@@ -244,8 +245,55 @@ package Arith;
 
 
 
+
+	function automatic FpIntermediate addInter(input FpIntermediate a, FpIntermediate b);
+		FpIntermediate res;
+
+		Word ediff = a.exp - b.exp;
+		Dword bShifted = b.mantissa >> ediff;
+
+		res.sign = a.sign;
+		res.subn = a.subn;
+		res.exp = a.exp;
+		res.mantissa = a.mantissa + bShifted;
+
+			$display("Nonc");
+			$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
+			$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
+			$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+
+		return res;
+	endfunction
+
+
+	function automatic FpIntermediate addInter_Comp(input FpIntermediate a, FpIntermediate b);
+		FpIntermediate res;
+
+		Word ediff = a.exp - b.exp;
+		Dword bShifted = b.mantissa >> ediff;
+
+		// bit 30 will represent all bits from it downwards
+		if (bShifted[30:0] == 0) bShifted[30:0] = 0;
+		else					 bShifted[30:0] = 'h40000000;
+
+		res.sign = a.sign;
+		res.subn = a.subn;
+		res.exp = a.exp;
+		res.mantissa = a.mantissa + bShifted;
+
+			$display("Comp");
+			$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
+			$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
+			$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+
+		return res;
+	endfunction
+
+
+
+
     function automatic FpIntermediate TMP_addMag(input FpFormat32 a, input FpFormat32 b);
-    	FpIntermediate inter;
+    	FpIntermediate inter, interA, interB, interFull, interFull_Comp, interFullN, interFullCN;
 
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
 
@@ -274,24 +322,23 @@ package Arith;
 
 			summed_C = fullA + compressedB;
 
-			inter.sign = a.sign;
-			inter.exp = expOut;
-			inter.mantissa = summed;
+			interA = '{a.sign, isSubnormal(a), expA, fullA};
+			interB = '{b.sign, isSubnormal(b), expB, fullB};
+
 
 			$display("Add");
 			$display("normA: %08X", normA);
 			$display("normB: %08X", normB);
 
-			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
-			$display("b: %08X|%08X", shiftedB >> 32, Word'(shiftedB));
-			$display("=: %08X|%08X", summed >> 32, Word'(summed));
+			interFull = addInter(interA, interB);
+			interFull_Comp = addInter_Comp(interA, interB);
 
-			$display("Comp:");
-			$display("a: %08X|%08X", fullA >> 32, Word'(fullA));
-			$display("b: %08X|%08X", compressedB >> 32, Word'(compressedB));
-			$display("=: %08X|%08X", summed_C >> 32, Word'(summed_C));
+			inter.sign = a.sign;
+			inter.exp = expOut;
+			inter.mantissa = summed;
 
-			//if (summed[31:30] !== summed_C[31:30]) $display("     Digits [31:30] differ!");
+				assert (interFull.mantissa === summed) else $fatal(2, "ggg");
+				assert (interFull_Comp.mantissa === summed_C) else $fatal(2, "ggg C");
 
 			$display("--------------------------");
 
