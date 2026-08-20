@@ -194,6 +194,17 @@ package Arith;
 
 
 
+
+    typedef struct {
+    	logic sign;
+    	Word exp;
+    	Dword mantissa;
+    } FpIntermediate;
+
+
+
+
+
 	    // TODO: rounding
 	    function automatic FpResult32 TMP_addF32(input FpFormat32 a, input FpFormat32 b);
 	    	// any SNaN -> Invalid, QNaN
@@ -230,7 +241,12 @@ package Arith;
 
 
 
-    function automatic void TMP_addMag(input FpFormat32 a, input FpFormat32 b);
+
+
+
+    function automatic FpIntermediate TMP_addMag(input FpFormat32 a, input FpFormat32 b);
+    	FpIntermediate inter;
+
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
 
     	begin
@@ -258,6 +274,10 @@ package Arith;
 
 			summed_C = fullA + compressedB;
 
+			inter.sign = a.sign;
+			inter.exp = expOut;
+			inter.mantissa = summed;
+
 			$display("Add");
 			$display("normA: %08X", normA);
 			$display("normB: %08X", normB);
@@ -276,14 +296,13 @@ package Arith;
 			$display("--------------------------");
 
 
-			// Denorm: if bit [22] of mantissa becomes 1, we crossed to normal range
-			if (expA == 0
-				  && summed[32 + 22]) begin
-				expOut++;
-				// We don't shift right 
+			// Denorm: if bit [23] of mantissa becomes 1, we crossed to normal range
+			if (isSubnormal(a)) begin
+				if (summed[32 + 23]) expOut = 1; // We don't shift, the bit at [23] is accounted for by Normal exponent
+				else expOut = 0;
 			end
-			// Normal: if bit [23] becomes 1, exp increased and we need to normalize
-			else if (summed[32 + 23] === 1) begin
+			// Normal: if bit [24] becomes 1, exp increased and we need to normalize
+			else if (summed[32 + 24] === 1) begin
 				expOut++;
 				summed >>= 1;
 				// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
@@ -291,6 +310,8 @@ package Arith;
 			end
 
     	end
+
+    	return inter;
     endfunction
 
 
@@ -348,7 +369,7 @@ package Arith;
 			else begin
 				// Find first 1. There may be none because diff can be 0
 				if ($countones(summed) == 0) begin
-					
+					expOut = 0;
 				end
 				else begin
 					int expShift;
