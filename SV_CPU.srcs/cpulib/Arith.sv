@@ -335,6 +335,11 @@ package Arith;
 			// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
 			if (res.mantissa[30:29] != 0) res.mantissa[30:29] = 'h2;  
 		end
+		else begin
+			res.exp = a.exp;
+			res.subn = 0;
+			res.mantissa = a.mantissa;
+		end
 
 		return res;
 	endfunction
@@ -621,6 +626,8 @@ package Arith;
     	xPlus = '{x.sign, x.subn, x.exp, newMantissa};
 
     	res = normalizeAdded(xPlus);
+
+    		//$displayh("xPlus: %p\n res: %p", xPlus, res);
 
     	return res;
     endfunction

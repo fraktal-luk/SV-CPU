@@ -144,6 +144,12 @@ package TestArith32;
 		TMP_addF32(a1, a1, RoundZero);
 		TMP_addF32(a1h, a1h, RoundZero);
 
+		TMP_addF32(b1, b1, RoundZero);
+		TMP_addF32(b1h, b1h, RoundZero);
+
+		TMP_addF32(b1, b1h, RoundZero);
+		TMP_addF32(b1, b1h, RoundPlusInf);
+
 	endfunction
 
 
