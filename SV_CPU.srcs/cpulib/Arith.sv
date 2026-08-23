@@ -267,8 +267,7 @@ package Arith;
 		FpIntermediate res, bSh;
 
 		Word ediff = a.exp - b.exp;
-		Dword bShifted = //b.mantissa >> ediff;
-						 shiftCompress30(b.mantissa, ediff);
+		Dword bShifted = shiftCompress30(b.mantissa, ediff);
 
 		res.sign = a.sign;
 		res.subn = a.subn;
@@ -285,30 +284,30 @@ package Arith;
 	endfunction
 
 
-	function automatic FpIntermediate addInter_Comp(input FpIntermediate a, FpIntermediate b);
-		FpIntermediate res, bSh;
+	// function automatic FpIntermediate addInter_Comp(input FpIntermediate a, FpIntermediate b);
+	// 	FpIntermediate res, bSh;
 
-		Word ediff = a.exp - b.exp;
-		Dword bShifted = b.mantissa >> ediff;
+	// 	Word ediff = a.exp - b.exp;
+	// 	Dword bShifted = b.mantissa >> ediff;
 
-		// bit 30 will represent all bits from it downwards
-		if (bShifted[30:0] == 0) bShifted[30:0] = 0;
-		else					 bShifted[30:0] = 'h40000000;
+	// 	// bit 30 will represent all bits from it downwards
+	// 	if (bShifted[30:0] == 0) bShifted[30:0] = 0;
+	// 	else					 bShifted[30:0] = 'h40000000;
 
-		res.sign = a.sign;
-		res.subn = a.subn;
-		res.exp = a.exp;
-		res.mantissa = a.mantissa + bShifted;
+	// 	res.sign = a.sign;
+	// 	res.subn = a.subn;
+	// 	res.exp = a.exp;
+	// 	res.mantissa = a.mantissa + bShifted;
 
-		bSh = '{b.sign, b.subn, a.exp, bShifted};
+	// 	bSh = '{b.sign, b.subn, a.exp, bShifted};
 
-			$display("Comp");
-			dispInter("a: ", a);
-			dispInter("b: ", bSh);
-			dispInter(" = ", res);
+	// 		$display("Comp");
+	// 		dispInter("a: ", a);
+	// 		dispInter("b: ", bSh);
+	// 		dispInter(" = ", res);
 
-		return res;
-	endfunction
+	// 	return res;
+	// endfunction
 
 
 	function automatic FpIntermediate normalizeAdded(input FpIntermediate a);
@@ -363,8 +362,7 @@ package Arith;
 		FpIntermediate bSh;
 
 		Word ediff = a.exp - b.exp;
-		Dword bShifted = //b.mantissa >> ediff;
-						 shiftCompress29(b.mantissa, ediff);
+		Dword bShifted = shiftCompress29(b.mantissa, ediff);
 
 		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
@@ -382,33 +380,32 @@ package Arith;
 	endfunction
 
 
-	function automatic FpIntermediate subInter_Comp(input FpIntermediate a, FpIntermediate b);
-		FpIntermediate res;
+	// function automatic FpIntermediate subInter_Comp(input FpIntermediate a, FpIntermediate b);
+	// 	FpIntermediate res;
 
-		FpIntermediate bSh;
+	// 	FpIntermediate bSh;
 
-		Word ediff = a.exp - b.exp;
-		Dword bShifted = b.mantissa >> ediff;
+	// 	Word ediff = a.exp - b.exp;
+	// 	Dword bShifted = b.mantissa >> ediff;
 
-		// bit 29 will represent all bits from it downwards
-		if (bShifted[29:0] == 0) bShifted[29:0] = 0;
-		else					 bShifted[29:0] = 'h20000000;
+	// 	// bit 29 will represent all bits from it downwards
+	// 	if (bShifted[29:0] == 0) bShifted[29:0] = 0;
+	// 	else					 bShifted[29:0] = 'h20000000;
 
-		bSh = '{b.sign, b.subn, a.exp, bShifted};
+	// 	bSh = '{b.sign, b.subn, a.exp, bShifted};
 
-		res.sign = a.sign;
-		res.subn = a.subn;
-		res.exp = a.exp;
-		res.mantissa = a.mantissa - bShifted;
+	// 	res.sign = a.sign;
+	// 	res.subn = a.subn;
+	// 	res.exp = a.exp;
+	// 	res.mantissa = a.mantissa - bShifted;
 
-			$display("Comp");
-			dispInter("a: ", a);
-			dispInter("b: ", bSh);
-			dispInter(" = ", res);
+	// 		$display("Comp");
+	// 		dispInter("a: ", a);
+	// 		dispInter("b: ", bSh);
+	// 		dispInter(" = ", res);
 
-
-		return res;
-	endfunction
+	// 	return res;
+	// endfunction
 
 
 
@@ -460,10 +457,6 @@ package Arith;
 	endfunction
 
 
-
-
-
-
     function automatic FpIntermediate TMP_addMag(input FpFormat32 a, input FpFormat32 b);
     	FpIntermediate inter, interA, interB, interFull, interFull_Comp, interFullN, interFullCN;
 
@@ -473,21 +466,13 @@ package Arith;
 			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
 			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
 
-			interA = convToIntermediate(a); //'{a.sign, isSubnormal(a), expA, fullA};
-			interB = convToIntermediate(b); //'{b.sign, isSubnormal(b), expB, fullB};
+			interA = convToIntermediate(a);
+			interB = convToIntermediate(b);
 
-			$display("Add");
-			$display("normA: %08X", normA);
-			$display("normB: %08X", normB);
-
+			$display("Add  normA: %08X, normB: %08X", normA, normB);
 			interFull = addInter(interA, interB);
-			//interFull_Comp = addInter_Comp(interA, interB);
-
 			interFullN = normalizeAdded(interFull);
-			//interFullCN = normalizeAdded(interFull_Comp);
-
 			dispInter(" n ", interFullN);
-			//dispInter("cn ", interFullCN);
     	end
 
     	return interFullN;
@@ -507,24 +492,14 @@ package Arith;
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
 
-			$display("Sub");
-			$display("normA: %08X", normA);
-			$display("normB: %08X", normB);
-
+			$display("Sub  normA: %08X, normB: %08X", normA, normB);
 			interFull = subInter(interA, interB);
-			//interFull_Comp = subInter_Comp(interA, interB);
-
-			//if (summed[31:30] !== summed_C[31:30]) $display("    Digits [31:30] differ!");
-
-
 			interFullN = normalizeSubtracted(interFull);
-			//interFullCN = normalizeSubtracted(interFull_Comp);
-
 			dispInter(" n ", interFullN);
-			//dispInter("cn ", interFullCN);
+			
+
 
 			$display("--------------------------");
-
     	end
 
     	return interFullN;
