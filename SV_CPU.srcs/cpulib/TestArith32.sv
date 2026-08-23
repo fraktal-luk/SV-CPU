@@ -12,7 +12,8 @@ package TestArith32;
 	function automatic void run();
 		testNext();
 
-		TMP_testAdd();
+		//TMP_testAdd();
+		TestAdd_0();
 	endfunction
 
 
@@ -128,6 +129,20 @@ package TestArith32;
 		TMP_subMag(a0, b);
 
 		TMP_subMag(subX, subY);
+
+	endfunction
+
+
+
+	function automatic void TestAdd_0();
+		FpFormat32 a1 =  '{0, 127, 'h000000};	 	
+		FpFormat32 a1h = '{0, 126, 'h000000};
+
+		FpFormat32 b1 =  '{0, 127, 'h7FFFFF};	 	
+		FpFormat32 b1h = '{0, 126, 'h7FFFFF};	 	
+
+		TMP_addF32(a1, a1, RoundZero);
+		TMP_addF32(a1h, a1h, RoundZero);
 
 	endfunction
 

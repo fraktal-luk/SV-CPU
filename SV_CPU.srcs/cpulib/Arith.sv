@@ -217,42 +217,6 @@ package Arith;
 
 
 
-	    // TODO: rounding
-	    function automatic FpResult32 TMP_addF32(input FpFormat32 a, input FpFormat32 b);
-	    	// any SNaN -> Invalid, QNaN
-	    	// any QNaN -> copy the QNaN
-
-	    	logic sign;
-
-
-	    	if (isSNaN(a) || isSNaN(b))
-		   		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
-
-		   	if (isQNaN(a))
-		   		return '{NO_EXCEPTION, a};
-
-		   	if (isQNaN(b))
-		   		return '{NO_EXCEPTION, b};
-
-		   	// Which input has bigger exponent?
-		   	if (b.exp > a.exp) begin
-				sign = b.sign;
-
-		   		// Different signs?
-		   		//if (a.sign != b.sign)
-
-
-		   		// Same sign?
-		   	end
-		   	else begin
-		   		
-		   	end
-
-
-	    endfunction
-
-
-
 
 	function automatic FpIntermediate convToIntermediate(input FpFormat32 a);
 		Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
@@ -265,11 +229,46 @@ package Arith;
 	endfunction
 
 
+	// Shifts right, preserving 1 extra bit in [31] and 'permanent' bit in [30]
+	function automatic Dword shiftCompress30(input Dword v, input int shift);
+		Dword res = v;
+		// Which bit will go to pos [31]?  v[31 + sh]
+		// Which bit will go to pos [30]?  v[30 + sh]
+
+		Dword mask = 'h000000007FFFFFFF;
+		Dword mask30 = (mask << shift) | mask;
+
+		if (v & mask30 != 0) res[30+shift] = 1;
+		else 				 res[30+shift] = 0;
+
+		res >>= shift;
+
+		return res;
+	endfunction
+
+	// Shifts right, preserving 2 extra bits in [31:30] and 'permanent' bit in [29]
+	function automatic Dword shiftCompress29(input Dword v, input int shift);
+		Dword res = v;
+		// Which bit will go to pos [29]?  v[29 + sh]
+
+		Dword mask = 'h000000003FFFFFFF;
+		Dword mask29 = (mask << shift) | mask;
+
+		if (v & mask29 != 0) res[29+shift] = 1;
+		else 				 res[29+shift] = 0;
+
+		res >>= shift;
+
+		return res;
+	endfunction
+
+
 	function automatic FpIntermediate addInter(input FpIntermediate a, FpIntermediate b);
 		FpIntermediate res, bSh;
 
 		Word ediff = a.exp - b.exp;
-		Dword bShifted = b.mantissa >> ediff;
+		Dword bShifted = //b.mantissa >> ediff;
+						 shiftCompress30(b.mantissa, ediff);
 
 		res.sign = a.sign;
 		res.subn = a.subn;
@@ -279,13 +278,9 @@ package Arith;
 		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
 			$display("Nonc");
-			//$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
-			//$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
-			//$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
-
 			dispInter("a: ", a);
-				dispInter("b: ", bSh);
-				dispInter(" = ", res);
+			dispInter("b: ", bSh);
+			dispInter(" = ", res);
 		return res;
 	endfunction
 
@@ -308,13 +303,9 @@ package Arith;
 		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
 			$display("Comp");
-			//$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
-			//$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
-			//$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
-
 			dispInter("a: ", a);
-				dispInter("b: ", bSh);
-				dispInter(" = ", res);
+			dispInter("b: ", bSh);
+			dispInter(" = ", res);
 
 		return res;
 	endfunction
@@ -338,6 +329,7 @@ package Arith;
 		end
 		// Normal: if bit [24] becomes 1, exp increased and we need to normalize
 		else if (a.mantissa[32 + 24] === 1) begin
+			res.subn = 0;
 			res.exp = a.exp + 1;
 			res.mantissa = a.mantissa >> 1;
 			// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
@@ -366,7 +358,8 @@ package Arith;
 		FpIntermediate bSh;
 
 		Word ediff = a.exp - b.exp;
-		Dword bShifted = b.mantissa >> ediff;
+		Dword bShifted = //b.mantissa >> ediff;
+						 shiftCompress29(b.mantissa, ediff);
 
 		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
@@ -376,12 +369,9 @@ package Arith;
 		res.mantissa = a.mantissa - bShifted;
 
 			$display("Nonc");
-				dispInter("a: ", a);
-				dispInter("b: ", bSh);
-				dispInter(" = ", res);
-		//	$display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
-	//		$display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
-//			$display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
+			dispInter("a: ", a);
+			dispInter("b: ", bSh);
+			dispInter(" = ", res);
 
 		return res;
 	endfunction
@@ -395,7 +385,7 @@ package Arith;
 		Word ediff = a.exp - b.exp;
 		Dword bShifted = b.mantissa >> ediff;
 
-		// bit 30 will represent all bits from it downwards
+		// bit 29 will represent all bits from it downwards
 		if (bShifted[29:0] == 0) bShifted[29:0] = 0;
 		else					 bShifted[29:0] = 'h20000000;
 
@@ -407,13 +397,9 @@ package Arith;
 		res.mantissa = a.mantissa - bShifted;
 
 			$display("Comp");
-			// $display("a: %08X|%08X", a.mantissa >> 32, Word'(a.mantissa));
-			// $display("b: %08X|%08X", bShifted >> 32, Word'(bShifted));
-			// $display("=: %08X|%08X", res.mantissa >> 32, Word'(res.mantissa));
-
-				dispInter("a: ", a);
-				dispInter("b: ", bSh);
-				dispInter(" = ", res);
+			dispInter("a: ", a);
+			dispInter("b: ", bSh);
+			dispInter(" = ", res);
 
 
 		return res;
@@ -490,23 +476,21 @@ package Arith;
 			$display("normB: %08X", normB);
 
 			interFull = addInter(interA, interB);
-			interFull_Comp = addInter_Comp(interA, interB);
+			//interFull_Comp = addInter_Comp(interA, interB);
 
 			interFullN = normalizeAdded(interFull);
-			interFullCN = normalizeAdded(interFull_Comp);
+			//interFullCN = normalizeAdded(interFull_Comp);
 
 			dispInter(" n ", interFullN);
-			dispInter("cn ", interFullCN);
-
-			$display("--------------------------");
+			//dispInter("cn ", interFullCN);
     	end
 
-    	return inter;
+    	return interFullN;
     endfunction
 
 
 
-    function automatic void TMP_subMag(input FpFormat32 a, input FpFormat32 b);
+    function automatic FpIntermediate TMP_subMag(input FpFormat32 a, input FpFormat32 b);
     	FpIntermediate inter, interA, interB, interFull, interFull_Comp, interFullN, interFullCN;
 
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
@@ -523,21 +507,22 @@ package Arith;
 			$display("normB: %08X", normB);
 
 			interFull = subInter(interA, interB);
-			interFull_Comp = subInter_Comp(interA, interB);
+			//interFull_Comp = subInter_Comp(interA, interB);
 
 			//if (summed[31:30] !== summed_C[31:30]) $display("    Digits [31:30] differ!");
 
 
 			interFullN = normalizeSubtracted(interFull);
-			interFullCN = normalizeSubtracted(interFull_Comp);
+			//interFullCN = normalizeSubtracted(interFull_Comp);
 
 			dispInter(" n ", interFullN);
-			dispInter("cn ", interFullCN);
+			//dispInter("cn ", interFullCN);
 
 			$display("--------------------------");
 
     	end
 
+    	return interFullN;
     endfunction 
 
 
@@ -676,6 +661,79 @@ package Arith;
 
     	if (x.mantissa[31] == 1) return roundMagUp(x);
     	else return roundMagDown(x);
+    endfunction
+
+
+
+
+    function automatic FpFormat32 fromIntermediate(input FpIntermediate inter);
+    	FpFormat32 res;
+    	res.sign = inter.sign;
+    	res.exp = inter.subn ? 0 : inter.exp;
+    	res.mantissa = inter.mantissa[22+32:32];
+
+    	return res;
+    endfunction
+
+
+
+    function automatic FpResult32 TMP_addF32(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
+    	// any SNaN -> Invalid, QNaN
+    	// any QNaN -> copy the QNaN
+
+    	FpFormat32 res, arg0, arg1;
+    	logic sign;
+
+
+    	if (isSNaN(a) || isSNaN(b))
+	   		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+
+	   	if (isQNaN(a))
+	   		return '{NO_EXCEPTION, a};
+
+	   	if (isQNaN(b))
+	   		return '{NO_EXCEPTION, b};
+
+	   	// Which input has bigger exponent?
+	   	if (b.exp > a.exp) begin
+			arg0 = b;
+			arg1 = a;
+	   	end
+	   	else begin
+	   		arg0 = a;
+	   		arg1 = b;
+	   	end
+
+	   	// Now arg0 is at least a big in magnitude as arg1, NaNs have been handled
+	   	if (isInfinity(arg0)) begin
+	   		if (isInfinity(arg1)) begin
+	   			if (a.sign == b.sign)
+	   				return '{NO_EXCEPTION, arg0};
+	   			else
+	   				return '{'{invalid: 1 /*??*/, default: 0}, FP32_CANONICAL_QNAN};
+	   		end
+	   		else
+	   			return '{NO_EXCEPTION, arg0};
+	   	end
+
+	   	// Now regular cases
+	   	begin
+	   		FpIntermediate inter, interRounded;
+
+	   		if (arg0.sign != arg1.sign) inter = TMP_subMag(arg0, arg1);
+	   		else inter = TMP_addMag(arg0, arg1);
+
+	   		interRounded = roundInter(inter, rm);
+	   		res = fromIntermediate(interRounded);
+
+	   			$displayh("... %p\n... %p", inter, interRounded);
+
+			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
+			$display("--------------------------");
+
+	   		return '{NO_EXCEPTION, res};
+	   	end
+
     endfunction
 
 
