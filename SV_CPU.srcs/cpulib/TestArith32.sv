@@ -145,6 +145,11 @@ package TestArith32;
 		FpFormat32 maxSubn = '{0, 0, 'h7FFFFF};	 	
 
 
+		FpFormat32 maxNorm = '{0, 254, 'h7FFFFF};
+		FpFormat32 bigHalfDigit = '{0, 230, 'h000000};
+
+
+
 		TMP_addF32(a1, a1, RoundZero);
 		TMP_addF32(a1h, a1h, RoundZero);
 
@@ -159,6 +164,11 @@ package TestArith32;
 
 		TMP_addF32(maxSubn, maxSubn, RoundZero);
 
+
+		TMP_addF32(maxNorm, maxNorm, RoundZero);
+
+		TMP_addF32(maxNorm, bigHalfDigit, RoundZero);
+		TMP_addF32(maxNorm, bigHalfDigit, RoundPlusInf);
 
 	endfunction
 

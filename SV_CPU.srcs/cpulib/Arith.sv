@@ -340,6 +340,12 @@ package Arith;
 			res.mantissa = a.mantissa;
 		end
 
+		// If reached infinity
+		if (res.exp >= EXP_MAX_32) begin
+			res.exp = EXP_MAX_32;
+			res.mantissa = 'h80000000000000;
+		end
+
 		return res;
 	endfunction
 
