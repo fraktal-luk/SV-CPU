@@ -170,6 +170,8 @@ package TestArith32;
 		TMP_addF32(maxNorm, bigHalfDigit, RoundZero);
 		TMP_addF32(maxNorm, bigHalfDigit, RoundPlusInf);
 
+		TMP_addF32(maxNorm, minSubn, RoundZero);
+		TMP_addF32(maxNorm, minSubn, RoundPlusInf);
 	endfunction
 
 

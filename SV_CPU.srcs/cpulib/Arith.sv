@@ -238,10 +238,16 @@ package Arith;
 		Dword mask = 'h000000007FFFFFFF;
 		Dword mask30 = (mask << shift) | mask;
 
-		if (v & mask30 != 0) res[30+shift] = 1;
-		else 				 res[30+shift] = 0;
+		if (shift >= 33) begin
+			if (v != 0) res = 'h40000000;
+			else res = 0;
+		end
+		else begin
+			if (v & mask30 != 0) res[30+shift] = 1;
+			else 				 res[30+shift] = 0;
 
-		res >>= shift;
+			res >>= shift;
+		end
 
 		return res;
 	endfunction
@@ -254,10 +260,16 @@ package Arith;
 		Dword mask = 'h000000003FFFFFFF;
 		Dword mask29 = (mask << shift) | mask;
 
-		if (v & mask29 != 0) res[29+shift] = 1;
-		else 				 res[29+shift] = 0;
+		if (shift >= 34) begin
+			if (v != 0) res = 'h20000000;
+			else res = 0;
+		end
+		begin
+			if (v & mask29 != 0) res[29+shift] = 1;
+			else 				 res[29+shift] = 0;
 
-		res >>= shift;
+			res >>= shift;
+		end
 
 		return res;
 	endfunction
