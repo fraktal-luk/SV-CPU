@@ -135,6 +135,8 @@ package TestArith32;
 
 
 	function automatic void TestAdd_0();
+		FpFormat32 zero = '{0, 0, 0};
+
 		FpFormat32 a1 =  '{0, 127, 'h000000};	 	
 		FpFormat32 a1h = '{0, 126, 'h000000};
 
@@ -172,6 +174,11 @@ package TestArith32;
 
 		TMP_addF32(maxNorm, minSubn, RoundZero);
 		TMP_addF32(maxNorm, minSubn, RoundPlusInf);
+
+
+		TMP_addF32(maxNorm, zero, RoundZero);
+		TMP_addF32(maxNorm, zero, RoundPlusInf);
+
 	endfunction
 
 

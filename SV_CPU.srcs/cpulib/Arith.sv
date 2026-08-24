@@ -219,13 +219,13 @@ package Arith;
 
 
 	function automatic FpIntermediate convToIntermediate(input FpFormat32 a);
-		Word expA = isSubnormal(a) ? a.exp + 1 : a.exp;
-		Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
+		Word expA = (a.exp == 0) ? a.exp + 1 : a.exp;
+		Word normA = (a.exp == 0) ? a.mantissa : ('h800000 | a.mantissa);
 
 		// Shift a to upper Word of a Dword
 		Dword fullA = {normA, Word'(0)};
 
-		return '{a.sign, isSubnormal(a), expA, fullA};
+		return '{a.sign, (a.exp == 0), expA, fullA};
 	endfunction
 
 
@@ -481,8 +481,8 @@ package Arith;
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
 
     	begin
-			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
-			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
+			Word normA = (a.exp == 0) ? a.mantissa : ('h800000 | a.mantissa);
+			Word normB = (b.exp == 0) ? b.mantissa : ('h800000 | b.mantissa);
 
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
@@ -504,8 +504,8 @@ package Arith;
     	assert (absF32(a) >= absF32(b)) else $error("Wrng, shoudl be abs(a) >= abs(b)");
 
     	begin
-			Word normA = isSubnormal(a) ? a.mantissa : ('h800000 | a.mantissa);
-			Word normB = isSubnormal(b) ? b.mantissa : ('h800000 | b.mantissa);
+			Word normA = (a.exp == 0) ? a.mantissa : ('h800000 | a.mantissa);
+			Word normB = (b.exp == 0) ? b.mantissa : ('h800000 | b.mantissa);
 
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
