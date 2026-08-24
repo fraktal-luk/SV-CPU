@@ -549,7 +549,7 @@ package Arith;
     endfunction
 
 
-
+    // TODO: this doesn't distinguish zero of undefined sign form zero of defined sign (problem when rounding X - X vs +0 + +0 or -0 + -0)
     function automatic FpIntermediate roundInter(input FpIntermediate x, input Rounding rd);
     	FpIntermediate res;
 
@@ -581,12 +581,12 @@ package Arith;
     	//		   2 impl modes for zero: -0, +0
 
     	if (x.mantissa === 0) begin
-    		res = x;
+    		// res = x;
 
-    		if (rd == RoundMinusInf) res.sign = 1;
-    		else res.sign = 0; 
+    		// if (rd == RoundMinusInf) res.sign = 1;
+    		// else res.sign = 0; 
 
-    		return res;
+    		return x;
     	end
 
     	case (rd)
@@ -729,6 +729,12 @@ package Arith;
 	   		else inexact = 0;
 
 	   		interRounded = roundInter(inter, rm);
+
+	   		if (interRounded.mantissa == 0 && (arg0.sign != arg1.sign)) begin
+	   			if (rm == RoundMinusInf) interRounded.sign = 1;
+	   			else interRounded.sign = 0;
+	   		end
+
 
 	   		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
 	   		else overflow = 0;
