@@ -14,6 +14,9 @@ package TestArith32;
 
 		//TMP_testAdd();
 		TestAdd_0();
+
+		TestAdd_1();
+
 	endfunction
 
 
@@ -88,49 +91,49 @@ package TestArith32;
 
 
 
-	function automatic void TMP_testAdd();
-		FpFormat32 x = '{0, 60, 'h130303};
-		FpFormat32 y = '{0, 50, 'h140021};
+	// function automatic void TMP_testAdd();
+	// 	FpFormat32 x = '{0, 60, 'h130303};
+	// 	FpFormat32 y = '{0, 50, 'h140021};
 
-		FpFormat32 u = '{0, 40, 'h100103};
-		FpFormat32 v = '{0, 18, 'h080021};
+	// 	FpFormat32 u = '{0, 40, 'h100103};
+	// 	FpFormat32 v = '{0, 18, 'h080021};
 
-		FpFormat32 w = '{0, 40, 'h000000};
-
-
-		FpFormat32 p = '{0, 39, 'h7FFFFF};
-		FpFormat32 q = '{0, 38, 'h7FFFFF};
-		FpFormat32 r = '{0, 37, 'h7FFFFF};
-
-		FpFormat32 a = '{0, 5, 'h7FFFFF};
-		FpFormat32 a0 = '{0, 5, 'h000000};
-		FpFormat32 b = '{0, 4, 'h7FFFFF};
+	// 	FpFormat32 w = '{0, 40, 'h000000};
 
 
+	// 	FpFormat32 p = '{0, 39, 'h7FFFFF};
+	// 	FpFormat32 q = '{0, 38, 'h7FFFFF};
+	// 	FpFormat32 r = '{0, 37, 'h7FFFFF};
 
-		FpFormat32 subX = '{0, 0, 'h080000};
-		FpFormat32 subY = '{0, 0, 'h070100};
+	// 	FpFormat32 a = '{0, 5, 'h7FFFFF};
+	// 	FpFormat32 a0 = '{0, 5, 'h000000};
+	// 	FpFormat32 b = '{0, 4, 'h7FFFFF};
 
 
 
-		TMP_addMag(x, y);
-		TMP_addMag(u, v);
+	// 	FpFormat32 subX = '{0, 0, 'h080000};
+	// 	FpFormat32 subY = '{0, 0, 'h070100};
 
-		TMP_subMag(x, y);
-		TMP_subMag(u, v);
 
-		TMP_subMag(u, p);
-		TMP_subMag(u, q);
-		TMP_subMag(u, r);
 
-		TMP_subMag(w, p);
+	// 	TMP_addMag(x, y);
+	// 	TMP_addMag(u, v);
 
-		TMP_subMag(a, b);
-		TMP_subMag(a0, b);
+	// 	TMP_subMag(x, y);
+	// 	TMP_subMag(u, v);
 
-		TMP_subMag(subX, subY);
+	// 	TMP_subMag(u, p);
+	// 	TMP_subMag(u, q);
+	// 	TMP_subMag(u, r);
 
-	endfunction
+	// 	TMP_subMag(w, p);
+
+	// 	TMP_subMag(a, b);
+	// 	TMP_subMag(a0, b);
+
+	// 	TMP_subMag(subX, subY);
+
+	// endfunction
 
 
 
@@ -178,6 +181,40 @@ package TestArith32;
 
 		TMP_addF32(maxNorm, zero, RoundZero);
 		TMP_addF32(maxNorm, zero, RoundPlusInf);
+
+	endfunction
+
+
+	typedef struct {
+		FpFormat32 arg0;
+		FpFormat32 arg1;
+		Rounding rm;
+		ExceptionPack exc;
+		FpFormat32 value;
+	} Expectation2a;
+
+
+	function automatic void checkExpectation_Add(input Expectation2a e);
+		FpResult32 result = TMP_addF32(e.arg0, e.arg1, e.rm);
+		FpResult32 expected = '{e.exc, e.value};
+		assert (result === expected) else begin	
+			$displayh("%p (actual) vs %p (expected)", result, expected);
+			$fatal(2, "Failed expectation");
+		end
+	endfunction
+
+
+	function automatic void TestAdd_1();
+		//Expectation2a e = '{FP32_PLUS_ZERO, FP32_PLUS_ZERO, RoundZero, NO_EXCEPTION, 	FP32_PLUS_ZERO};
+
+		Expectation2a list[] = '{
+			'{FP32_PLUS_ZERO, FP32_PLUS_ZERO, RoundZero, NO_EXCEPTION, 	FP32_PLUS_ZERO},
+			'{FP32_PLUS_ZERO, FP32_PLUS_ZERO, RoundPlusInf, NO_EXCEPTION, 	FP32_PLUS_ZERO}
+		};
+
+		foreach (list[i])
+			checkExpectation_Add(list[i]);
+
 
 	endfunction
 

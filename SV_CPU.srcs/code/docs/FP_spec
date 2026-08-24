@@ -180,7 +180,7 @@ The only possible Exc is Invalid.
 
 6.2.3 NaN propagation
 	If any NaN input, result is NaN with the same payload as one of input NaNs (not specfied which) 
-	NaN payload must be unaffected by conversion to wrider format and back
+	NaN payload must be unaffected by conversion to wider format and back
 
 
 6.3 The sign bit

@@ -114,7 +114,7 @@ package Arith;
     endfunction
 
     function automatic isNormal(input FpFormat32 a);
-    	return a.exp == EXP_MAX_32;
+    	return a.exp < EXP_MAX_32;
     endfunction
 
     function automatic isInfinity(input FpFormat32 a);
@@ -489,6 +489,7 @@ package Arith;
 
 			$display("Add  normA: %08X, normB: %08X", normA, normB);
 			interFull = addInter(interA, interB);
+
 			interFullN = normalizeAdded(interFull);
 			dispInter(" n ", interFullN);
     	end
@@ -710,7 +711,7 @@ package Arith;
 	   			if (a.sign == b.sign)
 	   				return '{NO_EXCEPTION, arg0};
 	   			else
-	   				return '{'{invalid: 1 /*??*/, default: 0}, FP32_CANONICAL_QNAN};
+	   				return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
 	   		end
 	   		else
 	   			return '{NO_EXCEPTION, arg0};
@@ -718,12 +719,22 @@ package Arith;
 
 	   	// Now regular cases
 	   	begin
+	   		logic inexact, overflow, underflow = 0;
 	   		FpIntermediate inter, interRounded;
 
 	   		if (arg0.sign != arg1.sign) inter = TMP_subMag(arg0, arg1);
 	   		else inter = TMP_addMag(arg0, arg1);
 
+	   		if (inter.mantissa[31:0] != 0) inexact = 1;
+	   		else inexact = 0;
+
 	   		interRounded = roundInter(inter, rm);
+
+	   		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
+	   		else overflow = 0;
+
+	   		if (overflow || underflow) inexact = 1;
+
 	   		res = fromIntermediate(interRounded);
 
 	   			$displayh("... %p\n... %p", inter, interRounded);
@@ -731,7 +742,7 @@ package Arith;
 			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
 			$display("--------------------------");
 
-	   		return '{NO_EXCEPTION, res};
+	   		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
 	   	end
 
     endfunction
