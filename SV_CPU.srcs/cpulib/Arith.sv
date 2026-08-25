@@ -572,7 +572,7 @@ package Arith;
 
     endfunction
 
-     function automatic FpIntermediate roundNearestAway(input FpIntermediate x);
+    function automatic FpIntermediate roundNearestAway(input FpIntermediate x);
     	FpIntermediate res;
 
     	if (x.mantissa[31] == 1) return roundMagUp(x);
@@ -694,6 +694,114 @@ package Arith;
 
    		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
     endfunction
+
+
+
+    // TODO: exact and non-exact variants:
+    //			exact signals Inexact when input is not integer
+    function automatic FpResult32 TMP_roundToInteger(input FpFormat32 x, input Rounding rm);
+    	// If SNaN input -> Invalid
+    	// If QNaN or inf -> copy?
+
+    	FpFormat32 res;
+    	FpIntermediate inter = convToIntermediate(x), interRounded;
+
+    	// LSB of integer range [127]
+    	// if exp == 127, implicit '1' (m[23]) is the Unit bit
+    	// if exp == 150, m[0] is the Unit bit
+    	// if exp > 150, Unit bit is lower than eps
+    	// if exp == 126, Unit bit is 0, m[23] is at[-1], m[22:0] goes to [-2]
+    	// if exp == 125, Unit bit is 0, [-1] is 0, all mantissa goes to [-2]
+    	// if exp < 125, the above applies too
+
+    	// exp >= 150 -> stays the same
+    	// exp <= 125 -> [-1:-2] = {0, mantissa != 0};  the result will have exp 127
+
+    	// when 125 < exp < 150:
+    	//	shift right by (150-exp) 
+    	// 	round
+    	//  shift back left (remember that at rounding exp may have grown by 1)
+
+    	if (inter.exp >= 150) begin
+    		interRounded = inter;
+    	end
+    	else if (inter.exp <= 125) begin
+    		logic dirUp = 0;
+    		interRounded = inter;
+    		if (inter.mantissa != 0)
+    			interRounded.mantissa = 'h0000000040000000;
+
+    		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
+
+
+    		case (rm)
+	    		RoundNearestEven: ;	    			
+	    		RoundNearestAway: ;
+	    		RoundPlusInf:
+	    			dirUp = !inter.sign && (interRounded.mantissa != 0);
+	    		RoundZero: ;
+	    		RoundMinusInf:
+	    			dirUp = inter.sign && (interRounded.mantissa != 0);
+    		endcase
+
+    		if (dirUp) interRounded.mantissa += 'h100000000;
+
+    		interRounded.mantissa[31:0] = 0;
+
+    		interRounded.mantissa = interRounded.mantissa << 23;
+    		interRounded.exp = 127;
+    		interRounded.subn = 0;
+
+    		interRounded = normalizeAdded(interRounded);
+
+    		    		$displayh("inter__A____: %p\ninterRounded: %p", inter, interRounded);
+
+    	end
+    	else begin
+    		logic dirUp = 0;
+    		int sh = 150 - inter.exp;
+    		Dword shiftedMantissa = shiftCompress30(inter.mantissa, sh);
+    		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
+
+    		interRounded = inter;
+
+    		case (rm)
+	    		RoundNearestEven:
+	    			if (shiftedMantissa[32:30] inside {'b111, 'b110, 'b011}) dirUp = 1;
+	    		RoundNearestAway:
+	    			if (shiftedMantissa[31:30] inside {'b10, 'b11}) dirUp = 1;
+	    		RoundPlusInf:
+	    			dirUp = !inter.sign && (shiftedMantissa[31:30] != 0);
+	    		RoundZero:
+	    			dirUp = 0;
+	    		RoundMinusInf:
+	    			dirUp = inter.sign && (shiftedMantissa[31:30] != 0);
+    		endcase
+
+    		if (dirUp) shiftedMantissa += 'h100000000;
+
+    		shiftedMantissa[31:0] = 0;
+
+    		interRounded.mantissa = shiftedMantissa << sh;
+
+    		interRounded = normalizeAdded(interRounded);
+
+    		    		$displayh("inter__B____: %p\ninterRounded: %p", inter, interRounded);
+
+    	end
+
+    	if (interRounded.mantissa == 0) begin
+    		interRounded.exp = 1;
+    		interRounded.subn = 1;
+    	end
+
+    	res = fromIntermediate(interRounded);
+
+    		$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
+
+    	return '{NO_EXCEPTION, res};
+    endfunction
+
 
 
 endpackage

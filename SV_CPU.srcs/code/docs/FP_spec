@@ -210,7 +210,7 @@ The only possible Exc is Invalid.
 	For ops without FP result:
 	i) any signaling-computational op on a sNaN (see 6.2); then, under default exception
 		handling, the operation is evaluated with qNaN in place of the sNaN operands to
-		determine the result, which for unordered-signaling comparisons might signal another iInvOp
+		determine the result, which for unordered-signaling comparisons might signal another InvOp
 	j) conversion of FP number to int format
 			when the source is NaN OR inf, 
 			OR output value falls outside range of result format under the applicable rounding

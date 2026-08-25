@@ -12,10 +12,9 @@ package TestArith32;
 	function automatic void run();
 		testNext();
 
-		//TMP_testAdd();
-		//TestAdd_0();
-
 		TestAdd_1();
+
+		Test_Rounding0();
 
 	endfunction
 
@@ -90,101 +89,6 @@ package TestArith32;
 
 
 
-
-	// function automatic void TMP_testAdd();
-	// 	FpFormat32 x = '{0, 60, 'h130303};
-	// 	FpFormat32 y = '{0, 50, 'h140021};
-
-	// 	FpFormat32 u = '{0, 40, 'h100103};
-	// 	FpFormat32 v = '{0, 18, 'h080021};
-
-	// 	FpFormat32 w = '{0, 40, 'h000000};
-
-
-	// 	FpFormat32 p = '{0, 39, 'h7FFFFF};
-	// 	FpFormat32 q = '{0, 38, 'h7FFFFF};
-	// 	FpFormat32 r = '{0, 37, 'h7FFFFF};
-
-	// 	FpFormat32 a = '{0, 5, 'h7FFFFF};
-	// 	FpFormat32 a0 = '{0, 5, 'h000000};
-	// 	FpFormat32 b = '{0, 4, 'h7FFFFF};
-
-
-
-	// 	FpFormat32 subX = '{0, 0, 'h080000};
-	// 	FpFormat32 subY = '{0, 0, 'h070100};
-
-
-
-	// 	TMP_addMag(x, y);
-	// 	TMP_addMag(u, v);
-
-	// 	TMP_subMag(x, y);
-	// 	TMP_subMag(u, v);
-
-	// 	TMP_subMag(u, p);
-	// 	TMP_subMag(u, q);
-	// 	TMP_subMag(u, r);
-
-	// 	TMP_subMag(w, p);
-
-	// 	TMP_subMag(a, b);
-	// 	TMP_subMag(a0, b);
-
-	// 	TMP_subMag(subX, subY);
-
-	// endfunction
-
-
-
-	// function automatic void TestAdd_0();
-	// 	FpFormat32 zero = '{0, 0, 0};
-
-	// 	FpFormat32 a1 =  '{0, 127, 'h000000};	 	
-	// 	FpFormat32 a1h = '{0, 126, 'h000000};
-
-	// 	FpFormat32 b1 =  '{0, 127, 'h7FFFFF};	 	
-	// 	FpFormat32 b1h = '{0, 126, 'h7FFFFF};	 	
-
-	// 	FpFormat32 minSubn = '{0, 0, 'h000001};	 	
-	// 	FpFormat32 maxSubn = '{0, 0, 'h7FFFFF};	 	
-
-
-	// 	FpFormat32 maxNorm = '{0, 254, 'h7FFFFF};
-	// 	FpFormat32 bigHalfDigit = '{0, 230, 'h000000};
-
-
-
-	// 	TMP_addF32(a1, a1, RoundZero);
-	// 	TMP_addF32(a1h, a1h, RoundZero);
-
-	// 	TMP_addF32(b1, b1, RoundZero);
-	// 	TMP_addF32(b1h, b1h, RoundZero);
-
-	// 	TMP_addF32(b1, b1h, RoundZero);
-	// 	TMP_addF32(b1, b1h, RoundPlusInf);
-
-	// 	TMP_addF32(minSubn, minSubn, RoundZero);
-	// 	TMP_addF32(maxSubn, minSubn, RoundZero);
-
-	// 	TMP_addF32(maxSubn, maxSubn, RoundZero);
-
-
-	// 	TMP_addF32(maxNorm, maxNorm, RoundZero);
-
-	// 	TMP_addF32(maxNorm, bigHalfDigit, RoundZero);
-	// 	TMP_addF32(maxNorm, bigHalfDigit, RoundPlusInf);
-
-	// 	TMP_addF32(maxNorm, minSubn, RoundZero);
-	// 	TMP_addF32(maxNorm, minSubn, RoundPlusInf);
-
-
-	// 	TMP_addF32(maxNorm, zero, RoundZero);
-	// 	TMP_addF32(maxNorm, zero, RoundPlusInf);
-
-	//endfunction
-
-
 	typedef struct {
 		FpFormat32 arg0;
 		FpFormat32 arg1;
@@ -196,14 +100,7 @@ package TestArith32;
 
 	function automatic void checkExpectation_Add(input Expectation2a e);
 		FpResult32 result = TMP_addF32(e.arg0, e.arg1, e.rm);
-		//FpResult32 result_S = TMP_subF32(e.arg0, negateF32(e.arg1), e.rm);
 		FpResult32 expected = '{e.exc, e.value};
-
-			// assert (result_S === result) else begin
-			// 	$displayh("%p\n%p", result_S, result);
-			// 	$fatal(2, "Sub different");
-			// end
-
 
 		assert (result === expected) else begin	
 			$displayh("%p (actual) vs %p (expected)", result, expected);
@@ -213,8 +110,6 @@ package TestArith32;
 
 
 	function automatic void TestAdd_1();
-		//Expectation2a e = '{FP32_PLUS_ZERO, FP32_PLUS_ZERO, RoundZero, NO_EXCEPTION, 	FP32_PLUS_ZERO};
-
 		Expectation2a list[] = '{
 			'{FP32_PLUS_ZERO, FP32_PLUS_ZERO, RoundZero, NO_EXCEPTION, 	FP32_PLUS_ZERO},
 			'{FP32_PLUS_ZERO, FP32_PLUS_ZERO, RoundPlusInf, NO_EXCEPTION, 	FP32_PLUS_ZERO},
@@ -301,15 +196,6 @@ package TestArith32;
 			'{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFE}},
 
 
-
-
-			// 	'{'{0, 46, 'h0}, '{0, 30, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h100}},
-			// 	'{'{0, 46, 'h0}, '{0, 24, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h4}},
-			// 	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-			// //	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-
-
-
 			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundPlusInf, NO_EXCEPTION, FP32_PLUS_INF},
 			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundZero, NO_EXCEPTION, FP32_PLUS_INF},
 			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundMinusInf, NO_EXCEPTION, FP32_PLUS_INF},
@@ -333,13 +219,45 @@ package TestArith32;
 			'{'{1, 20, 0}, FP32_CANONICAL_QNAN, RoundMinusInf, NO_EXCEPTION, 	FP32_CANONICAL_QNAN},
 
 
-
-
 			'{FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, RoundPlusInf, NO_EXCEPTION, FP32_CANONICAL_QNAN}
 		};
 
 		foreach (list[i])
 			checkExpectation_Add(list[i]);
+
+	endfunction
+
+
+
+	function automatic void Test_Rounding0();
+		FpResult32 res0;
+
+		FpFormat32 x = '{0, 135, 'h037301};
+
+		res0 = TMP_roundToInteger(x, RoundPlusInf);
+
+		TMP_roundToInteger('{0, 145, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 139, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 130, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 128, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 127, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 126, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 125, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 89, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 0, 'h7FFFFF}, RoundMinusInf);
+		TMP_roundToInteger('{0, 0, 0}, RoundMinusInf);
+
+
+		TMP_roundToInteger('{0, 145, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 139, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 130, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 128, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 127, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 126, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 125, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 89, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 0, 'h7FFFFF}, RoundPlusInf);
+		TMP_roundToInteger('{0, 0, 0}, RoundPlusInf);
 
 
 	endfunction
