@@ -239,6 +239,14 @@ package TestArith32;
 			'{FP32_PLUS_MAX_FINITE, FP32_PLUS_MIN_SUBN, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, 	FP32_PLUS_INF},
 
 
+			'{'{0, 20, 'h7FFFFF}, '{0, 20, 'h7FFFFF}, RoundZero, NO_EXCEPTION,  '{0, 21, 'h7FFFFF}},
+			'{'{0, 20, 'h7FFFFF}, '{0, 21, 'h7FFFFF}, RoundZero, '{inexact: 1, default: 0},  '{0, 22, 'h3FFFFF}},
+
+			'{'{0, 20, 'h0}, '{0, 19, 'h7FFFFE}, RoundZero, '{inexact: 0, default: 0},  '{0, 20, 'h7FFFFF}},
+			'{'{0, 20, 'h0}, '{0, 19, 'h7FFFFF}, RoundZero, '{inexact: 1, default: 0},  '{0, 20, 'h7FFFFF}},
+			'{'{0, 20, 'h0}, '{0, 19, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 21, 'h0}},
+
+
 
 
 			'{FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, RoundPlusInf, NO_EXCEPTION, FP32_CANONICAL_QNAN}
