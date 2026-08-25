@@ -265,6 +265,14 @@ package TestArith32;
 
 
 
+				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0000}, RoundPlusInf, '{inexact: 0, default: 0}, FP32_PLUS_MAX_FINITE},
+				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0100}, RoundZero, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
+				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundZero, '{inexact: 1, overflow: 0, default: 0}, FP32_PLUS_MAX_FINITE},
+				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
+
+
+
+
 			'{FP32_PLUS_MIN_SUBN, FP32_MINUS_MIN_SUBN, RoundZero, 	 NO_EXCEPTION, 	FP32_PLUS_ZERO},
 			'{FP32_PLUS_MIN_SUBN, FP32_MINUS_MIN_SUBN, RoundMinusInf, NO_EXCEPTION, 	FP32_MINUS_ZERO},
 
@@ -291,6 +299,31 @@ package TestArith32;
 			// 	'{'{0, 46, 'h0}, '{0, 24, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h4}},
 			// 	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
 			// //	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+
+
+
+			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundPlusInf, NO_EXCEPTION, FP32_PLUS_INF},
+			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundZero, NO_EXCEPTION, FP32_PLUS_INF},
+			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundMinusInf, NO_EXCEPTION, FP32_PLUS_INF},
+
+
+			'{FP32_MINUS_INF, FP32_MINUS_INF, RoundPlusInf, NO_EXCEPTION, FP32_MINUS_INF},
+			'{FP32_MINUS_INF, FP32_MINUS_INF, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
+			'{FP32_MINUS_INF, FP32_MINUS_INF, RoundMinusInf, NO_EXCEPTION, FP32_MINUS_INF},
+
+
+			'{FP32_PLUS_INF, FP32_MINUS_INF, RoundPlusInf, '{invalid: 1, default: 0}, FP32_CANONICAL_QNAN},
+
+
+
+			'{FP32_MINUS_INF, FP32_PLUS_MIN_SUBN, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
+			'{FP32_MINUS_INF, '{0, 32, 'h00FFFF}, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
+			'{FP32_MINUS_INF, FP32_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP32_MINUS_INF},
+
+
+			'{FP32_CANONICAL_QNAN, FP32_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP32_CANONICAL_QNAN},
+			'{'{1, 20, 0}, FP32_CANONICAL_QNAN, RoundMinusInf, NO_EXCEPTION, 	FP32_CANONICAL_QNAN},
+
 
 
 
