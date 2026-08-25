@@ -13,7 +13,7 @@ package TestArith32;
 		testNext();
 
 		//TMP_testAdd();
-		TestAdd_0();
+		//TestAdd_0();
 
 		TestAdd_1();
 
@@ -137,52 +137,52 @@ package TestArith32;
 
 
 
-	function automatic void TestAdd_0();
-		FpFormat32 zero = '{0, 0, 0};
+	// function automatic void TestAdd_0();
+	// 	FpFormat32 zero = '{0, 0, 0};
 
-		FpFormat32 a1 =  '{0, 127, 'h000000};	 	
-		FpFormat32 a1h = '{0, 126, 'h000000};
+	// 	FpFormat32 a1 =  '{0, 127, 'h000000};	 	
+	// 	FpFormat32 a1h = '{0, 126, 'h000000};
 
-		FpFormat32 b1 =  '{0, 127, 'h7FFFFF};	 	
-		FpFormat32 b1h = '{0, 126, 'h7FFFFF};	 	
+	// 	FpFormat32 b1 =  '{0, 127, 'h7FFFFF};	 	
+	// 	FpFormat32 b1h = '{0, 126, 'h7FFFFF};	 	
 
-		FpFormat32 minSubn = '{0, 0, 'h000001};	 	
-		FpFormat32 maxSubn = '{0, 0, 'h7FFFFF};	 	
-
-
-		FpFormat32 maxNorm = '{0, 254, 'h7FFFFF};
-		FpFormat32 bigHalfDigit = '{0, 230, 'h000000};
+	// 	FpFormat32 minSubn = '{0, 0, 'h000001};	 	
+	// 	FpFormat32 maxSubn = '{0, 0, 'h7FFFFF};	 	
 
 
-
-		TMP_addF32(a1, a1, RoundZero);
-		TMP_addF32(a1h, a1h, RoundZero);
-
-		TMP_addF32(b1, b1, RoundZero);
-		TMP_addF32(b1h, b1h, RoundZero);
-
-		TMP_addF32(b1, b1h, RoundZero);
-		TMP_addF32(b1, b1h, RoundPlusInf);
-
-		TMP_addF32(minSubn, minSubn, RoundZero);
-		TMP_addF32(maxSubn, minSubn, RoundZero);
-
-		TMP_addF32(maxSubn, maxSubn, RoundZero);
+	// 	FpFormat32 maxNorm = '{0, 254, 'h7FFFFF};
+	// 	FpFormat32 bigHalfDigit = '{0, 230, 'h000000};
 
 
-		TMP_addF32(maxNorm, maxNorm, RoundZero);
 
-		TMP_addF32(maxNorm, bigHalfDigit, RoundZero);
-		TMP_addF32(maxNorm, bigHalfDigit, RoundPlusInf);
+	// 	TMP_addF32(a1, a1, RoundZero);
+	// 	TMP_addF32(a1h, a1h, RoundZero);
 
-		TMP_addF32(maxNorm, minSubn, RoundZero);
-		TMP_addF32(maxNorm, minSubn, RoundPlusInf);
+	// 	TMP_addF32(b1, b1, RoundZero);
+	// 	TMP_addF32(b1h, b1h, RoundZero);
+
+	// 	TMP_addF32(b1, b1h, RoundZero);
+	// 	TMP_addF32(b1, b1h, RoundPlusInf);
+
+	// 	TMP_addF32(minSubn, minSubn, RoundZero);
+	// 	TMP_addF32(maxSubn, minSubn, RoundZero);
+
+	// 	TMP_addF32(maxSubn, maxSubn, RoundZero);
 
 
-		TMP_addF32(maxNorm, zero, RoundZero);
-		TMP_addF32(maxNorm, zero, RoundPlusInf);
+	// 	TMP_addF32(maxNorm, maxNorm, RoundZero);
 
-	endfunction
+	// 	TMP_addF32(maxNorm, bigHalfDigit, RoundZero);
+	// 	TMP_addF32(maxNorm, bigHalfDigit, RoundPlusInf);
+
+	// 	TMP_addF32(maxNorm, minSubn, RoundZero);
+	// 	TMP_addF32(maxNorm, minSubn, RoundPlusInf);
+
+
+	// 	TMP_addF32(maxNorm, zero, RoundZero);
+	// 	TMP_addF32(maxNorm, zero, RoundPlusInf);
+
+	//endfunction
 
 
 	typedef struct {
@@ -196,7 +196,15 @@ package TestArith32;
 
 	function automatic void checkExpectation_Add(input Expectation2a e);
 		FpResult32 result = TMP_addF32(e.arg0, e.arg1, e.rm);
+		//FpResult32 result_S = TMP_subF32(e.arg0, negateF32(e.arg1), e.rm);
 		FpResult32 expected = '{e.exc, e.value};
+
+			// assert (result_S === result) else begin
+			// 	$displayh("%p\n%p", result_S, result);
+			// 	$fatal(2, "Sub different");
+			// end
+
+
 		assert (result === expected) else begin	
 			$displayh("%p (actual) vs %p (expected)", result, expected);
 			$fatal(2, "Failed expectation");
