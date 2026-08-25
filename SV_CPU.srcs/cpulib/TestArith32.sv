@@ -274,6 +274,19 @@ package TestArith32;
 
 
 
+			'{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFE}},
+			'{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFE}},
+			'{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFF}},
+
+
+
+			'{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFE}},
+			'{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFF}},
+			'{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFE}},
+
+
+
+
 			// 	'{'{0, 46, 'h0}, '{0, 30, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h100}},
 			// 	'{'{0, 46, 'h0}, '{0, 24, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h4}},
 			// 	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},

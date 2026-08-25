@@ -236,7 +236,12 @@ package Arith;
 		// Which bit will go to pos [30]?  v[30 + sh]
 
 		Dword mask = 'h000000007FFFFFFF;
-		Dword mask30 = (mask << shift) | 'hFFFFFFFF;
+		Dword mask30;
+
+		if (shift >= 31)
+			 mask30 = (mask << shift) | 'hFFFFFFFF;
+		else
+			mask30 = (mask << shift) | mask;
 
 		//	$display("msk30: %016X", mask30);
 
@@ -262,13 +267,20 @@ package Arith;
 		// Which bit will go to pos [29]?  v[29 + sh]
 
 		Dword mask = 'h000000003FFFFFFF;
-		Dword mask29 = (mask << shift) | 'hFFFFFFFF;
+		Dword mask29;// = (mask << shift) | 'hFFFFFFFF;
+
+		if (shift >= 30)
+			 mask29 = (mask << shift) | 'hFFFFFFFF;
+		else
+			mask29 = (mask << shift) | mask;
+
+//			$display("msk29: %016X, sh: %d, res: %016X", mask29, shift, v);
 
 		if (shift >= 34) begin
 			if (v != 0) res = 'h20000000;
 			else res = 0;
 		end
-		begin
+		else begin
 			if ((v & mask29) != 0) res[29+shift] = 1;
 			else 				 res[29+shift] = 0;
 
