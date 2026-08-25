@@ -247,6 +247,38 @@ package TestArith32;
 			'{'{0, 20, 'h0}, '{0, 19, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 21, 'h0}},
 
 
+				'{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+				'{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+
+
+				'{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+				'{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+
+
+			'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+			'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+
+
+
+			'{'{0, 46, 'h0}, '{0, 23, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h2}},
+			'{'{0, 46, 'h0}, '{0, 23, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+
+
+
+			'{FP32_PLUS_MIN_SUBN, FP32_MINUS_MIN_SUBN, RoundZero, 	 NO_EXCEPTION, 	FP32_PLUS_ZERO},
+			'{FP32_PLUS_MIN_SUBN, FP32_MINUS_MIN_SUBN, RoundMinusInf, NO_EXCEPTION, 	FP32_MINUS_ZERO},
+
+
+			'{'{1, 20, 0}, '{0, 20, 0}, RoundZero, 	 NO_EXCEPTION, 	FP32_PLUS_ZERO},
+			'{'{1, 20, 0}, '{0, 20, 0}, RoundMinusInf, NO_EXCEPTION, 	FP32_MINUS_ZERO},
+
+
+
+			// 	'{'{0, 46, 'h0}, '{0, 30, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h100}},
+			// 	'{'{0, 46, 'h0}, '{0, 24, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h4}},
+			// 	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+			// //	'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+
 
 
 			'{FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, RoundPlusInf, NO_EXCEPTION, FP32_CANONICAL_QNAN}
