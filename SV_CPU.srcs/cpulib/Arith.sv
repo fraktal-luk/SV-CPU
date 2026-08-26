@@ -704,7 +704,16 @@ package Arith;
     	// If QNaN or inf -> copy?
 
     	FpFormat32 res;
-    	FpIntermediate inter = convToIntermediate(x), interRounded;
+    	FpIntermediate inter, interRounded;
+    	logic isInexact = 0;
+
+    	if (isSNaN(x))
+    		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+
+    	if (isQNaN(x) || isInfinity(x))
+    		return '{NO_EXCEPTION, x};
+
+    	inter = convToIntermediate(x);
 
     	// LSB of integer range [127]
     	// if exp == 127, implicit '1' (m[23]) is the Unit bit
@@ -732,7 +741,7 @@ package Arith;
     			interRounded.mantissa = 'h0000000040000000;
 
     		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
-
+    		if (interRounded.mantissa[31:0] !== 0) isInexact = 1;
 
     		case (rm)
 	    		RoundNearestEven: ;	    			
@@ -762,6 +771,8 @@ package Arith;
     		int sh = 150 - inter.exp;
     		Dword shiftedMantissa = shiftCompress30(inter.mantissa, sh);
     		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
+
+    		if (shiftedMantissa[31:0] !== 0) isInexact = 1;
 
     		interRounded = inter;
 
@@ -799,7 +810,7 @@ package Arith;
 
     		$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
 
-    	return '{NO_EXCEPTION, res};
+    	return '{'{inexact: isInexact, default: 0}, res};
     endfunction
 
 
@@ -906,9 +917,9 @@ package Arith;
     // When rounding changed value: Exact ops -> Inexact, nonexact ops -> don't signal
 
     // FP -> Int: when is input out of range?
-    // range u32: [0, 2^32)		 - sign 0, exp 127+31 
+    // range u32: [0, 2^32)		 - sign 0, exp 127+31 ; -0 is allowed!   What about range (-1, 0) if rounded up?
     // range s32: [-2^31, 2^31)  - exp 127+30; if sign 1, then exp 127+31 with 0 mantissa is allowed	
-    // range u64: [0, 2^64)		 - sign 0, exp 127+63
+    // range u64: [0, 2^64)		 - sign 0, exp 127+63 ; -0 is allowed!   What about range (-1, 0) if rounded up?
     // range s64: [-2^63, 2^63)  - exp 127+62; if sign 1, then exp 127+63 with 0 mantissa is allowed
 
     // Int -> FP: when is result inexact?
@@ -973,5 +984,72 @@ package Arith;
     	end
 
     endfunction
+
+
+
+
+    // FP -> Int: when is input out of range?
+    // range u32: [0, 2^32)		 - sign 0, exp 127+31 ; -0 is allowed!   What about range (-1, 0) if rounded up?
+    // range s32: [-2^31, 2^31)  - exp 127+30; if sign 1, then exp 127+31 with 0 mantissa is allowed	
+    // range u64: [0, 2^64)		 - sign 0, exp 127+63 ; -0 is allowed!   What about range (-1, 0) if rounded up?
+    // range s64: [-2^63, 2^63)  - exp 127+62; if sign 1, then exp 127+63 with 0 mantissa is allowed
+
+    // 
+    function automatic FpResult32 fp64toInt32(input FpFormat32 x, input Rounding rm, input logic isSigned);
+    	if (isSNaN(x))
+    		return '{'{invalid: 1, default: 0}, 0};
+
+    	// QNaN treated the same as SNaN?
+       	if (isQNaN(x))
+    		return '{'{invalid: 1, default: 0}, 0};
+	
+    	begin
+	    	FpResult32 res;
+	    	Dword mantissaSh;
+
+	    	//FpIntermediate inter = convToIntermediate(x);
+	    	FpResult32 fpRounded = TMP_roundToInteger(x, rm);
+	    	FpIntermediate inter = convToIntermediate(fpRounded.value);
+
+	    	// mantissa bit [23] at exp 127 goes to bit [0] of result
+	    	// exp = 127 -> sh = 23 (right)
+	    	// exp = 128 -> sh = 22 (right)
+	    	// exp = 130 -> sh = 20 (right)
+
+	    	int shiftNeeded = 127 - inter.exp + 23;
+
+	    	// Check range
+	    	if (isSigned) begin
+	    		// Effective power above 30 is invalid, unless special case: sign negative, eff power == 31 AND mantissa[32+22:32] == 0
+
+	    		if (inter.exp - 127 > 30) begin
+	    			if (inter.sign && inter.exp - 127 == 31 && inter.mantissa[22+32:32] === 0) /* Allowed */;
+	    			else
+	    				return '{'{invalid: 1, default: 0}, 0};
+	    		end
+	    	end
+	    	else begin
+	    		// Effective power above 31 is invalid  
+	    		if (inter.exp - 127 > 31)
+	    			return '{'{invalid: 1, default: 0}, 0};
+
+	    		// Negative are invalid
+	    		if (inter.sign)
+	    			return '{'{invalid: 1, default: 0}, 0};
+	    	end
+
+
+	    	if (shiftNeeded >= 0)
+	    		mantissaSh = inter.mantissa >> shiftNeeded;
+	    	else
+	    		mantissaSh = inter.mantissa << -shiftNeeded;
+
+
+	    	// TODO: pass Inexact bit from fpResult
+
+	    	return res;
+    	end
+    endfunction
+
 
 endpackage
