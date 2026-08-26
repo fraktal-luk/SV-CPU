@@ -373,6 +373,22 @@ package TestArith32;
 		checkCmp(FP32_MINUS_INF, FP32_PLUS_INF, CMP_LT, 1, cmpTrue);
 
 
+		checkCmp(FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, CMP_UN, 0, cmpTrue);
+		checkCmp(FP32_CANONICAL_QNAN, FP32_MINUS_INF, CMP_UN, 0, cmpTrue);
+		checkCmp(FP32_CANONICAL_QNAN, x, CMP_UN, 0, cmpTrue);
+		checkCmp(FP32_CANONICAL_QNAN, FP32_PLUS_INF, CMP_UN, 0, cmpTrue);
+
+		checkCmp(FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP32_CANONICAL_QNAN, FP32_MINUS_INF, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP32_CANONICAL_QNAN, x, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP32_CANONICAL_QNAN, FP32_PLUS_INF, CMP_NE, 1, cmpInvalid);
+
+		// SNaN causes Invalid even if not signalling variant
+		checkCmp(FP32_CANONICAL_QNAN, FP32_SNAN, CMP_UN, 0, cmpInvalid);
+		checkCmp(FP32_MINUS_INF, FP32_SNAN, CMP_UN, 0, cmpInvalid);
+		checkCmp(FP32_SNAN, x, CMP_UN, 0, cmpInvalid);
+
+
 	endfunction
 
 
