@@ -18,6 +18,23 @@ package TestArith32;
 
 		Test_Cmp0();
 
+		//$display("\n\n%X   %X   %X", 32 << 1, 32 << -1, 32 << -2);
+
+			TMP_int64toFP32(0, 0, RoundZero);
+			TMP_int64toFP32('h0000000000001000, 0, RoundZero);
+			TMP_int64toFP32('h0010000000000000, 0, RoundZero);
+			TMP_int64toFP32('h0010000001000000, 0, RoundZero);
+			TMP_int64toFP32('h001FFFFFFF000000, 0, RoundZero);
+			TMP_int64toFP32('h001FFFFFFF000000, 0, RoundPlusInf);
+			TMP_int64toFP32('h001FFFFFFF000000, 0, RoundNearestEven);
+
+
+			TMP_int64toFP32(-'h001FFFFFFF000000, 1, RoundNearestEven);
+
+			TMP_int64toFP32('h01FFFFFF, 1, RoundPlusInf);
+			TMP_int64toFP32(-'h01FFFFFF, 1, RoundPlusInf);
+
+
 	endfunction
 
 

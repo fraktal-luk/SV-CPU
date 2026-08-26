@@ -827,14 +827,14 @@ package Arith;
 
     	if (isSNaN(a) || isSNaN(b)) begin
     		// Signal Invqlid 
-    		return '{{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
+    		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
     	end
 
     	r = cmpInternalF32(a, b);
 
     	if (signalling && (r == R_UNORDERED)) begin
     		// signal Invalid
-    		return '{{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
+    		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
     	end
 
     	case (pred)
@@ -893,5 +893,85 @@ package Arith;
     endfunction
 
 
+    // conversions (exact and nonexact, rounding mode arg):
+    // s32 -> f32
+    // u32 -> f32
+    // s64 -> f32
+    // u64 -> f32
+    // f32 -> s32
+    // f32 -> u32
+    // f32 -> s64
+    // f32 -> u64
+    // When FP input outside of output range -> Invalid
+    // When rounding changed value: Exact ops -> Inexact, nonexact ops -> don't signal
+
+    // FP -> Int: when is input out of range?
+    // range u32: [0, 2^32)		 - sign 0, exp 127+31 
+    // range s32: [-2^31, 2^31)  - exp 127+30; if sign 1, then exp 127+31 with 0 mantissa is allowed	
+    // range u64: [0, 2^64)		 - sign 0, exp 127+63
+    // range s64: [-2^63, 2^63)  - exp 127+62; if sign 1, then exp 127+63 with 0 mantissa is allowed
+
+    // Int -> FP: when is result inexact?
+    // When num of significant bits exceeds FP precision (24 bits for F32)
+
+
+    function automatic FpResult32 TMP_int64toFP32(input Dword x, input logic isSigned, input Rounding rm);
+    	logic sign = 0;
+    	logic inexact;
+    	Dword absX;
+
+    	if (isSigned) sign = x[63];
+
+    	absX = sign ? -x : x; // If x is the most negative number, no problem because it will stay the same in bits
+    						  // but be interpreted as unsigned magnitude
+
+    	if (absX == 0) begin
+    		if (rm == RoundMinusInf) // ???
+    			return '{NO_EXCEPTION, FP32_MINUS_ZERO};
+    		else
+    			return '{NO_EXCEPTION, FP32_PLUS_ZERO};
+    	end
+    	begin
+    		Dword mantissa, mantissaC;
+    		FpIntermediate inter, interRounded;
+    		FpFormat32 result;
+
+    		// Determine exp
+			int exp, shiftNeeded;
+			int wantedMag = 32 + 23;
+			int log = $clog2(absX);
+			if (absX[log] === 0) log--;
+
+			// log == 0 corresponds to exp 127
+			exp = 127 + log;
+
+			// We want MSB of input at index [23 + 32] of extended mantissa
+			shiftNeeded = wantedMag - log;
+
+			if (shiftNeeded >= 0)
+				mantissa = absX << shiftNeeded;
+			else
+				mantissa = absX >> -shiftNeeded;
+
+			mantissaC = shiftCompress30(mantissa, 0);
+
+
+			inter = '{sign, 0, exp, mantissaC};
+
+			inexact = (inter.mantissa[31:0] != 0);
+
+			interRounded = roundInter(inter, rm);
+
+				$display(" conv: %016X  -> (%d) %016X // (%d) %016X", absX, exp, mantissa,  exp,  mantissaC);
+
+			result = fromIntermediate(interRounded);
+
+				$displayh("    rounded: %p\n %d -> %.2f", interRounded,  x, $bitstoshortreal(result));
+
+
+			return '{'{inexact: inexact, default: 0}, result};
+    	end
+
+    endfunction
 
 endpackage
