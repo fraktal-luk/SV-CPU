@@ -803,5 +803,95 @@ package Arith;
     endfunction
 
 
+    typedef enum {
+    	R_EQUAL, R_GREATER, R_LESS, R_UNORDERED
+    } Relation;
+
+
+    typedef enum {
+    	CMP_EQ, CMP_NE,
+    	CMP_GT, CMP_GE, CMP_GU, CMP_NG,
+    	CMP_LT, CMP_LE, CMP_LU, CMP_NL,
+    	CMP_UN, CMP_OR
+    } CmpPredicate;
+
+
+    function automatic FpResult32 TMP_cmpF32(input FpFormat32 a, input FpFormat32 b, input CmpPredicate pred, input logic signalling);
+    	logic answer;
+
+    	// Magnitude
+    	Word ma = absF32(a);
+    	Word mb = absF32(b);
+
+    	Relation r;
+
+    	if (isSNaN(a) || isSNaN(b)) begin
+    		// Signal Invqlid 
+    		return '{{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
+    	end
+
+    	r = cmpInternalF32(a, b);
+
+    	if (signalling && (r == R_UNORDERED)) begin
+    		// signal Invalid
+    		return '{{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
+    	end
+
+    	case (pred)
+    		CMP_EQ: answer = r == R_EQUAL;
+    		CMP_NE: answer = r != R_EQUAL; 
+    		
+    		CMP_GT: answer = r == R_GREATER;
+    		CMP_GE: answer = r inside {R_GREATER, R_EQUAL};
+    		CMP_GU: answer = r inside {R_GREATER, R_UNORDERED};
+    		CMP_NG: answer = r != R_GREATER; 
+
+    		CMP_LT: answer = r == R_LESS;
+    		CMP_LE: answer = r inside {R_LESS, R_EQUAL};
+    		CMP_LU: answer = r inside {R_LESS, R_UNORDERED};
+    		CMP_NL: answer = r != R_LESS;
+
+    		CMP_UN: answer = r == R_UNORDERED;
+    		CMP_OR: answer = r != R_UNORDERED;
+    	endcase
+
+    	if (answer) return '{NO_EXCEPTION, FP32_PLUS_MIN_SUBN};
+    	else return '{NO_EXCEPTION, FP32_PLUS_ZERO};
+    endfunction
+
+
+
+    function automatic Relation cmpInternalF32(input FpFormat32 a, input FpFormat32 b);
+    	logic eq, gt = 0, lt = 0, un = 0, invalid = 1;
+
+    	// Magnitude
+    	Word ma = absF32(a);
+    	Word mb = absF32(b);
+
+    	if (isNaN(a) || isNaN(b)) return R_UNORDERED;
+    	else if (isZero(a) && isZero(b)) return R_EQUAL;
+    	else if (!a.sign && !b.sign) begin
+    		gt = ma > mb;
+    		lt = ma < mb;
+    		eq = ma == mb;
+
+    		if (ma > mb) return R_GREATER;
+    		if (ma < mb) return R_LESS;
+    		return R_EQUAL;
+    	end
+    	else if (!a.sign && b.sign) begin
+    		return R_GREATER;
+    	end
+    	else if (a.sign && !b.sign) begin
+    		return R_LESS;
+    	end
+    	else if (a.sign && b.sign) begin
+    		if (ma > mb) return R_LESS;
+    		if (ma < mb) return R_GREATER;
+    		return R_EQUAL;
+    	end
+    endfunction
+
+
 
 endpackage

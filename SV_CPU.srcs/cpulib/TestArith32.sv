@@ -16,6 +16,8 @@ package TestArith32;
 
 		Test_Rounding0();
 
+		Test_Cmp0();
+
 	endfunction
 
 
@@ -89,6 +91,15 @@ package TestArith32;
 
 
 
+
+	typedef struct {
+		FpFormat32 arg0;
+		Rounding rm;
+		ExceptionPack exc;
+		FpFormat32 value;
+	} Expectation1a;
+
+
 	typedef struct {
 		FpFormat32 arg0;
 		FpFormat32 arg1;
@@ -96,6 +107,16 @@ package TestArith32;
 		ExceptionPack exc;
 		FpFormat32 value;
 	} Expectation2a;
+
+
+	typedef struct {
+		FpFormat32 arg0;
+		FpFormat32 arg1;
+		FpFormat32 arg2;
+		Rounding rm;
+		ExceptionPack exc;
+		FpFormat32 value;
+	} Expectation3a;
 
 
 	function automatic void checkExpectation_Add(input Expectation2a e);
@@ -260,7 +281,105 @@ package TestArith32;
 		TMP_roundToInteger('{0, 0, 0}, RoundPlusInf);
 
 
+		$display("1/2");
+		// 1/2
+		TMP_roundToInteger('{0, 126, 0}, RoundNearestEven);
+		TMP_roundToInteger('{0, 126, 0}, RoundNearestAway);
+		TMP_roundToInteger('{0, 126, 0}, RoundPlusInf);
+		TMP_roundToInteger('{0, 126, 0}, RoundZero);
+		TMP_roundToInteger('{0, 126, 0}, RoundMinusInf);
+
+		$display("3/2");
+		// 1/2
+		TMP_roundToInteger('{0, 127, 'h400000}, RoundNearestEven);
+		TMP_roundToInteger('{0, 127, 'h400000}, RoundNearestAway);
+		TMP_roundToInteger('{0, 127, 'h400000}, RoundPlusInf);
+		TMP_roundToInteger('{0, 127, 'h400000}, RoundZero);
+		TMP_roundToInteger('{0, 127, 'h400000}, RoundMinusInf);
+
 	endfunction
+
+
+	// function automatic void checkComparison(input FpFormat32 x, input FpFormat32 y, input CmpPredicate pred);
+		
+	// endfunction
+
+
+	localparam FpResult32 cmpTrue = '{NO_EXCEPTION, FP32_PLUS_MIN_SUBN};
+	localparam FpResult32 cmpFalse = '{NO_EXCEPTION, FP32_PLUS_ZERO};
+	localparam FpResult32 cmpInvalid = '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+
+
+	function automatic void checkCmp(input FpFormat32 a, input FpFormat32 b, input CmpPredicate pred, input logic signal, input FpResult32 expected);
+		FpResult32 res = TMP_cmpF32(a, b, pred, signal);
+		assert (res === expected) else begin
+			$displayh("Compare %p, %p, (%p)", a, b, pred);
+			$fatal(2, "Comparison failed:\n%p\n%p", res, expected);
+		end
+	endfunction
+
+
+	function automatic void Test_Cmp0();
+		FpFormat32 x = '{0, 160, 0},
+				   y = '{0, 160, 'h000200},
+				   z = '{0, 161, 0};
+
+		checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_LT, 1,  cmpFalse);
+		checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_GT, 1,  cmpFalse);
+		checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_EQ, 1,  cmpTrue);
+		checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_GE, 1,  cmpTrue);
+		checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_LE, 1,  cmpTrue);
+		checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_UN, 1,  cmpFalse);
+
+
+		checkCmp(x, y, CMP_LT, 1,  cmpTrue);
+		checkCmp(x, y, CMP_LE, 1,  cmpTrue);
+		checkCmp(x, y, CMP_LU, 1,  cmpTrue);
+		checkCmp(x, y, CMP_NE, 1,  cmpTrue);
+		checkCmp(x, y, CMP_NG, 1,  cmpTrue);
+		checkCmp(x, y, CMP_OR, 1,  cmpTrue);
+
+		checkCmp(z, y, CMP_GT, 1,  cmpTrue);
+		checkCmp(z, y, CMP_LE, 1,  cmpFalse);
+		checkCmp(z, y, CMP_LU, 1,  cmpFalse);
+		checkCmp(z, y, CMP_NE, 1,  cmpTrue);
+		checkCmp(z, y, CMP_NG, 1,  cmpFalse);
+		checkCmp(z, y, CMP_OR, 1,  cmpTrue);
+
+
+		checkCmp(negateF32(x), negateF32(y), CMP_GT, 1,  cmpTrue);
+
+		checkCmp(negateF32(z), y, CMP_LT, 1,  cmpTrue);
+		
+		checkCmp(negateF32(z), z, CMP_LT, 1,  cmpTrue);
+
+		checkCmp(negateF32(x), z, CMP_LT, 1,  cmpTrue);
+
+
+		checkCmp(z, y, CMP_LU, 1,  cmpFalse);
+		checkCmp(z, y, CMP_NE, 1,  cmpTrue);
+		checkCmp(z, y, CMP_NG, 1,  cmpFalse);
+		checkCmp(z, y, CMP_OR, 1,  cmpTrue);
+
+
+		checkCmp(FP32_MINUS_INF, x, CMP_LT, 1, cmpTrue);
+		checkCmp(FP32_MINUS_INF, negateF32(x), CMP_LT, 1, cmpTrue);
+
+		checkCmp(FP32_PLUS_INF, x, CMP_GT, 1, cmpTrue);
+		checkCmp(FP32_PLUS_INF, negateF32(x), CMP_GT, 1, cmpTrue);
+
+		checkCmp(FP32_MINUS_INF, FP32_MINUS_INF, CMP_EQ, 1, cmpTrue);
+		checkCmp(FP32_PLUS_INF, FP32_PLUS_INF, CMP_EQ, 1, cmpTrue);
+		checkCmp(FP32_MINUS_INF, FP32_PLUS_INF, CMP_LT, 1, cmpTrue);
+
+
+	endfunction
+
+
+
+
+
+
 
 
 endpackage

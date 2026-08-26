@@ -280,3 +280,10 @@ pred:
 		eq, ne,
 		gt, ge, gu, ng,
 		lt, le, lu, nl
+
+	preds are combinations of 4 exclusive base states:
+		GT, EQ, LT, UN
+		eq = EQ, ne = !EQ
+		gt = GT, ge = GT|EQ, gu = GT|UN, ng = !GT
+		lt = LT, le = LT|EQ, lu = LT|UN, nl = !LT
+		un = UN, or = !UN
