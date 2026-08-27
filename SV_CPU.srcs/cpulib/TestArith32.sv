@@ -20,10 +20,11 @@ package TestArith32;
 
 		//$display("\n\n%X   %X   %X", 32 << 1, 32 << -1, 32 << -2);
 
+		Test_i2f();
+
 
 		Test_f2i();
 
-		Test_i2f();
 
 	endfunction
 
@@ -474,11 +475,44 @@ package TestArith32;
 
 
 
-	function automatic void checkF2I();
-
+	function automatic void checkF2I(input FpFormat32 x, input Rounding rm, input logic isSigned, input FpResult32 expected);
+		FpResult32 actual = fp64toInt32(x, rm, isSigned);
+		 assert (actual === expected) else begin
+		 	$displayh("%p (%d) (%p)\n%p\n%p", x, isSigned, rm, actual, expected);
+		 	$displayh("a %08X, e %08X", actual.value, expected.value);
+		 	$fatal(2, "Wromg conv");
+		 end
 	endfunction
 
+
 	function automatic void Test_f2i();
+		checkF2I(FP32_MINUS_ZERO, RoundPlusInf, 0, '{NO_EXCEPTION, 0});
+		checkF2I(FP32_PLUS_ZERO, RoundPlusInf, 0, '{NO_EXCEPTION, 0});
+
+		checkF2I('{0, 127, 0}, RoundMinusInf, 0, '{NO_EXCEPTION, 1});
+		checkF2I('{0, 127, 0}, RoundPlusInf, 0, '{NO_EXCEPTION, 1});
+
+		checkF2I('{0, 127, 'h7FFFFF}, RoundPlusInf, 0, '{EXC_INEXACT, 2});
+		checkF2I('{0, 127, 'h7FFFFF}, RoundMinusInf, 0, '{EXC_INEXACT, 1});
+
+		checkF2I('{1, 126, 0}, RoundNearestEven, 1, '{EXC_INEXACT, 0});
+		checkF2I('{1, 126, 0}, RoundMinusInf, 1, '{EXC_INEXACT, -1});
+
+		checkF2I('{1, 126, 0}, RoundMinusInf, 0, '{'{invalid: 1, default: 0}, 0});
+
+		checkF2I('{1, 0, 335}, RoundMinusInf, 1, '{EXC_INEXACT, -1});
+
+
+		checkF2I('{0, 127 + 31, 'h7FFFFF}, RoundMinusInf, 0, '{NO_EXCEPTION, 'hFFFFFF00});
+		checkF2I('{0, 127 + 31, 'h7FFFFF}, RoundMinusInf, 1, '{'{invalid: 1, default: 0}, 0});
+
+		checkF2I('{0, 127 + 32, 0}, RoundMinusInf, 0, '{'{invalid: 1, default: 0}, 0});
+
+
+		checkF2I(FP32_PLUS_INF, RoundZero, 0, '{'{invalid: 1, default: 0}, 0});
+		checkF2I(FP32_SNAN, RoundZero, 0, '{'{invalid: 1, default: 0}, 0});
+		checkF2I(FP32_CANONICAL_QNAN, RoundZero, 0, '{'{invalid: 1, default: 0}, 0});
+
 
 	endfunction
 

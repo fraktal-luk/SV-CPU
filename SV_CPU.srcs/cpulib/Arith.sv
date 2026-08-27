@@ -1006,6 +1006,7 @@ package Arith;
     	begin
 	    	FpResult32 res;
 	    	Dword mantissaSh;
+	    	Word intValue;
 
 	    	//FpIntermediate inter = convToIntermediate(x);
 	    	FpResult32 fpRounded = TMP_roundToInteger(x, rm);
@@ -1022,19 +1023,21 @@ package Arith;
 	    	if (isSigned) begin
 	    		// Effective power above 30 is invalid, unless special case: sign negative, eff power == 31 AND mantissa[32+22:32] == 0
 
-	    		if (inter.exp - 127 > 30) begin
+	    		if (int'(inter.exp) - 127 > 30) begin
 	    			if (inter.sign && inter.exp - 127 == 31 && inter.mantissa[22+32:32] === 0) /* Allowed */;
 	    			else
 	    				return '{'{invalid: 1, default: 0}, 0};
 	    		end
 	    	end
 	    	else begin
+	    			//$display(">> %d", int'(inter.exp)-127);
+
 	    		// Effective power above 31 is invalid  
-	    		if (inter.exp - 127 > 31)
+	    		if (int'(inter.exp) - 127 > 31)
 	    			return '{'{invalid: 1, default: 0}, 0};
 
-	    		// Negative are invalid
-	    		if (inter.sign)
+	    		// Negative are invalid unless zero
+	    		if (inter.sign && !isZero(x))
 	    			return '{'{invalid: 1, default: 0}, 0};
 	    	end
 
@@ -1044,8 +1047,12 @@ package Arith;
 	    	else
 	    		mantissaSh = inter.mantissa << -shiftNeeded;
 
+	    	if (isSigned && inter.sign)
+	    		intValue = -mantissaSh[63:32];
+	    	else
+	    		intValue = mantissaSh[63:32];
 
-	    	// TODO: pass Inexact bit from fpResult
+	    	res = '{'{inexact: fpRounded.exc.inexact, default: 0}, intValue};
 
 	    	return res;
     	end
