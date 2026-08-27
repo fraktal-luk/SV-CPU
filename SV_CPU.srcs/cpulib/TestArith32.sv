@@ -20,20 +20,10 @@ package TestArith32;
 
 		//$display("\n\n%X   %X   %X", 32 << 1, 32 << -1, 32 << -2);
 
-			TMP_int64toFP32(0, 0, RoundZero);
-			TMP_int64toFP32('h0000000000001000, 0, RoundZero);
-			TMP_int64toFP32('h0010000000000000, 0, RoundZero);
-			TMP_int64toFP32('h0010000001000000, 0, RoundZero);
-			TMP_int64toFP32('h001FFFFFFF000000, 0, RoundZero);
-			TMP_int64toFP32('h001FFFFFFF000000, 0, RoundPlusInf);
-			TMP_int64toFP32('h001FFFFFFF000000, 0, RoundNearestEven);
 
+		Test_f2i();
 
-			TMP_int64toFP32(-'h001FFFFFFF000000, 1, RoundNearestEven);
-
-			TMP_int64toFP32('h01FFFFFF, 1, RoundPlusInf);
-			TMP_int64toFP32(-'h01FFFFFF, 1, RoundPlusInf);
-
+		Test_i2f();
 
 	endfunction
 
@@ -438,7 +428,59 @@ package TestArith32;
 
 
 
+	function automatic void checkI2F(input Dword x, input logic isSigned, input Rounding rm, FpResult32 expected);
+		 FpResult32 actual = TMP_int64toFP32(x, isSigned, rm);
+		 assert (actual === expected) else begin
+		 	$displayh("%016X (%d) (%p)\n%p\n%p", x, isSigned, rm, actual, expected);
+		 	$fatal(2, "Wromg conv");
+		 end
+	endfunction
 
+
+	function automatic void Test_i2f();
+		//TMP_int64toFP32(0, 0, RoundZero);
+			checkI2F(0, 0, RoundZero, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+			checkI2F(0, 0, RoundMinusInf, '{NO_EXCEPTION, FP32_MINUS_ZERO});
+
+		//TMP_int64toFP32('h0000000000001000, 0, RoundZero);
+			checkI2F('h0000000000001000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+12, 0}});
+
+		//TMP_int64toFP32('h0010000000000000, 0, RoundZero);
+			checkI2F('h0010000000000000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+52, 0}});
+
+		//TMP_int64toFP32('h0010000001000000, 0, RoundZero);
+			checkI2F('h0010000001000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 0}});
+
+		// TMP_int64toFP32('h001FFFFFFF000000, 0, RoundZero);
+		// TMP_int64toFP32('h001FFFFFFF000000, 0, RoundPlusInf);
+		// TMP_int64toFP32('h001FFFFFFF000000, 0, RoundNearestEven);
+			checkI2F('h001FFFFFFF000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 'h7FFFFF}});
+			checkI2F('h001FFFFFFF000000, 0, RoundPlusInf, '{EXC_INEXACT, '{0, 127+53, 0}});
+			checkI2F('h001FFFFFFF000000, 0, RoundNearestEven, '{EXC_INEXACT, '{0, 127+53, 0}});
+
+
+		//TMP_int64toFP32(-'h001FFFFFFF000000, 1, RoundNearestEven);
+
+			checkI2F(-'h001FFFFFFF000000, 1, RoundNearestEven, '{EXC_INEXACT, '{1, 127+53, 0}});
+
+
+		// TMP_int64toFP32('h01FFFFFF, 1, RoundPlusInf);
+		// TMP_int64toFP32(-'h01FFFFFF, 1, RoundPlusInf);
+			checkI2F(+'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{0, 127+25, 0}});
+			checkI2F(-'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{1, 127+24, 'h7FFFFF}});
+
+	endfunction
+
+
+
+
+	function automatic void checkF2I();
+
+	endfunction
+
+	function automatic void Test_f2i();
+
+	endfunction
 
 
 
