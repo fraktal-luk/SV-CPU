@@ -133,10 +133,15 @@ package Testing;
 
     task automatic saveProgramToFile(input string fname, input Word progMem[]);
         int file = $fopen(fname, "w");
-        squeue lines = disasmBlock(progMem);
-        foreach (lines[i])
-        $fdisplay(file, lines[i]);
-        $fclose(file);
+
+        if (!file) $error({"Couldn't open file for writing: ", fname});
+
+        begin
+            squeue lines = disasmBlock(progMem);
+            foreach (lines[i])
+                $fdisplay(file, lines[i]);
+            $fclose(file);
+        end
     endtask
 
     localparam int DISASM_LIMIT = 64;
@@ -301,7 +306,7 @@ package Testing;
 
     function automatic void setTestMemories(input string name, ref PageBasedProgramMemory pmem, ref SparseDataMemory dmem,
                                             input CodeSecArr handlerSections);
-        CodeSecArr testSections = processFile(readFile({codeDir, name, ".txt"}));
+        CodeSecArr testSections = processFile({codeDir, name, ".txt"});
 
         foreach (testSections[importer]) begin
             foreach (testSections[exporter]) begin

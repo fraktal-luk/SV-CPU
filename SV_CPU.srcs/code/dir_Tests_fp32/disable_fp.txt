@@ -14,10 +14,15 @@
 		;sys_error
 
 	addf32 f0, f1, f2
-		sys_error
 
+	jl    r31, $save_sync_exc
+
+$check
 	sys_dbcall
+$error
+    sys_error
 
+@include "common_code/exc_state.txt"
 
 @include "common_code/fp_helpers.txt"
 

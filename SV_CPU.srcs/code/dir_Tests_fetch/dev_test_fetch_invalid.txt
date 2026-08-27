@@ -12,10 +12,16 @@ $start
 	jz_r r0, r0, r8   ; cause exception
 
 
+	jl    r31, $save_sync_exc
+
 $check
 	sys_dbcall
 $error
     sys_error
+
+@include "common_code/exc_state.txt"
+
+
 
 @section output
 ; here write expected exc info that should be written to exc stack

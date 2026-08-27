@@ -1,4 +1,5 @@
-;
+; Generate INV with enabled trap
+
 @section prog_main
 
 $start
@@ -23,7 +24,6 @@ $start
 
 
 	addi_f f5, f2, f3
-		;sys_error
 
 
 
@@ -36,10 +36,18 @@ $start
 	inv_f  f11, f5, f5   ; generate exc
 
 
+	jl     r31, $save_sync_exc
+
+
 $check
 	sys_dbcall
 $error
     sys_error
+
+
+@include "common_code/exc_state.txt"
+
+
 
 @section output
 ; here write expected exc info that should be written to exc stack

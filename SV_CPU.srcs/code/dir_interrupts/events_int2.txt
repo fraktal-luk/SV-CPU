@@ -8,26 +8,18 @@ $start
 
 	add_i r21, r0, 0
 	jnz_i r21, $error
-	;ja $L1
-		sys_call
-
-	add_r r0, r0, r0
-
-$L2
-	jz_i r10, 0
-	ja  $check
-
-$L1
-	ja $L2
-	add_r r0, r0, r0
-
-
-$error
-	sys_error
-$check
-	sys_dbcall ;  jl r31, $sendSignal ; sys send
-	ja 0				; infinite loop
 	
+	sys_call
+
+	jl    r31, $save_sync_exc
+
+$check
+	sys_dbcall
+$error
+    sys_error
+
+@include "common_code/exc_state.txt"
+
 
 @section output
 

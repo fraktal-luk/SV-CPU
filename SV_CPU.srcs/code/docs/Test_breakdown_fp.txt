@@ -12,7 +12,7 @@ flags and enables
  - when trap enabled, setting flag also causes proper exception
  - when trap disabled, setting flag doesn't cause excpetion
 
- !! Important: setting flag by ctrl reg write when trap enabled: should not cause the trap? FP trap from ctrl op could be complicated
+ !! Important: setting flag by ctrl reg write when trap enabled: doesn't cause the trap
 
 
 Operation correctness: - results are affectd by rounding mode (RM)!!

@@ -113,6 +113,8 @@ package AbstractSim;
 
             if (ins.def.o == O_fpDisabled) return UOP_ctrl_fp_disabled;
 
+                if (ins.def.o == O_fail) $error("fail op:\n%p", ins);
+
         assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
         return OP_DECODING_TABLE[ins.mnemonic];
     endfunction

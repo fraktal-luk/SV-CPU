@@ -117,6 +117,8 @@ package Asm;
         Word4 vals;
         Word res;
 
+        if (def.o == O_fail) return 'z;
+
         if ( checkArgs(args[0:3], parsingMap[fmt]) != 1) $fatal(2, "Incorrect args\n%p", args);
                     
         vals = parseArgs(args[0:3]);
@@ -316,6 +318,8 @@ package Asm;
 
         if ($isunknown(w)) begin
             res.mnemonic = "unknown";
+                res.encoding = 'z;
+                res.def = '{F_none,  P_none, S_none, T_none, O_undef};
             return res;
         end
 
@@ -411,6 +415,10 @@ package Asm;
         string line;
         string lines[$];
 
+        if (!file) begin
+            $error({"File not found: ", name});
+        end
+
         while (!$feof(file)) begin
             int dummy = $fgets(line, file);
             lines.push_back(line);
@@ -489,19 +497,17 @@ package Asm;
         SectionDesc currentSection;
         int i = -1;
 
-            squeue errors = '{};
-            int sectionHeads[$];
+        squeue errors = '{};
+        int sectionHeads[$];
 
         int nInstructionLines = 0;
     
         // scan lines
         while (lines.size() > 0) begin
-            string lineStr = //lines[i];
-                             lines.pop_front();
+            string lineStr = lines.pop_front();
             squeue parts = breakLine({lineStr, 8'h0});
 
             i++;
-
 
             if (parts.size() == 0) continue;
             else if (parts[0][0] == "$") begin
@@ -509,24 +515,10 @@ package Asm;
             end
             else if (parts[0][0] == "@") begin
                 DirectiveLine dl = analyzeDirective(i, nInstructionLines, parts);
-                // if (dl.label.len() != 0) begin
-                //     currentSection.exports.push_back('{i+1, nInstructionLines + 1, dl.label});
-                // end
-
 
                 if (parts[0] == "@include") begin
-                    //int incFile = -1;// $fopen();
-
-                    squeue incLines;
-
-                   // $error("Trying to inclde file: %s\n", {INCLUDE_PATH, dl.label});
-
-                    incLines = readFile({INCLUDE_PATH, dl.label});
-
-                  //  $error(incLines[0]);
-
+                    squeue incLines = readFile({INCLUDE_PATH, dl.label});
                     lines = {incLines, lines};
-
                 end
                 else if (parts[0] == "@section") begin
                     SectionDesc newSec;
@@ -557,22 +549,7 @@ package Asm;
 
 
 
-    function automatic CodeSec processLines(input squeue lines);
-        CodeSec res;
-        CodeSec sections[];
-
-        ParsedFile pf = parseLines(lines);
-
-        sections = new [pf.sections.size()];
-
-        foreach (pf.sections[i])
-            sections[i] = processOneSection(pf.sections[i]);
-
-        res = sections[0];
-        return res;
-    endfunction
-
-    function automatic CodeSecArr processFile(input squeue lines);
+    function automatic CodeSecArr processLines(input squeue lines);
         CodeSec res;
         CodeSec sections[];
 
@@ -587,8 +564,13 @@ package Asm;
     endfunction
 
 
+    function automatic CodeSecArr processFile(input string name);
+        return processLines(readFile(name));
+    endfunction
 
-    function automatic CodeSec processOneSection(/*input ParsedFile pf,*/ input SectionDesc sec);
+
+
+    function automatic CodeSec processOneSection(input SectionDesc sec);
         CodeSec res;
 
         CodeLine pfInstructions[$] = sec.instructions;  
@@ -712,6 +694,9 @@ package Asm;
         res.ins = getIns(partsExt);      
         res.codeRef = getCodeRef(partsExt);
 
+            if (res.ins === 'z)
+                $error("Unrecognized instruction at line %d\n   %p", line+1, parts);
+
         return res;
     endfunction
 
@@ -754,8 +739,8 @@ package Asm;
 
     function automatic Word asm(input string str);
         squeue q = '{str};
-        CodeSec s = processLines(q);
-        return s.words[0];
+        CodeSecArr arr = processLines(q);
+        return arr[0].words[0];
     endfunction
 
 endpackage

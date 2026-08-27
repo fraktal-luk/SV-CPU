@@ -268,6 +268,8 @@ package InsDefs;
 
 
     typedef enum {
+            O_fail, // When mnemonic not known
+
         O_undef,
             O_fetchError,
             O_fpDisabled,
@@ -456,8 +458,8 @@ package InsDefs;
         "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_error},
         "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
         "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send},
-            "sys_dbcall":   '{F_noRegs, P_sysControl, S_sysDbCall, T_none, O_dbcall}
-        
+            "sys_dbcall":   '{F_noRegs, P_sysControl, S_sysDbCall, T_none, O_dbcall},
+            "sys_undef":    '{F_none,  P_none, S_none, T_none, O_undef}
     };
 
 
@@ -511,16 +513,10 @@ package InsDefs;
     endfunction
 
     function automatic InstructionDef getDef(input string s);
-        //Mnemonic m;
-
         if (defMap.exists(s)) return defMap[s];
 
-        return '{F_none, P_none, S_none, T_none, O_undef};
-
-        // for (Mnemonic mi = m.first(); 1; mi = mi.next()) begin
-        //     if (s == mi.name()) return defMap[s];
-        //     if (mi == mi.last()) return '{F_none, P_none, S_none, T_none, O_undef};
-        // end  
+        //$error("Unrecognized mnemonic encountered: %s", s);
+        return '{F_none, P_none, S_none, T_none, O_fail};
     endfunction
 
     function automatic string findMnemonic(input InstructionDef def);

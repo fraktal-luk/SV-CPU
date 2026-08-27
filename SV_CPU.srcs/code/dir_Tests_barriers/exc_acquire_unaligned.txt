@@ -12,22 +12,26 @@
 	;	ldi_i r5, r8, 16
 	e_ldaq r5, r8, 18 ; reserve
 
-	ldi_i  r8, r0, 16 ; drop reservation
+		;ldi_i  r8, r0, 16 ; drop reservation
 
-	e_stc  r6, r0, 16 ; store
+		;e_stc  r6, r0, 16 ; store
 
-	sys_sync
+		;sys_sync
 
-	ldi_i r10, r0, 16 ; load stored value
-	add_i r11, r10, 0PE_MEM_UNALIGNED_ADDRESS
+		;ldi_i r10, r0, 16 ; load stored value
+		;add_i r11, r10, 0PE_MEM_UNALIGNED_ADDRESS
 
-	jnz_i r11, $error
+		;jnz_i r11, $error
 
 
+	jl    r31, $save_sync_exc
+
+$check
 	sys_dbcall
-
 $error
-	sys_error
+    sys_error
+
+@include "common_code/exc_state.txt"
 
 
 
