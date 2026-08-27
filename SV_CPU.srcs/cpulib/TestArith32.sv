@@ -18,18 +18,11 @@ package TestArith32;
 
 		Test_Cmp0();
 
-		//$display("\n\n%X   %X   %X", 32 << 1, 32 << -1, 32 << -2);
-
 		Test_i2f();
-
-
+		
 		Test_f2i();
 
-
 	endfunction
-
-
-
 
 
 
@@ -96,7 +89,6 @@ package TestArith32;
 		end
 
 	endfunction
-
 
 
 
@@ -179,46 +171,37 @@ package TestArith32;
 			'{'{0, 20, 'h0}, '{0, 19, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 21, 'h0}},
 
 
-				'{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-				'{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+			'{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+			'{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
 
 
-				'{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-				'{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+			'{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+			'{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
 
 
 			'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
 			'{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
 
 
-
 			'{'{0, 46, 'h0}, '{0, 23, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h2}},
 			'{'{0, 46, 'h0}, '{0, 23, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
 
 
-
-				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0000}, RoundPlusInf, '{inexact: 0, default: 0}, FP32_PLUS_MAX_FINITE},
-				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0100}, RoundZero, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
-				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundZero, '{inexact: 1, overflow: 0, default: 0}, FP32_PLUS_MAX_FINITE},
-				'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
-
-
+			'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0000}, RoundPlusInf, '{inexact: 0, default: 0}, FP32_PLUS_MAX_FINITE},
+			'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0100}, RoundZero, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
+			'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundZero, '{inexact: 1, overflow: 0, default: 0}, FP32_PLUS_MAX_FINITE},
+			'{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
 
 
 			'{FP32_PLUS_MIN_SUBN, FP32_MINUS_MIN_SUBN, RoundZero, 	 NO_EXCEPTION, 	FP32_PLUS_ZERO},
 			'{FP32_PLUS_MIN_SUBN, FP32_MINUS_MIN_SUBN, RoundMinusInf, NO_EXCEPTION, 	FP32_MINUS_ZERO},
 
-
 			'{'{1, 20, 0}, '{0, 20, 0}, RoundZero, 	 NO_EXCEPTION, 	FP32_PLUS_ZERO},
 			'{'{1, 20, 0}, '{0, 20, 0}, RoundMinusInf, NO_EXCEPTION, 	FP32_MINUS_ZERO},
-
-
 
 			'{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFE}},
 			'{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFE}},
 			'{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFF}},
-
-
 
 			'{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFE}},
 			'{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFF}},
@@ -237,12 +220,9 @@ package TestArith32;
 
 			'{FP32_PLUS_INF, FP32_MINUS_INF, RoundPlusInf, '{invalid: 1, default: 0}, FP32_CANONICAL_QNAN},
 
-
-
 			'{FP32_MINUS_INF, FP32_PLUS_MIN_SUBN, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
 			'{FP32_MINUS_INF, '{0, 32, 'h00FFFF}, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
 			'{FP32_MINUS_INF, FP32_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP32_MINUS_INF},
-
 
 			'{FP32_CANONICAL_QNAN, FP32_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP32_CANONICAL_QNAN},
 			'{'{1, 20, 0}, FP32_CANONICAL_QNAN, RoundMinusInf, NO_EXCEPTION, 	FP32_CANONICAL_QNAN},
@@ -255,8 +235,6 @@ package TestArith32;
 			checkExpectation_Add(list[i]);
 
 	endfunction
-
-
 
 
 
@@ -275,70 +253,61 @@ package TestArith32;
 
 	function automatic void Test_Rounding0();
 		FpResult32 res0;
-
 		FpFormat32 x = '{0, 135, 'h037301};
 
-			checkRoundToInteger(x, RoundPlusInf, '{EXC_INEXACT , '{0, 135, 'h038000}});
+		checkRoundToInteger(x, RoundPlusInf, '{EXC_INEXACT , '{0, 135, 'h038000}});
+
+		checkRoundToInteger('{0, 221, 'h7FFFFF}, RoundMinusInf, '{NO_EXCEPTION, '{0, 221, 'h7FFFFF}});
+		checkRoundToInteger('{0, 221, 'h7FFFFF}, RoundPlusInf, '{NO_EXCEPTION, '{0, 221, 'h7FFFFF}});
+
+
+		checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT , '{0, 145, 'h7FFFE0}});
+		checkRoundToInteger('{0, 139, 'h7FF800}, RoundMinusInf, '{NO_EXCEPTION, '{0, 139, 'h7FF800}});
+		checkRoundToInteger('{0, 139, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 139, 'h7FF800}});
+		checkRoundToInteger('{0, 130, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 130, 'h700000}});
+		checkRoundToInteger('{0, 128, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 128, 'h400000}});
+		checkRoundToInteger('{0, 127, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 127, 'h000000}});
+
+
+		checkRoundToInteger('{0, 126, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT,  FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 125, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 89, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 0, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
+		checkRoundToInteger(FP32_PLUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+
+
+		checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 146, 0}});
+		checkRoundToInteger('{0, 139, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 140, 0}});
+		checkRoundToInteger('{0, 130, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 131, 0}});
+		checkRoundToInteger('{0, 128, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 129, 0}});
+		checkRoundToInteger('{0, 127, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 128, 0}});
+		checkRoundToInteger('{0, 126, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 125, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 89, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 0, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger(FP32_PLUS_ZERO, RoundPlusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+
+
+		checkRoundToInteger('{1, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT , '{1, 145, 'h7FFFE0}});
+		checkRoundToInteger('{1, 145, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{1, 146, 0}});
 
 
 
+		checkRoundToInteger('{0, 126, 0}, RoundNearestEven, '{EXC_INEXACT, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 126, 0}, RoundNearestAway, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 126, 0}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 126, 0}, RoundZero, '{EXC_INEXACT, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 126, 0}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
 
 
-			checkRoundToInteger('{0, 221, 'h7FFFFF}, RoundMinusInf, '{NO_EXCEPTION, '{0, 221, 'h7FFFFF}});
-			checkRoundToInteger('{0, 221, 'h7FFFFF}, RoundPlusInf, '{NO_EXCEPTION, '{0, 221, 'h7FFFFF}});
-
-
-			checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT , '{0, 145, 'h7FFFE0}});
-			checkRoundToInteger('{0, 139, 'h7FF800}, RoundMinusInf, '{NO_EXCEPTION, '{0, 139, 'h7FF800}});
-			checkRoundToInteger('{0, 139, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 139, 'h7FF800}});
-			checkRoundToInteger('{0, 130, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 130, 'h700000}});
-			checkRoundToInteger('{0, 128, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 128, 'h400000}});
-			checkRoundToInteger('{0, 127, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 127, 'h000000}});
-
-
-				checkRoundToInteger('{0, 126, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT,  FP32_PLUS_ZERO});
-				checkRoundToInteger('{0, 125, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-				checkRoundToInteger('{0, 89, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-				checkRoundToInteger('{0, 0, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-				checkRoundToInteger(FP32_PLUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
-
-
-			checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 146, 0}});
-			checkRoundToInteger('{0, 139, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 140, 0}});
-			checkRoundToInteger('{0, 130, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 131, 0}});
-			checkRoundToInteger('{0, 128, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 129, 0}});
-			checkRoundToInteger('{0, 127, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 128, 0}});
-			checkRoundToInteger('{0, 126, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger('{0, 125, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger('{0, 89, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger('{0, 0, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger(FP32_PLUS_ZERO, RoundPlusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
-	
-
-			checkRoundToInteger('{1, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT , '{1, 145, 'h7FFFE0}});
-			checkRoundToInteger('{1, 145, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{1, 146, 0}});
-
-
-
-			checkRoundToInteger('{0, 126, 0}, RoundNearestEven, '{EXC_INEXACT, FP32_PLUS_ZERO});
-			checkRoundToInteger('{0, 126, 0}, RoundNearestAway, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger('{0, 126, 0}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger('{0, 126, 0}, RoundZero, '{EXC_INEXACT, FP32_PLUS_ZERO});
-			checkRoundToInteger('{0, 126, 0}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-
-	
-			checkRoundToInteger('{0, 127, 'h400000}, RoundNearestEven, '{EXC_INEXACT, '{0, 128, 0}});
-			checkRoundToInteger('{0, 127, 'h400000}, RoundNearestAway, '{EXC_INEXACT, '{0, 128, 0}});
-			checkRoundToInteger('{0, 127, 'h400000}, RoundPlusInf, '{EXC_INEXACT, '{0, 128, 0}});
-			checkRoundToInteger('{0, 127, 'h400000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
-			checkRoundToInteger('{0, 127, 'h400000}, RoundMinusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 127, 'h400000}, RoundNearestEven, '{EXC_INEXACT, '{0, 128, 0}});
+		checkRoundToInteger('{0, 127, 'h400000}, RoundNearestAway, '{EXC_INEXACT, '{0, 128, 0}});
+		checkRoundToInteger('{0, 127, 'h400000}, RoundPlusInf, '{EXC_INEXACT, '{0, 128, 0}});
+		checkRoundToInteger('{0, 127, 'h400000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 127, 'h400000}, RoundMinusInf, '{EXC_INEXACT, '{0, 127, 0}});
 
 	endfunction
 
-
-	// function automatic void checkComparison(input FpFormat32 x, input FpFormat32 y, input CmpPredicate pred);
-		
-	// endfunction
 
 
 	localparam FpResult32 cmpTrue = '{NO_EXCEPTION, FP32_PLUS_MIN_SUBN};
@@ -439,39 +408,24 @@ package TestArith32;
 
 
 	function automatic void Test_i2f();
-		//TMP_int64toFP32(0, 0, RoundZero);
-			checkI2F(0, 0, RoundZero, '{NO_EXCEPTION, FP32_PLUS_ZERO});
-			checkI2F(0, 0, RoundMinusInf, '{NO_EXCEPTION, FP32_MINUS_ZERO});
+		checkI2F(0, 0, RoundZero, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+		checkI2F(0, 0, RoundMinusInf, '{NO_EXCEPTION, FP32_MINUS_ZERO});
 
-		//TMP_int64toFP32('h0000000000001000, 0, RoundZero);
-			checkI2F('h0000000000001000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+12, 0}});
+		checkI2F('h0000000000001000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+12, 0}});
 
-		//TMP_int64toFP32('h0010000000000000, 0, RoundZero);
-			checkI2F('h0010000000000000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+52, 0}});
+		checkI2F('h0010000000000000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+52, 0}});
 
-		//TMP_int64toFP32('h0010000001000000, 0, RoundZero);
-			checkI2F('h0010000001000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 0}});
+		checkI2F('h0010000001000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 0}});
 
-		// TMP_int64toFP32('h001FFFFFFF000000, 0, RoundZero);
-		// TMP_int64toFP32('h001FFFFFFF000000, 0, RoundPlusInf);
-		// TMP_int64toFP32('h001FFFFFFF000000, 0, RoundNearestEven);
-			checkI2F('h001FFFFFFF000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 'h7FFFFF}});
-			checkI2F('h001FFFFFFF000000, 0, RoundPlusInf, '{EXC_INEXACT, '{0, 127+53, 0}});
-			checkI2F('h001FFFFFFF000000, 0, RoundNearestEven, '{EXC_INEXACT, '{0, 127+53, 0}});
+		checkI2F('h001FFFFFFF000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 'h7FFFFF}});
+		checkI2F('h001FFFFFFF000000, 0, RoundPlusInf, '{EXC_INEXACT, '{0, 127+53, 0}});
+		checkI2F('h001FFFFFFF000000, 0, RoundNearestEven, '{EXC_INEXACT, '{0, 127+53, 0}});
 
+		checkI2F(-'h001FFFFFFF000000, 1, RoundNearestEven, '{EXC_INEXACT, '{1, 127+53, 0}});
 
-		//TMP_int64toFP32(-'h001FFFFFFF000000, 1, RoundNearestEven);
-
-			checkI2F(-'h001FFFFFFF000000, 1, RoundNearestEven, '{EXC_INEXACT, '{1, 127+53, 0}});
-
-
-		// TMP_int64toFP32('h01FFFFFF, 1, RoundPlusInf);
-		// TMP_int64toFP32(-'h01FFFFFF, 1, RoundPlusInf);
-			checkI2F(+'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{0, 127+25, 0}});
-			checkI2F(-'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{1, 127+24, 'h7FFFFF}});
-
+		checkI2F(+'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{0, 127+25, 0}});
+		checkI2F(-'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{1, 127+24, 'h7FFFFF}});
 	endfunction
-
 
 
 
