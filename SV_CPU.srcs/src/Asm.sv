@@ -673,7 +673,7 @@ package Asm;
         res.error = NONE;
         
         if (!isLetter(mnemonic[0])) begin
-            if (isDigit(mnemonic[0])) begin
+            if (isDigit(mnemonic[0]) || mnemonic[0] == "-") begin
                 Word4 values = parseArgs(parts);
                 res.data = 1;
                 // Parse data

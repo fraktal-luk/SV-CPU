@@ -4,6 +4,7 @@ package Base;
     typedef logic[7:0]  Mbyte;
     typedef logic[31:0] Word;
     typedef logic[63:0] Dword;
+    typedef logic[127:0] Qword; 
 
     typedef Word Word3[3];
     typedef Word Word4[4];
@@ -13,6 +14,27 @@ package Base;
 
     typedef Word WordArray[];
 
+
+
+
+        function automatic Qword multiplyU64L(input Dword a, input Dword b);
+            return a*b;
+        endfunction
+
+        function automatic Qword multiplyS64L(input Dword a, input Dword b);
+            return $signed(a)*$signed(b);
+        endfunction
+
+
+        function automatic Dword divideU64(input Dword a, input Dword b);
+            if (b == 0) return 0; 
+            return a/b;
+        endfunction
+
+        function automatic Dword divideS64(input Dword a, input Dword b);
+            if (b == 0) return 0; 
+            return $signed(a)/$signed(b);
+        endfunction
 
 
     function automatic Word multiplyW(Word a, Word b);
@@ -29,8 +51,8 @@ package Base;
 
 
     function automatic Word divSignedW(input Word a, input Word b);
-        Word rInt;// = (b == 0) ? 'hffffffff : $signed(a)/$signed(b);
-        Word rem;// = a - rInt * b;
+        Word rInt;
+        Word rem;
         
         if (b == 0) rInt = 'x;
         else rInt = $signed(a)/$signed(b);
@@ -43,9 +65,10 @@ package Base;
         return rInt;
     endfunction
     
+
     function automatic Word remSignedW(input Word a, input Word b);
-        Word rInt; // = b == 0 ? 'hffffffff : $signed(a)/$signed(b);
-        Word rem;// = a - rInt * b;
+        Word rInt;
+        Word rem;
         
         if (b == 0) rInt = 'x;
         else rInt = $signed(a)/$signed(b);
@@ -61,8 +84,8 @@ package Base;
 
 
     function automatic Word divUnsignedW(input Word a, input Word b);
-        Word rInt;// = (b == 0) ? 'hffffffff : $signed(a)/$signed(b);
-        Word rem;// = a - rInt * b;
+        Word rInt;
+        Word rem;
         
         if (b == 0) rInt = 'x;
         else rInt = $unsigned(a)/$unsigned(b);
@@ -72,8 +95,8 @@ package Base;
     endfunction
     
     function automatic Word remUnsignedW(input Word a, input Word b);
-        Word rInt; // = b == 0 ? 'hffffffff : $signed(a)/$signed(b);
-        Word rem;// = a - rInt * b;
+        Word rInt;
+        Word rem;
         
         if (b == 0) rInt = 'x;
         else rInt = $unsigned(a)/$unsigned(b);

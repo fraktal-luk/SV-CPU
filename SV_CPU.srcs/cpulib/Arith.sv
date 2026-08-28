@@ -2,7 +2,6 @@
 package Arith;
 	import Base::*;
 
-	typedef logic[127:0] Qword; 
 
 
 	typedef enum {
@@ -12,28 +11,6 @@ package Arith;
 		RoundZero,
 		RoundMinusInf
 	} Rounding;
-
-
-
-		function automatic Qword multiplyU64L(input Dword a, input Dword b);
-			return a*b;
-		endfunction
-
-		function automatic Qword multiplyS64L(input Dword a, input Dword b);
-			return $signed(a)*$signed(b);
-		endfunction
-
-
-
-		function automatic Dword divideU64(input Dword a, input Dword b);
-			if (b == 0) return 0; 
-			return a/b;
-		endfunction
-
-		function automatic Dword divideS64(input Dword a, input Dword b);
-			if (b == 0) return 0; 
-			return $signed(a)/$signed(b);
-		endfunction
 
 
 
@@ -153,6 +130,19 @@ package Arith;
   	function automatic isNaN(input FpFormat32 a);
     	return a.exp == EXP_MAX_32 && a.mantissa !== 0;
     endfunction
+
+
+    typedef enum {
+    	R_EQUAL, R_GREATER, R_LESS, R_UNORDERED
+    } Relation;
+
+
+    typedef enum {
+    	CMP_EQ, CMP_NE,
+    	CMP_GT, CMP_GE, CMP_GU, CMP_NG,
+    	CMP_LT, CMP_LE, CMP_LU, CMP_NL,
+    	CMP_UN, CMP_OR
+    } CmpPredicate;
 
 
 
@@ -810,18 +800,6 @@ package Arith;
     	return '{'{inexact: isInexact, default: 0}, res};
     endfunction
 
-
-    typedef enum {
-    	R_EQUAL, R_GREATER, R_LESS, R_UNORDERED
-    } Relation;
-
-
-    typedef enum {
-    	CMP_EQ, CMP_NE,
-    	CMP_GT, CMP_GE, CMP_GU, CMP_NG,
-    	CMP_LT, CMP_LE, CMP_LU, CMP_NL,
-    	CMP_UN, CMP_OR
-    } CmpPredicate;
 
 
     function automatic FpResult32 TMP_cmpF32(input FpFormat32 a, input FpFormat32 b, input CmpPredicate pred, input logic signalling);
