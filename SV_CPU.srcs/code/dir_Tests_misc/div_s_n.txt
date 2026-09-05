@@ -1,0 +1,135 @@
+@section prog_main
+
+$start
+	jl 		r31, $get_adr_data_output
+	add_r   r8, r0, r1 ; r8 - output ptr
+	add_r	r7, r0, r0 ; r7 - input ptr
+	add_r   r0, r0, r0
+
+	ja $main
+	add_r r0, r0, r0
+	add_r r0, r0, r0
+	add_r r0, r0, r0
+
+$check_div_s
+	ldi_i r1, r7, 0
+	ldi_i r2, r7, 4
+	add_i r7, r7, 8
+
+	div_s r10, r1, r2
+	rem_s r11, r1, r2
+
+	sti_i r10, r8, 0
+	sti_i r11, r8, 4
+	add_i r8, r8, 8
+
+	jz_r   r0, r0, r31	; return
+	add_r  r0, r0, r0   ; nop
+
+$main
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+	jl 	  r31, $check_div_s
+
+
+	sys_dbcall
+$error
+    sys_error
+
+
+@include "common_code/basic_pointers.txt"
+
+
+@section data0
+	; Inputs
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+55
+17
+
+;;;;;;;;;;;;;;;;;;
+-60
+11
+
+;;;;;;;;;;;;;;;;
+998
+-333
+
+;;;;;;;;;;;;;;
+-137
+-11
+
+;;;;;;;;;;;;;;;
+0
+3
+
+;;;;;;;;;;;;;;;;;
+1
+3
+
+;;;;;;;;;;;;;;;;;
+0
+-1
+
+;;;;;;;;;;;;;;;;;;
+1
+-1
+
+;;;;;;;;;;;;;;;;;;;;
+0x80000000
+1
+
+
+
+
+@section output
+	; Outputs
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+3
+4
+
+;;;;;;;;;;;;;;;;;;
+
+-6
+6
+;;;;;;;;;;;;;;;;
+
+-3
+-1
+
+;;;;;;;;;;;;;;;
+
+12
+-5
+
+;;;;;;;;;;;;;;;
+
+0
+0
+
+;;;;;;;;;;;;;;;;;
+
+0
+1
+
+;;;;;;;;;;;;;;;;;
+
+0
+0
+
+;;;;;;;;;;;;;;;;;;
+
+-1
+0
+;;;;;;;;;;;;;;;;;;;;
+
+0x80000000
+0
+

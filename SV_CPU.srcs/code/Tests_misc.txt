@@ -9,6 +9,6 @@ sys_regs           ; write to sys reg, sync, load from sys reg, check, store ret
 shifts				; value checking
 cmp         		; --
 mul      			; --
-div_s				; --
-div 				; --
 
+div_n
+div_s_n
