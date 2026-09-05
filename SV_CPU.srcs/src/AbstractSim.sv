@@ -421,7 +421,7 @@ package AbstractSim;
 
         function automatic Mword loadValue(input Mword w, input UopName uop);
             case (uop)
-                UOP_mem_ldi: return (w);
+                UOP_mem_ldi: return $signed(Word'(w));
                 UOP_mem_ldid: return w;
                 UOP_mem_ldib: return Mword'(w[7:0]);
                 UOP_mem_ldf: return (w);
