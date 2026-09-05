@@ -258,7 +258,7 @@ package EmulationDefs;
 
             O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
             O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
-            
+
             O_intMul:   result = w2m( multiplyW(vals[0], vals[1]) ); 
             O_intMulHU: result = w2m( multiplyHighUnsignedW(vals[0], vals[1]) );
             O_intMulHS: result = w2m( multiplyHighSignedW(vals[0], vals[1]) );
@@ -290,7 +290,7 @@ package EmulationDefs;
             O_floatDivInt: result = vals[0] / vals[1];
             O_floatGenInv: result = 1;
             O_floatGenOv: result = 1;
-            O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
+            O_floatAdd32: result = $shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
             O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
             O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
             O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
@@ -298,9 +298,9 @@ package EmulationDefs;
             O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
             O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
 
-            O_floatMove32: result = Word'(vals[0]);// $fatal(2, "kfd");
-            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000); // $fatal(2, "kfd");
-            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF); //$fatal(2, "kfd");
+            O_floatMove32: result = Word'(vals[0]);
+            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000);
+            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF);
             O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);

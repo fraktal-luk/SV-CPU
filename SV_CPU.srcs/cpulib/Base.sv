@@ -16,37 +16,43 @@ package Base;
 
 
 
+    function automatic Qword multiplyU64L(input Dword a, input Dword b);
+        return a*b;
+    endfunction
 
-        function automatic Qword multiplyU64L(input Dword a, input Dword b);
-            return a*b;
-        endfunction
-
-        function automatic Qword multiplyS64L(input Dword a, input Dword b);
-            return $signed(a)*$signed(b);
-        endfunction
+    function automatic Qword multiplyS64L(input Dword a, input Dword b);
+        return $signed(a)*$signed(b);
+    endfunction
 
 
-        function automatic Dword divideU64(input Dword a, input Dword b);
-            if (b == 0) return 0; 
-            return a/b;
-        endfunction
+    function automatic Dword divideU64(input Dword a, input Dword b);
+        if (b == 0) return 0; 
+        return a/b;
+    endfunction
 
-        function automatic Dword divideS64(input Dword a, input Dword b);
-            if (b == 0) return 0; 
-            return $signed(a)/$signed(b);
-        endfunction
+    function automatic Dword divideS64(input Dword a, input Dword b);
+        if (b == 0) return 0; 
+        return $signed(a)/$signed(b);
+    endfunction
 
 
     function automatic Word multiplyW(Word a, Word b);
-        return a * b;
+        Dword da = $signed(a), db = $signed(b);
+        Dword res64 = multiplyU64L(da, db);
+        return res64;
     endfunction
 
+
     function automatic Word multiplyHighUnsignedW(Word a, Word b);
-        return (Dword'($unsigned(a)) * Dword'($unsigned(b))) >> 32;
+        Dword da = $unsigned(a), db = $unsigned(b);
+        Dword res64 = multiplyU64L(da, db);
+        return res64 >> 32;
     endfunction
 
     function automatic Word multiplyHighSignedW(Word a, Word b);
-        return (Dword'($signed(a)) * Dword'($signed(b))) >> 32;
+        Dword da = $signed(a), db = $signed(b);
+        Dword res64 = multiplyS64L(da, db);
+        return res64 >> 32;
     endfunction
 
 
