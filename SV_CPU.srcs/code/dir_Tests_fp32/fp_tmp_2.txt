@@ -3,35 +3,47 @@
 @section prog_main
 
 $start
+	; Make const
 	add_i r3, r0, 1
 	shl_i r3, r3, 15  ; fp en bit
 
+	; Make const
 	add_i r1, r0, 1
 	shl_i r1, r1, 31  ; INV set
 	add_i r1, r1, 0x10
+
+	; Make const
 	add_i r2, r0, 3
 	shl_i r2, r2, 30  ; INV | OV set
 	add_i r2, r2, 0x14
 	or_r r2, r2, r3
 
+
+	; FP op neutral
 	addi_f f5, f2, f3
 	
-	; check fpStatus
+	; Verify exc flags
+		; check fpStatus
 	lds    r10, r0, 8
 	sub_r r11, r10, r3
 	jnz_i  r11, $error
 	
+	; FP op, neutral
 	addi_f f7, f2, f3
 
 	
-	; Set 2 exc bits in short sequence
+	; Gen 2 exc
+		; Set 2 exc bits in short sequence
 	inv_f  f11, f5, f5
 	ov_f   f22, f21, f21
 
+	; Simple ops, neutral
 	addi_f f5, f2, f3
 	addi_f f5, f2, f3
 
-	; check fpStatus == {INV: 1, OV: 1, default: 0}
+
+	; Verify exc flags
+		; check fpStatus == {INV: 1, OV: 1, default: 0}
 	sys_sync
 	lds   r10, r0, 8
 	sub_r r11, r10, r2

@@ -3,42 +3,82 @@
 @section prog_main
 
 $start
-	add_i r3, r0, 1
-	shl_i r3, r3, 15  ; fp en bit
+	; Make constant
+	; 0x8000
+	add_i r6, r0, 1
+	shl_i r6, r6, 15  ; fp en bit
 
-	add_i r1, r0, 1
-	shl_i r1, r1, 31  ; INV set
-	add_i r1, r1, 0x10
-	or_r r1, r1, r3
+	; make another constant
+	; 0x80008010
+	add_i r4 r0, 1
+	shl_i r4, r4, 31  ; INV set
+	add_i r4, r4, 0x10
+	or_r r4, r4, r6
 
-	add_i r2, r0, 3
-	shl_i r2, r2, 30  ; INV | OV set
-	add_i r2, r2, 0x14
-	or_r  r2, r2, r3
+	; make constant
+	; 0xC0008014
+	add_i r5, r0, 3
+	shl_i r5, r5, 30  ; INV | OV set
+	add_i r5, r5, 0x14
+	or_r  r5, r5, r6
 
+	; FP op
 	addi_f f5, f2, f3
-	
-	; check fpStatus == 0
+
+	; Verify exc flags
+		; check fpStatus == 0
 	lds    r10, r0, 8
-	sub_r  r10, r10, r3
+	sub_r  r10, r10, r6
 	jnz_i  r10, $error
 	
+		add_i 	r1, r0, 4  ; INV
+		jl 		r31, $get_cr8_bit
+		jnz_i   r1, $error
+
+		add_i 	r1, r0, 2  ; OV
+		jl 		r31, $get_cr8_bit
+		jnz_i   r1, $error
+
+
+	; generate INV
 	inv_f  f11, f5, f5
 	
-	; check fpStatus == {INV: 1, default: 0}
+	; Verify exc flags
+		; check fpStatus == {INV: 1, default: 0}
 	sys_sync
 	lds   r10, r0, 8
-	sub_r r11, r10, r1
+	sub_r r11, r10, r4
 	jnz_i r11, $error	
-	
+
+		add_i 	r1, r0, 4  ; INV
+		jl 		r31, $get_cr8_bit
+		jz_i   r1, $error
+
+		add_i 	r1, r0, 2  ; OV
+		jl 		r31, $get_cr8_bit
+		jnz_i   r1, $error
+
+	; FP op, normal
 	addi_f f20, f4, f2
+
+	; Gen OV
 	ov_f   f22, f21, f21
 
-	; check fpStatus == {INV: 1, OV: 1, default: 0}
+	; Check OV flag
+		; check fpStatus == {INV: 1, OV: 1, default: 0}
 	sys_sync
 	lds   r10, r0, 8
-	sub_r r11, r10, r2
+	sub_r r11, r10, r5
 	jnz_i r11, $error
+
+		add_i 	r1, r0, 4  ; INV
+		jl 		r31, $get_cr8_bit
+		jz_i   r1, $error
+
+		add_i 	r1, r0, 2  ; OV
+		jl 		r31, $get_cr8_bit
+		jz_i   r1, $error
+
 
 $check
 	sys_dbcall
