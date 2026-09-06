@@ -297,7 +297,13 @@ package InsDefs;
         
         O_intShiftLogical, O_intShiftArith, O_intRotate,
         
-        O_floatMove,
+            O_floatMove, // Deprec
+
+        O_floatMove32,
+        O_floatNeg32,
+        O_floatAbs32,
+        O_floatCpys32,
+
 
         O_floatXor,
         O_floatAnd,
@@ -305,12 +311,15 @@ package InsDefs;
         O_floatAddInt,
         O_floatMulInt,
         O_floatDivInt,
+
         O_floatGenInv,
         O_floatGenOv,
+
             O_floatAdd32,
             O_floatSub32,
             O_floatMul32,
             O_floatDiv32,
+
             O_floatCmpEq32,
             O_floatCmpGe32,
             O_floatCmpGt32,
@@ -319,25 +328,24 @@ package InsDefs;
             O_floatSub64,
             O_floatMul64,
             O_floatDiv64,
+
             O_floatCmpEq64,
             O_floatCmpGe64,
             O_floatCmpGt64,
 
-            O_floatMove32,
-            O_floatNeg32,
-            O_floatAbs32,
-            O_floatCpys32,
+
 
         O_intLoadW, O_intStoreW,
         O_intLoadD, O_intStoreD,
+        O_intLoadB, O_intStoreB,
+
+
         O_floatLoadW, O_floatStoreW,
-        
-            O_intLoadB, O_intStoreB,
-
-            O_floatLoadD, O_floatStoreD,
+        O_floatLoadD, O_floatStoreD,
 
 
-            O_intLoadAqW, O_intStoreRelW,
+        O_intLoadAqW, O_intStoreRelW,
+
 
         O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF,
 
@@ -383,14 +391,23 @@ package InsDefs;
         "div_u":      '{F_int2R, P_intAlu, S_intMul, T_intDivU, O_intDivU},//int2R, 
         "rem_s":      '{F_int2R, P_intAlu, S_intMul, T_intRemS, O_intRemS},//int2R, 
         "rem_u":      '{F_int2R, P_intAlu, S_intMul, T_intRemU, O_intRemU},//int2R, 
-        
-        "mov_f":      '{F_float1R, P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
+
+
+//        "mov_f":      '{F_float1R, P_floatOp, S_floatMove, T_floatMove, O_floatMove},//float1R,
+
+        "move_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatMove32, O_floatMove32},
+        "neg_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatNeg32, O_floatNeg32},
+        "abs_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatAbs32, O_floatAbs32},
+        "cpys_f32": '{F_float2R, P_floatOp, S_floatMoveFP, T_floatCpys32, O_floatCpys32},
+
+
         "xor_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatXor, O_floatXor},  // -- Float operations
         "and_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatAnd, O_floatAnd},  // -- Float operations
         "or_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatOr, O_floatOr},  // -- Float operations
         "addi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatAddInt, O_floatAddInt},  // -- Float operations
         "muli_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatMulInt, O_floatMulInt},  // -- Float operations
         "divi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatDivInt, O_floatDivInt},  // -- Float operations
+
         "inv_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatGenInv, O_floatGenInv},  // -- Float operations
         "ov_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatGenOv,  O_floatGenOv},  // -- Float operations
 
@@ -398,6 +415,7 @@ package InsDefs;
             "subf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatSub32, O_floatSub32},
             "mulf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatMul32, O_floatMul32},
             "divf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatDiv32, O_floatDiv32},
+
             "cmpeqf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpEq32, O_floatCmpEq32},
             "cmpgef32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe32, O_floatCmpGe32},
             "cmpgtf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt32, O_floatCmpGt32},
@@ -410,37 +428,39 @@ package InsDefs;
             "cmpgef64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe64, O_floatCmpGe64},
             "cmpgtf64":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt64, O_floatCmpGt64},
 
-            "move_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatMove32, O_floatMove32},
-            "neg_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatNeg32, O_floatNeg32},
-            "abs_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatAbs32, O_floatAbs32},
-            "cpys_f32": '{F_float2R, P_floatOp, S_floatMoveFP, T_floatCpys32, O_floatCpys32},
 
 
         "ldi_i":      '{F_intImm16,   P_intLoadW16,  S_none, T_none, O_intLoadW},
         "sti_i":      '{F_intStore16, P_intStoreW16, S_none, T_none, O_intStoreW},
         
-        "ldf_i":      '{F_floatLoad16,  P_floatLoadW16,  S_none, T_none, O_floatLoadW},
-        "stf_i":      '{F_floatStore16, P_floatStoreW16,  S_none, T_none, O_floatStoreW},
-
-            "ld_b":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},
-            "st_b":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},
 
         "ldi_d":      '{F_intImm16,   P_intLoadD16,  S_none, T_none, O_intLoadD},
         "sti_d":      '{F_intStore16, P_intStoreD16, S_none, T_none, O_intStoreD},
+
+
+        "ld_b":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},
+        "st_b":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},
+
+
+
+        "ldf_i":      '{F_floatLoad16,  P_floatLoadW16,  S_none, T_none, O_floatLoadW},
+        "stf_i":      '{F_floatStore16, P_floatStoreW16,  S_none, T_none, O_floatStoreW},
+
 
         "ldf_d":      '{F_floatLoad16,  P_floatLoadD16,  S_none, T_none, O_floatLoadD},
         "stf_d":      '{F_floatStore16, P_floatStoreD16,  S_none, T_none, O_floatStoreD},
 
 
-            "ldaq":  '{F_intImm10, P_intMem,   S_loadAq,   T_none, O_intLoadAqW},
-            "stc":   '{F_intStore10, P_intMem, S_storeRel, T_none, O_intStoreRelW},                           
-        
-          "mb_ld_b":    '{F_noRegs, P_intMem, S_mbLoadB, T_none, O_mbLoadB},
-          "mb_ld_f":    '{F_noRegs, P_intMem, S_mbLoadF, T_none, O_mbLoadF},
-          "mb_ld_bf":    '{F_noRegs, P_intMem, S_mbLoadBF, T_none, O_mbLoadBF},
-          "mb_st_b":    '{F_noRegs, P_intMem, S_mbStoreB, T_none, O_mbStoreB},
-          "mb_st_f":    '{F_noRegs, P_intMem, S_mbStoreF, T_none, O_mbStoreF},
-          "mb_st_bf":    '{F_noRegs, P_intMem, S_mbStoreBF, T_none, O_mbStoreBF},
+        "ldaq":  '{F_intImm10, P_intMem,   S_loadAq,   T_none, O_intLoadAqW},
+        "stc":   '{F_intStore10, P_intMem, S_storeRel, T_none, O_intStoreRelW},                           
+
+
+        "mb_ld_b":    '{F_noRegs, P_intMem, S_mbLoadB, T_none, O_mbLoadB},
+        "mb_ld_f":    '{F_noRegs, P_intMem, S_mbLoadF, T_none, O_mbLoadF},
+        "mb_ld_bf":    '{F_noRegs, P_intMem, S_mbLoadBF, T_none, O_mbLoadBF},
+        "mb_st_b":    '{F_noRegs, P_intMem, S_mbStoreB, T_none, O_mbStoreB},
+        "mb_st_f":    '{F_noRegs, P_intMem, S_mbStoreF, T_none, O_mbStoreF},
+        "mb_st_bf":    '{F_noRegs, P_intMem, S_mbStoreBF, T_none, O_mbStoreBF},
 
 
         "lds":        '{F_sysLoad,  P_sysMem,  S_sysLoad, T_none, O_sysLoad},
@@ -461,8 +481,8 @@ package InsDefs;
         "sys_error":  '{F_noRegs, P_sysControl, S_sysError, T_none, O_error},
         "sys_call":   '{F_noRegs, P_sysControl, S_sysCall, T_none, O_call},
         "sys_send":   '{F_noRegs, P_sysControl, S_sysSend, T_none, O_send},
-            "sys_dbcall":   '{F_noRegs, P_sysControl, S_sysDbCall, T_none, O_dbcall},
-            "sys_undef":    '{F_none,  P_none, S_none, T_none, O_undef}
+        "sys_dbcall":   '{F_noRegs, P_sysControl, S_sysDbCall, T_none, O_dbcall},
+        "sys_undef":    '{F_none,  P_none, S_none, T_none, O_undef}
     };
 
 

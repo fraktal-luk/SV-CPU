@@ -1005,4 +1005,10 @@ package Arith;
     endfunction
 
 
+
+    function automatic FpResult32 floatAdd32(input Word arg0, input Word arg1, input Rounding rd);
+
+    endfunction
+
+
 endpackage

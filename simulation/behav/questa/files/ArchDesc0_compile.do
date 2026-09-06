@@ -7,6 +7,7 @@ vmap xil_defaultlib questa_lib/msim/xil_defaultlib
 
 vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/cpulib/Base.sv" \
+"../../../../SV_CPU.srcs/cpulib/Arith.sv" \
 "../../../../SV_CPU.srcs/src/InsDefs.sv" \
 "../../../../SV_CPU.srcs/src/Asm.sv" \
 "../../../../SV_CPU.srcs/src/ControlRegisters.sv" \

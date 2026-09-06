@@ -126,12 +126,12 @@ package Emulation;
         endfunction
 
 
-        function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
+        function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins, input logic[1:0] rm);
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
-                return calculateResult(ins, args, adr);
+                return calculateResult(ins, args, adr, rm);
             
             if (isBranchIns(ins))
                 return adr + 4;
@@ -158,8 +158,6 @@ package Emulation;
                 O_intLoadAqW: begin
                     result = dataMem.readWord(padr);
                     dataMem.setLock(padr);
-
-                      //  $error("Tried to lcck %x: %d", padr, dataMem.getLock(padr));
                 end
 
                 O_intLoadD: result = Dword'(dataMem.readDword(padr));
@@ -169,7 +167,7 @@ package Emulation;
 
                 O_sysLoad: result = coreState.sysRegs[adr];
 
-                default: ; //return result;
+                default: ;
             endcase
 
             //assert (!$isunknown(result)) else $error("Emulation: loaded unknown bits:\n%08X", result);
@@ -230,11 +228,11 @@ package Emulation;
                         status.exceptionRaised = 1;
                 end
 
-                    O_fpDisabled: begin
-                        setExecState(PE_SYS_DISABLED_INSTRUCTION, adr);
-                            status.dbEventPending = 0;
-                            status.exceptionRaised = 1;
-                    end
+                O_fpDisabled: begin
+                    setExecState(PE_SYS_DISABLED_INSTRUCTION, adr);
+                        status.dbEventPending = 0;
+                        status.exceptionRaised = 1;
+                end
 
                 O_call: begin
                     setExecState(PE_SYS_CALL, adr + 4);
@@ -347,20 +345,19 @@ package Emulation;
         function automatic void processInstruction(input Mword adr, input AbstractInstruction inputIns);
             logic dbStepOn = 0;
 
-                //AbstractInstruction ins = inputIns;
-
-                // TODO: if instruction is disabled, convert it to static event
-                AbstractInstruction ins = suppressDisabledInstruction(inputIns, cregs.fpStatus.enableFP);
+            AbstractInstruction ins = suppressDisabledInstruction(inputIns, cregs.fpStatus.enableFP);
 
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(this.coreState.intRegs, this.coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
             MemoryWrite writeToDo = '{default: 0};
 
+            logic[1:0] rm = cregs.fpStatus.roundingMode;
+
             this.ip = adr;
             this.coreState.target = adr + 4;
             
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
-                performCalculation(adr, ins, args);
+                performCalculation(adr, ins, args, rm);
             
             if (isBranchIns(ins))
                 performBranch(ins, adr, args);
@@ -372,8 +369,6 @@ package Emulation;
             
             // Don't set if exception happened
             status.dbEventPending = cregs.currentStatus.dbStep && !status.exceptionRaised;
-            
-            //status.exceptionRaised = 0;
             
             if (isSysIns(ins))
                 performSys(adr, ins, args);
@@ -387,16 +382,19 @@ package Emulation;
                 endcase
             end
             
-            //catchDbTrap();
-            
         endfunction
 
 
-        local function automatic void performCalculation(input Mword adr, input AbstractInstruction ins, input Mword3 vals);
-            Mword result = calculateResult(ins, vals, adr);
-                        
-            if (catchArithException(ins, vals, result)) return;
-            
+        local function automatic void performCalculation(input Mword adr, input AbstractInstruction ins, input Mword3 vals, input logic[1:0] rm);
+            Mword result;
+            if (isFloatCalcIns(ins)) begin
+                result = calculateResult(ins, vals, adr, rm);
+                if (catchArithException(ins, vals, result)) return;
+            end
+            else
+                result = calculateResult(ins, vals, adr, rm);
+
+
             if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
@@ -434,7 +432,6 @@ package Emulation;
              || fpUnd && cregs.fpStatus.trapUnderflow
              || fpInex && cregs.fpStatus.trapInexact
             ) begin
-            //if (excGenerated && cregs.currentStatus.enArithExc) begin
                 setExecState(PE_ARITH_EXCEPTION, ip);
                 syncStatusFromRegs();
                 status.exceptionRaised = 1;
@@ -514,7 +511,6 @@ package Emulation;
                 O_intStoreD: size = 8;
                 O_intStoreRelW: begin
                     size = 4;
-                       // $error("\nstc to %x: lock %d\n", effAdr, dataMem.getLock(effAdr));
                     if (!dataMem.getLock(effAdr)) en = 0;
                 end
                 O_intStoreB: size = 1;
@@ -585,20 +581,20 @@ package Emulation;
 
             status.dbEventPending = 0;
 
-            performAsyncEvent(/*IP_DB_BREAK,*/ PE_EXT_DEBUG, this.coreState.target);
+            performAsyncEvent(PE_EXT_DEBUG, this.coreState.target);
             syncStatusFromRegs();
             return 1;
         endfunction
 
 
         function automatic void interrupt();
-            performAsyncEvent(/*IP_INT,*/ PE_EXT_INTERRUPT, this.coreState.target);
+            performAsyncEvent(PE_EXT_INTERRUPT, this.coreState.target);
             
             syncStatusFromRegs();
         endfunction
 
         function automatic void resetSignal();
-            performAsyncEvent(/*IP_RESET,*/ PE_EXT_RESET, this.coreState.target);
+            performAsyncEvent(PE_EXT_RESET, this.coreState.target);
             
             syncStatusFromRegs();
         endfunction        

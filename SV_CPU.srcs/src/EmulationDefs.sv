@@ -5,6 +5,7 @@ package EmulationDefs;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+        import Arith::*;
 
 
     typedef struct {
@@ -34,13 +35,48 @@ package EmulationDefs;
 
 
     // Not including memory
-//    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
-//        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
-//    endfunction    
+    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
+        return ins.def.o inside {
+            O_floatMove32,
+            O_floatNeg32,
+            O_floatAbs32,
+            O_floatCpys32,
+
+
+            O_floatXor,
+            O_floatAnd,
+            O_floatOr,
+            O_floatAddInt,
+            O_floatMulInt,
+            O_floatDivInt,
+
+            O_floatGenInv,
+            O_floatGenOv,
+
+            O_floatAdd32,
+            O_floatSub32,
+            O_floatMul32,
+            O_floatDiv32,
+
+            O_floatCmpEq32,
+            O_floatCmpGe32,
+            O_floatCmpGt32,
+
+            O_floatAdd64,
+            O_floatSub64,
+            O_floatMul64,
+            O_floatDiv64,
+
+            O_floatCmpEq64,
+            O_floatCmpGe64,
+            O_floatCmpGt64
+        };
+    endfunction
+
 
     function automatic logic requiresFP(input AbstractInstruction ins);
         return ins.mnemonic inside {
-            "mov_f",
+            //"mov_f",
             "xor_f",
             "and_f",
             "or_f",
@@ -245,8 +281,19 @@ package EmulationDefs;
     endfunction
 
 
-    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
+
+
+        function automatic Mword addFp32(input Word arg0, input Word arg1, input Rounding rd);
+            Word res = $shortrealtobits($bitstoshortreal(arg0) + $bitstoshortreal(arg1));
+            return $unsigned(res);
+        endfunction
+
+
+
+    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
         Mword result;
+        Rounding rd = Rounding'(rm);
+
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
             O_intOr:   result = vals[0] | vals[1];
@@ -280,7 +327,13 @@ package EmulationDefs;
                 else                       result = {vals[0], vals[0]} >> -vals[1];
             end
 
-            O_floatMove: result = vals[0];
+            //O_floatMove: result = vals[0];
+
+            O_floatMove32: result = Word'(vals[0]);
+            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000);
+            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF);
+            O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
+
 
             O_floatXor:   result = vals[0] ^ vals[1];
             O_floatAnd:   result = vals[0] & vals[1];
@@ -288,20 +341,19 @@ package EmulationDefs;
             O_floatAddInt: result = vals[0] + vals[1];
             O_floatMulInt: result = vals[0] * vals[1];
             O_floatDivInt: result = vals[0] / vals[1];
+            
             O_floatGenInv: result = 1;
             O_floatGenOv: result = 1;
-            O_floatAdd32: result = $shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
+
+
+            O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
+                                   addFp32(vals[0], vals[1], rd);
             O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
             O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
             O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
             O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
             O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
             O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
-
-            O_floatMove32: result = Word'(vals[0]);
-            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000);
-            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF);
-            O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase

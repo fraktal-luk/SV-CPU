@@ -154,7 +154,7 @@ package UopList;
         "rem_s":      UOP_int_rems,
         "rem_u":      UOP_int_remu,
         
-        "mov_f":      UOP_fp_move,
+       // "mov_f":      UOP_fp_move,
         "xor_f":      UOP_fp_xor,
         "and_f":      UOP_fp_and,
         "or_f":       UOP_fp_or,
