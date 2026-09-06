@@ -48,6 +48,8 @@ module InstructionUncached(
         else begin
             res.status = CR_HIT; // Although uncached, this status prevents from handling read as error in frontend
             res.words = '{0: AbstractCore.programMem.fetch(adr), default: 'x};
+
+            //assert (!$isunknown(res.words[0])) else $error("Unknown bits in uncached fetch:\n%p", res.words[0]);
         end
 
         res.active = 1;

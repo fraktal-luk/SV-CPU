@@ -48,7 +48,7 @@ package EmulationMemories;
 
         function automatic void assignPage(input Dword startAdr, input Word arr[]);
             int index = startAdr/PAGE_BYTES;
-            pages[index] = new[PAGE_WORDS](arr);// arr;
+            pages[index] = new[PAGE_WORDS](arr);
         endfunction
 
         function automatic void writePage(input Dword startAdr, input Word arr[]);

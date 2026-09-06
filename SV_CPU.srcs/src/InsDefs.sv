@@ -365,18 +365,20 @@ package InsDefs;
         "add_h":      '{F_intImm16, P_addH, S_none, T_none, O_intAddH},//intImm16,
         "add_r":      '{F_int2R, P_intAlu, S_intArith, T_intAdd, O_intAdd},//int2R,
         "sub_r":      '{F_int2R, P_intAlu, S_intArith, T_intSub, O_intSub},//int2R,
-            "cgt_u":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
-            "cgt_s":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
-                
+
+        "cgt_u":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtU, O_intCmpGtU},//int2R,
+        "cgt_s":  '{F_int2R, P_intAlu, S_intArith, T_intCmpGtS, O_intCmpGtS},//int2R,
+            
         "shl_r":       '{F_int2R, P_intAlu, S_intArith, T_intShl, O_intShiftLogical},
 
         "shl_i":      '{F_intImm10, P_intAluImm, S_intShiftLogical, T_none, O_intShiftLogical},//intImm10, 
         "sha_i":      '{F_intImm10, P_intAluImm, S_intShiftArith, T_none, O_intShiftArith},//intImm10, 
         "rot_i":      '{F_intImm10, P_intAluImm, S_intRotate, T_none, O_intRotate},//intImm10, 
-        
+
         "mult":       '{F_int2R, P_intAlu, S_intMul, T_intMul, O_intMul},//int2R, 
         "mulh_s":     '{F_int2R, P_intAlu, S_intMul, T_intMulHU, O_intMulHS},//int2R, 
         "mulh_u":     '{F_int2R, P_intAlu, S_intMul, T_intMulHS, O_intMulHU},//int2R, 
+
         "div_s":      '{F_int2R, P_intAlu, S_intMul, T_intDivS, O_intDivS},//int2R, 
         "div_u":      '{F_int2R, P_intAlu, S_intMul, T_intDivU, O_intDivU},//int2R, 
         "rem_s":      '{F_int2R, P_intAlu, S_intMul, T_intRemS, O_intRemS},//int2R, 
@@ -391,6 +393,7 @@ package InsDefs;
         "divi_f":     '{F_float2R, P_floatOp, S_floatArith, T_floatDivInt, O_floatDivInt},  // -- Float operations
         "inv_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatGenInv, O_floatGenInv},  // -- Float operations
         "ov_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatGenOv,  O_floatGenOv},  // -- Float operations
+
             "addf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatAdd32, O_floatAdd32},
             "subf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatSub32, O_floatSub32},
             "mulf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatMul32, O_floatMul32},
@@ -419,8 +422,8 @@ package InsDefs;
         "ldf_i":      '{F_floatLoad16,  P_floatLoadW16,  S_none, T_none, O_floatLoadW},
         "stf_i":      '{F_floatStore16, P_floatStoreW16,  S_none, T_none, O_floatStoreW},
 
-            "e_lb":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},
-            "e_sb":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},
+            "ld_b":    '{F_intImm16,   P_intLoadB16, S_none, T_none, O_intLoadB},
+            "st_b":    '{F_intStore16, P_intStoreB16, S_none, T_none, O_intStoreB},
 
         "ldi_d":      '{F_intImm16,   P_intLoadD16,  S_none, T_none, O_intLoadD},
         "sti_d":      '{F_intStore16, P_intStoreD16, S_none, T_none, O_intStoreD},
@@ -429,8 +432,8 @@ package InsDefs;
         "stf_d":      '{F_floatStore16, P_floatStoreD16,  S_none, T_none, O_floatStoreD},
 
 
-            "e_ldaq":  '{F_intImm10, P_intMem,   S_loadAq,   T_none, O_intLoadAqW},
-            "e_stc":   '{F_intStore10, P_intMem, S_storeRel, T_none, O_intStoreRelW},                           
+            "ldaq":  '{F_intImm10, P_intMem,   S_loadAq,   T_none, O_intLoadAqW},
+            "stc":   '{F_intStore10, P_intMem, S_storeRel, T_none, O_intStoreRelW},                           
         
           "mb_ld_b":    '{F_noRegs, P_intMem, S_mbLoadB, T_none, O_mbLoadB},
           "mb_ld_f":    '{F_noRegs, P_intMem, S_mbLoadF, T_none, O_mbLoadF},

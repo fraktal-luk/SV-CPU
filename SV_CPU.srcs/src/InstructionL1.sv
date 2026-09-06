@@ -26,7 +26,7 @@ module InstructionL1(
 
     Translation tr_Reg[1];
 
-    InstructionCacheOutput readOutCached, readOutUncached;
+    InstructionCacheOutput readOutCached;
 
 
     typedef logic LogicA[1];
@@ -68,7 +68,7 @@ module InstructionL1(
             foreach (reads[i]) matched[i] = matchWay_I(reads[i], tr);
 
             translationSig <= tr;
-            readOutCached <= readCache(readEn, tr, /*result0m, result1m, result2m, result3m,*/ matched);
+            readOutCached <= readCache(readEn, tr, matched);
         end
     endtask
 
@@ -86,6 +86,7 @@ module InstructionL1(
         else begin         // Hit
             res.status = CR_HIT;
             res.words = selected.value;
+            //assert (!$isunknown(res.words)) else $error("Unknown bits in intruction cache:\n%p", res.words);
         end
         
         res.active = 1;
@@ -146,7 +147,6 @@ module InstructionL1(
 
 
     task automatic reset();
-        readOutUncached <= EMPTY_INS_CACHE_OUTPUT;
         readOutCached <= EMPTY_INS_CACHE_OUTPUT;
         
         tlb.resetTlb();

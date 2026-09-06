@@ -169,8 +169,10 @@ package Emulation;
 
                 O_sysLoad: result = coreState.sysRegs[adr];
 
-                default: return result;
+                default: ; //return result;
             endcase
+
+            //assert (!$isunknown(result)) else $error("Emulation: loaded unknown bits:\n%08X", result);
 
             return result;
         endfunction
@@ -293,13 +295,9 @@ package Emulation;
                 evt = PE_FETCH_DISALLOWED_ACCESS;
             else if (!physicalAddressValid(tr.padr))
                 evt = PE_FETCH_NONEXISTENT_ADDRESS;
-//            else if (!progMem.addressValid(tr.padr))
-//                evt = PE_FETCH_NONEXISTENT_ADDRESS;
 
             if (evt === PE_NONE) return 0;
-            
-              //  $error("we hve f err: %p, %p %p", vadr, tr, evt);
-            
+                        
             setExecState(evt, ip);
             syncStatusFromRegs();
             status.exceptionRaised = 1;
@@ -313,9 +311,11 @@ package Emulation;
             Mword vadr = adr;
             Translation tr = translateProgramAddress(vadr);
                 
-                this.ip = vadr;
-                if (catchFetchException(vadr, tr)) return;
-            
+            this.ip = vadr;
+            if (catchFetchException(vadr, tr)) return;
+
+            //assert (!$isunknown(bits)) else $error("Emulation: fetched unknown bits\n%08X", bits);
+
             begin
                 AbstractInstruction ins = decodeAbstract(bits);
                 processInstruction(adr, ins);
