@@ -518,10 +518,10 @@ package ExecDefs;
             UOP_fp_or:     res = args[0] | args[1];
             UOP_fp_addi:   res = args[0] + args[1];
 
-            UOP_fp_muli:   res = args[0] * args[1];
-            UOP_fp_divi:   res = args[0] / args[1];
-            UOP_fp_inv:   res = 1;
-            UOP_fp_ov:   res = 1;
+                UOP_fp_muli:   res = Word'(args[0] * args[1]);
+                UOP_fp_divi:   res = Word'(args[0] / args[1]);
+                UOP_fp_inv:   res = 1;
+                UOP_fp_ov:   res = 1;
 
             UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
             UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));

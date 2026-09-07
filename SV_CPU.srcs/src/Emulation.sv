@@ -6,7 +6,8 @@ package Emulation;
     import Asm::*;
     import EmulationDefs::*;
     import EmulationMemories::*;
-
+    import Arith::*;
+    
 
     class Emulator;
         Mword ip;
@@ -130,9 +131,15 @@ package Emulation;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
-            if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins)))
-                return calculateResult(ins, args, adr, rm);
-            
+            if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins))) begin
+                if (isFloatCalcIns(ins)) begin
+                    FpResult32 fpRes = calculateResultFP(ins, args, adr, rm);
+                    return fpRes.value;
+                end
+                else
+                    return calculateResult(ins, args, adr, rm);
+            end
+
             if (isBranchIns(ins))
                 return adr + 4;
             
@@ -388,7 +395,8 @@ package Emulation;
         local function automatic void performCalculation(input Mword adr, input AbstractInstruction ins, input Mword3 vals, input logic[1:0] rm);
             Mword result;
             if (isFloatCalcIns(ins)) begin
-                result = calculateResult(ins, vals, adr, rm);
+                FpResult32 fpRes = calculateResultFP(ins, vals, adr, rm);
+                result = fpRes.value;
                 if (catchArithException(ins, vals, result)) return;
             end
             else
