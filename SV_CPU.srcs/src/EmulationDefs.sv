@@ -390,7 +390,8 @@ package EmulationDefs;
 
 
             O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
-                                   '{NO_EXCEPTION, addFp32(vals[0], vals[1], rd)};
+                                   //'{NO_EXCEPTION, addFp32(vals[0], vals[1], rd)};
+                                   TMP_addF32(vals[0], vals[1], rd);
             O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
             O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};

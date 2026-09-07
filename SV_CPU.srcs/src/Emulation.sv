@@ -397,7 +397,7 @@ package Emulation;
             if (isFloatCalcIns(ins)) begin
                 FpResult32 fpRes = calculateResultFP(ins, vals, adr, rm);
                 result = fpRes.value;
-                if (catchArithException(ins, vals, result)) return;
+                if (catchArithException(ins, vals, result, fpRes)) return;
             end
             else
                 result = calculateResult(ins, vals, adr, rm);
@@ -408,29 +408,52 @@ package Emulation;
         endfunction
 
         
-        function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result);
+        function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result, input FpResult32 fpResult);
             logic excGenerated = 0;
-                logic fpInv = 0;
-                logic fpDiv0 = 0;
-                logic fpOv = 0;
-                logic fpUnd = 0;
-                logic fpInex = 0;
+            logic fpInv = 0;
+            logic fpDiv0 = 0;
+            logic fpOv = 0;
+            logic fpUnd = 0;
+            logic fpInex = 0;
 
-                status.arithException = 0; // TMP
+            status.arithException = 0; // TMP
             
-            if (ins.def.o == O_floatGenInv) begin
+            if (fpResult.exc.invalid
+                //|| ins.def.o == O_floatGenInv
+                ) begin
                 cregs.fpStatus.INV = 1;
                     cregs.fpStatus.Invalid = 1;
                 excGenerated = 1;
                 fpInv = 1;
             end
-            else if (ins.def.o == O_floatGenOv) begin
+            
+            if (fpResult.exc.overflow
+                //|| ins.def.o == O_floatGenOv
+                ) begin
                 cregs.fpStatus.OV = 1;
                     cregs.fpStatus.Overflow = 1;
                 excGenerated = 1;
                 fpOv = 1;
             end
-            
+
+            if (fpResult.exc.div0) begin
+                    cregs.fpStatus.Overflow = 1;
+                excGenerated = 1;
+                fpDiv0 = 1;
+            end
+
+            if (fpResult.exc.underflow) begin
+                    cregs.fpStatus.Underflow = 1;
+                excGenerated = 1;
+                fpUnd = 1;
+            end
+
+            if (fpResult.exc.inexact) begin
+                    cregs.fpStatus.Inexact = 1;
+                excGenerated = 1;
+                fpInex = 1;
+            end
+
             syncSysRegsFromCregs();
 
             if (

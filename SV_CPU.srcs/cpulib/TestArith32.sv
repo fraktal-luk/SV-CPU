@@ -19,7 +19,7 @@ package TestArith32;
 		Test_Cmp0();
 
 		Test_i2f();
-		
+
 		Test_f2i();
 
 	endfunction
@@ -430,7 +430,7 @@ package TestArith32;
 
 
 	function automatic void checkF2I(input FpFormat32 x, input Rounding rm, input logic isSigned, input FpResult32 expected);
-		FpResult32 actual = fp64toInt32(x, rm, isSigned);
+		FpResult32 actual = fp32toInt32(x, rm, isSigned);
 		 assert (actual === expected) else begin
 		 	$displayh("%p (%d) (%p)\n%p\n%p", x, isSigned, rm, actual, expected);
 		 	$displayh("a %08X, e %08X", actual.value, expected.value);

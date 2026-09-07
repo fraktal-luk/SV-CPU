@@ -304,10 +304,11 @@ package Arith;
 
 		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
-			$display("Nonc");
+			/*$display("Nonc");
 			dispInter("a: ", a);
 			dispInter("b: ", bSh);
 			dispInter(" = ", res);
+			*/
 		return res;
 	endfunction
 
@@ -367,11 +368,11 @@ package Arith;
 		res.exp = a.exp;
 		res.mantissa = a.mantissa - bShifted;
 
-			$display("Nonc");
+		/*	$display("Nonc");
 			dispInter("a: ", a);
 			dispInter("b: ", bSh);
 			dispInter(" = ", res);
-
+*/
 		return res;
 	endfunction
 
@@ -435,11 +436,11 @@ package Arith;
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
 
-			$display("Add  normA: %08X, normB: %08X", normA, normB);
+			//$display("Add  normA: %08X, normB: %08X", normA, normB);
 			interFull = addInter(interA, interB);
 
 			interFullN = normalizeAdded(interFull);
-			dispInter(" n ", interFullN);
+			//dispInter(" n ", interFullN);
     	end
 
     	return interFullN;
@@ -459,12 +460,12 @@ package Arith;
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
 
-			$display("Sub  normA: %08X, normB: %08X", normA, normB);
+			//$display("Sub  normA: %08X, normB: %08X", normA, normB);
 			interFull = subInter(interA, interB);
 			interFullN = normalizeSubtracted(interFull);
-			dispInter(" n ", interFullN);
+			//dispInter(" n ", interFullN);
 
-			$display("--------------------------");
+			//$display("--------------------------");
     	end
 
     	return interFullN;
@@ -486,11 +487,11 @@ package Arith;
     	res.exp = expOut;
     	res.mantissa = product;
 
-	    	$display("Mult");
+	    /*	$display("Mult");
 	    	dispInter("a: ", aSh);
 	    	dispInter("b: ", b);
 	    	dispInter(" =", res);
-
+*/
     	return res;
     endfunction
 
@@ -594,7 +595,8 @@ package Arith;
     		return handleNanArgs(a, b);
 
 	   	// Which input has bigger exponent?
-	   	if (b.exp > a.exp) begin
+	   	//if (b.exp > a.exp) begin
+	   	if (absF32(b) >= absF32(a)) begin
 			arg0 = b;
 			arg1 = a;
 	   	end
@@ -677,10 +679,10 @@ package Arith;
 
    		res = fromIntermediate(interRounded);
 
-   			$displayh("... %p\n... %p", inter, interRounded);
+   			/*$displayh("... %p\n... %p", inter, interRounded);
 			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
 			$display("--------------------------");
-
+*/
    		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
     endfunction
 
@@ -752,7 +754,7 @@ package Arith;
 
     		interRounded = normalizeAdded(interRounded);
 
-    		    $displayh("inter__A____: %p\ninterRounded: %p", inter, interRounded);
+    		 //   $displayh("inter__A____: %p\ninterRounded: %p", inter, interRounded);
     	end
     	else begin
     		logic dirUp = 0;
@@ -785,7 +787,7 @@ package Arith;
 
     		interRounded = normalizeAdded(interRounded);
 
-    		    $displayh("inter__B____: %p\ninterRounded: %p", inter, interRounded);
+    		//    $displayh("inter__B____: %p\ninterRounded: %p", inter, interRounded);
     	end
 
     	if (interRounded.mantissa == 0) begin
@@ -795,7 +797,7 @@ package Arith;
 
     	res = fromIntermediate(interRounded);
 
-    		$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
+    	//	$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
 
     	return '{'{inexact: isInexact, default: 0}, res};
     endfunction
@@ -935,11 +937,11 @@ package Arith;
 
 			interRounded = roundInter(inter, rm);
 
-				$display(" conv: %016X  -> (%d) %016X // (%d) %016X", absX, exp, mantissa,  exp,  mantissaC);
+			//	$display(" conv: %016X  -> (%d) %016X // (%d) %016X", absX, exp, mantissa,  exp,  mantissaC);
 
 			result = fromIntermediate(interRounded);
 
-				$displayh("    rounded: %p\n %d -> %.2f", interRounded,  x, $bitstoshortreal(result));
+			//	$displayh("    rounded: %p\n %d -> %.2f", interRounded,  x, $bitstoshortreal(result));
 
 			return '{'{inexact: inexact, default: 0}, result};
     	end
@@ -952,7 +954,7 @@ package Arith;
     // range s32: [-2^31, 2^31)  - exp 127+30; if sign 1, then exp 127+31 with 0 mantissa is allowed	
     // range u64: [0, 2^64)		 - sign 0, exp 127+63 ; -0 is allowed!   What about range (-1, 0) if rounded up?
     // range s64: [-2^63, 2^63)  - exp 127+62; if sign 1, then exp 127+63 with 0 mantissa is allowed
-    function automatic FpResult32 fp64toInt32(input FpFormat32 x, input Rounding rm, input logic isSigned);
+    function automatic FpResult32 fp32toInt32(input FpFormat32 x, input Rounding rm, input logic isSigned);
     	if (isSNaN(x))
     		return '{'{invalid: 1, default: 0}, 0};
 
