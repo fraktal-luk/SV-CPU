@@ -248,8 +248,6 @@ package TestArith32;
 		end
 	endfunction
 
-	localparam ExceptionPack EXC_INEXACT = '{inexact: 1, default: 0};
-
 
 	function automatic void Test_Rounding0();
 		FpResult32 res0;

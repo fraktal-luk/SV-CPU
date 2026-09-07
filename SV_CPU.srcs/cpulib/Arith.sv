@@ -25,6 +25,11 @@ package Arith;
 	} ExceptionPack;
 
 	localparam ExceptionPack NO_EXCEPTION = '{default: 0};
+	localparam ExceptionPack EXC_INVALID = '{invalid: 1, default: 0};
+	localparam ExceptionPack EXC_DIV0 = '{div0: 1, default: 0};
+	localparam ExceptionPack EXC_OVERFLOW = '{overflow: 1, default: 0};
+	localparam ExceptionPack EXC_UNDEFRLOW = '{underflow: 1, default: 0};
+	localparam ExceptionPack EXC_INEXACT = '{inexact: 1, default: 0};
 
 
 	typedef struct packed {

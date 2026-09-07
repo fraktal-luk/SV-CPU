@@ -372,7 +372,7 @@ module AbstractCore
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-        logic[1:0] rm = renamedEmul.cregs.fpStatus.roundingMode;
+        logic[1:0] rm = renamedEmul.cregs.fpStatus.roundingMode; 
         Mword result = renamedEmul.computeResult(adr, ins, rm); // Must be before modifying state. For ins map
 
         runInEmulator(renamedEmul, adr, opSlot.bits);

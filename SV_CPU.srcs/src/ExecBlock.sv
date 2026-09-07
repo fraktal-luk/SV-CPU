@@ -9,6 +9,7 @@ import Insmap::*;
 import ExecDefs::*;
 import Queues::*;
 
+import Arith::*;
 
 
 module ExecBlock(ref InstructionMap insMap,
@@ -260,7 +261,8 @@ module ExecBlock(ref InstructionMap insMap,
         if (p.TMP_oid == UIDT_NONE) return p;
         begin
             UopPacket res = p;
-            res.result = calcRegularFpOp(p.TMP_oid);
+            FpResult32 fpRes = calcRegularFpOp(p.TMP_oid);
+            res.result = fpRes.value;
             return res;
         end
     endfunction
@@ -277,10 +279,13 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    function automatic Mword calcRegularFpOp(input UidT uid);
+    function automatic FpResult32 calcRegularFpOp(input UidT uid);
+        Rounding rm = convertRM(AbstractCore.CurrentConfig.rm);
         Mword3 args = getAndVerifyArgs(uid);
-        Mword result = calcArithFp(decUname(uid), args);  
-        insMap.setActualResult(uid, result);
+        FpResult32 result;  
+
+        result = calcArithFp(decUname(uid), args, rm);  
+        insMap.setActualResult(uid, result.value);
 
         return result;
     endfunction

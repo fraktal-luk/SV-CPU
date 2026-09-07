@@ -12,6 +12,8 @@ package ExecDefs;
 
     import CacheDefs::*;
 
+    import Arith::*;
+
 
     function automatic logic needsReplay(input ExecStatus status);
         return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
@@ -547,38 +549,40 @@ package ExecDefs;
 
 
 
-    function automatic Mword calcArithFp(UopName name, Mword args[3]);
-        Mword res = 'x;
+    function automatic FpResult32 calcArithFp(UopName name, Mword args[3], Rounding rm);
+        FpResult32 res;
         
         case (name)
-            //UOP_fp_move:   res = args[0];
-            UOP_fp_xor:     res = args[0] ^ args[1];
-            UOP_fp_and:     res = args[0] & args[1];
-            UOP_fp_or:     res = args[0] | args[1];
-            UOP_fp_addi:   res = args[0] + args[1];
+            UOP_fp_xor:     res = '{NO_EXCEPTION, args[0] ^ args[1]};
+            UOP_fp_and:     res = '{NO_EXCEPTION, args[0] & args[1]};
+            UOP_fp_or:     res = '{NO_EXCEPTION, args[0] | args[1]};
+            UOP_fp_addi:   res = '{NO_EXCEPTION, args[0] + args[1]};
 
-                UOP_fp_muli:   res = Word'(args[0] * args[1]);
-                UOP_fp_divi:   res = Word'(args[0] / args[1]);
-                UOP_fp_inv:   res = 1;
-                UOP_fp_ov:   res = 1;
+                UOP_fp_muli:   res = '{NO_EXCEPTION, Word'(args[0] * args[1])};
+                UOP_fp_divi:   res = '{NO_EXCEPTION, Word'(args[0] / args[1])};
 
-            UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
-            UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
-            UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-            UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
-            UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
-            UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
-            UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+                UOP_fp_inv:   res = '{EXC_INVALID, 1};
+                UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
 
-            UOP_fp_move32: res = Word'(args[0]);
-            UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
-            UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
-            UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
+            UOP_fp_add32: res = //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]))};
+                                TMP_addF32(args[0], args[1], rm);
+
+            UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
+            UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
+            UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
+            UOP_fp_cmpeq32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]))};
+            UOP_fp_cmpge32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]))};
+            UOP_fp_cmpgt32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]))};
+
+            UOP_fp_move32: res = '{NO_EXCEPTION, Word'(args[0])};
+            UOP_fp_neg32: res = '{NO_EXCEPTION, Word'(args[0] ^ 'h80000000)};
+            UOP_fp_abs32: res = '{NO_EXCEPTION, Word'(args[0] & 'h7FFFFFFF)};
+            UOP_fp_cpys: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
 
             default: $fatal(2, "Wrong uop");
         endcase
 
-        return res;
+        return res;//'{NO_EXCEPTION, res};
     endfunction
 
 

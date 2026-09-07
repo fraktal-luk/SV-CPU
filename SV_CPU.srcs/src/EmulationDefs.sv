@@ -5,6 +5,8 @@ package EmulationDefs;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+        import ControlRegisters::*;
+        
         import Arith::*;
 
 
@@ -292,7 +294,7 @@ package EmulationDefs;
 
     function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
         Mword result;
-        Rounding rd = Rounding'(rm);
+        Rounding rd = convertRM(rm);
 
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
@@ -369,7 +371,7 @@ package EmulationDefs;
     function automatic FpResult32 calculateResultFP(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
         FpResult32 result;
         //FpResult32 fpRes;
-        Rounding rd = Rounding'(rm);
+        Rounding rd = convertRM(rm);
 
         case (ins.def.o)
             O_floatMove32: result = '{NO_EXCEPTION, Word'(vals[0])};
@@ -511,5 +513,14 @@ package EmulationDefs;
             return ins;
     endfunction
 
+
+    function automatic Rounding convertRM(input RoundingMode rm);
+        case (rm)
+            RM_Even: return RoundNearestEven;
+            RM_Up: return RoundPlusInf;
+            RM_Down: return RoundMinusInf;
+            RM_Zero: return RoundZero; 
+        endcase
+    endfunction
 
 endpackage

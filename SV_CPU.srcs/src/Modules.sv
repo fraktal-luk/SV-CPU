@@ -139,12 +139,26 @@ module FloatSubpipe(
 
 
     function automatic UopPacket performFP(input UopPacket p);        
-        UopPacket res = performRegularFP(p);
-        
+        UopPacket res = p;
+
         if (p.TMP_oid == UIDT_NONE) return res;
         
-        if (decUname(p.TMP_oid) == UOP_fp_inv) res.status = ES_FP_INVALID;
-        else if (decUname(p.TMP_oid) == UOP_fp_ov) res.status = ES_FP_OVERFLOW;
+        begin
+            FpResult32 fpRes = calcRegularFpOp(p.TMP_oid);
+            res.result = fpRes.value;
+
+            if (decUname(p.TMP_oid) == UOP_fp_inv) begin
+                assert (fpRes.exc.invalid) else $error("tttttt\n66666\n7777");
+                res.status = ES_FP_INVALID;
+            end
+            
+            if (decUname(p.TMP_oid) == UOP_fp_ov) begin
+                assert (fpRes.exc.overflow) else $error("$$\n5555\n6666");  
+                res.status = ES_FP_OVERFLOW;
+            end
+        end
+
+
         
         if (//res.status inside {ES_FP_INVALID, ES_FP_OVERFLOW} && AbstractCore.CurrentConfig.enArithExc
             res.status == ES_FP_INVALID && (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInv)
