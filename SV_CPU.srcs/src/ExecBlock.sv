@@ -254,7 +254,18 @@ module ExecBlock(ref InstructionMap insMap,
             return res;
         end
     endfunction
-    
+
+
+    function automatic UopPacket performRegularFP(input UopPacket p);
+        if (p.TMP_oid == UIDT_NONE) return p;
+        begin
+            UopPacket res = p;
+            res.result = calcRegularFpOp(p.TMP_oid);
+            return res;
+        end
+    endfunction
+
+
 
     function automatic Mword calcRegularOp(input UidT uid);
         Mword3 args = getAndVerifyArgs(uid);
@@ -262,6 +273,15 @@ module ExecBlock(ref InstructionMap insMap,
         Mword result = calcArith(decUname(uid), args, lk);  
         insMap.setActualResult(uid, result);
         
+        return result;
+    endfunction
+
+
+    function automatic Mword calcRegularFpOp(input UidT uid);
+        Mword3 args = getAndVerifyArgs(uid);
+        Mword result = calcArithFp(decUname(uid), args);  
+        insMap.setActualResult(uid, result);
+
         return result;
     endfunction
 

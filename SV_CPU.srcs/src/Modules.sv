@@ -139,7 +139,7 @@ module FloatSubpipe(
 
 
     function automatic UopPacket performFP(input UopPacket p);        
-        UopPacket res = performRegularE0(p);
+        UopPacket res = performRegularFP(p);
         
         if (p.TMP_oid == UIDT_NONE) return res;
         
