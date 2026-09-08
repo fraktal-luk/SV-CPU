@@ -147,14 +147,22 @@ module FloatSubpipe(
             FpResult32 fpRes = calcRegularFpOp(p.TMP_oid);
             res.result = fpRes.value;
 
-            if (decUname(p.TMP_oid) == UOP_fp_inv) begin
-                assert (fpRes.exc.invalid) else $error("tttttt\n66666\n7777");
+            //if (decUname(p.TMP_oid) == UOP_fp_inv) begin
+            if (fpRes.exc.invalid) begin
+                //assert (fpRes.exc.invalid) else $error("tttttt\n66666\n7777");
                 res.status = ES_FP_INVALID;
             end
             
-            if (decUname(p.TMP_oid) == UOP_fp_ov) begin
-                assert (fpRes.exc.overflow) else $error("$$\n5555\n6666");  
+            //if (decUname(p.TMP_oid) == UOP_fp_ov) begin
+            if (fpRes.exc.overflow) begin
+                //assert (fpRes.exc.overflow) else $error("$$\n5555\n6666");  
                 res.status = ES_FP_OVERFLOW;
+            end
+
+           //if (decUname(p.TMP_oid) == UOP_fp_ov) begin
+            if (fpRes.exc.inexact) begin
+                //assert (fpRes.exc.overflow) else $error("$$\n5555\n6666");  
+                res.status = ES_FP_INEXACT;
             end
         end
 
@@ -163,6 +171,7 @@ module FloatSubpipe(
         if (//res.status inside {ES_FP_INVALID, ES_FP_OVERFLOW} && AbstractCore.CurrentConfig.enArithExc
             res.status == ES_FP_INVALID && (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInv)
          || res.status == ES_FP_OVERFLOW && (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapOv)
+         || res.status == ES_FP_INEXACT && (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInex)
             )
         begin
             insMap.setException(U2M(p.TMP_oid), PE_ARITH_EXCEPTION);

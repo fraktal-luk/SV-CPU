@@ -34,6 +34,7 @@ module EventUnit(input logic clk);
               execArithH = EMPTY_EVENT_DESC, execArith = EMPTY_EVENT_DESC,
                 fpInvH = EMPTY_EVENT_DESC, fpInv = EMPTY_EVENT_DESC,
                 fpOvH = EMPTY_EVENT_DESC, fpOv = EMPTY_EVENT_DESC,
+                fpInexH = EMPTY_EVENT_DESC, fpInex = EMPTY_EVENT_DESC,
 
               execRefetchH = EMPTY_EVENT_DESC, execRefetch = EMPTY_EVENT_DESC,
               lqRefetchH = EMPTY_EVENT_DESC, lqRefetch = EMPTY_EVENT_DESC,
@@ -52,6 +53,7 @@ module EventUnit(input logic clk);
 
         fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
         fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
+        fpInexH <=  edFromUop(findOldestWithState(ES_FP_INEXACT, theExecBlock.floatImagesTr[0]));
 
         execMemH <= edFromUop(findOldestMemEvt(theExecBlock.memImagesTr[0]));
         execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]));
@@ -146,7 +148,7 @@ module EventUnit(input logic clk);
                 else if (isStoreSysUop(uname) || isLoadSysUop(uname)) evt = PE_SYS_DISALLOWED_ACCESS;
             end
 
-            ES_FP_INVALID, ES_FP_OVERFLOW: evt = PE_ARITH_EXCEPTION;
+            ES_FP_INVALID, ES_FP_OVERFLOW, ES_FP_INEXACT: evt = PE_ARITH_EXCEPTION;
 
             ES_REFETCH: evt = PE_HW_REFETCH;
 
@@ -198,6 +200,7 @@ module EventUnit(input logic clk);
 
         fpInv <= replaceEvt(fpInv, fpInvH);
         fpOv <=  replaceEvt(fpOv, fpOvH);
+        fpInex <=  replaceEvt(fpInex, fpInexH);
 
         execMem <= replaceEvt(execMem, execMemH);
         execRefetch <= replaceEvt(execRefetch, execRefetchH);

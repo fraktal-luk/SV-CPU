@@ -257,15 +257,15 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    function automatic UopPacket performRegularFP(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
-        begin
-            UopPacket res = p;
-            FpResult32 fpRes = calcRegularFpOp(p.TMP_oid);
-            res.result = fpRes.value;
-            return res;
-        end
-    endfunction
+    // function automatic UopPacket performRegularFP(input UopPacket p);
+    //     if (p.TMP_oid == UIDT_NONE) return p;
+    //     begin
+    //         UopPacket res = p;
+    //         FpResult32 fpRes = calcRegularFpOp(p.TMP_oid);
+    //         res.result = fpRes.value;
+    //         return res;
+    //     end
+    // endfunction
 
 
 

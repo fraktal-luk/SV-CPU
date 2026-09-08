@@ -127,4 +127,8 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         sysRegs[8][2] = 1;
     endfunction
 
+    function automatic void setFpInex();
+        sysRegs[8][0] = 1;
+    endfunction
+
 endmodule

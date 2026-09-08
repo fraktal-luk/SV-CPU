@@ -507,6 +507,9 @@ module AbstractCore
             if (theId == (eventUnit.fpOv.id)) begin
                 sysUnit.setFpOv();
             end
+            if (theId == (eventUnit.fpInex.id)) begin
+                sysUnit.setFpInex();
+            end
 
             syncCurrentConfigFromRegs();
 
