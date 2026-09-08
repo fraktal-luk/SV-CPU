@@ -2,7 +2,6 @@
 package Arith;
 	import Base::*;
 
-	typedef logic[127:0] Qword; 
 
 
 	typedef enum {
@@ -15,26 +14,7 @@ package Arith;
 
 
 
-	function automatic Qword multiplyU64L(input Dword a, input Dword b);
-		return a*b;
-	endfunction
-
-	function automatic Qword multiplyS64L(input Dword a, input Dword b);
-		return $signed(a)*$signed(b);
-	endfunction
-
-
-
-	function automatic Dword divideU64(input Dword a, input Dword b);
-		if (b == 0) return 0; 
-		return a/b;
-	endfunction
-
-	function automatic Dword divideS64(input Dword a, input Dword b);
-		if (b == 0) return 0; 
-		return $signed(a)/$signed(b);
-	endfunction
-
+	localparam logic[30:23] EXP_MAX_32 = 'b11111111;
 
 	typedef struct {
 		logic invalid;
@@ -45,9 +25,11 @@ package Arith;
 	} ExceptionPack;
 
 	localparam ExceptionPack NO_EXCEPTION = '{default: 0};
-
-
-	localparam logic[30:23] EXP_MAX_32 = 'b11111111;
+	localparam ExceptionPack EXC_INVALID = '{invalid: 1, default: 0};
+	localparam ExceptionPack EXC_DIV0 = '{div0: 1, default: 0};
+	localparam ExceptionPack EXC_OVERFLOW = '{overflow: 1, default: 0};
+	localparam ExceptionPack EXC_UNDEFRLOW = '{underflow: 1, default: 0};
+	localparam ExceptionPack EXC_INEXACT = '{inexact: 1, default: 0};
 
 
 	typedef struct packed {
@@ -79,6 +61,27 @@ package Arith;
 		ExceptionPack exc;
 		FpFormat32 value;
 	} FpResult32;
+
+
+
+    typedef struct {
+    	logic sign;
+    	logic subn;
+    	Word exp;
+    	Dword mantissa;
+    } FpIntermediate;
+
+
+		function automatic void dispLong(input string s, input Dword x);
+			$display({s, "%08X|%08X"}, x >> 32, Word'(x));
+		endfunction
+
+
+		function automatic void dispInter(input string s, input FpIntermediate x);
+			$display({s, "%d (%d) %08X|%08X"}, x.sign, x.exp, x.mantissa >> 32, Word'(x.mantissa));
+		endfunction
+
+
 
 
 	typedef enum {
@@ -132,6 +135,19 @@ package Arith;
   	function automatic isNaN(input FpFormat32 a);
     	return a.exp == EXP_MAX_32 && a.mantissa !== 0;
     endfunction
+
+
+    typedef enum {
+    	R_EQUAL, R_GREATER, R_LESS, R_UNORDERED
+    } Relation;
+
+
+    typedef enum {
+    	CMP_EQ, CMP_NE,
+    	CMP_GT, CMP_GE, CMP_GU, CMP_NG,
+    	CMP_LT, CMP_LE, CMP_LU, CMP_NL,
+    	CMP_UN, CMP_OR
+    } CmpPredicate;
 
 
 
@@ -200,14 +216,6 @@ package Arith;
     		return '{NO_EXCEPTION, FpFormat32'(bits+1)};
     endfunction
 
-
-
-    typedef struct {
-    	logic sign;
-    	logic subn;
-    	Word exp;
-    	Dword mantissa;
-    } FpIntermediate;
 
 
 
@@ -301,10 +309,11 @@ package Arith;
 
 		bSh = '{b.sign, b.subn, a.exp, bShifted};
 
-			$display("Nonc");
+			/*$display("Nonc");
 			dispInter("a: ", a);
 			dispInter("b: ", bSh);
 			dispInter(" = ", res);
+			*/
 		return res;
 	endfunction
 
@@ -349,18 +358,6 @@ package Arith;
 	endfunction
 
 
-		function automatic void dispLong(input string s, input Dword x);
-			$display({s, "%08X|%08X"}, x >> 32, Word'(x));
-		endfunction
-
-
-		function automatic void dispInter(input string s, input FpIntermediate x);
-			$display({s, "%d (%d) %08X|%08X"}, x.sign, x.exp, x.mantissa >> 32, Word'(x.mantissa));
-		endfunction
-
-
-
-
 	function automatic FpIntermediate subInter(input FpIntermediate a, FpIntermediate b);
 		FpIntermediate res;
 
@@ -376,11 +373,11 @@ package Arith;
 		res.exp = a.exp;
 		res.mantissa = a.mantissa - bShifted;
 
-			$display("Nonc");
+		/*	$display("Nonc");
 			dispInter("a: ", a);
 			dispInter("b: ", bSh);
 			dispInter(" = ", res);
-
+*/
 		return res;
 	endfunction
 
@@ -444,11 +441,11 @@ package Arith;
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
 
-			$display("Add  normA: %08X, normB: %08X", normA, normB);
+			//$display("Add  normA: %08X, normB: %08X", normA, normB);
 			interFull = addInter(interA, interB);
 
 			interFullN = normalizeAdded(interFull);
-			dispInter(" n ", interFullN);
+			//dispInter(" n ", interFullN);
     	end
 
     	return interFullN;
@@ -468,12 +465,12 @@ package Arith;
 			interA = convToIntermediate(a);
 			interB = convToIntermediate(b);
 
-			$display("Sub  normA: %08X, normB: %08X", normA, normB);
+			//$display("Sub  normA: %08X, normB: %08X", normA, normB);
 			interFull = subInter(interA, interB);
 			interFullN = normalizeSubtracted(interFull);
-			dispInter(" n ", interFullN);
+			//dispInter(" n ", interFullN);
 
-			$display("--------------------------");
+			//$display("--------------------------");
     	end
 
     	return interFullN;
@@ -495,11 +492,11 @@ package Arith;
     	res.exp = expOut;
     	res.mantissa = product;
 
-	    	$display("Mult");
+	    /*	$display("Mult");
 	    	dispInter("a: ", aSh);
 	    	dispInter("b: ", b);
 	    	dispInter(" =", res);
-
+*/
     	return res;
     endfunction
 
@@ -572,6 +569,7 @@ package Arith;
 
     endfunction
 
+
     function automatic FpIntermediate roundNearestAway(input FpIntermediate x);
     	FpIntermediate res;
 
@@ -602,7 +600,8 @@ package Arith;
     		return handleNanArgs(a, b);
 
 	   	// Which input has bigger exponent?
-	   	if (b.exp > a.exp) begin
+	   	//if (b.exp > a.exp) begin
+	   	if (absF32(b) >= absF32(a)) begin
 			arg0 = b;
 			arg1 = a;
 	   	end
@@ -659,7 +658,6 @@ package Arith;
     endfunction
 
 
-
     // CAREFUL: assumes abs(arg0) >= abs(arg1)
     function automatic FpResult32 addRegularF32(input FpFormat32 arg0, input FpFormat32 arg1, input Rounding rm);
    		FpFormat32 res;
@@ -679,7 +677,6 @@ package Arith;
    			else interRounded.sign = 0;
    		end
 
-
    		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
    		else overflow = 0;
 
@@ -687,11 +684,10 @@ package Arith;
 
    		res = fromIntermediate(interRounded);
 
-   			$displayh("... %p\n... %p", inter, interRounded);
-
-		$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
-		$display("--------------------------");
-
+   			/*$displayh("... %p\n... %p", inter, interRounded);
+			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
+			$display("--------------------------");
+*/
    		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
     endfunction
 
@@ -763,8 +759,7 @@ package Arith;
 
     		interRounded = normalizeAdded(interRounded);
 
-    		    		$displayh("inter__A____: %p\ninterRounded: %p", inter, interRounded);
-
+    		 //   $displayh("inter__A____: %p\ninterRounded: %p", inter, interRounded);
     	end
     	else begin
     		logic dirUp = 0;
@@ -797,8 +792,7 @@ package Arith;
 
     		interRounded = normalizeAdded(interRounded);
 
-    		    		$displayh("inter__B____: %p\ninterRounded: %p", inter, interRounded);
-
+    		//    $displayh("inter__B____: %p\ninterRounded: %p", inter, interRounded);
     	end
 
     	if (interRounded.mantissa == 0) begin
@@ -808,45 +802,27 @@ package Arith;
 
     	res = fromIntermediate(interRounded);
 
-    		$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
+    	//	$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
 
     	return '{'{inexact: isInexact, default: 0}, res};
     endfunction
 
 
-    typedef enum {
-    	R_EQUAL, R_GREATER, R_LESS, R_UNORDERED
-    } Relation;
-
-
-    typedef enum {
-    	CMP_EQ, CMP_NE,
-    	CMP_GT, CMP_GE, CMP_GU, CMP_NG,
-    	CMP_LT, CMP_LE, CMP_LU, CMP_NL,
-    	CMP_UN, CMP_OR
-    } CmpPredicate;
-
 
     function automatic FpResult32 TMP_cmpF32(input FpFormat32 a, input FpFormat32 b, input CmpPredicate pred, input logic signalling);
     	logic answer;
+    	Relation r;
 
-    	// Magnitude
     	Word ma = absF32(a);
     	Word mb = absF32(b);
 
-    	Relation r;
-
-    	if (isSNaN(a) || isSNaN(b)) begin
-    		// Signal Invqlid 
+    	if (isSNaN(a) || isSNaN(b))
     		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
-    	end
 
     	r = cmpInternalF32(a, b);
 
-    	if (signalling && (r == R_UNORDERED)) begin
-    		// signal Invalid
+    	if (signalling && (r == R_UNORDERED))
     		return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN}; // ???
-    	end
 
     	case (pred)
     		CMP_EQ: answer = r == R_EQUAL;
@@ -866,36 +842,29 @@ package Arith;
     		CMP_OR: answer = r != R_UNORDERED;
     	endcase
 
-    	if (answer) return '{NO_EXCEPTION, FP32_PLUS_MIN_SUBN};
-    	else return '{NO_EXCEPTION, FP32_PLUS_ZERO};
+    	if (answer) return '{NO_EXCEPTION, 1};
+    	else return '{NO_EXCEPTION, 0};
     endfunction
 
 
 
     function automatic Relation cmpInternalF32(input FpFormat32 a, input FpFormat32 b);
-    	logic eq, gt = 0, lt = 0, un = 0, invalid = 1;
-
-    	// Magnitude
     	Word ma = absF32(a);
     	Word mb = absF32(b);
 
-    	if (isNaN(a) || isNaN(b)) return R_UNORDERED;
-    	else if (isZero(a) && isZero(b)) return R_EQUAL;
+    	if (isNaN(a) || isNaN(b))
+    		return R_UNORDERED;
+    	else if (isZero(a) && isZero(b))
+    		return R_EQUAL;
     	else if (!a.sign && !b.sign) begin
-    		gt = ma > mb;
-    		lt = ma < mb;
-    		eq = ma == mb;
-
     		if (ma > mb) return R_GREATER;
     		if (ma < mb) return R_LESS;
     		return R_EQUAL;
     	end
-    	else if (!a.sign && b.sign) begin
+    	else if (!a.sign && b.sign)
     		return R_GREATER;
-    	end
-    	else if (a.sign && !b.sign) begin
+    	else if (a.sign && !b.sign)
     		return R_LESS;
-    	end
     	else if (a.sign && b.sign) begin
     		if (ma > mb) return R_LESS;
     		if (ma < mb) return R_GREATER;
@@ -973,12 +942,11 @@ package Arith;
 
 			interRounded = roundInter(inter, rm);
 
-				$display(" conv: %016X  -> (%d) %016X // (%d) %016X", absX, exp, mantissa,  exp,  mantissaC);
+			//	$display(" conv: %016X  -> (%d) %016X // (%d) %016X", absX, exp, mantissa,  exp,  mantissaC);
 
 			result = fromIntermediate(interRounded);
 
-				$displayh("    rounded: %p\n %d -> %.2f", interRounded,  x, $bitstoshortreal(result));
-
+			//	$displayh("    rounded: %p\n %d -> %.2f", interRounded,  x, $bitstoshortreal(result));
 
 			return '{'{inexact: inexact, default: 0}, result};
     	end
@@ -986,16 +954,12 @@ package Arith;
     endfunction
 
 
-
-
     // FP -> Int: when is input out of range?
     // range u32: [0, 2^32)		 - sign 0, exp 127+31 ; -0 is allowed!   What about range (-1, 0) if rounded up?
     // range s32: [-2^31, 2^31)  - exp 127+30; if sign 1, then exp 127+31 with 0 mantissa is allowed	
     // range u64: [0, 2^64)		 - sign 0, exp 127+63 ; -0 is allowed!   What about range (-1, 0) if rounded up?
     // range s64: [-2^63, 2^63)  - exp 127+62; if sign 1, then exp 127+63 with 0 mantissa is allowed
-
-    // 
-    function automatic FpResult32 fp64toInt32(input FpFormat32 x, input Rounding rm, input logic isSigned);
+    function automatic FpResult32 fp32toInt32(input FpFormat32 x, input Rounding rm, input logic isSigned);
     	if (isSNaN(x))
     		return '{'{invalid: 1, default: 0}, 0};
 
@@ -1008,21 +972,14 @@ package Arith;
 	    	Dword mantissaSh;
 	    	Word intValue;
 
-	    	//FpIntermediate inter = convToIntermediate(x);
 	    	FpResult32 fpRounded = TMP_roundToInteger(x, rm);
 	    	FpIntermediate inter = convToIntermediate(fpRounded.value);
-
-	    	// mantissa bit [23] at exp 127 goes to bit [0] of result
-	    	// exp = 127 -> sh = 23 (right)
-	    	// exp = 128 -> sh = 22 (right)
-	    	// exp = 130 -> sh = 20 (right)
 
 	    	int shiftNeeded = 127 - inter.exp + 23;
 
 	    	// Check range
 	    	if (isSigned) begin
 	    		// Effective power above 30 is invalid, unless special case: sign negative, eff power == 31 AND mantissa[32+22:32] == 0
-
 	    		if (int'(inter.exp) - 127 > 30) begin
 	    			if (inter.sign && inter.exp - 127 == 31 && inter.mantissa[22+32:32] === 0) /* Allowed */;
 	    			else
@@ -1030,14 +987,10 @@ package Arith;
 	    		end
 	    	end
 	    	else begin
-	    			//$display(">> %d", int'(inter.exp)-127);
-
-	    		// Effective power above 31 is invalid  
-	    		if (int'(inter.exp) - 127 > 31)
+	    		if (int'(inter.exp) - 127 > 31) // Effective power above 31 is invalid
 	    			return '{'{invalid: 1, default: 0}, 0};
 
-	    		// Negative are invalid unless zero
-	    		if (inter.sign && !isZero(x))
+	    		if (inter.sign && !isZero(x)) // Negative are invalid unless zero
 	    			return '{'{invalid: 1, default: 0}, 0};
 	    	end
 
@@ -1056,6 +1009,12 @@ package Arith;
 
 	    	return res;
     	end
+    endfunction
+
+
+
+    function automatic FpResult32 floatAdd32(input Word arg0, input Word arg1, input Rounding rd);
+
     endfunction
 
 

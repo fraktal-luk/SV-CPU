@@ -154,7 +154,7 @@ package UopList;
         "rem_s":      UOP_int_rems,
         "rem_u":      UOP_int_remu,
         
-        "mov_f":      UOP_fp_move,
+       // "mov_f":      UOP_fp_move,
         "xor_f":      UOP_fp_xor,
         "and_f":      UOP_fp_and,
         "or_f":       UOP_fp_or,
@@ -189,11 +189,11 @@ package UopList;
         "ldf_d":      UOP_mem_ldfd,
         "stf_d":      UOP_mem_stfd,
 
-            "e_lb":    UOP_mem_ldib,
-            "e_sb":    UOP_mem_stib,
+            "ld_b":    UOP_mem_ldib,
+            "st_b":    UOP_mem_stib,
 
-            "e_ldaq":   UOP_mem_lda,
-            "e_stc":    UOP_mem_stc,
+            "ldaq":   UOP_mem_lda,
+            "stc":    UOP_mem_stc,
 
             "mb_ld_b":  UOP_mem_mb_ld_b,
             "mb_ld_f":  UOP_mem_mb_ld_f,

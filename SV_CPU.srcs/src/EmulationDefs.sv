@@ -5,6 +5,9 @@ package EmulationDefs;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
+        import ControlRegisters::*;
+        
+        import Arith::*;
 
 
     typedef struct {
@@ -34,13 +37,48 @@ package EmulationDefs;
 
 
     // Not including memory
-//    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
-//        return ins.def.o inside { O_floatMove, O_floatOr, O_floatAddInt };
-//    endfunction    
+    function automatic logic isFloatCalcIns(input AbstractInstruction ins);
+        return ins.def.o inside {
+            O_floatMove32,
+            O_floatNeg32,
+            O_floatAbs32,
+            O_floatCpys32,
+
+
+            O_floatXor,
+            O_floatAnd,
+            O_floatOr,
+            O_floatAddInt,
+            O_floatMulInt,
+            O_floatDivInt,
+
+            O_floatGenInv,
+            O_floatGenOv,
+
+            O_floatAdd32,
+            O_floatSub32,
+            O_floatMul32,
+            O_floatDiv32,
+
+            O_floatCmpEq32,
+            O_floatCmpGe32,
+            O_floatCmpGt32,
+
+            O_floatAdd64,
+            O_floatSub64,
+            O_floatMul64,
+            O_floatDiv64,
+
+            O_floatCmpEq64,
+            O_floatCmpGe64,
+            O_floatCmpGt64
+        };
+    endfunction
+
 
     function automatic logic requiresFP(input AbstractInstruction ins);
         return ins.mnemonic inside {
-            "mov_f",
+            //"mov_f",
             "xor_f",
             "and_f",
             "or_f",
@@ -245,8 +283,19 @@ package EmulationDefs;
     endfunction
 
 
-    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
+
+
+        function automatic Mword addFp32(input Word arg0, input Word arg1, input Rounding rd);
+            Word res = $shortrealtobits($bitstoshortreal(arg0) + $bitstoshortreal(arg1));
+            return $unsigned(res);
+        endfunction
+
+
+
+    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
         Mword result;
+        Rounding rd = convertRM(rm);
+
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
             O_intOr:   result = vals[0] | vals[1];
@@ -258,7 +307,7 @@ package EmulationDefs;
 
             O_intCmpGtU:  result = $unsigned(vals[0]) > $unsigned(vals[1]);
             O_intCmpGtS:  result = $signed(vals[0]) > $signed(vals[1]);
-            
+
             O_intMul:   result = w2m( multiplyW(vals[0], vals[1]) ); 
             O_intMulHU: result = w2m( multiplyHighUnsignedW(vals[0], vals[1]) );
             O_intMulHS: result = w2m( multiplyHighSignedW(vals[0], vals[1]) );
@@ -280,28 +329,33 @@ package EmulationDefs;
                 else                       result = {vals[0], vals[0]} >> -vals[1];
             end
 
-            O_floatMove: result = vals[0];
+            //O_floatMove: result = vals[0];
 
-            O_floatXor:   result = vals[0] ^ vals[1];
-            O_floatAnd:   result = vals[0] & vals[1];
-            O_floatOr:   result = vals[0] | vals[1];
-            O_floatAddInt: result = vals[0] + vals[1];
-            O_floatMulInt: result = vals[0] * vals[1];
-            O_floatDivInt: result = vals[0] / vals[1];
-            O_floatGenInv: result = 1;
-            O_floatGenOv: result = 1;
-            O_floatAdd32: result = $shortrealtobits($bitstoshortreal((vals[0])) + $bitstoshortreal(vals[1]));
-            O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
-            O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
-            O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
-            O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
-            O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
-            O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
+            // O_floatMove32: result = Word'(vals[0]);
+            // O_floatNeg32: result = Word'(vals[0] ^ 'h80000000);
+            // O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF);
+            // O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
 
-            O_floatMove32: result = Word'(vals[0]);// $fatal(2, "kfd");
-            O_floatNeg32: result = Word'(vals[0] ^ 'h80000000); // $fatal(2, "kfd");
-            O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF); //$fatal(2, "kfd");
-            O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
+
+            // O_floatXor:   result = vals[0] ^ vals[1];
+            // O_floatAnd:   result = vals[0] & vals[1];
+            // O_floatOr:   result = vals[0] | vals[1];
+            // O_floatAddInt: result = vals[0] + vals[1];
+            // O_floatMulInt: result = vals[0] * vals[1];
+            // O_floatDivInt: result = vals[0] / vals[1];
+            
+            // O_floatGenInv: result = 1;
+            // O_floatGenOv: result = 1;
+
+
+            // O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
+            //                        addFp32(vals[0], vals[1], rd);
+            // O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
+            // O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
+            // O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
+            // O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
+            // O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
+            // O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
@@ -311,6 +365,48 @@ package EmulationDefs;
         
         return result;
     endfunction
+
+
+
+    function automatic FpResult32 calculateResultFP(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
+        FpResult32 result;
+        //FpResult32 fpRes;
+        Rounding rd = convertRM(rm);
+
+        case (ins.def.o)
+            O_floatMove32: result = '{NO_EXCEPTION, Word'(vals[0])};
+            O_floatNeg32: result = '{NO_EXCEPTION,  Word'(vals[0] ^ 'h80000000)};
+            O_floatAbs32: result = '{NO_EXCEPTION, Word'(vals[0] & 'h7FFFFFFF)};
+            O_floatCpys32: result = '{NO_EXCEPTION, Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) )}; 
+
+
+            O_floatXor:   result = '{NO_EXCEPTION, vals[0] ^ vals[1]};
+            O_floatAnd:   result = '{NO_EXCEPTION, vals[0] & vals[1]};
+            O_floatOr:   result = '{NO_EXCEPTION, vals[0] | vals[1]};
+            O_floatAddInt: result = '{NO_EXCEPTION, vals[0] + vals[1]};
+            O_floatMulInt: result = '{NO_EXCEPTION, vals[0] * vals[1]};
+            O_floatDivInt: result = '{NO_EXCEPTION, vals[0] / vals[1]};
+
+            O_floatGenInv: result = '{'{invalid: 1, default: 0}, 1};
+            O_floatGenOv: result = '{'{overflow: 1, default: 0}, 1};
+
+
+            O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
+                                   //'{NO_EXCEPTION, addFp32(vals[0], vals[1], rd)};
+                                   TMP_addF32(vals[0], vals[1], rd);
+            O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
+            O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
+            O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
+            O_floatCmpEq32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]))};
+            O_floatCmpGe32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]))};
+            O_floatCmpGt32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]))};
+
+            default: $fatal(2, "Unknown operation %p", ins.def.o);
+        endcase
+
+        return result;
+    endfunction
+
 
 
     function automatic Mword calculateEffectiveAddress(input AbstractInstruction ins, input Mword3 vals);
@@ -409,18 +505,22 @@ package EmulationDefs;
 
 
 
-        function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
-            // TODO: handle FP config correctly
+    function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
+        if (!fpEnabled && requiresFP(ins)) begin
+            return FP_DISABLED_INS;
+        end
+        else 
+            return ins;
+    endfunction
 
-               // if (requiresFP(ins)) $error("FP rquired:\n%p", ins);
 
-            if (!fpEnabled && requiresFP(ins)) begin
-                  //  $error("sup ins: %p", ins);
-                return FP_DISABLED_INS;
-            end
-            else 
-                return ins;
-        endfunction
-
+    function automatic Rounding convertRM(input RoundingMode rm);
+        case (rm)
+            RM_Even: return RoundNearestEven;
+            RM_Up: return RoundPlusInf;
+            RM_Down: return RoundMinusInf;
+            RM_Zero: return RoundZero; 
+        endcase
+    endfunction
 
 endpackage

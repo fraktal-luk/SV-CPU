@@ -182,8 +182,15 @@ package AbstractSim;
             ES_INVALID,
             ES_NONEXISTENT,
 
+
             ES_FP_INVALID,
-            ES_FP_OVERFLOW
+            ES_FP_DIV0,
+            ES_FP_OVERFLOW,
+            ES_FP_UNDERFLOW,
+            ES_FP_INEXACT,
+
+            ES_FP_OV_INEXACT,
+            ES_FP_UND_INEXACT
         } ExecStatus;
 
         typedef enum {
@@ -421,7 +428,7 @@ package AbstractSim;
 
         function automatic Mword loadValue(input Mword w, input UopName uop);
             case (uop)
-                UOP_mem_ldi: return (w);
+                UOP_mem_ldi: return $signed(Word'(w));
                 UOP_mem_ldid: return w;
                 UOP_mem_ldib: return Mword'(w[7:0]);
                 UOP_mem_ldf: return (w);

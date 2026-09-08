@@ -7,7 +7,7 @@ $start
 	sti_i r31, r8, 0
 	sys_sync
 	
-	e_lb r10, r8, 1 ; should be 0x000000ff
+	ld_b r10, r8, 1 ; should be 0x000000ff
 	add_i r11, r10, -255
 	jnz_i r11, $error
 	

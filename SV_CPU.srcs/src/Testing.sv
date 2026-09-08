@@ -352,7 +352,7 @@ package Testing;
 
             assert (actual === expected) else begin
                 $error("Mem compare (word %d): actual %x, expected %x", ind, actual, expected);
-                $error("%p", actualMem);
+                //$error("%p", actualMem);
             end
         end
     endfunction

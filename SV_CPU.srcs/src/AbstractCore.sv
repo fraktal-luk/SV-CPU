@@ -372,7 +372,8 @@ module AbstractCore
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-        Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+        logic[1:0] rm = renamedEmul.cregs.fpStatus.roundingMode; 
+        Mword result = renamedEmul.computeResult(adr, ins, rm); // Must be before modifying state. For ins map
 
         runInEmulator(renamedEmul, adr, opSlot.bits);
 
@@ -503,8 +504,17 @@ module AbstractCore
             if (theId == (eventUnit.fpInv.id)) begin
                 sysUnit.setFpInv();
             end
+            if (theId == (eventUnit.fpDiv0.id)) begin
+                sysUnit.setFpDiv0();
+            end
             if (theId == (eventUnit.fpOv.id)) begin
                 sysUnit.setFpOv();
+            end
+            if (theId == (eventUnit.fpUnd.id)) begin
+                sysUnit.setFpUnd();
+            end
+            if (theId == (eventUnit.fpInex.id)) begin
+                sysUnit.setFpInex();
             end
 
             syncCurrentConfigFromRegs();
@@ -909,7 +919,7 @@ module AbstractCore
     function automatic void syncCurrentConfigFromRegs();
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-        CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17]; // TODO: drop it
+      //  CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17]; // TODO: drop it
             CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
             CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
             CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];

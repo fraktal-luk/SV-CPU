@@ -139,16 +139,51 @@ module FloatSubpipe(
 
 
     function automatic UopPacket performFP(input UopPacket p);        
-        UopPacket res = performRegularE0(p);
-        
+        UopPacket res = p;
+        FpResult32 fpRes;
+
         if (p.TMP_oid == UIDT_NONE) return res;
         
-        if (decUname(p.TMP_oid) == UOP_fp_inv) res.status = ES_FP_INVALID;
-        else if (decUname(p.TMP_oid) == UOP_fp_ov) res.status = ES_FP_OVERFLOW;
-        
-        if (//res.status inside {ES_FP_INVALID, ES_FP_OVERFLOW} && AbstractCore.CurrentConfig.enArithExc
-            res.status == ES_FP_INVALID && (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInv)
-         || res.status == ES_FP_OVERFLOW && (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapOv)
+        begin
+            fpRes = calcRegularFpOp(p.TMP_oid);
+            res.result = fpRes.value;
+
+            if (fpRes.exc.invalid) begin
+                res.status = ES_FP_INVALID;
+            end
+            
+            if (fpRes.exc.div0) begin
+                res.status = ES_FP_DIV0;
+            end
+
+            if (fpRes.exc.overflow) begin
+                res.status = ES_FP_OVERFLOW;
+            end
+
+            if (fpRes.exc.underflow) begin
+                res.status = ES_FP_UNDERFLOW;
+            end
+
+            if (fpRes.exc.inexact) begin
+                if (fpRes.exc.overflow)
+                    res.status = ES_FP_OV_INEXACT;
+                else if (fpRes.exc.underflow)
+                    res.status = ES_FP_UND_INEXACT;
+                else
+                    res.status = ES_FP_INEXACT;
+            end
+        end
+
+
+        // TODO: full set of exc including combined Inexact+Overflow, Inexact+Underflow
+        //       Priority: Inexact over Ov/Und
+
+        if (
+            fpRes.exc.invalid && AbstractCore.CurrentConfig.enTrapInv
+         || fpRes.exc.overflow && AbstractCore.CurrentConfig.enTrapOv
+         || fpRes.exc.inexact && AbstractCore.CurrentConfig.enTrapInex
+         || fpRes.exc.underflow && AbstractCore.CurrentConfig.enTrapUnd
+         || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
             )
         begin
             insMap.setException(U2M(p.TMP_oid), PE_ARITH_EXCEPTION);
