@@ -182,10 +182,15 @@ package AbstractSim;
             ES_INVALID,
             ES_NONEXISTENT,
 
-            ES_FP_INVALID,
-            ES_FP_OVERFLOW,
 
-            ES_FP_INEXACT
+            ES_FP_INVALID,
+            ES_FP_DIV0,
+            ES_FP_OVERFLOW,
+            ES_FP_UNDERFLOW,
+            ES_FP_INEXACT,
+
+            ES_FP_OV_INEXACT,
+            ES_FP_UND_INEXACT
         } ExecStatus;
 
         typedef enum {
