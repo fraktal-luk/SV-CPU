@@ -466,17 +466,33 @@ module AbstractCore
 
 
     task automatic advanceCommit();
-        logic foundEvent = 0;
-        EventInfo lateEvt;
+        logic foundEvent = 0, foundEvent_N = 0;
+        EventInfo lateEvt, lateEvt_N;
 
         foreach (theRob.prevRow[i]) begin
             InsId theId = theRob.prevRow[i].mid;
             InstructionInfo ii;
 
             if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
-            if (foundEvent) $fatal(2, "Committing after break");
+            if (foundEvent_N) $fatal(2, "Committing after breaking op");
 
             ii = insMap.get(theId);
+
+
+            // RET: generate late event
+            if (breaksCommitId(theId)) begin
+                foundEvent_N = 1; // Don't commit anything more if event is being handled
+                lateEvt_N = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
+
+                TMP_checkCtrl(theId, ii);
+            end
+        end
+
+
+        foreach (theRob.prevRow[i]) begin
+            InsId theId = theRob.prevRow[i].mid;
+
+            if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
 
             commitOp(theId);
 
@@ -489,18 +505,12 @@ module AbstractCore
             syncCurrentConfigFromRegs();
 
             lastRetired <= theId;
-
-            // RET: generate late event
-            if (breaksCommitId(theId)) begin
-                foundEvent = 1; // Don't commit anything more if event is being handled
-                lateEvt = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
-
-                TMP_checkCtrl(theId, ii);
-            end
         end
 
-        releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
+        foundEvent = foundEvent_N;
+        lateEvt = lateEvt_N;
 
+        releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
 
         // TODO: correctly prioritize event sources
 
