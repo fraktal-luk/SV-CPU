@@ -453,30 +453,6 @@ module AbstractCore
     endfunction
 
 
-    task automatic fireLateEvent();
-        if (lateEventInfoWaiting.active !== 1) return;
-
-        if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
-            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaiting.etype);
-            lateEventInfo <= lateEventInfoWaiting;
-        end
-        else begin
-            Mword sr2 = sysUnit.sysRegs[2];
-            Mword sr3 = sysUnit.sysRegs[3];
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
-
-            sysUnit.modifyStateSync(lateEventInfoWaiting.adr,
-                                    eventUnit.lastEvtAD, eventUnit.lastEvtTr,
-                                    eventUnit.general.etype);
-            lateEventInfo <= lateEvt;
-        end
-
-        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
-        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
-    endtask
-
-
     task automatic advanceCommit();
         logic foundEvent = 0;
         EventInfo lateEvt;
@@ -526,9 +502,8 @@ module AbstractCore
             eventUnit.setHandling();
         end
 
-        if (eventUnit.resetEvt.active
-                                    && !lateEventInfo.active && !lateEventInfoWaiting.active
-                                    && theRob.isEmpty
+
+        if (eventUnit.resetEvt.active           && !lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
         ) begin
             lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
@@ -536,10 +511,8 @@ module AbstractCore
 
             eventUnit.setHandling();
         end
-        else if (eventUnit.interruptEvt.active
-                                    && !lateEventInfo.active && !lateEventInfoWaiting.active
-                                    && theRob.isEmpty
-                            ) begin
+        else if (eventUnit.interruptEvt.active  && !lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
+        ) begin
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
@@ -554,6 +527,29 @@ module AbstractCore
 
         if (wqFree) fireLateEvent();
     endtask
+
+
+    task automatic fireLateEvent();
+        if (lateEventInfoWaiting.active !== 1) return;
+
+        if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaiting.etype);
+            lateEventInfo <= lateEventInfoWaiting;
+        end
+        else begin
+            Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
+            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
+
+            sysUnit.modifyStateSync(lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
+            lateEventInfo <= lateEvt;
+        end
+
+        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
+    endtask
+
+
 
 
     function automatic void checkUops(input InsId id);

@@ -28,10 +28,10 @@ module EventUnit(input logic clk);
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
 
-    EventDesc frontH = EMPTY_EVENT_DESC, front = EMPTY_EVENT_DESC,
+    EventDesc   frontH = EMPTY_EVENT_DESC, front = EMPTY_EVENT_DESC,
                 dbStepH = EMPTY_EVENT_DESC, dbStep = EMPTY_EVENT_DESC, // Separate because can be overridden by exception
-              execMemH = EMPTY_EVENT_DESC, execMem = EMPTY_EVENT_DESC,
-              execArithH = EMPTY_EVENT_DESC, execArith = EMPTY_EVENT_DESC,
+                execMemH = EMPTY_EVENT_DESC, execMem = EMPTY_EVENT_DESC,
+                execArithH = EMPTY_EVENT_DESC, execArith = EMPTY_EVENT_DESC,
                 fpInvH = EMPTY_EVENT_DESC, fpInv = EMPTY_EVENT_DESC,
                 fpDiv0H = EMPTY_EVENT_DESC, fpDiv0 = EMPTY_EVENT_DESC,
                 fpOvH = EMPTY_EVENT_DESC, fpOv = EMPTY_EVENT_DESC,
@@ -40,12 +40,12 @@ module EventUnit(input logic clk);
                 fpOvInexH = EMPTY_EVENT_DESC,
                 fpUndInexH = EMPTY_EVENT_DESC,
 
-              execRefetchH = EMPTY_EVENT_DESC, execRefetch = EMPTY_EVENT_DESC,
-              lqRefetchH = EMPTY_EVENT_DESC, lqRefetch = EMPTY_EVENT_DESC,
+                execRefetchH = EMPTY_EVENT_DESC, execRefetch = EMPTY_EVENT_DESC,
+                lqRefetchH = EMPTY_EVENT_DESC, lqRefetch = EMPTY_EVENT_DESC,
 
-              interruptH = EMPTY_EVENT_DESC, interrupt = EMPTY_EVENT_DESC,
-              nmiH = EMPTY_EVENT_DESC, nmi = EMPTY_EVENT_DESC,
-              generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC,
+                interruptH = EMPTY_EVENT_DESC, interrupt = EMPTY_EVENT_DESC,
+                nmiH = EMPTY_EVENT_DESC, nmi = EMPTY_EVENT_DESC,
+                generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC,
                 interruptEvtH = EMPTY_EVENT_DESC, interruptEvt = EMPTY_EVENT_DESC,
                 resetEvtH = EMPTY_EVENT_DESC, resetEvt = EMPTY_EVENT_DESC,
                 dbEvtH = EMPTY_EVENT_DESC, dbEvt = EMPTY_EVENT_DESC;
@@ -225,10 +225,8 @@ module EventUnit(input logic clk);
             int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
-            lastEvtAD <= //theExecBlock.accessDescs_E2[inds[0]];
-                            mn.adE2[inds[0]];
-            lastEvtTr <= //theExecBlock.dcacheTranslations_E2[inds[0]];
-                            mn.trE2[inds[0]];
+            lastEvtAD <= mn.adE2[inds[0]];
+            lastEvtTr <= mn.trE2[inds[0]];
         end
     endtask
 
@@ -241,7 +239,6 @@ module EventUnit(input logic clk);
 
         if (prevId == -1) older = next;
         else if (nextId != -1 && prevId > nextId) older = next;
-        //else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions 
 
         assert (olderId == (older.id)) else $error("Ids differ");
 
