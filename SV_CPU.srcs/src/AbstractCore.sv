@@ -42,7 +42,6 @@ module AbstractCore
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
-
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
     Mword insAdr;       // DB?
@@ -58,14 +57,14 @@ module AbstractCore
     struct {
         logic enableMmu = 0;
         logic dbStep = 0;
-        logic enArithExc = 0;
-            logic enableFP = 0;
-            RoundingMode rm = RM_Even;
-            logic enTrapInv = 0;
-            logic enTrapDiv0 = 0;
-            logic enTrapOv = 0;
-            logic enTrapUnd = 0;
-            logic enTrapInex = 0; 
+            logic enArithExc = 0; // Remove?
+        logic enableFP = 0;
+        RoundingMode rm = RM_Even;
+        logic enTrapInv = 0;
+        logic enTrapDiv0 = 0;
+        logic enTrapOv = 0;
+        logic enTrapUnd = 0;
+        logic enTrapInex = 0; 
     } CurrentConfig;
 
     // Overall
@@ -116,6 +115,7 @@ module AbstractCore
     EventUnit eventUnit(clk);
 
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1_N.arr);
+
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
         theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
@@ -166,7 +166,7 @@ module AbstractCore
 
         sysUnit.handleReads();
 
-        advanceCommit(); // commitInds,    lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
+        advanceCommit(); // commitInds, lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
@@ -187,7 +187,7 @@ module AbstractCore
 
         syncCurrentConfigFromRegs();
 
-        insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops form base if csq still contains something that would be deleted
+        insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops from base if csq still contains something that would be deleted
     end
 
 
@@ -249,16 +249,6 @@ module AbstractCore
     endtask
 
 
-    // Helper (inline it?)
-    function logic regsAccept(input int nI, input int nF);
-        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
-    endfunction
-
-    function logic bcQueueAccepts(input int k);
-        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH;// - FETCH_QUEUE_SIZE*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
-    endfunction
-
-
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
         OpSlotAF ops = theFrontend.stageRename0.arr;
@@ -283,9 +273,8 @@ module AbstractCore
 
 
     task automatic redirectRest();
-       // stageRename1 <= '{default: EMPTY_SLOT_B};
         markKilledRenameStage(stageRename1_N.arr);
-            stageRename1_N <= DEFAULT_FRONT_STAGE;
+        stageRename1_N <= DEFAULT_FRONT_STAGE;
 
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
@@ -349,21 +338,21 @@ module AbstractCore
 
 
     task automatic renameOp(input InsId id,
-                                input OpSlotF opSlot,
+                            input OpSlotF opSlot,
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
                             input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
+
         AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
-                // TODO: based on CurrentConfig, convert disabled instructions to static exceptions
-            AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
-
+        // Based on CurrentConfig, Convert disabled instructions to static exceptions
+        AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;
+        Mword target;
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
-        Mword target;
 
         UopName uopName = decodeUop(ins);
         logic staticExc = isStaticEventIns(ins);
@@ -410,7 +399,6 @@ module AbstractCore
         ii.mainUop = uopName;
         ii.inds = renameInds;
         ii.basicData.target = target;
-
         ii.firstUop = insMap.insBase.lastU + 1;
         ii.nUops = -1;
 
@@ -469,7 +457,7 @@ module AbstractCore
         if (lateEventInfoWaiting.active !== 1) return;
 
         if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
-            sysUnit.saveStateAsync(theRob.trg /*retiredTarget*/, lateEventInfoWaiting.etype);
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaiting.etype);
             lateEventInfo <= lateEventInfoWaiting;
         end
         else begin
@@ -501,21 +489,11 @@ module AbstractCore
 
             commitOp(theId);
 
-            if (theId == (eventUnit.fpInv.id)) begin
-                sysUnit.setFpInv();
-            end
-            if (theId == (eventUnit.fpDiv0.id)) begin
-                sysUnit.setFpDiv0();
-            end
-            if (theId == (eventUnit.fpOv.id)) begin
-                sysUnit.setFpOv();
-            end
-            if (theId == (eventUnit.fpUnd.id)) begin
-                sysUnit.setFpUnd();
-            end
-            if (theId == (eventUnit.fpInex.id)) begin
-                sysUnit.setFpInex();
-            end
+            if (theId == (eventUnit.fpInv.id))  sysUnit.setFpInv();
+            if (theId == (eventUnit.fpDiv0.id)) sysUnit.setFpDiv0();
+            if (theId == (eventUnit.fpOv.id))   sysUnit.setFpOv();
+            if (theId == (eventUnit.fpUnd.id))  sysUnit.setFpUnd();
+            if (theId == (eventUnit.fpInex.id)) sysUnit.setFpInex();
 
             syncCurrentConfigFromRegs();
 
@@ -683,7 +661,6 @@ module AbstractCore
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
 
-
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
@@ -732,9 +709,9 @@ module AbstractCore
         if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
         if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda}) markers.mbF = id;
 
-        if (isLoadMemUop(mainUop)) markers.load = id;
+        if (isLoadMemUop(mainUop))  markers.load = id;
         if (isStoreMemUop(mainUop)) markers.store = id;
-        if (isLoadAqUop(mainUop)) markers.loadAq = id;
+        if (isLoadAqUop(mainUop))   markers.loadAq = id;
         if (isStoreRelUop(mainUop)) markers.storeRel = id;
     endfunction
 
@@ -919,14 +896,13 @@ module AbstractCore
     function automatic void syncCurrentConfigFromRegs();
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-      //  CurrentConfig.enArithExc <= sysUnit.sysRegs[1][17]; // TODO: drop it
-            CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
-            CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
-            CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];
-            CurrentConfig.enTrapDiv0 = sysUnit.sysRegs[8][9];
-            CurrentConfig.enTrapOv = sysUnit.sysRegs[8][8];
-            CurrentConfig.enTrapUnd = sysUnit.sysRegs[8][7];
-            CurrentConfig.enTrapInex = sysUnit.sysRegs[8][6];
+        CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
+        CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
+        CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];
+        CurrentConfig.enTrapDiv0 = sysUnit.sysRegs[8][9];
+        CurrentConfig.enTrapOv = sysUnit.sysRegs[8][8];
+        CurrentConfig.enTrapUnd = sysUnit.sysRegs[8][7];
+        CurrentConfig.enTrapInex = sysUnit.sysRegs[8][6];
     endfunction
 
 
@@ -948,18 +924,17 @@ module AbstractCore
     // Depends on insMap
     function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
         UopName uname = info.mainUop;
-        Mword own = info.basicData.adr;
         Mword executed = 'x;
         logic taken = 'x;
 
         if (isBranchUop(uname)) begin 
-            assert (entries.size() == 1) else $fatal(2, "Brnhc not in BQ\n%p", info);
+            assert (entries.size() == 1) else $fatal(2, "Branch not in BQ\n%p", info);
             executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
             taken = entries[0].taken;
         end
 
         if (isBranchUop(uname) && taken) return executed;
-        else return own + 4;
+        else return info.basicData.adr + 4;
     endfunction
 
 

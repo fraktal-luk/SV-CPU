@@ -1242,4 +1242,13 @@ package AbstractSim;
         } ReadResult;
 
 
+    // Helper (inline it?)
+    function logic regsAccept(input int nI, input int nF);
+        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
+    endfunction
+
+    function logic bcQueueAccepts(input int k);
+        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+    endfunction
+
 endpackage
