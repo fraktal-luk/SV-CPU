@@ -453,15 +453,30 @@ module AbstractCore
     endfunction
 
 
+
+    function automatic void TMP_checkCtrl(input InsId theId, input InstructionInfo ii);
+        if (eventUnit.general.id == theId) begin
+            assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
+        end
+        else begin
+            assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
+            else $fatal(2, "Event in map not registered in HW\n%p", ii);
+        end
+    endfunction
+
+
     task automatic advanceCommit();
         logic foundEvent = 0;
         EventInfo lateEvt;
 
         foreach (theRob.prevRow[i]) begin
             InsId theId = theRob.prevRow[i].mid;
+            InstructionInfo ii;
 
             if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
             if (foundEvent) $fatal(2, "Committing after break");
+
+            ii = insMap.get(theId);
 
             commitOp(theId);
 
@@ -477,18 +492,10 @@ module AbstractCore
 
             // RET: generate late event
             if (breaksCommitId(theId)) begin
-                InstructionInfo ii = insMap.get(theId);
                 foundEvent = 1; // Don't commit anything more if event is being handled
                 lateEvt = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
 
-                if (eventUnit.general.id == theId) begin
-                    assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
-                end
-                else begin
-                    assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
-                    else $fatal(2, "Event in map not registered in HW\n%p", ii);
-                end
-
+                TMP_checkCtrl(theId, ii);
             end
         end
 
