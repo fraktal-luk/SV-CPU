@@ -111,15 +111,15 @@ module EventUnit(input logic clk);
 
 
     function automatic EventDesc getFrontEv();
-        OpSlotB found[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active && hasStaticEvent(item.mid));
-        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
+        OpSlotB found[$] = AbstractCore.stageRename1.arr.find_first with (item.active && hasStaticEvent(item.mid));
+        OpSlotB foundAny[$] = AbstractCore.stageRename1.arr.find_first with (item.active);
         // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
-        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+        if (!AbstractCore.stageRename1.active) return EMPTY_EVENT_DESC;
 
         assert (foundAny.size() > 0) else $error("Renamed group active, must have active element");
 
-        if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
+        if (AbstractCore.stageRename1.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1.evt};
 
         if (found.size() == 0) return EMPTY_EVENT_DESC;
 
@@ -127,9 +127,9 @@ module EventUnit(input logic clk);
     endfunction
 
     function automatic EventDesc getDbEv();
-        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
+        OpSlotB foundAny[$] = AbstractCore.stageRename1.arr.find_first with (item.active);
 
-        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+        if (!AbstractCore.stageRename1.active) return EMPTY_EVENT_DESC;
 
         if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
         else return EMPTY_EVENT_DESC;

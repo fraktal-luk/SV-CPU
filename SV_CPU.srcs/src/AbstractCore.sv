@@ -110,24 +110,24 @@ module AbstractCore
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
     // Rename
-    FrontStage stageRename1_N = DEFAULT_FRONT_STAGE;
+    FrontStage stageRename1 = DEFAULT_FRONT_STAGE;
 
     EventUnit eventUnit(clk);
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1_N.arr);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1.arr);
 
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1_N.arr);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
 
     bind StoreQueue: theSq TmpSubSq submod();
     bind StoreQueue: theLq TmpSubLq submod();
     bind StoreQueue: theBq TmpSubBr submod();
 
-    IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1_N.arr);
+    IssueQueueComplex theIssueQueues(insMap, branchEventInfo, lateEventInfo, stageRename1.arr);
 
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
@@ -267,14 +267,14 @@ module AbstractCore
             if (ops[i].branch) bi++;
         end
 
-        stageRename1_N <= theFrontend.stageRename0;
-        stageRename1_N.arr <= ops;
+        stageRename1 <= theFrontend.stageRename0;
+        stageRename1.arr <= ops;
     endtask
 
 
     task automatic redirectRest();
-        markKilledRenameStage(stageRename1_N.arr);
-        stageRename1_N <= DEFAULT_FRONT_STAGE;
+        markKilledRenameStage(stageRename1.arr);
+        stageRename1 <= DEFAULT_FRONT_STAGE;
 
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
@@ -575,26 +575,23 @@ module AbstractCore
         InstructionInfo info = insMap.get(id);
 
         Mword trg = retiredEmul.coreState.target; // DB
-        Mword nextTrg;
-        Mword expectedTargetFloor = trg;
 
         InstructionMap::Milestone retireType = info.dynamicEvt ? InstructionMap::RetireException : (info.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
 
         logic eventPresent = (
-                    CurrentConfig.dbStep ||
-                    info.refetch ||
-                    info.dynamicEvt ||
-                    info.staticEvt ||
-                    info.silentEvt
-            );
+            CurrentConfig.dbStep ||
+            info.refetch ||
+            info.dynamicEvt ||
+            info.staticEvt ||
+            info.silentEvt
+        );
 
         logic generalEvent = (eventUnit.general.id == id);
         logic debugEvent = (eventUnit.dbEvt.id == id);
 
         checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
 
-        assert ((generalEvent || debugEvent) === eventPresent)
-        else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, eventUnit.general, CurrentConfig.dbStep);
+        assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, eventUnit.general, CurrentConfig.dbStep);
 
         if (eventPresent) begin
             assert ((eventUnit.general.etype == info.hwEventType)
@@ -602,9 +599,9 @@ module AbstractCore
                 ) else $error("wrong: %p / %p / %p", eventUnit.general.etype, info.hwEventType, eventUnit.dbEvt);
         end
 
-        assert (expectedTargetFloor === info.basicData.adr) else begin
+        assert (trg === info.basicData.adr) else begin
             retiredEmul.getBasicDbView();
-            $fatal(2, "Commit: mm adr %h / %h", expectedTargetFloor, info.basicData.adr);
+            $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
         end
 
         // .emulException implies .exception
@@ -618,9 +615,6 @@ module AbstractCore
         // Normal or Exceptional
         runInEmulator(retiredEmul, info.basicData.adr, info.basicData.bits);
         retiredEmul.drain();
-
-        nextTrg = retiredEmul.coreState.target; // DB
-
         retiredEmul.catchDbTrap();
 
         putMilestoneM(id, retireType);
@@ -907,7 +901,7 @@ module AbstractCore
 
 
     function automatic logic pipesEmpty();
-        return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1_N.active;
+        return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1.active;
     endfunction
 
     function automatic logic hasStaticEvent(InsId id);
@@ -940,7 +934,7 @@ module AbstractCore
 
         logic ch0, ch1, ch2;
         // assign ch0 = stageEmptyAB(stageRename1);
-        // assign ch1 = stageRename1_N.active;
-        // assign ch2 = stageEmptyAB(stageRename1) === !stageRename1_N.active;
+        // assign ch1 = stageRename1.active;
+        // assign ch2 = stageEmptyAB(stageRename1) === !stageRename1.active;
 
 endmodule
