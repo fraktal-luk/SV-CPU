@@ -173,7 +173,6 @@ module EventUnit(input logic clk);
 
     function automatic EventDesc edFromLqRefetch(input InsId id);
         if (id == -1) return EMPTY_EVENT_DESC;
-
         return '{1, id, PE_HW_REFETCH};
     endfunction 
 
@@ -184,9 +183,6 @@ module EventUnit(input logic clk);
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
         uname = decMainUop(slot.mid);
-
-              //  if (uname == UOP_ctrl_fp_disabled) $error("We have FP disabled");
-
         evt = eventFromUop(uname);
 
         return '{1, slot.mid, evt};
@@ -251,16 +247,29 @@ module EventUnit(input logic clk);
         return older;
     endfunction
 
+
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
 
-        if (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInv) begin
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapInv)
             tmp = replaceEvt(tmp, fpInvH);
-        end
 
-        if (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapOv) begin
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapOv)
             tmp = replaceEvt(tmp, fpOvH);
-        end
+
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapUnd)
+            tmp = replaceEvt(tmp, fpUndH);
+
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapInex)
+            tmp = replaceEvt(tmp, fpInexH);
+
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapDiv0)
+            tmp = replaceEvt(tmp, fpDiv0H);
 
         tmp = replaceEvt(tmp, execMemH);
         tmp = replaceEvt(tmp, execRefetchH);
@@ -278,12 +287,6 @@ module EventUnit(input logic clk);
             || interruptEvt.active
             ;
     endfunction 
-
-
-    function automatic void setHandling();
-        //backendState <= BS_HANDLING;
-    endfunction
-
 
     // > Needs ForwardingElement
     function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
@@ -306,6 +309,5 @@ module EventUnit(input logic clk);
         assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
         return oldest[0];
     endfunction
-
 
 endmodule

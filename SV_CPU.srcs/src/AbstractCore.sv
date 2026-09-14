@@ -451,11 +451,8 @@ module AbstractCore
     endtask
 
 
-
-
-
-
     function automatic void TMP_checkCtrl(input InsId theId, input InstructionInfo ii);
+        // TODO: DB is not included in general, so it needs new else if'?
         if (eventUnit.general.id == theId) begin
             assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
         end
@@ -464,7 +461,6 @@ module AbstractCore
             else $fatal(2, "Event in map not registered in HW\n%p", ii);
         end
     endfunction
-
 
 
     task automatic advanceCommit();
@@ -493,8 +489,7 @@ module AbstractCore
 
             lastRetired <= theId;
 
-            if (
-                isControlUop(ii.mainUop) || ii.refetch || ii.exception
+            if (isControlUop(ii.mainUop) || ii.refetch || ii.exception
                 || CurrentConfig.dbStep
             ) begin
                 assert (theRob.prevRowEvent) else $fatal(2, "Event {%d} detected but not known in ROB", theId);
@@ -505,9 +500,7 @@ module AbstractCore
             end
         end
 
-
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
-
     endtask
 
 
@@ -520,20 +513,15 @@ module AbstractCore
             else if (eventUnit.dbEvt.id != -1) begin
                 lateEventInfoWaitingDb <= DB_EVENT;
             end
-            else begin
+            else
                 $fatal(2, "Wrong event detection in ROB");
-            end
-
-            eventUnit.setHandling();
         end
 
 
         if (eventUnit.resetEvt.active           && noWaitingEvents()
         ) begin
             lateEventInfoWaitingReset <= RESET_EVENT;
-            retiredEmul.resetSignal();
-
-            eventUnit.setHandling();
+            retiredEmul.resetSignal();  // TODO: check whether this and interrupt can be done in fireLateEvent
         end
         else if (eventUnit.interruptEvt.active  && noWaitingEvents()
         ) begin
@@ -542,8 +530,6 @@ module AbstractCore
                 $display("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
                 $display("After:      %X", retiredEmul.coreState.target);
-
-            eventUnit.setHandling();
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;
@@ -582,8 +568,7 @@ module AbstractCore
 
 
     function automatic logic noWaitingEvents();
-        return    // !lateEventInfo.active 
-                //&& !lateEventInfoWaiting.active && !lateEventInfoWaitingReset.active && !lateEventInfoWaitingInt.active && !lateEventInfoWaitingDb.active
+        return
                    eventUnit.backendState != BS_HANDLING
                 && theRob.isEmpty;
     endfunction

@@ -586,9 +586,6 @@ package ExecDefs;
     endfunction
 
 
-
-
-
     function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
         assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
         
@@ -601,19 +598,25 @@ package ExecDefs;
     endfunction
 
 
-
     function automatic EventInfo eventFromOp(input Mword adr, input EventDesc eDesc);
         EventInfo res = '{1, eDesc.id, eDesc.etype, 1, 'x, adr, 'x};
 
-        if (eDesc.etype == PE_EXT_DEBUG) begin
-            $fatal(2, "DB event should not be here");
-        end
-        else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
-            res.target = adr + 4;
-        else if (eDesc.etype == PE_HW_REFETCH)
-            res.target = adr;
-        else
-            res.target = programEvent2trg(eDesc.etype);
+        case (eDesc.etype)
+            PE_EXT_DEBUG: $fatal(2, "DB event should not be here");
+            PE_HW_SYNC, PE_HW_SEND: res.target = adr + 4;
+            PE_HW_REFETCH: res.target = adr;
+            default: res.target = programEvent2trg(eDesc.etype);
+        endcase
+
+        // if (eDesc.etype == PE_EXT_DEBUG) begin
+        //     $fatal(2, "DB event should not be here");
+        // end
+        // else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
+        //     res.target = adr + 4;
+        // else if (eDesc.etype == PE_HW_REFETCH)
+        //     res.target = adr;
+        // else
+        //     res.target = programEvent2trg(eDesc.etype);
 
         return res;
     endfunction
