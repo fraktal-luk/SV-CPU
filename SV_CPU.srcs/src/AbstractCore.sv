@@ -465,7 +465,6 @@ module AbstractCore
 
     task automatic advanceCommit();
         logic foundEvent = 0;
-        EventInfo lateEvt;
 
         foreach (theRob.prevRow[i]) begin
             InsId theId = theRob.prevRow[i].mid;
@@ -475,7 +474,6 @@ module AbstractCore
             if (foundEvent) $fatal(2, "Committing after breaking op");
 
             ii = insMap.get(theId);
-
 
             commitOp(theId);
 
@@ -516,7 +514,6 @@ module AbstractCore
             else
                 $fatal(2, "Wrong event detection in ROB");
         end
-
 
         if (eventUnit.resetEvt.active           && noWaitingEvents()
         ) begin
@@ -589,55 +586,25 @@ module AbstractCore
     endfunction
 
 
-    task automatic verifyOnCommit(input InsId id);
-        InstructionInfo info = insMap.get(id);
-
-        Mword trg = retiredEmul.coreState.target; // DB
-
-        InstructionMap::Milestone retireType = info.dynamicEvt ? InstructionMap::RetireException : (info.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+    function automatic void checkEventStatus(input InstructionInfo info, input EventDesc general, input EventDesc dbEvt);
+        logic generalEvent = (general.id == info.id);
+        logic debugEvent = (dbEvt.id == info.id);
 
         logic eventPresent = (
             CurrentConfig.dbStep ||
-            info.refetch ||
-            info.dynamicEvt ||
-            info.staticEvt ||
-            info.silentEvt
+            info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
         );
 
-        logic generalEvent = (eventUnit.general.id == id);
-        logic debugEvent = (eventUnit.dbEvt.id == id);
-
-        checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
-
-        assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, eventUnit.general, CurrentConfig.dbStep);
+        assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, general, CurrentConfig.dbStep);
 
         if (eventPresent) begin
-            assert ((eventUnit.general.etype == info.hwEventType)
-                    || (eventUnit.dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG)
-                ) else $error("wrong: %p / %p / %p", eventUnit.general.etype, info.hwEventType, eventUnit.dbEvt);
-        end
-
-        assert (trg === info.basicData.adr) else begin
-            retiredEmul.getBasicDbView();
-            $fatal(2, "Commit: mm adr %h / %h", trg, info.basicData.adr);
+            assert ((general.etype == info.hwEventType) || (dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG))
+                else $error("wrong: %p / %p / %p", general.etype, info.hwEventType, dbEvt);
         end
 
         // .emulException implies .exception
-        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", id, info);
-
-        if (info.refetch) return;
-
-        // Only Normal commit
-        if (!info.exception) checkUops(id);
-
-        // Normal or Exceptional
-        runInEmulator(retiredEmul, info.basicData.adr, info.basicData.bits);
-        retiredEmul.drain();
-        retiredEmul.catchDbTrap();
-
-        putMilestoneM(id, retireType);
-        insMap.setRetired(id);
-    endtask
+        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", info.id, info);
+    endfunction
 
 
     // Finish types:
@@ -655,6 +622,38 @@ module AbstractCore
     //
     // Store ops: if Exc or Hidden, SQ entry must be marked invalid on commit or not committed (ptr not moved, then flushed by event)
     // 
+
+    task automatic verifyOnCommit(input InsId id);
+        InstructionInfo info = insMap.get(id);
+
+        InstructionMap::Milestone retireType =
+            info.dynamicEvt ? InstructionMap::RetireException : (info.refetch ? InstructionMap::RetireRefetch : InstructionMap::Retire);
+
+        checkUnimplementedInstruction(info.basicData.dec); // All types of commit?
+
+        checkEventStatus(info, eventUnit.general, eventUnit.dbEvt);
+
+        assert (retiredEmul.coreState.target === info.basicData.adr) else begin
+            retiredEmul.getBasicDbView();
+            $fatal(2, "Commit: mm adr %h / %h", retiredEmul.coreState.target, info.basicData.adr);
+        end
+
+        if (info.refetch) return;
+
+        // Only Normal commit
+        if (!info.exception) checkUops(id);
+
+        // Normal or Exceptional
+        runInEmulator(retiredEmul, info.basicData.adr, info.basicData.bits);
+        retiredEmul.drain();
+        retiredEmul.catchDbTrap();
+
+        putMilestoneM(id, retireType);
+        insMap.setRetired(id);
+    endtask
+
+
+
     task automatic commitOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
         logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
@@ -932,21 +931,18 @@ module AbstractCore
         return entry[0].mid;
     endfunction
 
-
-    // Depends on insMap
-    function automatic Mword findTarget(input InstructionInfo info, input BqEntry entries[$]);
-        UopName uname = info.mainUop;
+    function automatic Mword findTarget(input UopName uname, input Mword adr, input BqEntry entries[$]);
         Mword executed = 'x;
         logic taken = 'x;
 
-        if (isBranchUop(uname)) begin 
-            assert (entries.size() == 1) else $fatal(2, "Branch not in BQ\n%p", info);
+        if (isBranchUop(uname)) begin
+            assert (entries.size() == 1) else $fatal(2, "Branch not in BQ");
             executed = isBranchRegUop(uname) ? entries[0].regTarget : entries[0].immTarget;
             taken = entries[0].taken;
         end
 
         if (isBranchUop(uname) && taken) return executed;
-        else return info.basicData.adr + 4;
+        else return adr + 4;
     endfunction
 
 

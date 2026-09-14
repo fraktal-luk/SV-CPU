@@ -279,7 +279,7 @@ module ReorderBuffer
         InstructionInfo info = insMap.get(mid);
         BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
 
-        trg <= findTarget(info, found);
+        trg <= findTarget(info.mainUop, info.basicData.adr, found);
 
         lastScannedIdVar = mid;
     endfunction

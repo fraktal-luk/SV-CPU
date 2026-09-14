@@ -457,10 +457,6 @@ package ExecDefs;
 
 
 
-
-
-
-
     /////////////////////////////////////////////////////////////////////////////////////////////////
     // Exec calculations
     ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -564,8 +560,7 @@ package ExecDefs;
                 UOP_fp_inv:   res = '{EXC_INVALID, 1};
                 UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
 
-            UOP_fp_add32: res = //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]))};
-                                TMP_addF32(args[0], args[1], rm);
+            UOP_fp_add32: res = TMP_addF32(args[0], args[1], rm);
 
             UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
             UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
@@ -607,16 +602,6 @@ package ExecDefs;
             PE_HW_REFETCH: res.target = adr;
             default: res.target = programEvent2trg(eDesc.etype);
         endcase
-
-        // if (eDesc.etype == PE_EXT_DEBUG) begin
-        //     $fatal(2, "DB event should not be here");
-        // end
-        // else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
-        //     res.target = adr + 4;
-        // else if (eDesc.etype == PE_HW_REFETCH)
-        //     res.target = adr;
-        // else
-        //     res.target = programEvent2trg(eDesc.etype);
 
         return res;
     endfunction
