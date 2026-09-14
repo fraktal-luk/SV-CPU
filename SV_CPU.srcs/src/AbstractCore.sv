@@ -359,14 +359,14 @@ module AbstractCore
         UopInfo uInfos[$];
 
         UopName uopName = decodeUop(ins);
-        logic staticExc = isStaticEventIns(ins);
-        logic silentEvt = isSilentEventIns(ins);
+        //logic staticExc = isStaticEventIns(ins);
+        //logic silentEvt = isSilentEventIns(ins);
         InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-        logic[1:0] rm = renamedEmul.cregs.fpStatus.roundingMode; 
-        Mword result = renamedEmul.computeResult(adr, ins, rm); // Must be before modifying state. For ins map
+        //logic[1:0] rm = renamedEmul.cregs.fpStatus.roundingMode; 
+        Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
         runInEmulator(renamedEmul, adr, opSlot.bits);
 
@@ -375,8 +375,8 @@ module AbstractCore
             ii.staticEvt = 1;
             ii.hwEventType = evt;
         end
-        else if (staticExc) begin
-            if (silentEvt) ii.silentEvt = 1;
+        else if (isStaticEventIns(ins)) begin
+            if (isSilentEventIns(ins)) ii.silentEvt = 1;
             else ii.staticEvt = 1;
 
             ii.exception = 1;
@@ -415,14 +415,15 @@ module AbstractCore
         mainUinfo.physDest = -1;
         mainUinfo.deps = deps;
 
+        mainUinfo.argsE = argVals;
+        mainUinfo.resultE = result;
+        mainUinfo.argError = 'x;
+
+
         // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
         if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin
             mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
         end
-
-        mainUinfo.argsE = argVals;
-        mainUinfo.resultE = result;
-        mainUinfo.argError = 'x;
 
         uInfos = splitUop(mainUinfo);
         ii.nUops = uInfos.size(); 

@@ -127,17 +127,18 @@ package Emulation;
         endfunction
 
 
-        function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins, input logic[1:0] rm);
+        function automatic Mword computeResult(input Mword adr, input AbstractInstruction ins);
+            logic [1:0] rmode = cregs.fpStatus.roundingMode;
             FormatSpec fmtSpec = parsingMap[ins.def.f];
             Mword3 args = getArgs(coreState.intRegs, coreState.floatRegs, ins.sources, fmtSpec.typeSpec);
 
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins))) begin
                 if (isFloatCalcIns(ins)) begin
-                    FpResult32 fpRes = calculateResultFP(ins, args, adr, rm);
+                    FpResult32 fpRes = calculateResultFP(ins, args, adr, rmode);
                     return fpRes.value;
                 end
                 else
-                    return calculateResult(ins, args, adr, rm);
+                    return calculateResult(ins, args, adr, rmode);
             end
 
             if (isBranchIns(ins))
@@ -402,7 +403,6 @@ package Emulation;
             else
                 result = calculateResult(ins, vals, adr, rm);
 
-
             if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);
         endfunction
@@ -418,38 +418,34 @@ package Emulation;
 
             status.arithException = 0; // TMP
             
-            if (fpResult.exc.invalid
-                //|| ins.def.o == O_floatGenInv
-                ) begin
-                cregs.fpStatus.INV = 1;
-                    cregs.fpStatus.Invalid = 1;
+            if (fpResult.exc.invalid) begin
+                //cregs.fpStatus.INV = 1;
+                cregs.fpStatus.Invalid = 1;
                 excGenerated = 1;
                 fpInv = 1;
             end
             
-            if (fpResult.exc.overflow
-                //|| ins.def.o == O_floatGenOv
-                ) begin
-                cregs.fpStatus.OV = 1;
-                    cregs.fpStatus.Overflow = 1;
+            if (fpResult.exc.overflow) begin
+                //cregs.fpStatus.OV = 1;
+                cregs.fpStatus.Overflow = 1;
                 excGenerated = 1;
                 fpOv = 1;
             end
 
             if (fpResult.exc.div0) begin
-                    cregs.fpStatus.Overflow = 1;
+                cregs.fpStatus.Div0 = 1;
                 excGenerated = 1;
                 fpDiv0 = 1;
             end
 
             if (fpResult.exc.underflow) begin
-                    cregs.fpStatus.Underflow = 1;
+                cregs.fpStatus.Underflow = 1;
                 excGenerated = 1;
                 fpUnd = 1;
             end
 
             if (fpResult.exc.inexact) begin
-                    cregs.fpStatus.Inexact = 1;
+                cregs.fpStatus.Inexact = 1;
                 excGenerated = 1;
                 fpInex = 1;
             end
