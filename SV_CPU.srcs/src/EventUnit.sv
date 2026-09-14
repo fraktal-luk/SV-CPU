@@ -203,6 +203,11 @@ module EventUnit(input logic clk);
         if (backendState != BS_HANDLING) begin
             if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
+
+
+                //if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
+
+                //if (theRob.prevRowEvent) backedState <= BS_HANDLING;
         end
 
         general <= newValue;

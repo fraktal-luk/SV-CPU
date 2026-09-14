@@ -84,6 +84,7 @@ module AbstractCore
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
     EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
 
@@ -167,6 +168,9 @@ module AbstractCore
         sysUnit.handleReads();
 
         advanceCommit(); // commitInds, lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
+
+        prepareLateEvents();
+
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
@@ -504,31 +508,28 @@ module AbstractCore
 
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
 
+    endtask
 
-        // TODO: correctly prioritize event sources
 
+    task automatic prepareLateEvents();
         if (theRob.prevRowEvent) begin
             if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
                 Mword adr = insMap.get(eventUnit.general.id).basicData.adr;
-                lateEvt = eventFromOp(adr,  eventUnit.general);
+                lateEventInfoWaiting <= eventFromOp(adr,  eventUnit.general);
             end
             else if (eventUnit.dbEvt.id != -1) begin
-                lateEvt = DB_EVENT;
+                lateEventInfoWaitingDb <= DB_EVENT;
             end
             else begin
                 $fatal(2, "Wrong event detection in ROB");
             end
-        end
 
-        if (theRob.prevRowEvent) begin
-            lateEventInfoWaiting <= lateEvt;
             eventUnit.setHandling();
         end
 
 
         if (eventUnit.resetEvt.active           && noWaitingEvents()
         ) begin
-            lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
 
@@ -536,7 +537,6 @@ module AbstractCore
         end
         else if (eventUnit.interruptEvt.active  && noWaitingEvents()
         ) begin
-            lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
                 $display("Pre target: %X", retiredEmul.coreState.target);
@@ -553,21 +553,28 @@ module AbstractCore
 
 
     task automatic fireLateEvent();
-        if (lateEventInfoWaiting.active !== 1) return;
-
-        if (lateEventInfoWaiting.etype inside {PE_EXT_RESET, PE_EXT_INTERRUPT, PE_EXT_DEBUG}) begin
-            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaiting.etype);
-            lateEventInfo <= lateEventInfoWaiting;
+        if (lateEventInfoWaitingReset.active) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingReset.etype);
+            lateEventInfo <= lateEventInfoWaitingReset;          
         end
-        else begin
+        else if (lateEventInfoWaitingInt.active) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingInt.etype);
+            lateEventInfo <= lateEventInfoWaitingInt;        
+        end
+        else if (lateEventInfoWaitingDb.active) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingDb.etype);
+            lateEventInfo <= lateEventInfoWaitingDb;            
+        end
+        else if (lateEventInfoWaiting.active) begin
             Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
-            EventInfo lateEvt = getLateEvent(lateEventInfoWaiting, sr2, sr3);
-
             sysUnit.modifyStateSync(lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
-            lateEventInfo <= lateEvt;
+            lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);;
         end
+        else
+            return;
 
         lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
         lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
         lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
     endtask
@@ -575,7 +582,10 @@ module AbstractCore
 
 
     function automatic logic noWaitingEvents();
-        return !lateEventInfo.active && !lateEventInfoWaiting.active && !lateEventInfoWaitingReset.active && !lateEventInfoWaitingInt.active && theRob.isEmpty;
+        return    // !lateEventInfo.active 
+                //&& !lateEventInfoWaiting.active && !lateEventInfoWaitingReset.active && !lateEventInfoWaitingInt.active && !lateEventInfoWaitingDb.active
+                   eventUnit.backendState != BS_HANDLING
+                && theRob.isEmpty;
     endfunction
 
 
