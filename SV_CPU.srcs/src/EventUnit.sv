@@ -205,9 +205,9 @@ module EventUnit(input logic clk);
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
 
 
-                //if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
+                if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
 
-                //if (theRob.prevRowEvent) backedState <= BS_HANDLING;
+                if (theRob.prevRowEvent) backendState <= BS_HANDLING;
         end
 
         general <= newValue;
@@ -281,7 +281,7 @@ module EventUnit(input logic clk);
 
 
     function automatic void setHandling();
-        backendState <= BS_HANDLING;
+        //backendState <= BS_HANDLING;
     endfunction
 
 
