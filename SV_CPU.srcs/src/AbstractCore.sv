@@ -481,12 +481,17 @@ module AbstractCore
 
             // RET: generate late event
             if (breaksCommitId(theId)) begin
-                foundEvent_N = 1; // Don't commit anything more if event is being handled
+                foundEvent_N = 1;
                 lateEvt_N = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
 
                 TMP_checkCtrl(theId, ii);
             end
         end
+
+            assert (foundEvent_N === theRob.prevRowEvent) else begin
+                $fatal("2, \nEvent disagree: fund %d // %d\n%p", foundEvent, theRob.currentRowEvent, lateEvt_N);
+
+            end
 
 
         foreach (theRob.prevRow[i]) begin
@@ -520,7 +525,8 @@ module AbstractCore
         end
 
 
-        if (eventUnit.resetEvt.active           && !lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
+        if (eventUnit.resetEvt.active           && //!lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
+                                                    noWaitingEvents()
         ) begin
             lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
@@ -528,7 +534,8 @@ module AbstractCore
 
             eventUnit.setHandling();
         end
-        else if (eventUnit.interruptEvt.active  && !lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
+        else if (eventUnit.interruptEvt.active  && //!lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
+                                                    noWaitingEvents()
         ) begin
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
@@ -544,6 +551,12 @@ module AbstractCore
 
         if (wqFree) fireLateEvent();
     endtask
+
+
+    function automatic logic noWaitingEvents();
+        return !lateEventInfo.active && !lateEventInfoWaiting.active && !lateEventInfoWaitingReset.active && !lateEventInfoWaitingInt.active && theRob.isEmpty;
+    endfunction
+
 
 
     task automatic fireLateEvent();
