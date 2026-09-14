@@ -26,7 +26,7 @@ module ReorderBuffer
     OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
 
     OpRecordA currentRow = '{default: EMPTY_RECORD}, prevRow = '{default: EMPTY_RECORD}, lastRec = '{default: EMPTY_RECORD};
-    logic prevRowHasEvent = 0,  currentRowEvent = 0, prevRowEvent = 0; // TODO: implement correctly
+    logic currentRowEvent = 0, prevRowEvent = 0;
 
     int pDrain = 0, pCommit = 0, pRead = 0, pScan = 0, pEnd = 0, pScanPrev = 0, pReadPrev = 0;;
 

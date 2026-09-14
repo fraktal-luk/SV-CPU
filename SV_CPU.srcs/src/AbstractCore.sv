@@ -447,10 +447,7 @@ module AbstractCore
     endtask
 
 
-    function automatic logic breaksCommitId(input InsId id);
-        InstructionInfo insInfo = insMap.get(id);
-        return isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception || CurrentConfig.dbStep;
-    endfunction
+
 
 
 
@@ -464,6 +461,11 @@ module AbstractCore
         end
     endfunction
 
+
+    // function automatic logic breaksCommitId(input InsId id);
+    //     InstructionInfo insInfo = insMap.get(id);
+    //     return isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception || CurrentConfig.dbStep;
+    // endfunction
 
     task automatic advanceCommit();
         logic foundEvent = 0, foundEvent_N = 0;
@@ -480,18 +482,33 @@ module AbstractCore
 
 
             // RET: generate late event
-            if (breaksCommitId(theId)) begin
+            //if (breaksCommitId(theId)) begin
+            if (
+                isControlUop(ii.mainUop) || ii.refetch || ii.exception
+                || CurrentConfig.dbStep
+            ) begin
                 foundEvent_N = 1;
-                lateEvt_N = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
+               // lateEvt_N = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
 
                 TMP_checkCtrl(theId, ii);
             end
         end
 
-            assert (foundEvent_N === theRob.prevRowEvent) else begin
-                $fatal("2, \nEvent disagree: fund %d // %d\n%p", foundEvent, theRob.currentRowEvent, lateEvt_N);
-
+        if (theRob.prevRowEvent) begin
+            if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
+                lateEvt = eventFromOp(eventUnit.general.id, insMap.get(eventUnit.general.id), eventUnit.general, eventUnit.dbEvt);
             end
+            else if (eventUnit.dbEvt.id != -1) begin
+                lateEvt = eventFromOp(eventUnit.dbEvt.id, insMap.get(eventUnit.dbEvt.id), eventUnit.general, eventUnit.dbEvt);
+            end
+        end
+ 
+
+            // assert (foundEvent_N === theRob.prevRowEvent) else begin
+            //     $fatal("2, \nEvent disagree: fund %d // %d\n%p", foundEvent, theRob.currentRowEvent, lateEvt_N);
+            // end
+
+            // assert (lateEvt === lateEvt_N) else $error("H huh huh hu\n%p\n%p", lateEvt, lateEvt_N);
 
 
         foreach (theRob.prevRow[i]) begin
@@ -512,8 +529,8 @@ module AbstractCore
             lastRetired <= theId;
         end
 
-        foundEvent = foundEvent_N;
-        lateEvt = lateEvt_N;
+        foundEvent = theRob.prevRowEvent;
+        //lateEvt = lateEvt_N;
 
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
 
