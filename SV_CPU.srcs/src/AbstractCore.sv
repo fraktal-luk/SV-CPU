@@ -462,59 +462,20 @@ module AbstractCore
     endfunction
 
 
-    // function automatic logic breaksCommitId(input InsId id);
-    //     InstructionInfo insInfo = insMap.get(id);
-    //     return isControlUop(insInfo.mainUop) || insInfo.refetch || insInfo.exception || CurrentConfig.dbStep;
-    // endfunction
 
     task automatic advanceCommit();
-        logic foundEvent = 0, foundEvent_N = 0;
-        EventInfo lateEvt, lateEvt_N;
+        logic foundEvent = 0;
+        EventInfo lateEvt;
 
         foreach (theRob.prevRow[i]) begin
             InsId theId = theRob.prevRow[i].mid;
             InstructionInfo ii;
 
             if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
-            if (foundEvent_N) $fatal(2, "Committing after breaking op");
+            if (foundEvent) $fatal(2, "Committing after breaking op");
 
             ii = insMap.get(theId);
 
-
-            // RET: generate late event
-            //if (breaksCommitId(theId)) begin
-            if (
-                isControlUop(ii.mainUop) || ii.refetch || ii.exception
-                || CurrentConfig.dbStep
-            ) begin
-                foundEvent_N = 1;
-               // lateEvt_N = eventFromOp(theId, ii, eventUnit.general, eventUnit.dbEvt);
-
-                TMP_checkCtrl(theId, ii);
-            end
-        end
-
-        if (theRob.prevRowEvent) begin
-            if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
-                lateEvt = eventFromOp(eventUnit.general.id, insMap.get(eventUnit.general.id), eventUnit.general, eventUnit.dbEvt);
-            end
-            else if (eventUnit.dbEvt.id != -1) begin
-                lateEvt = eventFromOp(eventUnit.dbEvt.id, insMap.get(eventUnit.dbEvt.id), eventUnit.general, eventUnit.dbEvt);
-            end
-        end
- 
-
-            // assert (foundEvent_N === theRob.prevRowEvent) else begin
-            //     $fatal("2, \nEvent disagree: fund %d // %d\n%p", foundEvent, theRob.currentRowEvent, lateEvt_N);
-            // end
-
-            // assert (lateEvt === lateEvt_N) else $error("H huh huh hu\n%p\n%p", lateEvt, lateEvt_N);
-
-
-        foreach (theRob.prevRow[i]) begin
-            InsId theId = theRob.prevRow[i].mid;
-
-            if (theRob.prevRow[i].used !== 1 || theId == -1) continue;
 
             commitOp(theId);
 
@@ -527,23 +488,45 @@ module AbstractCore
             syncCurrentConfigFromRegs();
 
             lastRetired <= theId;
+
+            if (
+                isControlUop(ii.mainUop) || ii.refetch || ii.exception
+                || CurrentConfig.dbStep
+            ) begin
+                assert (theRob.prevRowEvent) else $fatal(2, "Event {%d} detected but not known in ROB", theId);
+
+                foundEvent = 1;
+
+                TMP_checkCtrl(theId, ii);
+            end
         end
 
-        foundEvent = theRob.prevRowEvent;
-        //lateEvt = lateEvt_N;
 
         releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
 
+
         // TODO: correctly prioritize event sources
 
-        if (foundEvent) begin
+        if (theRob.prevRowEvent) begin
+            if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
+                Mword adr = insMap.get(eventUnit.general.id).basicData.adr;
+                lateEvt = eventFromOp(adr,  eventUnit.general);
+            end
+            else if (eventUnit.dbEvt.id != -1) begin
+                lateEvt = DB_EVENT;
+            end
+            else begin
+                $fatal(2, "Wrong event detection in ROB");
+            end
+        end
+
+        if (theRob.prevRowEvent) begin
             lateEventInfoWaiting <= lateEvt;
             eventUnit.setHandling();
         end
 
 
-        if (eventUnit.resetEvt.active           && //!lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
-                                                    noWaitingEvents()
+        if (eventUnit.resetEvt.active           && noWaitingEvents()
         ) begin
             lateEventInfoWaiting <= RESET_EVENT;
             lateEventInfoWaitingReset <= RESET_EVENT;
@@ -551,8 +534,7 @@ module AbstractCore
 
             eventUnit.setHandling();
         end
-        else if (eventUnit.interruptEvt.active  && //!lateEventInfo.active && !lateEventInfoWaiting.active && theRob.isEmpty
-                                                    noWaitingEvents()
+        else if (eventUnit.interruptEvt.active  && noWaitingEvents()
         ) begin
             lateEventInfoWaiting <= INT_EVENT;
             lateEventInfoWaitingInt <= INT_EVENT;
@@ -568,12 +550,6 @@ module AbstractCore
 
         if (wqFree) fireLateEvent();
     endtask
-
-
-    function automatic logic noWaitingEvents();
-        return !lateEventInfo.active && !lateEventInfoWaiting.active && !lateEventInfoWaitingReset.active && !lateEventInfoWaitingInt.active && theRob.isEmpty;
-    endfunction
-
 
 
     task automatic fireLateEvent();
@@ -597,6 +573,10 @@ module AbstractCore
     endtask
 
 
+
+    function automatic logic noWaitingEvents();
+        return !lateEventInfo.active && !lateEventInfoWaiting.active && !lateEventInfoWaitingReset.active && !lateEventInfoWaitingInt.active && theRob.isEmpty;
+    endfunction
 
 
     function automatic void checkUops(input InsId id);

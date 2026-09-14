@@ -602,26 +602,18 @@ package ExecDefs;
 
 
 
-    // > needs InsMap (InstructionInfo)
-    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
-        Mword adr = ii.basicData.adr;
-        EventInfo res = '{1, id, eDesc.etype, 1, 'x, adr, 'x};
+    function automatic EventInfo eventFromOp(input Mword adr, input EventDesc eDesc);
+        EventInfo res = '{1, eDesc.id, eDesc.etype, 1, 'x, adr, 'x};
 
-        if (eDesc.id == id) begin
-            if (eDesc.etype == PE_EXT_DEBUG) begin
-                $fatal(2, "DB event should not be here");
-            end
-            else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
-                res.target = adr + 4;
-            else if (eDesc.etype == PE_HW_REFETCH)
-                res.target = adr;
-            else
-                res.target = programEvent2trg(eDesc.etype);
+        if (eDesc.etype == PE_EXT_DEBUG) begin
+            $fatal(2, "DB event should not be here");
         end
-        else if (dbDesc.id == id) begin
-            res = DB_EVENT;
-        end
-        else $fatal(2, "Wrongly detected event\n%p", ii);
+        else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
+            res.target = adr + 4;
+        else if (eDesc.etype == PE_HW_REFETCH)
+            res.target = adr;
+        else
+            res.target = programEvent2trg(eDesc.etype);
 
         return res;
     endfunction
