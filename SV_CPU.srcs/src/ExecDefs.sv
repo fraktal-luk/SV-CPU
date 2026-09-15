@@ -15,6 +15,7 @@ package ExecDefs;
     import Arith::*;
 
 
+
     function automatic logic needsReplay(input ExecStatus status);
         return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
     endfunction
@@ -328,6 +329,7 @@ package ExecDefs;
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
+
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
                                             input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
@@ -381,7 +383,7 @@ package ExecDefs;
 
 
     // IQs
-    function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceInt(input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
@@ -402,7 +404,7 @@ package ExecDefs;
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceMem(input UidT producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
@@ -426,7 +428,7 @@ package ExecDefs;
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceVec(input UidT producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin

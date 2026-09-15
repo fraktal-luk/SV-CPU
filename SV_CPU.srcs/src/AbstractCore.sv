@@ -19,6 +19,8 @@ import Queues::*;
 import Testing::GlobalParams;
 
 
+typedef class InstructionMap;
+
 module AbstractCore
 #(
 )
@@ -359,13 +361,10 @@ module AbstractCore
         UopInfo uInfos[$];
 
         UopName uopName = decodeUop(ins);
-        //logic staticExc = isStaticEventIns(ins);
-        //logic silentEvt = isSilentEventIns(ins);
         InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
         InsDependencies deps = registerTracker.getArgDeps(ins);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-        //logic[1:0] rm = renamedEmul.cregs.fpStatus.roundingMode; 
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
         runInEmulator(renamedEmul, adr, opSlot.bits);

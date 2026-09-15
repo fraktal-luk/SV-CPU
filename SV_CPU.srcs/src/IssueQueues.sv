@@ -455,10 +455,11 @@ module IssueQueue
             UidT prod = deps.producers[a];
             int source = deps.sources[a];
             
-            Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
-            if (!wup.active) wup = checkForwardSourceVec(insMap, prod, source, AbstractCore.theExecBlock.floatImages);
+            Wakeup wup = checkForwardSourceInt(prod, source, AbstractCore.theExecBlock.intImages);
+            if (!wup.active) wup = checkForwardSourceVec(prod, source, AbstractCore.theExecBlock.floatImages);
             // CAREFUL: Not using mem pipe forwarding for FP to simplify things
-            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
+            // TODO: introduce mem forwarding
+            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(prod, source, AbstractCore.theExecBlock.memImages);
             
             if (shouldFlushPoison(wup.poison)) wup.active = 0;
            

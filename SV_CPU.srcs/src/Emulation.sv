@@ -409,7 +409,6 @@ package Emulation;
 
         
         function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result, input FpResult32 fpResult);
-            logic excGenerated = 0;
             logic fpInv = 0;
             logic fpDiv0 = 0;
             logic fpOv = 0;
@@ -419,34 +418,27 @@ package Emulation;
             status.arithException = 0; // TMP
             
             if (fpResult.exc.invalid) begin
-                //cregs.fpStatus.INV = 1;
                 cregs.fpStatus.Invalid = 1;
-                excGenerated = 1;
                 fpInv = 1;
             end
             
             if (fpResult.exc.overflow) begin
-                //cregs.fpStatus.OV = 1;
                 cregs.fpStatus.Overflow = 1;
-                excGenerated = 1;
                 fpOv = 1;
             end
 
             if (fpResult.exc.div0) begin
                 cregs.fpStatus.Div0 = 1;
-                excGenerated = 1;
                 fpDiv0 = 1;
             end
 
             if (fpResult.exc.underflow) begin
                 cregs.fpStatus.Underflow = 1;
-                excGenerated = 1;
                 fpUnd = 1;
             end
 
             if (fpResult.exc.inexact) begin
                 cregs.fpStatus.Inexact = 1;
-                excGenerated = 1;
                 fpInex = 1;
             end
 
