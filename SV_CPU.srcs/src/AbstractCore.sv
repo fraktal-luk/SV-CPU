@@ -585,26 +585,26 @@ module AbstractCore
         end
     endfunction
 
+        // needs InstructionInfo  -> ControlHandling ?
+        function automatic void checkEventStatus(input InstructionInfo info, input EventDesc general, input EventDesc dbEvt);
+            logic generalEvent = (general.id == info.id);
+            logic debugEvent = (dbEvt.id == info.id);
 
-    function automatic void checkEventStatus(input InstructionInfo info, input EventDesc general, input EventDesc dbEvt);
-        logic generalEvent = (general.id == info.id);
-        logic debugEvent = (dbEvt.id == info.id);
+            logic eventPresent = (
+                CurrentConfig.dbStep ||
+                info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
+            );
 
-        logic eventPresent = (
-            CurrentConfig.dbStep ||
-            info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
-        );
+            assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, general, CurrentConfig.dbStep);
 
-        assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, general, CurrentConfig.dbStep);
+            if (eventPresent) begin
+                assert ((general.etype == info.hwEventType) || (dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG))
+                    else $error("wrong: %p / %p / %p", general.etype, info.hwEventType, dbEvt);
+            end
 
-        if (eventPresent) begin
-            assert ((general.etype == info.hwEventType) || (dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG))
-                else $error("wrong: %p / %p / %p", general.etype, info.hwEventType, dbEvt);
-        end
-
-        // .emulException implies .exception
-        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", info.id, info);
-    endfunction
+            // .emulException implies .exception
+            assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", info.id, info);
+        endfunction
 
 
     // Finish types:

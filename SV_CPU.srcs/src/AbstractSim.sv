@@ -265,6 +265,7 @@ package AbstractSim;
     endfunction
 
 
+        // TODO: unneeded because UopId can represent empty
         // For routing to IQs
         typedef struct {
             logic active;
@@ -533,7 +534,7 @@ package AbstractSim;
         // Mem
         /////////////////////////////////////////////////////////////////////////////////
 
-                        // Transfer size in bytes
+                        // Transfer size in bytes (arch)
                         typedef enum {
                             SIZE_NONE = 0,
                             SIZE_1 = 1,
@@ -542,8 +543,16 @@ package AbstractSim;
                             SIZE_INS_LINE = FETCH_WIDTH*4
                         } AccessSize;
 
+                        // (arch)
+                        function automatic AccessSize getTransactionSize(input UopName uname);
+                            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+                            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
+                            else if (isMemUop(uname)) return SIZE_4;
+                            else return SIZE_NONE;
+                        endfunction
 
-                        // Needed for frontend and data subsystem
+
+                        // Needed for frontend and data subsystem (implem)
                         typedef enum {
                             CR_UNCACHED,
                             CR_INVALID, // Address illegal
@@ -554,7 +563,7 @@ package AbstractSim;
                         } CacheReadStatus;
 
 
-                        typedef enum {
+                        typedef enum { // (implem)
                             MC_NONE,
                             MC_NORMAL,
                             MC_BARRIER,
@@ -567,7 +576,7 @@ package AbstractSim;
                         } MemClass;
 
 
-                        typedef struct {
+                        typedef struct {   // (implem)
                             InsId owner;
                             Mword adr;
                             Mword val;
@@ -656,14 +665,6 @@ package AbstractSim;
         localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
 
 
-
-
-        function automatic AccessSize getTransactionSize(input UopName uname);
-            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
-            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
-            else if (isMemUop(uname)) return SIZE_4;
-            else return SIZE_NONE;
-        endfunction
 
 
         ////////////////////////////////////

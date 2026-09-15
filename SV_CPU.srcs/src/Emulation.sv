@@ -92,6 +92,7 @@ package Emulation;
         endfunction
 
         function automatic void syncStatusFromRegs();
+            // TODO: other state?
             setStatusFromRegs(status, coreState.sysRegs);
         endfunction
 
@@ -178,8 +179,6 @@ package Emulation;
                 default: ;
             endcase
 
-            //assert (!$isunknown(result)) else $error("Emulation: loaded unknown bits:\n%08X", result);
-
             return result;
         endfunction
 
@@ -219,7 +218,8 @@ package Emulation;
             coreState.target = trg;        
         endfunction
 
-    
+
+        // state.target    
         function automatic void modifySysRegs(ref CpuState state, input Mword adr, input AbstractInstruction abs);
             // Control events clear dbEventPending because they have higher priority. Sync and send don't prevent db event.
             
@@ -266,16 +266,13 @@ package Emulation;
                 end
                 O_replay: begin
                     state.target = adr;
-                       // status.dbEventPending = 0;
                 end
                 O_sync: begin
                     state.target = adr + 4;
-                       // status.dbEventPending = 0;
                 end
                 O_send: begin
                     state.target = adr + 4;
                     setSending();
-                       // status.dbEventPending = 0;
                 end
                 default: state.target = adr + 4;
             endcase
@@ -320,8 +317,6 @@ package Emulation;
             this.ip = vadr;
             if (catchFetchException(vadr, tr)) return;
 
-            //assert (!$isunknown(bits)) else $error("Emulation: fetched unknown bits\n%08X", bits);
-
             begin
                 AbstractInstruction ins = decodeAbstract(bits);
                 processInstruction(adr, ins);
@@ -346,7 +341,7 @@ package Emulation;
         // Clear mem write and signals to send
         function automatic void drain();
             this.status.send = 0;
-                    status.exceptionRaised = 0;
+            status.exceptionRaised = 0;
         endfunction
 
 
@@ -477,12 +472,11 @@ package Emulation;
                 if (catchSysAccessException(ins, vals[1])) return;
                 
                 writeSysReg(coreState, vals[1], vals[2]);
-                
                 syncCregsFromSysRegs();
-
                 syncStatusFromRegs();
             end
             else begin
+                // TODO: simplify  (coreState)
                 modifySysRegs(coreState, adr, ins);
                 syncStatusFromRegs();
             end
