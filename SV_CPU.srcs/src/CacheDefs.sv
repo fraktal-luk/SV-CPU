@@ -111,6 +111,14 @@ package CacheDefs;
         } ReadResult;
 
 
+            // Only CacheDefs
+        function automatic int getBlockIndex(input Dword adr);
+            return (adr % WAY_SIZE)/BLOCK_SIZE;
+        endfunction
+
+
+
+
     function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.blockIndex];
 

@@ -9,6 +9,8 @@ import Insmap::*;
 
 import Queues::*;
 
+import MemoryLogic::*;
+
 
 module StoreQueue
 #(

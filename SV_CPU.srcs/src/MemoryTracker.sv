@@ -7,6 +7,8 @@
     import UopList::*;
     import AbstractSim::*;
 
+    import MemoryLogic::*;
+
 
     class MemTracker;
         Transaction transactions[$];

@@ -9,6 +9,8 @@ import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
 
+import MemoryLogic::*;
+
 
 module MemSubpipe#()
 (
