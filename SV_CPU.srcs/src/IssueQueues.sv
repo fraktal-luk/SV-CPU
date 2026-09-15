@@ -8,6 +8,7 @@ import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
 
+import IqLogic::*;
 
 module IssueQueue
 #(
@@ -518,8 +519,7 @@ module IssueQueue
         if (entry.uid == UIDT_NONE) return res;
         
         res.used = entry.status != IqEmpty;
-        res.active = //entry.active_;
-                        entry.status == IqActive;
+        res.active = entry.status == IqActive;
         
         res.registers = getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = getLogic3(wup);

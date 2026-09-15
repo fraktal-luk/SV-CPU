@@ -32,8 +32,6 @@ module DataL1(
     DataFillEngine#(N_MEM_PORTS, DATA_ARRAY_FILL_DELAY) dataFillEngine(clk, dataFillEnA, mn.trE1);
     DataFillEngine#(N_MEM_PORTS, DATA_TLB_FILL_DELAY) tlbFillEngine(clk, tlbFillEnA, mn.trE1);
 
-    ReadResult cacheResults[N_MEM_PORTS] = '{default: '{0, -1, 'x, 'x, 'x}};
-
 
     assign uncachedReadOut = uncachedSubsystem.uncachedResults;
 
@@ -85,7 +83,7 @@ module DataL1(
     task automatic handleSingleRead(input int p);
         AccessDesc aDesc = mn.adE0[p];
 
-        cacheResults[p] <= '{0, -1, 'x, 'x, 'x};
+        //cacheResults[p] <= '{0, -1, 'x, 'x, 'x};
         cacheReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
         if (!aDesc.active || $isunknown(aDesc.vadr)) return;
@@ -98,7 +96,7 @@ module DataL1(
             else if (p == 2) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[2].aResults);
             else if (p == 3) selectedResult = selectWayResultArray(tr, dataArray.rdInterface[3].aResults);
 
-            cacheResults[p] <= selectedResult;
+            //cacheResults[p] <= selectedResult;
             cacheReadOut[p] <= doReadAccess(tr, aDesc, selectedResult);
         end
     endtask

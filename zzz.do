@@ -12,8 +12,8 @@ sim:/ArchDesc0/emulTestName \
 sim:/ArchDesc0/simTestName
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/dataCache/cacheReadOut \
-sim:/ArchDesc0/core/dataCache/cacheResults
+sim:/ArchDesc0/core/dataCache/cacheReadOut
+
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/memImages
 

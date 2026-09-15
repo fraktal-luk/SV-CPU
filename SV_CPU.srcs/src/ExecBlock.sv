@@ -11,6 +11,8 @@ import Queues::*;
 
 import Arith::*;
 
+import ExecLogic::*;
+
 
 module ExecBlock(ref InstructionMap insMap,
                  input EventInfo branchEventInfo,

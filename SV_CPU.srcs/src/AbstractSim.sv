@@ -185,6 +185,11 @@ package AbstractSim;
 
 
 
+    function automatic logic needsReplay(input ExecStatus status);
+        return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
+    endfunction
+
+
     // 1 use in main core
     function automatic UopName decodeUop(input AbstractInstruction ins);
         if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
@@ -774,6 +779,7 @@ package AbstractSim;
 
                 // DCache specific
 
+                // Widely used
                 typedef struct {
                     logic req;
                     Mword adr;
@@ -785,7 +791,7 @@ package AbstractSim;
 
                 localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
-
+                // Widely used
                 typedef struct {
                     logic active;
                     CacheReadStatus status;
@@ -797,13 +803,15 @@ package AbstractSim;
                     0, CR_INVALID, 'x, 'x
                 };
 
-                typedef struct {
-                    logic valid;
-                    integer way;
-                    Dword tag;
-                    logic locked;
-                    Mword value;
-                } ReadResult;
+
+                // // Used throughout mem (can move to CacheDefs?)
+                // typedef struct {
+                //     logic valid;
+                //     integer way;
+                //     Dword tag;
+                //     logic locked;
+                //     Mword value;
+                // } ReadResult;
 
 
         ////////////////////////////////////////////////////////////////////

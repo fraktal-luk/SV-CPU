@@ -16,9 +16,9 @@ package ExecDefs;
 
 
 
-    function automatic logic needsReplay(input ExecStatus status);
-        return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
-    endfunction
+    // function automatic logic needsReplay(input ExecStatus status);
+    //     return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
+    // endfunction
 
 
 
@@ -52,10 +52,7 @@ package ExecDefs;
             
             return res;
         endfunction 
-    
-            
 
-            
             
         function automatic Poison mergePoisons(input Poison ap[3]);
             IdMap m0 = poison2map(ap[0]);
@@ -74,8 +71,6 @@ package ExecDefs;
 
 
 
-
-
     typedef struct {
         logic active;
         UidT TMP_oid;
@@ -87,26 +82,26 @@ package ExecDefs;
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
 
-            typedef UopPacket UopMemPacket;
-        
-            function automatic UopPacket TMP_mp(input UopMemPacket p);
-                return p;
-            endfunction
+        typedef UopPacket UopMemPacket;
+    
+        function automatic UopPacket TMP_mp(input UopMemPacket p);
+            return p;
+        endfunction
 
-            function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
-                return p;
-            endfunction
+        function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
+            return p;
+        endfunction
 
 
-            function automatic UopPacket memToComplete(input UopPacket p);
-                if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
-                else return p;
-            endfunction
+        function automatic UopPacket memToComplete(input UopPacket p);
+            if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
+            else return p;
+        endfunction
 
-            function automatic UopPacket memToReplay(input UopPacket p);
-                if (needsReplay(p.status)) return p;
-                else return EMPTY_UOP_PACKET;
-            endfunction
+        function automatic UopPacket memToReplay(input UopPacket p);
+            if (needsReplay(p.status)) return p;
+            else return EMPTY_UOP_PACKET;
+        endfunction
 
 
 
@@ -221,86 +216,22 @@ package ExecDefs;
 
 
 
-            typedef enum {
-                PG_NONE, PG_INT, PG_MEM, PG_VEC
-            } PipeGroup;
-    
-
-            typedef struct {
-                logic active;
-                UidT producer;
-                PipeGroup group;
-                int port;
-                int stage;
-                Poison poison;
-            } Wakeup;
-            
-            localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
+        typedef enum {
+            PG_NONE, PG_INT, PG_MEM, PG_VEC
+        } PipeGroup;
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    // IQ structures
-            typedef struct {
-                logic ready;
-                logic readyArgs[3];
-                logic cancelledArgs[3];
-            } IqArgState;
-            
-            localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-            localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
+        typedef struct {
+            logic active;
+            UidT producer;
+            PipeGroup group;
+            int port;
+            int stage;
+            Poison poison;
+        } Wakeup;
+        
+        localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
-            
-            // Poison
-            typedef struct {
-                Poison poisoned[3];
-            } IqPoisonState;
-            
-            localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
-
-            typedef enum {
-                IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
-            } SlotStatus;
-
-            typedef struct {
-                logic used;
-                UidT uid;
-                logic active_;
-                SlotStatus status;
-                IqArgState state;
-                InsId barrier;
-                IqPoisonState poisons;
-                int issueCounter;
-            } IqEntry;
-
-            localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
-                                        status: IqEmpty,
-                                        state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
-
-  
-            ////////////////////////////////////////////////////////////////////
-            // IQ
-            ////////////////////////////////////////////////////////////////////
-
-
-            // Only in IQs
-            typedef struct {
-                UidT uid;
-                logic used;
-                logic active;
-                logic3 registers;
-                logic3 bypasses;
-                logic3 combined;
-                logic3 prevReady;
-                Poison poisons[3];
-                Poison prevPoisons[3];
-                logic all;
-            } ReadinessInfo;
-
-
-
-            // Only in IQ
-            typedef Wakeup Wakeup3[3];
-            typedef Wakeup WakeupMatrixD[][3];
 
 
 
@@ -478,118 +409,119 @@ package ExecDefs;
     endfunction
 
 
-    function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
-        Mword res = 'x;
+
+    // function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
+    //     Mword res = 'x;
         
-        case (name)
-            UOP_int_and:  res = args[0] & args[1];
-            UOP_int_or:   res = args[0] | args[1];
-            UOP_int_xor:  res = args[0] ^ args[1];
+    //     case (name)
+    //         UOP_int_and:  res = args[0] & args[1];
+    //         UOP_int_or:   res = args[0] | args[1];
+    //         UOP_int_xor:  res = args[0] ^ args[1];
             
-            UOP_int_addc: res = args[0] + args[1];
-            UOP_int_addh: res = args[0] + (args[1] << 16);
+    //         UOP_int_addc: res = args[0] + args[1];
+    //         UOP_int_addh: res = args[0] + (args[1] << 16);
             
-            UOP_int_add:  res = args[0] + args[1];
-            UOP_int_sub:  res = args[0] - args[1];
+    //         UOP_int_add:  res = args[0] + args[1];
+    //         UOP_int_sub:  res = args[0] - args[1];
 
             
-            UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
-            UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
+    //         UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
+    //         UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
 
-            UOP_int_shl:
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shlc:
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shac:       // TODO: arg0 should be signed? 
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];                     
-            UOP_int_rotc:
-                            if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
-                            else                       res = {args[0], args[0]} >> -args[1];
+    //         UOP_int_shl:
+    //                         if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+    //                         else                       res = $unsigned(args[0]) >> -args[1];
+    //         UOP_int_shlc:
+    //                         if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+    //                         else                       res = $unsigned(args[0]) >> -args[1];
+    //         UOP_int_shac:       // TODO: arg0 should be signed? 
+    //                         if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
+    //                         else                       res = $unsigned(args[0]) >> -args[1];                     
+    //         UOP_int_rotc:
+    //                         if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
+    //                         else                       res = {args[0], args[0]} >> -args[1];
             
-            // mul/div/rem
-            UOP_int_mul:   res = w2m( multiplyW(args[0], args[1]) );
-            UOP_int_mulhu: res = w2m( multiplyHighUnsignedW(args[0], args[1]) );
-            UOP_int_mulhs: res = w2m( multiplyHighSignedW(args[0], args[1]) );
-            UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
-            UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
-            UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
-            UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
+    //         // mul/div/rem
+    //         UOP_int_mul:   res = w2m( multiplyW(args[0], args[1]) );
+    //         UOP_int_mulhu: res = w2m( multiplyHighUnsignedW(args[0], args[1]) );
+    //         UOP_int_mulhs: res = w2m( multiplyHighSignedW(args[0], args[1]) );
+    //         UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
+    //         UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
+    //         UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
+    //         UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
             
-            UOP_int_link: res = linkAdr;
+    //         UOP_int_link: res = linkAdr;
             
-            // FP
-            UOP_fp_move:   res = args[0];
-            UOP_fp_xor:     res = args[0] ^ args[1];
-            UOP_fp_and:     res = args[0] & args[1];
-            UOP_fp_or:     res = args[0] | args[1];
-            UOP_fp_addi:   res = args[0] + args[1];
+    //         // FP
+    //         UOP_fp_move:   res = args[0];
+    //         UOP_fp_xor:     res = args[0] ^ args[1];
+    //         UOP_fp_and:     res = args[0] & args[1];
+    //         UOP_fp_or:     res = args[0] | args[1];
+    //         UOP_fp_addi:   res = args[0] + args[1];
 
-                UOP_fp_muli:   res = Word'(args[0] * args[1]);
-                UOP_fp_divi:   res = Word'(args[0] / args[1]);
-                UOP_fp_inv:   res = 1;
-                UOP_fp_ov:   res = 1;
+    //             UOP_fp_muli:   res = Word'(args[0] * args[1]);
+    //             UOP_fp_divi:   res = Word'(args[0] / args[1]);
+    //             UOP_fp_inv:   res = 1;
+    //             UOP_fp_ov:   res = 1;
 
-            UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
-            UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
-            UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-            UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
-            UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
-            UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
-            UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+    //         UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
+    //         UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
+    //         UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
+    //         UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+    //         UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
+    //         UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
+    //         UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
 
-            UOP_fp_move32: res = Word'(args[0]);
-            UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
-            UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
-            UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
+    //         UOP_fp_move32: res = Word'(args[0]);
+    //         UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
+    //         UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
+    //         UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
 
-            default: $fatal(2, "Wrong uop");
-        endcase
+    //         default: $fatal(2, "Wrong uop");
+    //     endcase
         
-        // Handling of cases of division by 0  
-        if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
+    //     // Handling of cases of division by 0  
+    //     if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
 
-        return res;
-    endfunction
+    //     return res;
+    // endfunction
 
 
 
-    function automatic FpResult32 calcArithFp(UopName name, Mword args[3], Rounding rm);
-        FpResult32 res;
+    // function automatic FpResult32 calcArithFp(UopName name, Mword args[3], Rounding rm);
+    //     FpResult32 res;
         
-        case (name)
-            UOP_fp_xor:     res = '{NO_EXCEPTION, args[0] ^ args[1]};
-            UOP_fp_and:     res = '{NO_EXCEPTION, args[0] & args[1]};
-            UOP_fp_or:     res = '{NO_EXCEPTION, args[0] | args[1]};
-            UOP_fp_addi:   res = '{NO_EXCEPTION, args[0] + args[1]};
+    //     case (name)
+    //         UOP_fp_xor:     res = '{NO_EXCEPTION, args[0] ^ args[1]};
+    //         UOP_fp_and:     res = '{NO_EXCEPTION, args[0] & args[1]};
+    //         UOP_fp_or:     res = '{NO_EXCEPTION, args[0] | args[1]};
+    //         UOP_fp_addi:   res = '{NO_EXCEPTION, args[0] + args[1]};
 
-                UOP_fp_muli:   res = '{NO_EXCEPTION, Word'(args[0] * args[1])};
-                UOP_fp_divi:   res = '{NO_EXCEPTION, Word'(args[0] / args[1])};
+    //             UOP_fp_muli:   res = '{NO_EXCEPTION, Word'(args[0] * args[1])};
+    //             UOP_fp_divi:   res = '{NO_EXCEPTION, Word'(args[0] / args[1])};
 
-                UOP_fp_inv:   res = '{EXC_INVALID, 1};
-                UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
+    //             UOP_fp_inv:   res = '{EXC_INVALID, 1};
+    //             UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
 
-            UOP_fp_add32: res = TMP_addF32(args[0], args[1], rm);
+    //         UOP_fp_add32: res = TMP_addF32(args[0], args[1], rm);
 
-            UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
-            UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
-            UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
-            UOP_fp_cmpeq32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]))};
-            UOP_fp_cmpge32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]))};
-            UOP_fp_cmpgt32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]))};
+    //         UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
+    //         UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
+    //         UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
+    //         UOP_fp_cmpeq32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]))};
+    //         UOP_fp_cmpge32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]))};
+    //         UOP_fp_cmpgt32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]))};
 
-            UOP_fp_move32: res = '{NO_EXCEPTION, Word'(args[0])};
-            UOP_fp_neg32: res = '{NO_EXCEPTION, Word'(args[0] ^ 'h80000000)};
-            UOP_fp_abs32: res = '{NO_EXCEPTION, Word'(args[0] & 'h7FFFFFFF)};
-            UOP_fp_cpys: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
+    //         UOP_fp_move32: res = '{NO_EXCEPTION, Word'(args[0])};
+    //         UOP_fp_neg32: res = '{NO_EXCEPTION, Word'(args[0] ^ 'h80000000)};
+    //         UOP_fp_abs32: res = '{NO_EXCEPTION, Word'(args[0] & 'h7FFFFFFF)};
+    //         UOP_fp_cpys: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
 
-            default: $fatal(2, "Wrong uop");
-        endcase
+    //         default: $fatal(2, "Wrong uop");
+    //     endcase
 
-        return res;//'{NO_EXCEPTION, res};
-    endfunction
+    //     return res;//'{NO_EXCEPTION, res};
+    // endfunction
 
 
     function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        

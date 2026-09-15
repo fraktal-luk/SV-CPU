@@ -98,10 +98,17 @@ package CacheDefs;
     endclass
 
 
-
-    localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
-
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
+
+
+        // Used throughout mem (can move to CacheDefs?)
+        typedef struct {
+            logic valid;
+            integer way;
+            Dword tag;
+            logic locked;
+            Mword value;
+        } ReadResult;
 
 
     function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
