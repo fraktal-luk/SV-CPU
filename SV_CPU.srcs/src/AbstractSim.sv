@@ -62,6 +62,8 @@ package AbstractSim;
     localparam int INS_TLB_FILL_DELAY = 11;
 
 
+
+
 ////////////////////////////
     typedef int InsId;  // Implem detail
 
@@ -118,53 +120,6 @@ package AbstractSim;
     endfunction
 
 
-                        // // Transfer size in bytes
-                        // typedef enum {
-                        //     SIZE_NONE = 0,
-                        //     SIZE_1 = 1,
-                        //     SIZE_4 = 4,
-                        //     SIZE_8 = 8,
-                        //     SIZE_INS_LINE = FETCH_WIDTH*4
-                        // } AccessSize;
-
-
-                        // typedef enum {
-                        //     CR_UNCACHED,
-                        //     CR_INVALID, // Address illegal
-                        //     CR_TLB_MISS,
-                        //     CR_NOT_ALLOWED,
-                        //     CR_TAG_MISS,
-                        //     CR_HIT
-                        // } CacheReadStatus;
-
-
-                        // typedef enum {
-                        //     MC_NONE,
-                        //     MC_NORMAL,
-                        //     MC_BARRIER,
-                        //     MC_UNCACHED,
-                        //     MC_AQ_REL,
-                        //     MC_SYS,
-
-                        //     MC_UPPER_B // block cross replay
-                        //     //MC_UPPER_P  // page cross replay
-                        // } MemClass;
-
-
-                        // typedef struct {
-                        //     InsId owner;
-                        //     Mword adr;
-                        //     Mword val;
-                        //     Mword adrAny;
-                        //     Dword padr;
-                        //     AccessSize size;
-                        //     logic barrierF;
-                        // } Transaction;
-
-                        // localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
-
-
-
 
         typedef enum {
             ES_BEGIN,
@@ -215,85 +170,6 @@ package AbstractSim;
 
 
 
-        typedef struct {
-            logic active;
-            InsId mid;
-            Mword adr;
-            Word bits;
-            logic first;
-            logic branch;
-            logic takenBranch;
-            Mword predictedTarget;
-        } OpSlotF;
-
-        typedef OpSlotF OpSlotB;
-
-        localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
-        localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
-
-        typedef OpSlotF OpSlotAF[FETCH_WIDTH];
-        typedef OpSlotB OpSlotAB[RENAME_WIDTH];
-
-        localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
-
-
-            typedef struct {
-                integer sct;
-                logic[1:0] strHist[16];
-                logic[1:0] recentHist[2];
-            } TMP_PredState;
-
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
-
-            function automatic Mbyte TMP_bpEncode(input int index);
-                if (index == -1) return 0;
-                else if (index >= 2) return 3;
-                else return index + 1;
-            endfunction
-
-            function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
-                TMP_PredState res = prev;
-
-                if (res.recentHist[1] !== 'z) begin
-                    res.sct++;
-                    res.strHist = {res.recentHist[1], res.strHist[0:14]};
-                end
-
-                res.recentHist = {last, res.recentHist[0]};
-
-                return res;
-            endfunction
-
-            function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
-                TMP_PredState res = prev;
-                res.recentHist[0] = last;
-                return res;
-            endfunction
-
-
-            function automatic logic TMP_getPrediction(input TMP_PredState pred);
-                // TODO: generate prediction (use VADR too)
-                return 'z;
-            endfunction
-
-
-        // typedef struct {
-        //     logic active;
-        //     CacheReadStatus status;
-        //     ProgramEvent evt;
-        //     Mword vadr;
-        //     Dword padr;
-        //     OpSlotAF arr;
-        //     TMP_PredState predState;
-        // } FrontStage;
-
-        // localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
-
-
-        function automatic logic anyActiveB(input OpSlotAB s);
-            foreach (s[i]) if (s[i].active) return 1;
-            return 0;
-        endfunction
 
 
     typedef struct {
@@ -468,40 +344,6 @@ package AbstractSim;
         return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
-
-
-    class BranchCheckpoint;
-        function new(input InsId id,
-                    input WriterId intWr[32], input WriterId floatWr[32],
-                    input int intMapR[32], input int floatMapR[32],
-                    input IndexSet indexSet, input MarkerSet markerSet,
-                    input int branchInd,
-                    input Emulator em, input TMP_PredState predState);
-            this.id = id;
-            this.intWriters = intWr;
-            this.floatWriters = floatWr;
-            this.intMapR = intMapR;
-            this.floatMapR = floatMapR;
-            this.inds = indexSet;
-            this.markers = markerSet;
-            this.branchInd = branchInd;
-            this.emul = em.copyCore();
-            this.emul.dataMem = new em.dataMem;
-            this.predState = predState;
-        endfunction
-
-        InsId id;
-        WriterId intWriters[32];
-        WriterId floatWriters[32];
-        int intMapR[32];
-        int floatMapR[32];
-        IndexSet inds;
-        int branchInd; // branch index within block (from 0)
-        MarkerSet markers;
-        Emulator emul;
-        TMP_PredState predState;
-        logic predDir;
-    endclass
 
 
 
@@ -1018,6 +860,35 @@ package AbstractSim;
         ////////////////////////////////////////////////////////////////////
 
 
+        typedef struct {
+            logic active;
+            InsId mid;
+            Mword adr;
+            Word bits;
+            logic first;
+            logic branch;
+            logic takenBranch;
+            Mword predictedTarget;
+        } OpSlotF;
+
+        typedef OpSlotF OpSlotB;
+
+        localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
+        localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
+
+        typedef OpSlotF OpSlotAF[FETCH_WIDTH];
+        typedef OpSlotB OpSlotAB[RENAME_WIDTH];
+
+        localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
+
+
+            typedef struct {
+                integer sct;
+                logic[1:0] strHist[16];
+                logic[1:0] recentHist[2];
+            } TMP_PredState;
+
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
 
 
         typedef struct {
@@ -1031,6 +902,85 @@ package AbstractSim;
         } FrontStage;
 
         localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
+
+
+
+
+
+            function automatic Mbyte TMP_bpEncode(input int index);
+                if (index == -1) return 0;
+                else if (index >= 2) return 3;
+                else return index + 1;
+            endfunction
+
+            function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
+                TMP_PredState res = prev;
+
+                if (res.recentHist[1] !== 'z) begin
+                    res.sct++;
+                    res.strHist = {res.recentHist[1], res.strHist[0:14]};
+                end
+
+                res.recentHist = {last, res.recentHist[0]};
+
+                return res;
+            endfunction
+
+            function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
+                TMP_PredState res = prev;
+                res.recentHist[0] = last;
+                return res;
+            endfunction
+
+
+            function automatic logic TMP_getPrediction(input TMP_PredState pred);
+                // TODO: generate prediction (use VADR too)
+                return 'z;
+            endfunction
+
+
+
+        function automatic logic anyActiveB(input OpSlotAB s);
+            foreach (s[i]) if (s[i].active) return 1;
+            return 0;
+        endfunction
+
+
+
+
+    class BranchCheckpoint;
+        function new(input InsId id,
+                    input WriterId intWr[32], input WriterId floatWr[32],
+                    input int intMapR[32], input int floatMapR[32],
+                    input IndexSet indexSet, input MarkerSet markerSet,
+                    input int branchInd,
+                    input Emulator em, input TMP_PredState predState);
+            this.id = id;
+            this.intWriters = intWr;
+            this.floatWriters = floatWr;
+            this.intMapR = intMapR;
+            this.floatMapR = floatMapR;
+            this.inds = indexSet;
+            this.markers = markerSet;
+            this.branchInd = branchInd;
+            this.emul = em.copyCore();
+            this.emul.dataMem = new em.dataMem;
+            this.predState = predState;
+        endfunction
+
+        InsId id;
+        WriterId intWriters[32];
+        WriterId floatWriters[32];
+        int intMapR[32];
+        int floatMapR[32];
+        IndexSet inds;
+        int branchInd; // branch index within block (from 0)
+        MarkerSet markers;
+        Emulator emul;
+        TMP_PredState predState;
+        logic predDir;
+    endclass
+
 
 
 
