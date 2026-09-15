@@ -727,19 +727,19 @@ module AbstractCore
     endfunction
 
 
-    function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
-        if (!unlocking) return;
+        function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
+            if (!unlocking) return;
 
-        if (markers.load <= unlockingId) markers.load = -1;
-        if (markers.store <= unlockingId) markers.store = -1;
+            if (markers.load <= unlockingId) markers.load = -1;
+            if (markers.store <= unlockingId) markers.store = -1;
 
-        if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
-        if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
-        if (markers.mbF <= unlockingId) markers.mbF = -1;
+            if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
+            if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
+            if (markers.mbF <= unlockingId) markers.mbF = -1;
 
-        if (markers.loadAq <= unlockingId) markers.loadAq = -1;
-        if (markers.storeRel <= unlockingId) markers.storeRel = -1;
-    endfunction
+            if (markers.loadAq <= unlockingId) markers.loadAq = -1;
+            if (markers.storeRel <= unlockingId) markers.storeRel = -1;
+        endfunction
 
 
     function automatic void updateInds(ref IndexSet inds, input InsId id);

@@ -219,6 +219,26 @@ package ExecDefs;
         typedef ForwardingElement FEQ[$];
 
 
+
+
+            typedef enum {
+                PG_NONE, PG_INT, PG_MEM, PG_VEC
+            } PipeGroup;
+    
+
+            typedef struct {
+                logic active;
+                UidT producer;
+                PipeGroup group;
+                int port;
+                int stage;
+                Poison poison;
+            } Wakeup;
+            
+            localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
+
+
+    ////////////////////////////////////////////////////////////////////////////
     // IQ structures
             typedef struct {
                 logic ready;
@@ -256,30 +276,13 @@ package ExecDefs;
                                         status: IqEmpty,
                                         state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
 
-            typedef enum {
-                PG_NONE, PG_INT, PG_MEM, PG_VEC
-            } PipeGroup;
-    
-
+  
             ////////////////////////////////////////////////////////////////////
             // IQ
             ////////////////////////////////////////////////////////////////////
 
-            typedef struct {
-                logic active;
-                UidT producer;
-                PipeGroup group;
-                int port;
-                int stage;
-                Poison poison;
-            } Wakeup;
-            
-            localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
 
-            typedef Wakeup Wakeup3[3];
-            typedef Wakeup WakeupMatrixD[][3];
-
-
+            // Only in IQs
             typedef struct {
                 UidT uid;
                 logic used;
@@ -292,6 +295,12 @@ package ExecDefs;
                 Poison prevPoisons[3];
                 logic all;
             } ReadinessInfo;
+
+
+
+            // Only in IQ
+            typedef Wakeup Wakeup3[3];
+            typedef Wakeup WakeupMatrixD[][3];
 
 
 
@@ -592,20 +601,6 @@ package ExecDefs;
             UOP_bc_a, UOP_bc_l: return 1;  
             default: $fatal(2, "Wrong branch uop");
         endcase            
-    endfunction
-
-
-    function automatic EventInfo eventFromOp(input Mword adr, input EventDesc eDesc);
-        EventInfo res = '{1, eDesc.id, eDesc.etype, 1, 'x, adr, 'x};
-
-        case (eDesc.etype)
-            PE_EXT_DEBUG: $fatal(2, "DB event should not be here");
-            PE_HW_SYNC, PE_HW_SEND: res.target = adr + 4;
-            PE_HW_REFETCH: res.target = adr;
-            default: res.target = programEvent2trg(eDesc.etype);
-        endcase
-
-        return res;
     endfunction
 
 endpackage

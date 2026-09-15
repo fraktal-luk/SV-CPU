@@ -65,6 +65,9 @@ package AbstractSim;
 
 
 ////////////////////////////
+
+    // Basic stuff
+
     typedef int InsId;  // Implem detail
 
     typedef struct {
@@ -92,7 +95,6 @@ package AbstractSim;
     typedef UidT UidQueueT[$];
 
 
-
     typedef UidT WriterId;
     localparam WriterId WID_NONE = UIDT_NONE;
 
@@ -107,18 +109,6 @@ package AbstractSim;
     } InsDependencies;
 
     localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
-
-
-
-    function automatic UopName decodeUop(input AbstractInstruction ins);
-        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
-        if (ins.def.o == O_fpDisabled) return UOP_ctrl_fp_disabled;
-        if (ins.def.o == O_fail) $error("fail op:\n%p", ins);
-
-        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
-        return OP_DECODING_TABLE[ins.mnemonic];
-    endfunction
-
 
 
         typedef enum {
@@ -169,9 +159,6 @@ package AbstractSim;
         } BackendState;
 
 
-
-
-
     typedef struct {
         logic active;
         InsId eventMid;
@@ -197,55 +184,22 @@ package AbstractSim;
     localparam EventDesc EMPTY_EVENT_DESC = '{0, -1, PE_NONE};
 
 
-    function automatic Mword takenTarget(input UopName uname, input Mword adr, input Mword args[3]);
-        case (uname)
-            UOP_br_z, UOP_br_nz:  return args[1];
-            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return adr + args[1];  
-            default: $fatal(2, "Wrong branch uop");
-        endcase  
-    endfunction
 
-    function automatic Mword finalTarget(input UopName uname, input logic dir, input Mword regValue, input Mword bqTarget, input Mword bqLink);
-        if (dir === 0) return bqLink;
+    // 1 use in main core
+    function automatic UopName decodeUop(input AbstractInstruction ins);
+        if (ins.def.o == O_fetchError) return UOP_ctrl_fetchError;
+        if (ins.def.o == O_fpDisabled) return UOP_ctrl_fp_disabled;
+        if (ins.def.o == O_fail) $error("fail op:\n%p", ins);
 
-        case (uname)
-            UOP_br_z, UOP_br_nz:  return regValue;
-            UOP_bc_z, UOP_bc_nz, UOP_bc_a, UOP_bc_l: return bqTarget;  
-            default: $fatal(2, "Wrong branch uop");
-        endcase 
+        assert (OP_DECODING_TABLE.exists(ins.mnemonic)) else $fatal(2, "what instruction is this?? %p", ins.mnemonic);
+        return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 
 
-    function automatic InsId replaceEvId(input InsId prev, input InsId next);
-        if (prev == -1) return next;
-        else if (next != -1 && prev > next) return next;
-        else return prev;
-    endfunction
 
-
-    function automatic EventInfo getLateEvent(input EventInfo info, input Mword sr2, input Mword sr3);
-        EventInfo res = EMPTY_EVENT_INFO;
-
-        res.target = info.target;
-        res.active = 1;
-        res.eventMid = info.eventMid;
-        res.etype = info.etype;
-        res.redirect = 1;
-
-        if (info.etype == PE_HW_RETE) res.target = sr2;
-        if (info.etype == PE_HW_RETI) res.target = sr3;
-
-        return res;
-    endfunction
-
-
-    task automatic checkUnimplementedInstruction(input AbstractInstruction ins);
-        if (ins.def.o == O_halt) $error("halt not implemented");
-    endtask
-
-
-
-        // Core general
+    //////////////////////////////////////////////////////////////////////
+    // Core general
+    //////////////////////////////////////////////////////////////////////
 
     typedef struct {
         int iqRegular;
@@ -274,14 +228,6 @@ package AbstractSim;
         InsId storeRel;
     } MarkerSet;
 
-
-
-
-    //////////////////////////////////////////////////////////////////////
-    // Core general
-    //////////////////////////////////////////////////////////////////////
-
-
     function automatic IqLevels getBufferAccepts(input IqLevels levels);
         IqLevels res = '{
             iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
@@ -300,6 +246,16 @@ package AbstractSim;
                 && acc.iqBranch
                 && acc.iqMem
                 && acc.iqStoreData;
+    endfunction
+
+
+    // Helper (inline it?)
+    function logic regsAccept(input int nI, input int nF);
+        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
+    endfunction
+
+    function logic bcQueueAccepts(input int k);
+        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
 
@@ -333,19 +289,6 @@ package AbstractSim;
             mem: '{default: TMP_UOP_NONE},
             storeData: '{default: TMP_UOP_NONE}
         };
-
-
-    // Helper (inline it?)
-    function logic regsAccept(input int nI, input int nF);
-        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
-    endfunction
-
-    function logic bcQueueAccepts(input int k);
-        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
-    endfunction
-
-
-
 
 
 
@@ -596,6 +539,7 @@ package AbstractSim;
                         } AccessSize;
 
 
+                        // Needed for frontend and data subsystem
                         typedef enum {
                             CR_UNCACHED,
                             CR_INVALID, // Address illegal
@@ -633,22 +577,18 @@ package AbstractSim;
 
 
 
-
-
-
-
         typedef Translation TranslationA[N_MEM_PORTS];
 
-
-        typedef struct {
-            Dword adr;
-            AccessSize size;
-            int block;
-            int blockOffset;
-            logic unaligned;
-            logic blockCross;
-            logic pageCross;
-        } AccessInfo;
+            // TODO: integrate into AccessDesc?
+            typedef struct {
+                Dword adr;
+                AccessSize size;
+                int block;
+                int blockOffset;
+                logic unaligned;
+                logic blockCross;
+                logic pageCross;
+            } AccessInfo;
 
         localparam AccessInfo DEFAULT_ACCESS_INFO = '{
             adr: 'x,
@@ -661,7 +601,32 @@ package AbstractSim;
         };
 
 
-         typedef struct {
+        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
+            AccessInfo res;
+
+            Dword aLow = adr % WAY_SIZE;
+            int block = aLow / BLOCK_SIZE;
+            int blockOffset = aLow % BLOCK_SIZE;
+
+            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
+
+            res.adr = adr;
+            res.size = accessSize;
+            
+            res.block = block;
+            res.blockOffset = blockOffset;
+            
+            res.unaligned = (aLow % accessSize) > 0;
+            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+            return res;
+        endfunction
+
+
+
+        // Widely used
+        typedef struct {
             logic active;
 
             logic invalid;
@@ -681,47 +646,40 @@ package AbstractSim;
             logic unaligned;
             logic blockCross;
             logic pageCross;
-            int shift; // Applies to block-crossing: bytes to shift at combining 
-         } AccessDesc;
+            int shift; // Applies to block-crossing: bytes to shift at combining
+        } AccessDesc;
 
         localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
 
 
-        function automatic Mword loadValue(input Mword w, input UopName uop);
-            case (uop)
-                UOP_mem_ldi: return $signed(Word'(w));
-                UOP_mem_ldid: return w;
-                UOP_mem_ldib: return Mword'(w[7:0]);
-                UOP_mem_ldf: return (w);
-                UOP_mem_ldfd: return w;
-                UOP_mem_lds: return w;
-                
-                UOP_mem_lda: return w;
 
-                UOP_mem_sti,
-                UOP_mem_stid,
-                UOP_mem_stib,
-                UOP_mem_stf,
-                UOP_mem_stfd,
-                UOP_mem_sts: return 0;
 
-                UOP_mem_stc: return 0;
-
-                default: $fatal(2, "Wrong op");
-            endcase
+        function automatic AccessSize getTransactionSize(input UopName uname);
+            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
+            else if (isMemUop(uname)) return SIZE_4;
+            else return SIZE_NONE;
         endfunction
 
-        // @endian
-        function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
-            Dword cw = w; // combined word
-            Dword shifted = w << 8*(8-shift);
 
-            foreach (cw[i]) begin
-                if (saved[i] === 'x) cw[i] = shifted[i];
-                else cw[i] = saved[i];
-            end
+        ////////////////////////////////////
+        // Dep on BLOCK_SIZE
 
-            return loadValue(cw, uop);
+            function automatic Dword getBlockBaseD(input Dword adr);
+                Dword res = adr;
+                res[BLOCK_OFFSET_BITS-1:0] = 0;
+                return res;
+            endfunction
+
+            function automatic Mword getBlockBaseM(input Mword adr);
+                Mword res = adr;
+                res[BLOCK_OFFSET_BITS-1:0] = 0;
+                return res;
+            endfunction
+
+            // Only CacheDefs
+        function automatic int getBlockIndex(input Dword adr);
+            return (adr % WAY_SIZE)/BLOCK_SIZE;
         endfunction
 
 
@@ -743,14 +701,8 @@ package AbstractSim;
         endfunction
 
 
-        function automatic AccessSize getTransactionSize(input UopName uname);
-            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
-            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
-            else if (isMemUop(uname)) return SIZE_4;
-            else return SIZE_NONE;
-        endfunction
 
-
+        // Only MemModules
         function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
             Mword adr = aDesc.vadr;
             Translation res = DEFAULT_TRANSLATION;
@@ -777,47 +729,47 @@ package AbstractSim;
         endfunction
 
 
-        ////////////////////////////////////
-        // Dep on BLOCK_SIZE
 
-        function automatic Dword getBlockBaseD(input Dword adr);
-            Dword res = adr;
-            res[BLOCK_OFFSET_BITS-1:0] = 0;
-            return res;
+            // Only MemSubpipe
+        function automatic Mword loadValue(input Mword w, input UopName uop);
+            case (uop)
+                UOP_mem_ldi: return $signed(Word'(w));
+                UOP_mem_ldid: return w;
+                UOP_mem_ldib: return Mword'(w[7:0]);
+                UOP_mem_ldf: return (w);
+                UOP_mem_ldfd: return w;
+                UOP_mem_lds: return w;
+                
+                UOP_mem_lda: return w;
+
+                UOP_mem_sti,
+                UOP_mem_stid,
+                UOP_mem_stib,
+                UOP_mem_stf,
+                UOP_mem_stfd,
+                UOP_mem_sts: return 0;
+
+                UOP_mem_stc: return 0;
+
+                default: $fatal(2, "Wrong op");
+            endcase
         endfunction
 
-        function automatic Mword getBlockBaseM(input Mword adr);
-            Mword res = adr;
-            res[BLOCK_OFFSET_BITS-1:0] = 0;
-            return res;
+            // Only MemSubpipe
+        // @endian
+        function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
+            Dword cw = w; // combined word
+            Dword shifted = w << 8*(8-shift);
+
+            foreach (cw[i]) begin
+                if (saved[i] === 'x) cw[i] = shifted[i];
+                else cw[i] = saved[i];
+            end
+
+            return loadValue(cw, uop);
         endfunction
 
 
-        function automatic int getBlockIndex(input Dword adr);
-            return (adr % WAY_SIZE)/BLOCK_SIZE;
-        endfunction
-
-        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
-            AccessInfo res;
-
-            Dword aLow = adr % WAY_SIZE;
-            int block = aLow / BLOCK_SIZE;
-            int blockOffset = aLow % BLOCK_SIZE;
-
-            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-            res.adr = adr;
-            res.size = accessSize;
-            
-            res.block = block;
-            res.blockOffset = blockOffset;
-            
-            res.unaligned = (aLow % accessSize) > 0;
-            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
-
-            return res;
-        endfunction
 
 
                 // DCache specific
@@ -842,10 +794,7 @@ package AbstractSim;
                 } DataCacheOutput;
 
                 localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
-                    0,
-                    CR_INVALID,
-                    'x,
-                    'x
+                    0, CR_INVALID, 'x, 'x
                 };
 
                 typedef struct {
@@ -947,7 +896,6 @@ package AbstractSim;
 
 
 
-
     class BranchCheckpoint;
         function new(input InsId id,
                     input WriterId intWr[32], input WriterId floatWr[32],
@@ -980,8 +928,6 @@ package AbstractSim;
         TMP_PredState predState;
         logic predDir;
     endclass
-
-
 
 
 endpackage
