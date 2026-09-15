@@ -118,37 +118,52 @@ package AbstractSim;
     endfunction
 
 
-        // Transfer size in bytes
-        typedef enum {
-            SIZE_NONE = 0,
-            SIZE_1 = 1,
-            SIZE_4 = 4,
-            SIZE_8 = 8,
-            SIZE_INS_LINE = FETCH_WIDTH*4
-        } AccessSize;
+                        // // Transfer size in bytes
+                        // typedef enum {
+                        //     SIZE_NONE = 0,
+                        //     SIZE_1 = 1,
+                        //     SIZE_4 = 4,
+                        //     SIZE_8 = 8,
+                        //     SIZE_INS_LINE = FETCH_WIDTH*4
+                        // } AccessSize;
 
 
-        typedef enum {
-            CR_UNCACHED,
-            CR_INVALID, // Address illegal
-            CR_TLB_MISS,
-            CR_NOT_ALLOWED,
-            CR_TAG_MISS,
-            CR_HIT
-        } CacheReadStatus;
+                        // typedef enum {
+                        //     CR_UNCACHED,
+                        //     CR_INVALID, // Address illegal
+                        //     CR_TLB_MISS,
+                        //     CR_NOT_ALLOWED,
+                        //     CR_TAG_MISS,
+                        //     CR_HIT
+                        // } CacheReadStatus;
 
 
-        typedef enum {
-            MC_NONE,
-            MC_NORMAL,
-            MC_BARRIER,
-            MC_UNCACHED,
-            MC_AQ_REL,
-            MC_SYS,
+                        // typedef enum {
+                        //     MC_NONE,
+                        //     MC_NORMAL,
+                        //     MC_BARRIER,
+                        //     MC_UNCACHED,
+                        //     MC_AQ_REL,
+                        //     MC_SYS,
 
-            MC_UPPER_B // block cross replay
-            //MC_UPPER_P  // page cross replay
-        } MemClass;
+                        //     MC_UPPER_B // block cross replay
+                        //     //MC_UPPER_P  // page cross replay
+                        // } MemClass;
+
+
+                        // typedef struct {
+                        //     InsId owner;
+                        //     Mword adr;
+                        //     Mword val;
+                        //     Mword adrAny;
+                        //     Dword padr;
+                        //     AccessSize size;
+                        //     logic barrierF;
+                        // } Transaction;
+
+                        // localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
+
+
 
 
         typedef enum {
@@ -199,18 +214,6 @@ package AbstractSim;
         } BackendState;
 
 
-        typedef struct {
-            InsId owner;
-            Mword adr;
-            Mword val;
-            Mword adrAny;
-            Dword padr;
-            AccessSize size;
-            logic barrierF;
-        } Transaction;
-
-        localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
-
 
         typedef struct {
             logic active;
@@ -234,57 +237,57 @@ package AbstractSim;
         localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
-        typedef struct {
-            integer sct;
-            logic[1:0] strHist[16];
-            logic[1:0] recentHist[2];
-        } TMP_PredState;
+            typedef struct {
+                integer sct;
+                logic[1:0] strHist[16];
+                logic[1:0] recentHist[2];
+            } TMP_PredState;
 
-        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
 
-        function automatic Mbyte TMP_bpEncode(input int index);
-            if (index == -1) return 0;
-            else if (index >= 2) return 3;
-            else return index + 1;
-        endfunction
+            function automatic Mbyte TMP_bpEncode(input int index);
+                if (index == -1) return 0;
+                else if (index >= 2) return 3;
+                else return index + 1;
+            endfunction
 
-        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
-            TMP_PredState res = prev;
+            function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
+                TMP_PredState res = prev;
 
-            if (res.recentHist[1] !== 'z) begin
-                res.sct++;
-                res.strHist = {res.recentHist[1], res.strHist[0:14]};
-            end
+                if (res.recentHist[1] !== 'z) begin
+                    res.sct++;
+                    res.strHist = {res.recentHist[1], res.strHist[0:14]};
+                end
 
-            res.recentHist = {last, res.recentHist[0]};
+                res.recentHist = {last, res.recentHist[0]};
 
-            return res;
-        endfunction
+                return res;
+            endfunction
 
-        function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
-            TMP_PredState res = prev;
-            res.recentHist[0] = last;
-            return res;
-        endfunction
-
-
-        function automatic logic TMP_getPrediction(input TMP_PredState pred);
-            // TODO: generate prediction (use VADR too)
-            return 'z;
-        endfunction
+            function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
+                TMP_PredState res = prev;
+                res.recentHist[0] = last;
+                return res;
+            endfunction
 
 
-        typedef struct {
-            logic active;
-            CacheReadStatus status;
-            ProgramEvent evt;
-            Mword vadr;
-            Dword padr;
-            OpSlotAF arr;
-            TMP_PredState predState;
-        } FrontStage;
+            function automatic logic TMP_getPrediction(input TMP_PredState pred);
+                // TODO: generate prediction (use VADR too)
+                return 'z;
+            endfunction
 
-        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
+
+        // typedef struct {
+        //     logic active;
+        //     CacheReadStatus status;
+        //     ProgramEvent evt;
+        //     Mword vadr;
+        //     Dword padr;
+        //     OpSlotAF arr;
+        //     TMP_PredState predState;
+        // } FrontStage;
+
+        // localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
 
 
         function automatic logic anyActiveB(input OpSlotAB s);
@@ -365,195 +368,6 @@ package AbstractSim;
     endtask
 
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-        /////////////////////////////////////////////////////////////////////////////////
-        // Mem
-        /////////////////////////////////////////////////////////////////////////////////
-
-        typedef Translation TranslationA[N_MEM_PORTS];
-
-
-        typedef struct {
-            Dword adr;
-            AccessSize size;
-            int block;
-            int blockOffset;
-            logic unaligned;
-            logic blockCross;
-            logic pageCross;
-        } AccessInfo;
-
-        localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-            adr: 'x,
-            size: SIZE_NONE,
-            block: -1,
-            blockOffset: -1,
-            unaligned: 'x,
-            blockCross: 'x,
-            pageCross: 'x 
-        };
-
-
-         typedef struct {
-            logic active;
-
-            logic invalid;
-
-            logic sys;
-            logic store;
-            logic uncachedReq;
-            logic uncachedCollect;
-            logic uncachedStore;
-            logic acq;
-            logic rel;
-
-            AccessSize size;
-            Mword vadr;
-            int blockIndex;
-            int blockOffset;
-            logic unaligned;
-            logic blockCross;
-            logic pageCross;
-            int shift; // Applies to block-crossing: bytes to shift at combining 
-         } AccessDesc;
-
-        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
-
-
-        function automatic Mword loadValue(input Mword w, input UopName uop);
-            case (uop)
-                UOP_mem_ldi: return $signed(Word'(w));
-                UOP_mem_ldid: return w;
-                UOP_mem_ldib: return Mword'(w[7:0]);
-                UOP_mem_ldf: return (w);
-                UOP_mem_ldfd: return w;
-                UOP_mem_lds: return w;
-                
-                UOP_mem_lda: return w;
-
-                UOP_mem_sti,
-                UOP_mem_stid,
-                UOP_mem_stib,
-                UOP_mem_stf,
-                UOP_mem_stfd,
-                UOP_mem_sts: return 0;
-
-                UOP_mem_stc: return 0;
-
-                default: $fatal(2, "Wrong op");
-            endcase
-        endfunction
-
-        // @endian
-        function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
-            Dword cw = w; // combined word
-            Dword shifted = w << 8*(8-shift);
-
-            foreach (cw[i]) begin
-                if (saved[i] === 'x) cw[i] = shifted[i];
-                else cw[i] = saved[i];
-            end
-
-            return loadValue(cw, uop);
-        endfunction
-
-
-        function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
-            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
-            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
-            
-            if ($isunknown(wa) || $isunknown(wb)) return 0;
-            return (wa < bEnd && wb < aEnd);
-        endfunction
-        
-        // is a inside b
-        function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
-            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
-            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
-            
-            if ($isunknown(wa) || $isunknown(wb)) return 0;
-            return (wa >= wb && aEnd <= bEnd);
-        endfunction
-
-
-        function automatic AccessSize getTransactionSize(input UopName uname);
-            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
-            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
-            else if (isMemUop(uname)) return SIZE_4;
-            else return SIZE_NONE;
-        endfunction
-
-
-        function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
-            Mword adr = aDesc.vadr;
-            Translation res = DEFAULT_TRANSLATION;
-            Translation found[$];
-
-            if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
-            if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
-
-            found = tq.find with (item.vadr == getPageBaseM(adr));
-
-            assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
-
-            if (found.size() == 0) begin
-                res.vadr = adr; // It's needed because TLB fill is based on this adr
-                return res;
-            end
-
-            res = found[0];
-
-            res.vadr = adr;
-            res.padr = res.padr + (adr - getPageBaseM(adr));
-
-            return res;
-        endfunction
-
-
-        ////////////////////////////////////
-        // Dep on BLOCK_SIZE
-
-        function automatic Dword getBlockBaseD(input Dword adr);
-            Dword res = adr;
-            res[BLOCK_OFFSET_BITS-1:0] = 0;
-            return res;
-        endfunction
-
-        function automatic Mword getBlockBaseM(input Mword adr);
-            Mword res = adr;
-            res[BLOCK_OFFSET_BITS-1:0] = 0;
-            return res;
-        endfunction
-
-
-        function automatic int getBlockIndex(input Dword adr);
-            return (adr % WAY_SIZE)/BLOCK_SIZE;
-        endfunction
-
-        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
-            AccessInfo res;
-
-            Dword aLow = adr % WAY_SIZE;
-            int block = aLow / BLOCK_SIZE;
-            int blockOffset = aLow % BLOCK_SIZE;
-
-            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-            res.adr = adr;
-            res.size = accessSize;
-            
-            res.block = block;
-            res.blockOffset = blockOffset;
-            
-            res.unaligned = (aLow % accessSize) > 0;
-            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
-
-            return res;
-        endfunction
-
-        ////////////////////////////////////////////////////////////////////
 
         // Core general
 
@@ -583,6 +397,76 @@ package AbstractSim;
         InsId loadAq;
         InsId storeRel;
     } MarkerSet;
+
+
+
+
+    //////////////////////////////////////////////////////////////////////
+    // Core general
+    //////////////////////////////////////////////////////////////////////
+
+
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res = '{
+            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+        };
+        return res;
+    endfunction
+
+    function automatic logic iqsAccept(input IqLevels acc);
+        return 1
+                && acc.iqRegular
+                && acc.iqFloat
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqStoreData;
+    endfunction
+
+
+        // For routing to IQs
+        typedef struct {
+            logic active;
+            UopId uid;
+        } TMP_Uop;
+
+        localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
+
+
+        typedef struct {
+            TMP_Uop regular[RENAME_WIDTH];
+            TMP_Uop multiply[RENAME_WIDTH];
+            TMP_Uop branch[RENAME_WIDTH];
+            TMP_Uop idivider[RENAME_WIDTH];
+            TMP_Uop float[RENAME_WIDTH];
+            TMP_Uop fdivider[RENAME_WIDTH];
+            TMP_Uop mem[RENAME_WIDTH];
+            TMP_Uop storeData[RENAME_WIDTH];
+        } RoutedUops;
+
+        localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
+            regular: '{default: TMP_UOP_NONE},
+            multiply: '{default: TMP_UOP_NONE},
+            branch: '{default: TMP_UOP_NONE},
+            idivider: '{default: TMP_UOP_NONE},
+            float: '{default: TMP_UOP_NONE},
+            fdivider: '{default: TMP_UOP_NONE},
+            mem: '{default: TMP_UOP_NONE},
+            storeData: '{default: TMP_UOP_NONE}
+        };
+
+
+    // Helper (inline it?)
+    function logic regsAccept(input int nI, input int nF);
+        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
+    endfunction
+
+    function logic bcQueueAccepts(input int k);
+        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+    endfunction
 
 
 
@@ -851,273 +735,302 @@ package AbstractSim;
 
 
 
-    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // // Frontend
-    // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // function automatic Mword fetchLineBase(input Mword adr);
-    //     return adr & ~(4*FETCH_WIDTH-1);
-    // endfunction;
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-    // function automatic OpSlotAF clearBeforeStart(input OpSlotAF st, input Mword expectedTarget);
-    //     OpSlotAF res = st;
-    //     Mword expectedTargetFloor = expectedTarget;
-    //     logic anyFound = 0;
-    //     expectedTargetFloor[1:0] = 0;
-
-    //     foreach (res[i]) begin
-    //         logic active = res[i].active && !$isunknown(res[i].adr) && (res[i].adr >= expectedTargetFloor);
-            
-    //         res[i].active = active;
-    //         res[i].first = active & !anyFound;
-
-    //         anyFound |= active;
-    //     end
-
-    //     return res;       
-    // endfunction
-
-
-    // function automatic OpSlotAF clearAfterBranch(input OpSlotAF st, input int branchSlot);
-    //     OpSlotAF res = st;
-
-    //     if (branchSlot == -1) return res;
-
-    //     foreach (res[i])
-    //         if (i > branchSlot) res[i].active = 0;
-
-    //     return res;        
-    // endfunction
-
-
-    // function automatic FrontStage makeStage_IP(input Mword target, input logic on);
-    //     FrontStage res = DEFAULT_FRONT_STAGE;
-    //     Mword baseAdr = fetchLineBase(target);
-    //     logic already = 0;
-    //     Mword targetFloor = target;
-    //     targetFloor[1:0] = 0;
-
-    //     res.active = on;
-    //     res.status = CR_HIT;
-    //     res.vadr = target;
-
-    //     foreach (res.arr[i]) begin
-    //         Mword adr = baseAdr + 4*i;
-    //         logic elemActive = !$isunknown(target) && (adr >= targetFloor) && !already;  
-    //         res.arr[i] = '{elemActive, -1, adr, 'x, 0, 0, 0, 'x};
-    //     end
-        
-    //     return res;
-    // endfunction
+        /////////////////////////////////////////////////////////////////////////////////
+        // Mem
+        /////////////////////////////////////////////////////////////////////////////////
 
 
 
-    // function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
-    //     FrontStage res = fs;
-
-    //     logic predictions[FETCH_WIDTH] = '{default: 0}; // TODO: should be provided by BP
-
-    //     logic branches[FETCH_WIDTH] = '{default: 0};
-    //     logic unconditional[FETCH_WIDTH] = '{default: 0};
-    //     logic predictedTaken[FETCH_WIDTH] = '{default: 0};
-
-    //     OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
-
-    //     if (!fs.active) return DEFAULT_FRONT_STAGE;
-
-    //     foreach (fs.arr[i]) begin
-    //         AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
-    //         branches[i] = isBranchIns(ins);
-    //         unconditional[i] = isBranchAlwaysIns(ins);
-    //         predictedTaken[i] = arrayF2[i].active && ((branches[i] && predictions[i]) || unconditional[i]);
-    //     end
-
-    //     begin
-    //         int firstTaken[$] = predictedTaken.find_first_index with (item === 1);
-
-    //         if (firstTaken.size() != 0) begin
-    //             arrayF2 = clearAfterBranch(arrayF2, firstTaken[0]);
-    //             arrayF2[firstTaken[0]].takenBranch = 1;
-    //         end
-    //     end
-
-    //     res.padr = 'x;
-    //     res.arr = arrayF2;
-
-    //     return res;
-    // endfunction
+                        // Transfer size in bytes
+                        typedef enum {
+                            SIZE_NONE = 0,
+                            SIZE_1 = 1,
+                            SIZE_4 = 4,
+                            SIZE_8 = 8,
+                            SIZE_INS_LINE = FETCH_WIDTH*4
+                        } AccessSize;
 
 
-    // function automatic Mword TMP_trgFromArr(input FrontStage fs);
-    //     Mword target = fetchLineBase(fs.vadr) + 4*FETCH_WIDTH;
-        
-    //     foreach (fs.arr[i]) begin
-    //         if (fs.arr[i].takenBranch) begin
-    //             AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
-    //             target = fs.arr[i].adr + Mword'(ins.sources[1]);
-    //             break;
-    //         end
-    //     end
-
-    //     return target;
-    // endfunction
+                        typedef enum {
+                            CR_UNCACHED,
+                            CR_INVALID, // Address illegal
+                            CR_TLB_MISS,
+                            CR_NOT_ALLOWED,
+                            CR_TAG_MISS,
+                            CR_HIT
+                        } CacheReadStatus;
 
 
-    // function automatic Mbyte TMP_predictionFromArr(input FrontStage fs);
-    //     logic anyBranch = 0;
+                        typedef enum {
+                            MC_NONE,
+                            MC_NORMAL,
+                            MC_BARRIER,
+                            MC_UNCACHED,
+                            MC_AQ_REL,
+                            MC_SYS,
 
-    //     foreach (fs.arr[i]) begin
-    //         if (fs.arr[i].branch) anyBranch = 1;
-    //         if (fs.arr[i].takenBranch) return TMP_bpEncode(i);
-    //     end
+                            MC_UPPER_B // block cross replay
+                            //MC_UPPER_P  // page cross replay
+                        } MemClass;
 
-    //     return anyBranch ? 0 : 'z;
-    // endfunction
+
+                        typedef struct {
+                            InsId owner;
+                            Mword adr;
+                            Mword val;
+                            Mword adrAny;
+                            Dword padr;
+                            AccessSize size;
+                            logic barrierF;
+                        } Transaction;
+
+                        localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
 
-    // function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
-    //     FrontStage res = DEFAULT_FRONT_STAGE;
-    //     logic pageCross = (getPageBaseM(target) !== getPageBaseM(prevAdr));
-
-    //     res.active = on && !(guardPageCross && pageCross);
-    //     res.status = CR_HIT;
-    //     res.vadr = target;
-    //     res.padr = target;
-
-    //     res.arr[0] = '{1, -1, target, 'x, 0, 0, 0, 'x};
-
-    //     return res;
-    // endfunction
-
-
-    // function automatic FrontStage getFrontStageF2_U(input FrontStage fs, input logic ENABLE_FRONT_BRANCHES);
-    //     FrontStage res = fs;
-    //     OpSlotF slot0 = fs.arr[0];
-
-    //     AbstractInstruction ins = decodeAbstract(slot0.bits);
-    //     logic takeBranch = fs.active && (fs.status == CR_HIT) && slot0.active && ENABLE_FRONT_BRANCHES && isBranchAlwaysIns(ins);
-
-    //     if (takeBranch) slot0.predictedTarget = slot0.adr + Mword'(ins.sources[1]);
-    //     else slot0.predictedTarget = slot0.adr + 4;
-
-    //     slot0.takenBranch = takeBranch;
-
-    //     res.padr = 'x;
-    //     res.arr[0] = slot0;
-
-    //     return res;
-    // endfunction
 
 
 
-        // DCache specific
+
+        typedef Translation TranslationA[N_MEM_PORTS];
+
 
         typedef struct {
-            logic req;
-            Mword adr;
-            Dword padr;
-            Mword value;
+            Dword adr;
             AccessSize size;
-            logic uncached;
-        } MemWriteInfo;
+            int block;
+            int blockOffset;
+            logic unaligned;
+            logic blockCross;
+            logic pageCross;
+        } AccessInfo;
 
-        localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+        localparam AccessInfo DEFAULT_ACCESS_INFO = '{
+            adr: 'x,
+            size: SIZE_NONE,
+            block: -1,
+            blockOffset: -1,
+            unaligned: 'x,
+            blockCross: 'x,
+            pageCross: 'x 
+        };
+
+
+         typedef struct {
+            logic active;
+
+            logic invalid;
+
+            logic sys;
+            logic store;
+            logic uncachedReq;
+            logic uncachedCollect;
+            logic uncachedStore;
+            logic acq;
+            logic rel;
+
+            AccessSize size;
+            Mword vadr;
+            int blockIndex;
+            int blockOffset;
+            logic unaligned;
+            logic blockCross;
+            logic pageCross;
+            int shift; // Applies to block-crossing: bytes to shift at combining 
+         } AccessDesc;
+
+        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+
+
+        function automatic Mword loadValue(input Mword w, input UopName uop);
+            case (uop)
+                UOP_mem_ldi: return $signed(Word'(w));
+                UOP_mem_ldid: return w;
+                UOP_mem_ldib: return Mword'(w[7:0]);
+                UOP_mem_ldf: return (w);
+                UOP_mem_ldfd: return w;
+                UOP_mem_lds: return w;
+                
+                UOP_mem_lda: return w;
+
+                UOP_mem_sti,
+                UOP_mem_stid,
+                UOP_mem_stib,
+                UOP_mem_stf,
+                UOP_mem_stfd,
+                UOP_mem_sts: return 0;
+
+                UOP_mem_stc: return 0;
+
+                default: $fatal(2, "Wrong op");
+            endcase
+        endfunction
+
+        // @endian
+        function automatic Mword combineLoadValues(input Mword saved, input Mword w, input int shift, input UopName uop);
+            Dword cw = w; // combined word
+            Dword shifted = w << 8*(8-shift);
+
+            foreach (cw[i]) begin
+                if (saved[i] === 'x) cw[i] = shifted[i];
+                else cw[i] = saved[i];
+            end
+
+            return loadValue(cw, uop);
+        endfunction
+
+
+        function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
+            
+            if ($isunknown(wa) || $isunknown(wb)) return 0;
+            return (wa < bEnd && wb < aEnd);
+        endfunction
+        
+        // is a inside b
+        function automatic logic memInside(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);
+            Dword aEnd = wa + Dword'(sizeA); // Exclusive end
+            Dword bEnd = wb + Dword'(sizeB); // Exclusive end
+            
+            if ($isunknown(wa) || $isunknown(wb)) return 0;
+            return (wa >= wb && aEnd <= bEnd);
+        endfunction
+
+
+        function automatic AccessSize getTransactionSize(input UopName uname);
+            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
+            else if (isMemUop(uname)) return SIZE_4;
+            else return SIZE_NONE;
+        endfunction
+
+
+        function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
+            Mword adr = aDesc.vadr;
+            Translation res = DEFAULT_TRANSLATION;
+            Translation found[$];
+
+            if (!aDesc.active || $isunknown(adr)) return DEFAULT_TRANSLATION;
+            if (!MMU_EN) return '{present: 1, vadr: adr, desc: '{1, 1, 1, 1, 0}, padr: adr};
+
+            found = tq.find with (item.vadr == getPageBaseM(adr));
+
+            assert (found.size() <= 1) else $fatal(2, "multiple hit in tlb\n%p", tq);
+
+            if (found.size() == 0) begin
+                res.vadr = adr; // It's needed because TLB fill is based on this adr
+                return res;
+            end
+
+            res = found[0];
+
+            res.vadr = adr;
+            res.padr = res.padr + (adr - getPageBaseM(adr));
+
+            return res;
+        endfunction
+
+
+        ////////////////////////////////////
+        // Dep on BLOCK_SIZE
+
+        function automatic Dword getBlockBaseD(input Dword adr);
+            Dword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
+
+        function automatic Mword getBlockBaseM(input Mword adr);
+            Mword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
+
+
+        function automatic int getBlockIndex(input Dword adr);
+            return (adr % WAY_SIZE)/BLOCK_SIZE;
+        endfunction
+
+        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
+            AccessInfo res;
+
+            Dword aLow = adr % WAY_SIZE;
+            int block = aLow / BLOCK_SIZE;
+            int blockOffset = aLow % BLOCK_SIZE;
+
+            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
+
+            res.adr = adr;
+            res.size = accessSize;
+            
+            res.block = block;
+            res.blockOffset = blockOffset;
+            
+            res.unaligned = (aLow % accessSize) > 0;
+            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+            return res;
+        endfunction
+
+
+                // DCache specific
+
+                typedef struct {
+                    logic req;
+                    Mword adr;
+                    Dword padr;
+                    Mword value;
+                    AccessSize size;
+                    logic uncached;
+                } MemWriteInfo;
+
+                localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+
+
+                typedef struct {
+                    logic active;
+                    CacheReadStatus status;
+                    logic lock;
+                    Mword data;
+                } DataCacheOutput;
+
+                localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
+                    0,
+                    CR_INVALID,
+                    'x,
+                    'x
+                };
+
+                typedef struct {
+                    logic valid;
+                    integer way;
+                    Dword tag;
+                    logic locked;
+                    Mword value;
+                } ReadResult;
+
+
+        ////////////////////////////////////////////////////////////////////
+
+
 
 
         typedef struct {
             logic active;
             CacheReadStatus status;
-            logic lock;
-            Mword data;
-        } DataCacheOutput;
+            ProgramEvent evt;
+            Mword vadr;
+            Dword padr;
+            OpSlotAF arr;
+            TMP_PredState predState;
+        } FrontStage;
 
-        localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
-            0,
-            CR_INVALID,
-            'x,
-            'x
-        };
-
-        typedef struct {
-            logic valid;
-            integer way;
-            Dword tag;
-            logic locked;
-            Mword value;
-        } ReadResult;
-
-
-
-    //////////////////////////////////////////////////////////////////////
-    // Core general
-    //////////////////////////////////////////////////////////////////////
-
-
-    function automatic IqLevels getBufferAccepts(input IqLevels levels);
-        IqLevels res = '{
-            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
-        };
-        return res;
-    endfunction
-
-    function automatic logic iqsAccept(input IqLevels acc);
-        return 1
-                && acc.iqRegular
-                && acc.iqFloat
-                && acc.iqBranch
-                && acc.iqMem
-                && acc.iqStoreData;
-    endfunction
-
-
-        // For routing to IQs
-        typedef struct {
-            logic active;
-            UopId uid;
-        } TMP_Uop;
-
-        localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
-
-
-        typedef struct {
-            TMP_Uop regular[RENAME_WIDTH];
-            TMP_Uop multiply[RENAME_WIDTH];
-            TMP_Uop branch[RENAME_WIDTH];
-            TMP_Uop idivider[RENAME_WIDTH];
-            TMP_Uop float[RENAME_WIDTH];
-            TMP_Uop fdivider[RENAME_WIDTH];
-            TMP_Uop mem[RENAME_WIDTH];
-            TMP_Uop storeData[RENAME_WIDTH];
-        } RoutedUops;
-
-        localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
-            regular: '{default: TMP_UOP_NONE},
-            multiply: '{default: TMP_UOP_NONE},
-            branch: '{default: TMP_UOP_NONE},
-            idivider: '{default: TMP_UOP_NONE},
-            float: '{default: TMP_UOP_NONE},
-            fdivider: '{default: TMP_UOP_NONE},
-            mem: '{default: TMP_UOP_NONE},
-            storeData: '{default: TMP_UOP_NONE}
-        };
-
-
-    // Helper (inline it?)
-    function logic regsAccept(input int nI, input int nF);
-        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
-    endfunction
-
-    function logic bcQueueAccepts(input int k);
-        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
-    endfunction
-
-
+        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
 
 
 
