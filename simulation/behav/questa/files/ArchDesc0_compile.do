@@ -16,6 +16,7 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/Emulation.sv" \
 "../../../../SV_CPU.srcs/src/UopList.sv" \
 "../../../../SV_CPU.srcs/src/AbstractSim.sv" \
+"../../../../SV_CPU.srcs/src/FrontendHelpers.sv" \
 "../../../../SV_CPU.srcs/src/MemoryTracker.sv" \
 "../../../../SV_CPU.srcs/src/RegisterTracker.sv" \
 "../../../../SV_CPU.srcs/src/InstructionMap.sv" \

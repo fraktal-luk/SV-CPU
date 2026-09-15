@@ -5,6 +5,7 @@ import Asm::*;
 import Emulation::*;
 
 import AbstractSim::*;
+import FrontendHelpers::*;
 import Insmap::*;
 
 import CacheDefs::*;
