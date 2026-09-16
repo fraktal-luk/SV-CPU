@@ -111,45 +111,29 @@ package AbstractSim;
     localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
 
 
-
         typedef enum {
             ES_BEGIN,
 
             ES_OK,
-            
-            ES_UNALIGNED,
-            
-            ES_UNCACHED_1,
-            ES_UNCACHED_2,
+
+            ES_UNALIGNED,            
+            ES_UNCACHED_1, ES_UNCACHED_2,
 
             ES_BARRIER_1,
             ES_AQ_REL_1,
 
-            ES_SQ_MISS,
-            ES_DATA_MISS,
-            ES_TLB_MISS,
-            
-            ES_REFETCH, // cause refetch
+            ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
             ES_CANT_FORWARD,
             
             ES_INSTANT_REPLAY,
-
             ES_LOWER_DONE,
 
+            ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
 
-            ES_ILLEGAL,
-            ES_INVALID,
-            ES_NONEXISTENT,
+            ES_REFETCH, // cause refetch
 
-
-            ES_FP_INVALID,
-            ES_FP_DIV0,
-            ES_FP_OVERFLOW,
-            ES_FP_UNDERFLOW,
-            ES_FP_INEXACT,
-
-            ES_FP_OV_INEXACT,
-            ES_FP_UND_INEXACT
+            ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
+            ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
         } ExecStatus;
 
         typedef enum {
@@ -203,9 +187,6 @@ package AbstractSim;
 
 
 
-    //////////////////////////////////////////////////////////////////////
-    // Core general
-    //////////////////////////////////////////////////////////////////////
 
     typedef struct {
         int iqRegular;
@@ -255,7 +236,6 @@ package AbstractSim;
     endfunction
 
 
-    // Helper (inline it?)
     function logic regsAccept(input int nI, input int nF);
         return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
     endfunction
@@ -265,38 +245,60 @@ package AbstractSim;
     endfunction
 
 
-        // TODO: unneeded because UopId can represent empty
-        // For routing to IQs
+            // TODO: unneeded because UopId can represent empty
+            // For routing to IQs
+            typedef struct {
+                logic active;
+                UopId uid;
+            } TMP_Uop;
+
+            localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
+
+
+            typedef struct {
+                TMP_Uop regular[RENAME_WIDTH];
+                TMP_Uop multiply[RENAME_WIDTH];
+                TMP_Uop branch[RENAME_WIDTH];
+                TMP_Uop idivider[RENAME_WIDTH];
+                TMP_Uop float[RENAME_WIDTH];
+                TMP_Uop fdivider[RENAME_WIDTH];
+                TMP_Uop mem[RENAME_WIDTH];
+                TMP_Uop storeData[RENAME_WIDTH];
+            } RoutedUops;
+
+            localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
+                regular: '{default: TMP_UOP_NONE},
+                multiply: '{default: TMP_UOP_NONE},
+                branch: '{default: TMP_UOP_NONE},
+                idivider: '{default: TMP_UOP_NONE},
+                float: '{default: TMP_UOP_NONE},
+                fdivider: '{default: TMP_UOP_NONE},
+                mem: '{default: TMP_UOP_NONE},
+                storeData: '{default: TMP_UOP_NONE}
+            };
+
+
         typedef struct {
-            logic active;
-            UopId uid;
-        } TMP_Uop;
+            UopId regular[RENAME_WIDTH];
+            UopId multiply[RENAME_WIDTH];
+            UopId branch[RENAME_WIDTH];
+            UopId idivider[RENAME_WIDTH];
+            UopId float[RENAME_WIDTH];
+            UopId fdivider[RENAME_WIDTH];
+            UopId mem[RENAME_WIDTH];
+            UopId storeData[RENAME_WIDTH];
+        } RoutedUops_N;
 
-        localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
-
-
-        typedef struct {
-            TMP_Uop regular[RENAME_WIDTH];
-            TMP_Uop multiply[RENAME_WIDTH];
-            TMP_Uop branch[RENAME_WIDTH];
-            TMP_Uop idivider[RENAME_WIDTH];
-            TMP_Uop float[RENAME_WIDTH];
-            TMP_Uop fdivider[RENAME_WIDTH];
-            TMP_Uop mem[RENAME_WIDTH];
-            TMP_Uop storeData[RENAME_WIDTH];
-        } RoutedUops;
-
-        localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
-            regular: '{default: TMP_UOP_NONE},
-            multiply: '{default: TMP_UOP_NONE},
-            branch: '{default: TMP_UOP_NONE},
-            idivider: '{default: TMP_UOP_NONE},
-            float: '{default: TMP_UOP_NONE},
-            fdivider: '{default: TMP_UOP_NONE},
-            mem: '{default: TMP_UOP_NONE},
-            storeData: '{default: TMP_UOP_NONE}
+        localparam RoutedUops_N DEFAULT_ROUTED_UOPS_N = '{
+            regular: '{default: UID_NONE},
+            multiply: '{default: UID_NONE},
+            branch: '{default: UID_NONE},
+            idivider: '{default: UID_NONE},
+            float: '{default: UID_NONE},
+            fdivider: '{default: UID_NONE},
+            mem: '{default: UID_NONE},
+            storeData: '{default: UID_NONE}
         };
-
 
 
         /////////////////////////////////////////////////////////////////////////////////
@@ -361,11 +363,14 @@ package AbstractSim;
 
         //typedef Translation TranslationA[N_MEM_PORTS];
 
+
+
+
             // TODO: integrate into AccessDesc?
             typedef struct {
-                Dword adr;
+                Dword vadr;
                 AccessSize size;
-                int block;
+                int blockIndex;
                 int blockOffset;
                 logic unaligned;
                 logic blockCross;
@@ -373,38 +378,14 @@ package AbstractSim;
             } AccessInfo;
 
         localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-            adr: 'x,
+            vadr: 'x,
             size: SIZE_NONE,
-            block: -1,
+            blockIndex: -1,
             blockOffset: -1,
             unaligned: 'x,
             blockCross: 'x,
             pageCross: 'x 
         };
-
-
-        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
-            AccessInfo res;
-
-            Dword aLow = adr % WAY_SIZE;
-            int block = aLow / BLOCK_SIZE;
-            int blockOffset = aLow % BLOCK_SIZE;
-
-            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
-
-            res.adr = adr;
-            res.size = accessSize;
-            
-            res.block = block;
-            res.blockOffset = blockOffset;
-            
-            res.unaligned = (aLow % accessSize) > 0;
-            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
-            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
-
-            return res;
-        endfunction
-
 
 
         // Widely used
@@ -421,8 +402,8 @@ package AbstractSim;
             logic acq;
             logic rel;
 
-            AccessSize size;
             Mword vadr;
+            AccessSize size;
             int blockIndex;
             int blockOffset;
             logic unaligned;
@@ -431,8 +412,30 @@ package AbstractSim;
             int shift; // Applies to block-crossing: bytes to shift at combining
         } AccessDesc;
 
-        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, 'z, -1, -1, 'z, 'z, 'z};
+        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, -1, -1, 'z, 'z, 'z};
 
+
+        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
+            AccessInfo res;
+
+            Dword aLow = adr % WAY_SIZE;
+            int block = aLow / BLOCK_SIZE;
+            int blockOffset = aLow % BLOCK_SIZE;
+
+            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
+
+            res.vadr = adr;
+            res.size = accessSize;
+            
+            res.blockIndex = block;
+            res.blockOffset = blockOffset;
+            
+            res.unaligned = (aLow % accessSize) > 0;
+            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+            return res;
+        endfunction
 
 
 
@@ -453,31 +456,31 @@ package AbstractSim;
 
 
 
-                // DCache specific
+            // DCache specific
 
-                // Widely used
-                typedef struct {
-                    logic req;
-                    Mword adr;
-                    Dword padr;
-                    Mword value;
-                    AccessSize size;
-                    logic uncached;
-                } MemWriteInfo;
+            // Widely used
+            typedef struct {
+                logic req;
+                Mword adr;
+                Dword padr;
+                Mword value;
+                AccessSize size;
+                logic uncached;
+            } MemWriteInfo;
 
-                localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+            localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
 
-                // Widely used
-                typedef struct {
-                    logic active;
-                    CacheReadStatus status;
-                    logic lock;
-                    Mword data;
-                } DataCacheOutput;
+            // Widely used
+            typedef struct {
+                logic active;
+                CacheReadStatus status;
+                logic lock;
+                Mword data;
+            } DataCacheOutput;
 
-                localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
-                    0, CR_INVALID, 'x, 'x
-                };
+            localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{
+                0, CR_INVALID, 'x, 'x
+            };
 
         ////////////////////////////////////////////////////////////////////
 

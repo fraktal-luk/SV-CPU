@@ -142,7 +142,7 @@ module MemSubpipe#()
 
         res.vadr = vadr;
 
-        res.blockIndex = aInfo.block;
+        res.blockIndex = aInfo.blockIndex;
         res.blockOffset = aInfo.blockOffset;
 
         res.unaligned = aInfo.unaligned;

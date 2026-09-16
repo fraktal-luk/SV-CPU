@@ -20,7 +20,7 @@ module IssueQueue
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
     input TMP_Uop inGroupU[RENAME_WIDTH],
-        
+
     input logic allow,   
     output UopPacket outPackets[OUT_WIDTH]
 );
@@ -571,8 +571,34 @@ module IssueQueueComplex(
         return res;
     endfunction
 
+        function automatic RoutedUops_N routeUops_N(input OpSlotAB gr);
+            RoutedUops_N res = DEFAULT_ROUTED_UOPS_N;
+            
+            foreach (gr[i]) begin
+                if (!gr[i].active) continue;
+                
+                for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin // insMap dependece
+                    UopId uid = '{gr[i].mid, u};
+                    UopName uname = decUname(uid);                          // module dependence
+
+                    if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = uid;
+                    else if (isStoreDataUop(uname)) res.storeData[i] = uid;
+                    else if (isBranchUop(uname)) res.branch[i] = uid;
+                    else if (isIntDividerUop(uname)) res.idivider[i] = uid;
+                    else if (isIntMultiplierUop(uname)) res.multiply[i] = uid;
+                    else if (isFloatDividerUop(uname)) res.fdivider[i] = uid;
+                    else if (isFloatCalcUop(uname)) res.float[i] = uid;
+                    else res.regular[i] = uid;
+                end
+            end
+            
+            return res;
+        endfunction
+
+
 
     RoutedUops routedUops;
+        RoutedUops_N routedUops_N;
     
     UopPacket issuedRegularP[2];
     UopPacket issuedMultiplierP[2];
@@ -584,7 +610,8 @@ module IssueQueueComplex(
     UopPacket issuedStoreDataP[1];
 
 
-    assign routedUops = routeUops(inGroup); 
+    assign routedUops = routeUops(inGroup);
+    assign routedUops_N = routeUops_N(inGroup);
 
 
     IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,

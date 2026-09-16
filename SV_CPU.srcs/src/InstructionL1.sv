@@ -128,7 +128,7 @@ module InstructionL1(
             
             res.vadr = adr;
             
-            res.blockIndex = aInfo.block;
+            res.blockIndex = aInfo.blockIndex;
             res.blockOffset = aInfo.blockOffset;
     
             res.unaligned = aInfo.unaligned;
