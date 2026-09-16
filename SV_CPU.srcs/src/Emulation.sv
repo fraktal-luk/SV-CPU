@@ -139,7 +139,7 @@ package Emulation;
                     return fpRes.value;
                 end
                 else
-                    return calculateResult(ins, args, adr, rmode);
+                    return calculateResult(ins, args, adr);
             end
 
             if (isBranchIns(ins))
@@ -396,7 +396,7 @@ package Emulation;
                 if (catchArithException(ins, vals, result, fpRes)) return;
             end
             else
-                result = calculateResult(ins, vals, adr, rm);
+                result = calculateResult(ins, vals, adr);
 
             if (hasFloatDest(ins)) writeFloatReg(this.coreState, ins.dest, result);
             if (hasIntDest(ins)) writeIntReg(this.coreState, ins.dest, result);

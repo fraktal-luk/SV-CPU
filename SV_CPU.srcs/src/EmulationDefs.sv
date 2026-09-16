@@ -11,31 +11,9 @@ package EmulationDefs;
     import Arith::*;
 
 
-    typedef struct {
-        logic allowed;
-        logic canRead;
-        logic canWrite;
-        logic canExec;
-        logic cached;
-    } DataLineDesc;
-
-    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
-
-    typedef struct {
-        logic present; // TLB hit
-        Mword vadr;
-        DataLineDesc desc;
-        Dword padr;
-    } Translation;
-
-    localparam Translation DEFAULT_TRANSLATION = '{
-        present: 0,
-        vadr: 'x,
-        desc: DEFAULT_DATA_LINE_DESC,
-        padr: 'x
-    };
 
 
+    // (arch)
     // Not including memory
     function automatic logic isFloatCalcIns(input AbstractInstruction ins);
         return ins.def.o inside {
@@ -75,7 +53,7 @@ package EmulationDefs;
         };
     endfunction
 
-
+    // (arch)
     function automatic logic requiresFP(input AbstractInstruction ins);
         return ins.mnemonic inside {
             "xor_f",
@@ -265,6 +243,36 @@ package EmulationDefs;
 
 
 
+
+
+
+    typedef struct {
+        logic allowed;
+        logic canRead;
+        logic canWrite;
+        logic canExec;
+        logic cached;
+    } DataLineDesc;
+
+    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
+
+    typedef struct {
+        logic present; // TLB hit
+        Mword vadr;
+        DataLineDesc desc;
+        Dword padr;
+    } Translation;
+
+    localparam Translation DEFAULT_TRANSLATION = '{
+        present: 0,
+        vadr: 'x,
+        desc: DEFAULT_DATA_LINE_DESC,
+        padr: 'x
+    };
+
+
+
+    // (emul) specific
     function automatic Mword getArgValue(input Mword intRegs[32], input Mword floatRegs[32], input int src, input byte spec);
         case (spec)
            "i": return (intRegs[src]);
@@ -284,9 +292,8 @@ package EmulationDefs;
 
 
 
-    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
+    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
         Mword result;
-        Rounding rd = convertRM(rm);
 
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
@@ -353,9 +360,7 @@ package EmulationDefs;
             O_floatGenOv: result = '{'{overflow: 1, default: 0}, 1};
 
 
-            O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
-                                   //'{NO_EXCEPTION, addFp32(vals[0], vals[1], rd)};
-                                   TMP_addF32(vals[0], vals[1], rd);
+            O_floatAdd32: result = TMP_addF32(vals[0], vals[1], rd);
             O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
             O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
@@ -426,7 +431,7 @@ package EmulationDefs;
     endfunction
 
 
-
+    // (emul specific)
     // Use in 1 function Emulation
     typedef struct {
         bit active;
@@ -437,7 +442,6 @@ package EmulationDefs;
     } MemoryWrite;
 
     const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
-
 
 
     function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);

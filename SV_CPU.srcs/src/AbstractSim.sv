@@ -668,7 +668,7 @@ package AbstractSim;
 
 
         ////////////////////////////////////
-        // Dep on BLOCK_SIZE
+        // Dep on BLOCK_SIZE   -  to CacheDefs?
 
             function automatic Dword getBlockBaseD(input Dword adr);
                 Dword res = adr;

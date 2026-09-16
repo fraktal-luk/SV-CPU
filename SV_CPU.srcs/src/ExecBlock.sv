@@ -322,4 +322,56 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
+    function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
+                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+        FEQ found1, found0;
+
+        if (ready) return tracker.ints.regs[source];
+        
+        found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
+        if (found1.size() != 0) begin
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
+            verifyForward(ii, ui, source, found1[0].result);
+            return found1[0].result;
+        end
+        
+        found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
+        if (found0.size() != 0) begin
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
+            verifyForward(ii, ui, source, found0[0].result);
+            return found0[0].result;
+        end
+
+        $fatal(2, "oh no\n%p, %d", producer, source);
+    endfunction
+
+
+    function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
+                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+        FEQ found1, found0;
+                       
+        if (ready) return tracker.floats.regs[source];
+
+        found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
+        if (found1.size() != 0) begin
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
+            verifyForward(ii, ui, source, found1[0].result);
+            return found1[0].result;
+        end
+        
+        found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
+        if (found0.size() != 0) begin
+            InstructionInfo ii = imap.get(U2M(producer));
+            UopInfo ui = imap.getU(producer);
+            verifyForward(ii, ui, source, found0[0].result);
+            return found0[0].result;
+        end
+
+        $fatal(2, "oh no");
+    endfunction
+
+
 endmodule
