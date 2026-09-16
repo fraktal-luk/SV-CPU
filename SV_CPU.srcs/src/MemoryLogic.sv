@@ -38,7 +38,7 @@ package MemoryLogic;
 
         // Only MemModules
         function automatic Translation translateAddress(input AccessDesc aDesc, input Translation tq[$], input logic MMU_EN);    
-            Mword adr = aDesc.vadr;
+            Mword adr = aDesc.info.vadr;
             Translation res = DEFAULT_TRANSLATION;
             Translation found[$];
 

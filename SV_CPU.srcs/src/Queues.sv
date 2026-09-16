@@ -95,12 +95,12 @@ package Queues;
 
     function automatic MemWriteInfo makeWriteInfo(input SqEntry sqe);
         return '{sqe.mid != -1 && sqe.valReady && !sqe.accessDesc.sys && !sqe.error && !sqe.refetch && !sqe.suppress,
-                sqe.accessDesc.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.size, sqe.accessDesc.uncachedStore};
+                sqe.accessDesc.info.vadr, sqe.translation.padr, sqe.val, sqe.accessDesc.info.size, sqe.accessDesc.uncachedStore};
     endfunction
 
     function automatic MemWriteInfo makeSysWriteInfo(input SqEntry sqe);
         return '{sqe.mid != -1 && sqe.valReady && sqe.accessDesc.sys && !sqe.error && !sqe.refetch,
-                sqe.accessDesc.vadr, 'x, sqe.val, sqe.accessDesc.size, 'x};
+                sqe.accessDesc.info.vadr, 'x, sqe.val, sqe.accessDesc.info.size, 'x};
     endfunction
 
 endpackage

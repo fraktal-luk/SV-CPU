@@ -126,7 +126,7 @@ module MemSubpipe#()
 
         res.invalid = !isStoreSysUop(uname) && !isLoadSysUop(uname) && !virtualAddressValid(adr);
 
-        res.size = trSize;
+        res.info.size = trSize;
 
         res.store = isStoreUop(uname);
         res.sys = isLoadSysUop(uname) || isStoreSysUop(uname);
@@ -140,14 +140,14 @@ module MemSubpipe#()
         if (isStoreRelUop(uname) && p.status == ES_BEGIN) res.active = 0; // Don't cause lock clearing by idle run
         if (isMemBarrierUop(uname) && !isLoadAqUop(uname)) res.active = 0; // Pure barriers don't make access
 
-        res.vadr = vadr;
+        res.info.vadr = vadr;
 
-        res.blockIndex = aInfo.blockIndex;
-        res.blockOffset = aInfo.blockOffset;
+        res.info.blockIndex = aInfo.blockIndex;
+        res.info.blockOffset = aInfo.blockOffset;
 
-        res.unaligned = aInfo.unaligned;
-        res.blockCross = aInfo.blockCross;
-        res.pageCross = aInfo.pageCross;
+        res.info.unaligned = aInfo.unaligned;
+        res.info.blockCross = aInfo.blockCross;
+        res.info.pageCross = aInfo.pageCross;
     
         res.shift = isUpper ? (adr % 8) : 0;
 
@@ -247,7 +247,7 @@ module MemSubpipe#()
             MC_AQ_REL: begin
                 case (p.status)
                     ES_BEGIN, ES_INSTANT_REPLAY: begin
-                        if (ad.unaligned) begin
+                        if (ad.info.unaligned) begin
                             insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
                             res.status = ES_UNALIGNED;
                             res.result = 0;
@@ -333,7 +333,7 @@ module MemSubpipe#()
                 res.status = ES_ILLEGAL;
                 return res;
             end
-            if (ad.unaligned) begin
+            if (ad.info.unaligned) begin
                 insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
                 res.status = ES_UNALIGNED;
                 return res;
@@ -383,7 +383,7 @@ module MemSubpipe#()
         // No misses or special actions, typical load/store
         if (isLoadMemUop(decUname(uid))) begin
             // First run of block-crossing load?
-            if (ad.blockCross && res.memClass != MC_UPPER_B) begin
+            if (ad.info.blockCross && res.memClass != MC_UPPER_B) begin
                 res.memClass = MC_UPPER_B;
                 res.status = ES_LOWER_DONE;
                 res.result = cacheResp.data;

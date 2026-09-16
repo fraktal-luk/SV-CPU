@@ -59,7 +59,7 @@ module DataL1(
         else if (aDesc.uncachedStore) begin end
 
         // Otherwise check translation
-        else if (!virtualAddressValid(aDesc.vadr))
+        else if (!virtualAddressValid(aDesc.info.vadr))
             res = '{1, CR_INVALID, 'x, 'x}; // Invalid virtual adr
         else if (!tr.present)
             res = '{1, CR_TLB_MISS, 'x, 'x}; // TLB miss
@@ -86,7 +86,7 @@ module DataL1(
         //cacheResults[p] <= '{0, -1, 'x, 'x, 'x};
         cacheReadOut[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
-        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
+        if (!aDesc.active || $isunknown(aDesc.info.vadr)) return;
         else begin
             Translation tr = tlb.translationsH[p];
             ReadResult selectedResult;

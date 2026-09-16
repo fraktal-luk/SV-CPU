@@ -118,7 +118,6 @@ module InstructionL1(
 
             res.active = en;
 
-            res.size = SIZE_INS_LINE;
 
             res.store = 1;
             res.sys = 0;
@@ -126,15 +125,16 @@ module InstructionL1(
             res.uncachedCollect = 0;
             res.uncachedStore = 0;
             
-            res.vadr = adr;
-            
-            res.blockIndex = aInfo.blockIndex;
-            res.blockOffset = aInfo.blockOffset;
+            res.info.vadr = adr;
+            res.info.size = SIZE_INS_LINE;
+
+            res.info.blockIndex = aInfo.blockIndex;
+            res.info.blockOffset = aInfo.blockOffset;
     
-            res.unaligned = aInfo.unaligned;
-            res.blockCross = aInfo.blockCross;
-            res.pageCross = aInfo.pageCross;
-        
+            res.info.unaligned = aInfo.unaligned;
+            res.info.blockCross = aInfo.blockCross;
+            res.info.pageCross = aInfo.pageCross;
+
             return res;
         endfunction
 

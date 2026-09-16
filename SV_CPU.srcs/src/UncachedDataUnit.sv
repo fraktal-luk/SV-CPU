@@ -49,8 +49,8 @@ module UncachedDataUnit(
     function automatic void UNC_scheduleUncachedRead(input AccessDesc aDesc);
         uncachedReads[0].ongoing = 1;
         uncachedReads[0].counter = 8;
-        uncachedReads[0].adr = aDesc.vadr;
-        uncachedReads[0].size = aDesc.size;
+        uncachedReads[0].adr = aDesc.info.vadr;
+        uncachedReads[0].size = aDesc.info.size;
     endfunction
     
     function automatic void UNC_clearUncachedRead();
@@ -138,7 +138,7 @@ module UncachedDataUnit(
 
         foreach (mn.adE0[p]) begin
             AccessDesc aDesc = mn.adE0[p];
-            if (!aDesc.active || $isunknown(aDesc.vadr)) continue;
+            if (!aDesc.active || $isunknown(aDesc.info.vadr)) continue;
             else if (aDesc.uncachedReq) UNC_scheduleUncachedRead(aDesc); // request for uncached read
             else if (aDesc.uncachedCollect) UNC_clearUncachedRead();
         end
@@ -168,7 +168,7 @@ module UncachedDataUnit(
 
         uncachedResults[p] <= EMPTY_DATA_CACHE_OUTPUT;
 
-        if (!aDesc.active || $isunknown(aDesc.vadr)) return;
+        if (!aDesc.active || $isunknown(aDesc.info.vadr)) return;
         else begin
             uncachedResults[p] <= doReadAccessUnc(aDesc);
         end

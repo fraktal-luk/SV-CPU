@@ -50,7 +50,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
  
     function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
-        Mword regAdr = aDesc.vadr;
+        Mword regAdr = aDesc.info.vadr;
         
         if (!aDesc.active || !aDesc.sys) return res;
         

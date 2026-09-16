@@ -402,17 +402,19 @@ package AbstractSim;
             logic acq;
             logic rel;
 
-            Mword vadr;
-            AccessSize size;
-            int blockIndex;
-            int blockOffset;
-            logic unaligned;
-            logic blockCross;
-            logic pageCross;
+                // Mword vadr;
+                // AccessSize size;
+                // int blockIndex;
+                // int blockOffset;
+                // logic unaligned;
+                // logic blockCross;
+                // logic pageCross;
+            AccessInfo info;
+
             int shift; // Applies to block-crossing: bytes to shift at combining
         } AccessDesc;
 
-        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, 'z, SIZE_NONE, -1, -1, 'z, 'z, 'z};
+        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, DEFAULT_ACCESS_INFO, /*'z, SIZE_NONE, -1, -1, 'z, 'z, 'z,*/ 0};
 
 
         function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
