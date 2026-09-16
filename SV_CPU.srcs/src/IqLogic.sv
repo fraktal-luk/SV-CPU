@@ -68,4 +68,27 @@ package IqLogic;
     typedef Wakeup Wakeup3[3];
     typedef Wakeup WakeupMatrixD[][3];
 
+    typedef struct {
+        UopId regular[RENAME_WIDTH];
+        UopId multiply[RENAME_WIDTH];
+        UopId branch[RENAME_WIDTH];
+        UopId idivider[RENAME_WIDTH];
+        UopId float[RENAME_WIDTH];
+        UopId fdivider[RENAME_WIDTH];
+        UopId mem[RENAME_WIDTH];
+        UopId storeData[RENAME_WIDTH];
+    } RoutedUops;
+
+    localparam RoutedUops DEFAULT_ROUTED_UOPS_N = '{
+        regular: '{default: UID_NONE},
+        multiply: '{default: UID_NONE},
+        branch: '{default: UID_NONE},
+        idivider: '{default: UID_NONE},
+        float: '{default: UID_NONE},
+        fdivider: '{default: UID_NONE},
+        mem: '{default: UID_NONE},
+        storeData: '{default: UID_NONE}
+    };
+
+
 endpackage

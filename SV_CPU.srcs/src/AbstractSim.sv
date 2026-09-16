@@ -245,62 +245,6 @@ package AbstractSim;
     endfunction
 
 
-            // TODO: unneeded because UopId can represent empty
-            // For routing to IQs
-            typedef struct {
-                logic active;
-                UopId uid;
-            } TMP_Uop;
-
-            localparam TMP_Uop TMP_UOP_NONE = '{0, UID_NONE};
-
-
-            typedef struct {
-                TMP_Uop regular[RENAME_WIDTH];
-                TMP_Uop multiply[RENAME_WIDTH];
-                TMP_Uop branch[RENAME_WIDTH];
-                TMP_Uop idivider[RENAME_WIDTH];
-                TMP_Uop float[RENAME_WIDTH];
-                TMP_Uop fdivider[RENAME_WIDTH];
-                TMP_Uop mem[RENAME_WIDTH];
-                TMP_Uop storeData[RENAME_WIDTH];
-            } RoutedUops;
-
-            localparam RoutedUops DEFAULT_ROUTED_UOPS = '{
-                regular: '{default: TMP_UOP_NONE},
-                multiply: '{default: TMP_UOP_NONE},
-                branch: '{default: TMP_UOP_NONE},
-                idivider: '{default: TMP_UOP_NONE},
-                float: '{default: TMP_UOP_NONE},
-                fdivider: '{default: TMP_UOP_NONE},
-                mem: '{default: TMP_UOP_NONE},
-                storeData: '{default: TMP_UOP_NONE}
-            };
-
-
-        typedef struct {
-            UopId regular[RENAME_WIDTH];
-            UopId multiply[RENAME_WIDTH];
-            UopId branch[RENAME_WIDTH];
-            UopId idivider[RENAME_WIDTH];
-            UopId float[RENAME_WIDTH];
-            UopId fdivider[RENAME_WIDTH];
-            UopId mem[RENAME_WIDTH];
-            UopId storeData[RENAME_WIDTH];
-        } RoutedUops_N;
-
-        localparam RoutedUops_N DEFAULT_ROUTED_UOPS_N = '{
-            regular: '{default: UID_NONE},
-            multiply: '{default: UID_NONE},
-            branch: '{default: UID_NONE},
-            idivider: '{default: UID_NONE},
-            float: '{default: UID_NONE},
-            fdivider: '{default: UID_NONE},
-            mem: '{default: UID_NONE},
-            storeData: '{default: UID_NONE}
-        };
-
-
         /////////////////////////////////////////////////////////////////////////////////
         // Mem
         /////////////////////////////////////////////////////////////////////////////////
@@ -361,11 +305,6 @@ package AbstractSim;
 
 
 
-        //typedef Translation TranslationA[N_MEM_PORTS];
-
-
-
-
             // TODO: integrate into AccessDesc?
             typedef struct {
                 Dword vadr;
@@ -402,13 +341,6 @@ package AbstractSim;
             logic acq;
             logic rel;
 
-                // Mword vadr;
-                // AccessSize size;
-                // int blockIndex;
-                // int blockOffset;
-                // logic unaligned;
-                // logic blockCross;
-                // logic pageCross;
             AccessInfo info;
 
             int shift; // Applies to block-crossing: bytes to shift at combining
