@@ -92,7 +92,6 @@ package Emulation;
         endfunction
 
         function automatic void syncStatusFromRegs();
-            // TODO: other state?
             setStatusFromRegs(status, coreState.sysRegs);
         endfunction
 
@@ -476,7 +475,6 @@ package Emulation;
                 syncStatusFromRegs();
             end
             else begin
-                // TODO: simplify  (coreState)
                 modifySysRegs(coreState, adr, ins);
                 syncStatusFromRegs();
             end
@@ -572,7 +570,7 @@ package Emulation;
             else if ((isLoadAqIns(ins) || isStoreRelIns(ins)) && !tr.desc.cached)
                 evt = PE_MEM_DISALLOWED_ACCESS;
 
-            else if ((isLoadAqIns(ins) || isStoreRelIns(ins) || !tr.desc.cached) && (vadr % 4 != 0)) // TODO: proper alignemnt per size
+            else if ((isLoadAqIns(ins) || isStoreRelIns(ins) || !tr.desc.cached) && (vadr % getAccessSize(ins) != 0))
                 evt = PE_MEM_UNALIGNED_ADDRESS;
 
             // PE_MEM_NONEXISTENT_ADDRESS = 3*16 + 7,

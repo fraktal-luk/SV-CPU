@@ -466,10 +466,28 @@ package EmulationDefs;
     endfunction
 
 
+    function automatic int getAccessSize(input AbstractInstruction ins);
+        case (ins.def.o)
+            O_intLoadW, O_intStoreW: return 4;
+            O_intLoadD, O_intStoreD: return 8;
+            O_intLoadB, O_intStoreB: return 1;
+
+            O_floatLoadW, O_floatStoreW: return 4;
+            O_floatLoadD, O_floatStoreD: return 8;
+
+            O_intLoadAqW, O_intStoreRelW: return 4;
+
+//            O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF,
+
+            default: return -1;
+        endcase
+    endfunction
+
+
 
     function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
         // syndrome
-        status.eventType = ProgramEvent'(sysRegs[6]);
+        status.eventType = ProgramEvent'(sysRegs[6]); // TODO: look also to sysRegs[7] (int syndrome) or refactor it?
     endfunction
 
     function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
@@ -479,7 +497,6 @@ package EmulationDefs;
             return ins;
     endfunction
 
-    // (arch)
     function automatic Rounding convertRM(input RoundingMode rm);
         case (rm)
             RM_Even: return RoundNearestEven;

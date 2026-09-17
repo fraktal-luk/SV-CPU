@@ -454,12 +454,14 @@ module AbstractCore
 
 
     function automatic void TMP_checkCtrl(input InsId theId, input InstructionInfo ii);
-        // TODO: DB is not included in general, so it needs new else if'?
         if (eventUnit.general.id == theId) begin
-            assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop) || CurrentConfig.dbStep) else $fatal(2, "Event not noted in map\n%p", ii);
+            assert (ii.refetch || ii.exception || isStaticEventUop(ii.mainUop)) else $fatal(2, "Event not noted in map\n%p", ii);
         end
+        else if (eventUnit.dbEvt.id == theId) begin
+            assert (CurrentConfig.dbStep) else $fatal(2, "DB event detected but flag not set\n%p", ii);
+        end        
         else begin
-            assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException)
+            assert (!ii.refetch && !ii.exception && !isStaticEventUop(ii.mainUop) && !ii.emulException && !CurrentConfig.dbStep)
             else $fatal(2, "Event in map not registered in HW\n%p", ii);
         end
     endfunction
@@ -520,7 +522,7 @@ module AbstractCore
         if (eventUnit.resetEvt.active           && noWaitingEvents()
         ) begin
             lateEventInfoWaitingReset <= RESET_EVENT;
-            retiredEmul.resetSignal();  // TODO: check whether this and interrupt can be done in fireLateEvent
+            retiredEmul.resetSignal();  // TODO: check whether this and interrupt can (and should) be done in fireLateEvent
         end
         else if (eventUnit.interruptEvt.active  && noWaitingEvents()
         ) begin

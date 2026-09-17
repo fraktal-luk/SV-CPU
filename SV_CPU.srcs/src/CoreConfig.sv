@@ -41,8 +41,8 @@ package CoreConfig;
     // Impl specific
     localparam int BLOCK_SIZE = 64;
     localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
-    localparam int WAY_SIZE = 4096; // FUTURE: specific for each cache?
-    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;    
+    localparam int WAY_SIZE = 4096; // Ins and Data alike. FUTURE: specific for each cache?
+    localparam int BLOCKS_PER_WAY = WAY_SIZE/BLOCK_SIZE;  
 
 
     localparam int DATA_ARRAY_FILL_DELAY = 14;

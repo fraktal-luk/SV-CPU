@@ -293,7 +293,7 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-        // FUTURE: Introduce forwarding of FP args
+        // TODO: Introduce forwarding of FP args
         // FUTURE: 1c longer load pipe on FP side? 
     // Used before Exec0 to get final values
     function automatic Mword3 getAndVerifyArgs(input UidT uid);

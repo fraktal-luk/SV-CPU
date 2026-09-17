@@ -204,7 +204,6 @@ package AbstractSim;
 
 
 
-        // TODO: integrate into AccessDesc?
         typedef struct {
             Dword vadr;
             AccessSize size;

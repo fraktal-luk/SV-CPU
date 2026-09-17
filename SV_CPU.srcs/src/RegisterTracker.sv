@@ -140,7 +140,7 @@
         endclass
 
         RegisterDomain#(N_REGS_INT, 1) ints = new();
-        RegisterDomain#(N_REGS_INT, 0) floats = new(); // FUTURE: change to FP reg num
+        RegisterDomain#(N_REGS_FLOAT, 0) floats = new();
 
         function automatic int reserve(input UopName name, input int dest, input WriterId id);            
             if (uopHasIntDest(name)) return ints.reserve(dest, id);

@@ -74,7 +74,7 @@ package Insmap;
             ProgramEvent hwEventType;
 
         ProgramEvent eventType;
-    } InstructionInfo; // FUTURE: rename to MopInfo?
+    } InstructionInfo;
 
 
     function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins, input logic isFirst);

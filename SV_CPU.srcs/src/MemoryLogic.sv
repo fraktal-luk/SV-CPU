@@ -36,7 +36,7 @@ package MemoryLogic;
             res.blockIndex = block;
             res.blockOffset = blockOffset;
             
-            res.unaligned = (aLow % accessSize) > 0;
+            res.unaligned = (aLow % accessSize) != 0;
             res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
             res.pageCross = (aLow + accessSize) > PAGE_SIZE;
 

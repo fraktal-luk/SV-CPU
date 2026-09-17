@@ -227,7 +227,6 @@ module IssueQueue
 
             assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
 
-                //TODO;
                 // check for violation of conditions preventing issue
                 // * mem: when barrier active 
                 // * mem: when store-load dependecy prediction block a load

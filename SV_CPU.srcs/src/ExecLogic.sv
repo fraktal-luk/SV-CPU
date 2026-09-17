@@ -41,9 +41,9 @@ package ExecLogic;
             UOP_int_shlc:
                             if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
                             else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shac:       // TODO: arg0 should be signed? 
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];                     
+            UOP_int_shac:
+                            if ($signed(args[1]) >= 0) res = $signed(args[0]) << args[1];
+                            else                       res = $signed(args[0]) >> -args[1];                     
             UOP_int_rotc:
                             if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
                             else                       res = {args[0], args[0]} >> -args[1];
