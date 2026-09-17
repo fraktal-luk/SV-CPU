@@ -452,22 +452,42 @@ module IssueQueue
         return res;
     endfunction
 
+
+
+    function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
+        WakeupMatrixD res = new[arr.size()];
+        foreach (arr[i]) begin
+            if (arr[i].uid == UIDT_NONE)
+                res[i] = '{default: EMPTY_WAKEUP}; 
+            else
+                res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
+        end
+        return res;
+    endfunction
+
+
     function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
-        if (entry.uid == UIDT_NONE) return res;
-        
+        InsDependencies deps = insMap.getU(entry.uid).deps;
+
         foreach (entry.state.readyArgs[a]) begin
-            InsDependencies deps = insMap.getU(entry.uid).deps;
             SourceType argType = deps.types[a];
             UidT prod = deps.producers[a];
-            int source = deps.sources[a];
-            
-            Wakeup wup = checkForwardSourceInt(prod, source, AbstractCore.theExecBlock.intImages);
-            if (!wup.active) wup = checkForwardSourceVec(prod, source, AbstractCore.theExecBlock.floatImages);
-            // CAREFUL: Not using mem pipe forwarding for FP to simplify things
-            // TODO: introduce mem forwarding
-            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(prod, source, AbstractCore.theExecBlock.memImages);
-            
+            Wakeup wup = EMPTY_WAKEUP;
+
+            case (argType)
+                SRC_INT: begin
+                    wup = checkForwardSourceInt(prod, AbstractCore.theExecBlock.intImages);
+                    if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImages);
+                end
+                SRC_FLOAT: begin
+                    wup = checkForwardSourceVec(prod, AbstractCore.theExecBlock.floatImages);
+                    // TODO: mem forwarding for FP
+                    //if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImages);
+                end
+                default: ; // nothing
+            endcase
+
             if (shouldFlushPoison(wup.poison)) wup.active = 0;
            
             if (wup.active) res[a] = wup;
@@ -476,11 +496,6 @@ module IssueQueue
     endfunction
 
 
-    function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
-        WakeupMatrixD res = new[arr.size()];
-        foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
-        return res;
-    endfunction
 
 ///////////////
     function automatic logic3 getLogic3(input Wakeup w[3]);

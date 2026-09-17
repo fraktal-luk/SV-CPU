@@ -205,6 +205,15 @@ package ExecDefs;
 
 
 
+        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+            if (fe.TMP_oid != UIDT_NONE) begin
+                UidT inds[$] = p.find_first with (item == fe.TMP_oid);
+                return inds.size() > 0;
+            end
+            return 0;
+        endfunction
+
+
     /////////////////////////////////////////////////////////////////////////////////
     // Args, forwarding
     ////////////////////////////////////////////////////////////////////////////////
@@ -298,134 +307,45 @@ package ExecDefs;
     endfunction
 
 
+
     function automatic logic matchProducer(input ForwardingElement fe, input UidT producer);
         return (fe.TMP_oid != UIDT_NONE) && fe.TMP_oid === producer;
     endfunction
 
-    function automatic FEQ findForwardInt(input UidT producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        FEQ res = feInt.find with (matchProducer(item, producer));
-        if (res.size() == 0)
-            res = feMem.find with (matchProducer(item, producer));
-        return res;
-    endfunction
 
-    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        FEQ res = feVec.find with (matchProducer(item, producer));
-        return res;
-    endfunction
-
-    function automatic void verifyForward(input InstructionInfo ii, input UopInfo ui, input int source, input Mword result);
-        assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
-    endfunction
-
-
-    // function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-    //                                         input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
-    //     FEQ found1, found0;
-
-    //     if (ready) return tracker.ints.regs[source];
-        
-    //     found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
-    //     if (found1.size() != 0) begin
-    //         InstructionInfo ii = imap.get(U2M(producer));
-    //         UopInfo ui = imap.getU(producer);
-    //         verifyForward(ii, ui, source, found1[0].result);
-    //         return found1[0].result;
-    //     end
-        
-    //     found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
-    //     if (found0.size() != 0) begin
-    //         InstructionInfo ii = imap.get(U2M(producer));
-    //         UopInfo ui = imap.getU(producer);
-    //         verifyForward(ii, ui, source, found0[0].result);
-    //         return found0[0].result;
-    //     end
-
-    //     $fatal(2, "oh no\n%p, %d", producer, source);
-    // endfunction
-
-
-    // function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-    //                                         input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
-    //     FEQ found1, found0;
-                       
-    //     if (ready) return tracker.floats.regs[source];
-
-    //     found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
-    //     if (found1.size() != 0) begin
-    //         InstructionInfo ii = imap.get(U2M(producer));
-    //         UopInfo ui = imap.getU(producer);
-    //         verifyForward(ii, ui, source, found1[0].result);
-    //         return found1[0].result;
-    //     end
-        
-    //     found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
-    //     if (found0.size() != 0) begin
-    //         InstructionInfo ii = imap.get(U2M(producer));
-    //         UopInfo ui = imap.getU(producer);
-    //         verifyForward(ii, ui, source, found0[0].result);
-    //         return found0[0].result;
-    //     end
-
-    //     $fatal(2, "oh no");
-    // endfunction
 
 
     // IQs
-    function automatic Wakeup checkForwardSourceInt(input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceInt(input UidT producer, input ForwardingElement fea[N_INT_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe %d (%d):\n%p", p, found, fea[p]);
-            else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+            
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
-
             res.producer = producer;
             res.group = PG_INT;
             res.port = p;
             res.stage = found[0];
-                res.poison = fea[p][found[0]].poison;
+            res.poison = fea[p][found[0]].poison;
             return res;
         end
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceMem(input UidT producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceVec(input UidT producer, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
-            else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
-
-            res.active = 1;
-                
-            // Don't wake up if this is a failed op
-            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
             
-            res.producer = producer;
-            res.group = PG_MEM;
-            res.port = p;
-            res.stage = found[0];
-            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
-            return res;
-        end
-        return res;
-    endfunction;
-
-    function automatic Wakeup checkForwardSourceVec(input UidT producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
-        Wakeup res = EMPTY_WAKEUP;
-        if (producer == UIDT_NONE) return res;
-        foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
-            if (found.size() == 0) continue;
-            else if (found.size() > 1) $error("Repeated op id in same subpipe");
-            else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
             res.producer = producer;
@@ -439,13 +359,30 @@ package ExecDefs;
     endfunction;
 
 
-    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-        if (fe.TMP_oid != UIDT_NONE) begin
-            UidT inds[$] = p.find_first with (item == fe.TMP_oid);
-            return inds.size() > 0;
+    function automatic Wakeup checkForwardSourceMem(input UidT producer, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        Wakeup res = EMPTY_WAKEUP;
+        if (producer == UIDT_NONE) return res;
+        foreach (fea[p]) begin
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
+            if (found.size() == 0) continue;
+            else if (found.size() > 1) $error("Repeated op id in same subpipe");
+            
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+
+            res.active = 1;
+
+            // Don't wake up if this is a failed op
+            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
+            
+            res.producer = producer;
+            res.group = PG_MEM;
+            res.port = p;
+            res.stage = found[0];
+            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
+            return res;
         end
-        return 0;
-    endfunction
+        return res;
+    endfunction;
 
 
 
