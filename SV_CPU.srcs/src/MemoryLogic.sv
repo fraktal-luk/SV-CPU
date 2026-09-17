@@ -10,11 +10,39 @@ package MemoryLogic;
     import Emulation::*;
 
     import AbstractSim::*;
+    import CoreConfig::*;
+
     import Insmap::*;
 
     import UopList::*;
 
     import ExecDefs::*;
+
+
+
+
+        function automatic AccessInfo analyzeAccess(input Dword adr, input AccessSize accessSize);
+            AccessInfo res;
+
+            Dword aLow = adr % WAY_SIZE;
+            int block = aLow / BLOCK_SIZE;
+            int blockOffset = aLow % BLOCK_SIZE;
+
+            if ($isunknown(adr)) return DEFAULT_ACCESS_INFO;
+
+            res.vadr = adr;
+            res.size = accessSize;
+            
+            res.blockIndex = block;
+            res.blockOffset = blockOffset;
+            
+            res.unaligned = (aLow % accessSize) > 0;
+            res.blockCross = (blockOffset + accessSize) > BLOCK_SIZE;
+            res.pageCross = (aLow + accessSize) > PAGE_SIZE;
+
+            return res;
+        endfunction
+
 
 
         function automatic logic memOverlap(input Dword wa, input AccessSize sizeA, input Dword wb, input AccessSize sizeB);

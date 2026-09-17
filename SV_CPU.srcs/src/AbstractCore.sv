@@ -16,6 +16,8 @@ import CacheDefs::*;
 
 import Queues::*;
 
+import CoreConfig::*;
+
 import Testing::GlobalParams;
 
 

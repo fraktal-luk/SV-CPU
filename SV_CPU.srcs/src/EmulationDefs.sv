@@ -340,7 +340,7 @@ package EmulationDefs;
 
     function automatic FpResult32 calculateResultFP(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
         FpResult32 result;
-        Rounding rd = convertRM(rm);
+        Rounding rd = convertRM(RoundingMode'(rm));
 
         case (ins.def.o)
             O_floatMove32: result = '{NO_EXCEPTION, Word'(vals[0])};

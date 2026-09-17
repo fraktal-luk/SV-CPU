@@ -10,10 +10,66 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
+    import CoreConfig::*;
     import CacheDefs::*;
 
     import Arith::*;
 
+
+
+
+
+            typedef enum {
+                ES_BEGIN,
+
+                ES_OK,
+
+                ES_UNALIGNED,            
+                ES_UNCACHED_1, ES_UNCACHED_2,
+                ES_BARRIER_1,
+                ES_AQ_REL_1,
+
+                ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
+                ES_CANT_FORWARD,
+                
+                ES_INSTANT_REPLAY,
+                ES_LOWER_DONE,
+
+                ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
+
+                ES_REFETCH, // cause refetch
+
+                ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
+                ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
+            } ExecStatus;
+
+
+
+    function automatic logic needsReplay(input ExecStatus status);
+        return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
+    endfunction
+
+
+            typedef enum { // (implem)
+                MC_NONE,
+                MC_NORMAL,
+                MC_BARRIER,
+                MC_UNCACHED,
+                MC_AQ_REL,
+                MC_SYS,
+
+                MC_UPPER_B // block cross replay
+                //MC_UPPER_P  // page cross replay
+            } MemClass;
+
+
+
+            typedef enum {
+                BS_NONE,
+                BS_NORMAL, // accepts renamed ops
+                BS_WAIT,   // event to handle is present, don't accept new ops
+                BS_HANDLING // event processing ongoing
+            } BackendState;
 
 
     ////////////////////////////////////////////////////////////////////

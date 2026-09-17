@@ -8,6 +8,8 @@ package RobDefs;
     import Emulation::*;
 
     import AbstractSim::*;
+    import CoreConfig::*;
+
     import Insmap::*;
 
     import UopList::*;

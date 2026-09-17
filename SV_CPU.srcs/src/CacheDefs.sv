@@ -10,8 +10,20 @@ package CacheDefs;
     
     import AbstractSim::*;
     import Insmap::*;
+    import CoreConfig::*;
 
 
+        function automatic Dword getBlockBaseD(input Dword adr);
+            Dword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
+
+        function automatic Mword getBlockBaseM(input Mword adr);
+            Mword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
 
 
     class DataCacheBlock;
