@@ -8,6 +8,7 @@ import AbstractSim::*;
 import Insmap::*;
 import ExecDefs::*;
 
+import IqLogic::*;
 
 module IssueQueue
 #(
@@ -18,8 +19,9 @@ module IssueQueue
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input TMP_Uop inGroupU[RENAME_WIDTH],
-        
+    //input TMP_Uop inGroupU[RENAME_WIDTH],
+    input UopId inGroupU_N[RENAME_WIDTH],
+
     input logic allow,   
     output UopPacket outPackets[OUT_WIDTH]
 );
@@ -61,7 +63,7 @@ module IssueQueue
 
     always_comb  outPackets = effA(pIssued0);
 
-    always_comb inputArray = makeInputArray(inGroupU); 
+    always_comb inputArray = makeInputArray(/*inGroupU, */inGroupU_N); 
 
     always @(negedge AbstractCore.clk) begin
         wMatrix = getForwardsD(arrayReg);
@@ -225,7 +227,6 @@ module IssueQueue
 
             assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
 
-                //TODO;
                 // check for violation of conditions preventing issue
                 // * mem: when barrier active 
                 // * mem: when store-load dependecy prediction block a load
@@ -285,28 +286,33 @@ module IssueQueue
     endtask
 
 
-    function automatic IqEntry makeIqEntry(input TMP_Uop inUop);
-        InsId barrier = insMap.getU(inUop.uid).barrier;
+    function automatic IqEntry makeIqEntry(input UopId inUop);
+        InsId barrier = insMap.getU(inUop).barrier;
         SlotStatus status = IqActive;
         
             if (barrier != -1) status = IqSuspended;
         
             if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
 
-        return inUop.active ? '{used: 1, active_: 1,
+        return inUop != UID_NONE ? '{used: 1, active_: 1,
                                 status: status,
                                 state: ZERO_ARG_STATE,
                                 barrier: barrier,
-                                poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop.uid}
+                                poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: inUop}
                                 : EMPTY_ENTRY;
     endfunction
 
     // MOVE?
-    function automatic InputArray makeInputArray(input TMP_Uop inUops[RENAME_WIDTH]);
+    function automatic InputArray makeInputArray(//input TMP_Uop inUops[RENAME_WIDTH],
+                                                 input UopId inUops_N[RENAME_WIDTH]);
         InputArray res = '{default: EMPTY_ENTRY};
         foreach (res[i]) begin
-            if (inUops[i].active !== 1) continue;
-            res[i] = makeIqEntry(inUops[i]);
+               // assert (inUops[i].active === (inUops[i].uid != UID_NONE)) else $error("ttttttttttttttttttttttt\n%p", inUops[i]);
+               // assert ((inUops_N[i] != UID_NONE) === (inUops[i].uid != UID_NONE)) else $error("ttttttttttttttttt\n%p", inUops[i]);
+
+            //if (inUops[i].active !== 1) continue;
+            if (inUops_N[i] == UID_NONE) continue;
+            res[i] = makeIqEntry(inUops_N[i]);
         end
         return res;
     endfunction
@@ -317,7 +323,8 @@ module IssueQueue
         int nInserted = 0;
 
         foreach (inputArray[i]) begin
-            if (inGroupU[i].active) begin
+            //if (inGroupU[i].active) begin
+            if (inGroupU_N[i] != UID_NONE) begin
                 int location = locs[nInserted];
                 array[location] = inputArray[i];  // Entry upd
                 nInserted++;          
@@ -445,21 +452,42 @@ module IssueQueue
         return res;
     endfunction
 
+
+
+    function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
+        WakeupMatrixD res = new[arr.size()];
+        foreach (arr[i]) begin
+            if (arr[i].uid == UIDT_NONE)
+                res[i] = '{default: EMPTY_WAKEUP}; 
+            else
+                res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
+        end
+        return res;
+    endfunction
+
+
     function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
-        if (entry.uid == UIDT_NONE) return res;
-        
+        InsDependencies deps = insMap.getU(entry.uid).deps;
+
         foreach (entry.state.readyArgs[a]) begin
-            InsDependencies deps = insMap.getU(entry.uid).deps;
             SourceType argType = deps.types[a];
             UidT prod = deps.producers[a];
-            int source = deps.sources[a];
-            
-            Wakeup wup = checkForwardSourceInt(insMap, prod, source, AbstractCore.theExecBlock.intImages);
-            if (!wup.active) wup = checkForwardSourceVec(insMap, prod, source, AbstractCore.theExecBlock.floatImages);
-            // CAREFUL: Not using mem pipe forwarding for FP to simplify things
-            if (!wup.active && argType != SRC_FLOAT) wup = checkForwardSourceMem(insMap, prod, source, AbstractCore.theExecBlock.memImages);
-            
+            Wakeup wup = EMPTY_WAKEUP;
+
+            case (argType)
+                SRC_INT: begin
+                    wup = checkForwardSourceInt(prod, AbstractCore.theExecBlock.intImages);
+                    if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImages);
+                end
+                SRC_FLOAT: begin
+                    wup = checkForwardSourceVec(prod, AbstractCore.theExecBlock.floatImages);
+                    // TODO: mem forwarding for FP
+                    //if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImages);
+                end
+                default: ; // nothing
+            endcase
+
             if (shouldFlushPoison(wup.poison)) wup.active = 0;
            
             if (wup.active) res[a] = wup;
@@ -468,11 +496,6 @@ module IssueQueue
     endfunction
 
 
-    function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
-        WakeupMatrixD res = new[arr.size()];
-        foreach (arr[i]) res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
-        return res;
-    endfunction
 
 ///////////////
     function automatic logic3 getLogic3(input Wakeup w[3]);
@@ -517,8 +540,7 @@ module IssueQueue
         if (entry.uid == UIDT_NONE) return res;
         
         res.used = entry.status != IqEmpty;
-        res.active = //entry.active_;
-                        entry.status == IqActive;
+        res.active = entry.status == IqActive;
         
         res.registers = getReadyRegisterArgsForUid(insMap, entry.uid);
         res.bypasses = getLogic3(wup);
@@ -545,25 +567,25 @@ module IssueQueueComplex(
                         input OpSlotAB inGroup
 );    
 
-                // .active, .mid
-    function automatic RoutedUops routeUops(input OpSlotAB gr);
-        RoutedUops res = DEFAULT_ROUTED_UOPS;
+
+    function automatic RoutedUops routeUops_N(input OpSlotAB gr);
+        RoutedUops res = DEFAULT_ROUTED_UOPS_N;
         
         foreach (gr[i]) begin
-            if (!gr[i].active) continue;
+            if (gr[i].active !== 1) continue;
             
             for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin // insMap dependece
                 UopId uid = '{gr[i].mid, u};
                 UopName uname = decUname(uid);                          // module dependence
 
-                if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = '{1, uid};
-                else if (isStoreDataUop(uname)) res.storeData[i] = '{1, uid};
-                else if (isBranchUop(uname)) res.branch[i] = '{1, uid};
-                else if (isIntDividerUop(uname)) res.idivider[i] = '{1, uid};
-                else if (isIntMultiplierUop(uname)) res.multiply[i] = '{1, uid};
-                else if (isFloatDividerUop(uname)) res.fdivider[i] = '{1, uid};
-                else if (isFloatCalcUop(uname)) res.float[i] = '{1, uid};
-                else res.regular[i] = '{1, uid};
+                if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = uid;
+                else if (isStoreDataUop(uname)) res.storeData[i] = uid;
+                else if (isBranchUop(uname)) res.branch[i] = uid;
+                else if (isIntDividerUop(uname)) res.idivider[i] = uid;
+                else if (isIntMultiplierUop(uname)) res.multiply[i] = uid;
+                else if (isFloatDividerUop(uname)) res.fdivider[i] = uid;
+                else if (isFloatCalcUop(uname)) res.float[i] = uid;
+                else res.regular[i] = uid;
             end
         end
         
@@ -571,7 +593,7 @@ module IssueQueueComplex(
     endfunction
 
 
-    RoutedUops routedUops;
+    RoutedUops routedUops_N = DEFAULT_ROUTED_UOPS_N;
     
     UopPacket issuedRegularP[2];
     UopPacket issuedMultiplierP[2];
@@ -583,31 +605,43 @@ module IssueQueueComplex(
     UopPacket issuedStoreDataP[1];
 
 
-    assign routedUops = routeUops(inGroup); 
+    //always_comb routedUops = routeUops(inGroup);
+    always_comb routedUops_N = routeUops_N(inGroup);
 
 
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, routedUops.regular, '1,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.regular,
+                                            routedUops_N.regular, '1,
                                             issuedRegularP);                                            
 
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, routedUops.branch, '1,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.branch,
+                                            routedUops_N.branch, '1,
                                             issuedBranchP);
 
 
-    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, routedUops.idivider, theExecBlock.divider.allowIssue,
+    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.idivider, 
+                                            routedUops_N.idivider,
+                                            theExecBlock.divider.allowIssue,
                                             issuedDividerP);
 
-    IssueQueue#(.OUT_WIDTH(2)) multiplierQueue(insMap, branchEventInfo, lateEventInfo, routedUops.multiply, '1,
+    IssueQueue#(.OUT_WIDTH(2)) multiplierQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.multiply, 
+                                            routedUops_N.multiply, '1,
                                             issuedMultiplierP);
 
 
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, routedUops.float, '1,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.float,
+                                            routedUops_N.float, '1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, routedUops.fdivider, theExecBlock.fdiv.allowIssue,
+    IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.fdivider, 
+                                            routedUops_N.fdivider,
+                                            theExecBlock.fdiv.allowIssue,
                                             issuedFdivP);                                           
 
-    IssueQueue#(.OUT_WIDTH(1  + 1)) memQueue(insMap, branchEventInfo, lateEventInfo, routedUops.mem, theExecBlock.memIssueAllow,
+    IssueQueue#(.OUT_WIDTH(1  + 1)) memQueue(insMap, branchEventInfo, lateEventInfo,// routedUops.mem, 
+                                            routedUops_N.mem,
+                                            theExecBlock.memIssueAllow,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, routedUops.storeData, '1,
+    IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.storeData,
+                                            routedUops_N.storeData, '1,
                                             issuedStoreDataP);
 
 endmodule

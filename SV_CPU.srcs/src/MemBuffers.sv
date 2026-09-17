@@ -9,6 +9,8 @@ import Insmap::*;
 
 import Queues::*;
 
+import MemoryLogic::*;
+
 
 module StoreQueue
 #(
@@ -192,7 +194,7 @@ module TmpSubSq();
     UopPacket storeDataD0_E, storeDataD1_E, storeDataD2_E;
 
     task automatic verify(input SqEntry entry);
-        checkStore(entry.mid, entry.accessDesc.vadr, entry.val);
+        checkStore(entry.mid, entry.accessDesc.info.vadr, entry.val);
     endtask
 
 
@@ -271,11 +273,11 @@ module TmpSubSq();
 
 
     function automatic UopPacket scanStoreQueue(ref SqEntry entries[SQ_SIZE], input InsId id, input Translation tr, input AccessDesc aDesc);
-        AccessSize loadSize = aDesc.size;
+        AccessSize loadSize = aDesc.info.size;
         UopPacket res;
         SqEntry found[$] = entries.find with ( item.mid != -1 && item.mid < id 
                                             && item.translation.present && !item.accessDesc.sys && !item.suppress // NOTE: suppress means failed st cond
-                                            && memOverlap(item.translation.padr, item.accessDesc.size, tr.padr, loadSize));
+                                            && memOverlap(item.translation.padr, item.accessDesc.info.size, tr.padr, loadSize));
         SqEntry fwEntry;
 
         if (found.size() == 0)
@@ -285,7 +287,7 @@ module TmpSubSq();
             fwEntry = vmax[0];
         end
 
-        if ((loadSize != fwEntry.accessDesc.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.size)) // don't allow FW of different size because shifting would be needed
+        if ((loadSize != fwEntry.accessDesc.info.size) || !memInside(tr.padr, loadSize, fwEntry.translation.padr, fwEntry.accessDesc.info.size)) // don't allow FW of different size because shifting would be needed
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_CANT_FORWARD,   EMPTY_POISON, 'x};
         else if (!fwEntry.valReady)         // Covers, not has data -> to RQ (or store conditional not executed)
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_SQ_MISS,   EMPTY_POISON, 'x};
@@ -294,7 +296,7 @@ module TmpSubSq();
         else                                // Covers and has data -> OK
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
 
-        if (res.active) checkSqResp(id, res, StoreQueue.memTracker.findStoreAll(U2M(res.TMP_oid)), fwEntry.accessDesc.size, tr.padr, loadSize);
+        if (res.active) checkSqResp(id, res, StoreQueue.memTracker.findStoreAll(U2M(res.TMP_oid)), fwEntry.accessDesc.info.size, tr.padr, loadSize);
 
         return res;
     endfunction
@@ -418,7 +420,7 @@ module TmpSubLq();
         foreach (mn.uopE1[p]) begin
             UopMemPacket storeUop = mn.uopE1[p];
             if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE1[p].padr, mn.adE1[p].size));
+            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE1[p].padr, mn.adE1[p].info.size));
         end
     endtask
 
@@ -491,7 +493,7 @@ module TmpSubLq();
 
     function automatic UopPacket scanLoadQueue(ref LqEntry entries[LQ_SIZE], input InsId id, input Dword padr, input AccessSize trSize);
         // We search for all matching entries
-        int found[$] = entries.find_index with (item.mid > id && item.translation.present && item.valReady && memOverlap(item.translation.padr, item.accessDesc.size, padr, trSize));
+        int found[$] = entries.find_index with (item.mid > id && item.translation.present && item.valReady && memOverlap(item.translation.padr, item.accessDesc.info.size, padr, trSize));
 
         if (found.size() == 0) return EMPTY_UOP_PACKET;
 

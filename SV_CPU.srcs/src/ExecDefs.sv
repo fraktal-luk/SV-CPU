@@ -10,15 +10,66 @@ package ExecDefs;
     import AbstractSim::*;
     import Insmap::*;
 
+    import CoreConfig::*;
     import CacheDefs::*;
 
     import Arith::*;
+
+
+
+
+
+            typedef enum {
+                ES_BEGIN,
+
+                ES_OK,
+
+                ES_UNALIGNED,            
+                ES_UNCACHED_1, ES_UNCACHED_2,
+                ES_BARRIER_1,
+                ES_AQ_REL_1,
+
+                ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
+                ES_CANT_FORWARD,
+                
+                ES_INSTANT_REPLAY,
+                ES_LOWER_DONE,
+
+                ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
+
+                ES_REFETCH, // cause refetch
+
+                ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
+                ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
+            } ExecStatus;
+
 
 
     function automatic logic needsReplay(input ExecStatus status);
         return status inside {ES_SQ_MISS, ES_UNCACHED_1, ES_UNCACHED_2,  ES_DATA_MISS,  ES_TLB_MISS, ES_BARRIER_1, ES_AQ_REL_1, ES_LOWER_DONE, ES_INSTANT_REPLAY};
     endfunction
 
+
+            typedef enum { // (implem)
+                MC_NONE,
+                MC_NORMAL,
+                MC_BARRIER,
+                MC_UNCACHED,
+                MC_AQ_REL,
+                MC_SYS,
+
+                MC_UPPER_B // block cross replay
+                //MC_UPPER_P  // page cross replay
+            } MemClass;
+
+
+
+            typedef enum {
+                BS_NONE,
+                BS_NORMAL, // accepts renamed ops
+                BS_WAIT,   // event to handle is present, don't accept new ops
+                BS_HANDLING // event processing ongoing
+            } BackendState;
 
 
     ////////////////////////////////////////////////////////////////////
@@ -51,10 +102,7 @@ package ExecDefs;
             
             return res;
         endfunction 
-    
-            
 
-            
             
         function automatic Poison mergePoisons(input Poison ap[3]);
             IdMap m0 = poison2map(ap[0]);
@@ -73,8 +121,6 @@ package ExecDefs;
 
 
 
-
-
     typedef struct {
         logic active;
         UidT TMP_oid;
@@ -86,26 +132,26 @@ package ExecDefs;
     
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UIDT_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
 
-            typedef UopPacket UopMemPacket;
-        
-            function automatic UopPacket TMP_mp(input UopMemPacket p);
-                return p;
-            endfunction
+        typedef UopPacket UopMemPacket;
+    
+        function automatic UopPacket TMP_mp(input UopMemPacket p);
+            return p;
+        endfunction
 
-            function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
-                return p;
-            endfunction
+        function automatic UopMemPacket TMP_toMemPacket(input UopPacket p);
+            return p;
+        endfunction
 
 
-            function automatic UopPacket memToComplete(input UopPacket p);
-                if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
-                else return p;
-            endfunction
+        function automatic UopPacket memToComplete(input UopPacket p);
+            if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
+            else return p;
+        endfunction
 
-            function automatic UopPacket memToReplay(input UopPacket p);
-                if (needsReplay(p.status)) return p;
-                else return EMPTY_UOP_PACKET;
-            endfunction
+        function automatic UopPacket memToReplay(input UopPacket p);
+            if (needsReplay(p.status)) return p;
+            else return EMPTY_UOP_PACKET;
+        endfunction
 
 
 
@@ -157,6 +203,15 @@ package ExecDefs;
             return map2poison(map);
         endfunction
 
+
+
+        function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
+            if (fe.TMP_oid != UIDT_NONE) begin
+                UidT inds[$] = p.find_first with (item == fe.TMP_oid);
+                return inds.size() > 0;
+            end
+            return 0;
+        endfunction
 
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -218,79 +273,24 @@ package ExecDefs;
         typedef ForwardingElement FEQ[$];
 
 
-    // IQ structures
-            typedef struct {
-                logic ready;
-                logic readyArgs[3];
-                logic cancelledArgs[3];
-            } IqArgState;
-            
-            localparam IqArgState EMPTY_ARG_STATE = '{ready: 'z, readyArgs: '{'z, 'z, 'z}, cancelledArgs: '{'z, 'z, 'z}};
-            localparam IqArgState ZERO_ARG_STATE  = '{ready: '0, readyArgs: '{'0, '0, '0}, cancelledArgs: '{0, 0, 0}};
-
-            
-            // Poison
-            typedef struct {
-                Poison poisoned[3];
-            } IqPoisonState;
-            
-            localparam IqPoisonState DEFAULT_POISON_STATE = '{poisoned: '{default: EMPTY_POISON}};
-
-            typedef enum {
-                IqEmpty, IqSuspended, IqLocked, IqActive, IqIssued 
-            } SlotStatus;
-
-            typedef struct {
-                logic used;
-                UidT uid;
-                logic active_;
-                SlotStatus status;
-                IqArgState state;
-                InsId barrier;
-                IqPoisonState poisons;
-                int issueCounter;
-            } IqEntry;
-
-            localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
-                                        status: IqEmpty,
-                                        state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
-
-            typedef enum {
-                PG_NONE, PG_INT, PG_MEM, PG_VEC
-            } PipeGroup;
-    
-
-            ////////////////////////////////////////////////////////////////////
-            // IQ
-            ////////////////////////////////////////////////////////////////////
-
-            typedef struct {
-                logic active;
-                UidT producer;
-                PipeGroup group;
-                int port;
-                int stage;
-                Poison poison;
-            } Wakeup;
-            
-            localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
-
-            typedef Wakeup Wakeup3[3];
-            typedef Wakeup WakeupMatrixD[][3];
 
 
-            typedef struct {
-                UidT uid;
-                logic used;
-                logic active;
-                logic3 registers;
-                logic3 bypasses;
-                logic3 combined;
-                logic3 prevReady;
-                Poison poisons[3];
-                Poison prevPoisons[3];
-                logic all;
-            } ReadinessInfo;
+        typedef enum {
+            PG_NONE, PG_INT, PG_MEM, PG_VEC
+        } PipeGroup;
+
+
+        typedef struct {
+            logic active;
+            UidT producer;
+            PipeGroup group;
+            int port;
+            int stage;
+            Poison poison;
+        } Wakeup;
+        
+        localparam Wakeup EMPTY_WAKEUP = '{0, UIDT_NONE, PG_NONE, -1, 2, EMPTY_POISON};
+
 
 
 
@@ -307,133 +307,45 @@ package ExecDefs;
     endfunction
 
 
+
     function automatic logic matchProducer(input ForwardingElement fe, input UidT producer);
         return (fe.TMP_oid != UIDT_NONE) && fe.TMP_oid === producer;
     endfunction
 
-    function automatic FEQ findForwardInt(input UidT producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        FEQ res = feInt.find with (matchProducer(item, producer));
-        if (res.size() == 0)
-            res = feMem.find with (matchProducer(item, producer));
-        return res;
-    endfunction
 
-    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-        FEQ res = feVec.find with (matchProducer(item, producer));
-        return res;
-    endfunction
-
-    function automatic void verifyForward(input InstructionInfo ii, input UopInfo ui, input int source, input Mword result);
-        assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-        assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
-    endfunction
-
-    function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
-        FEQ found1, found0;
-
-        if (ready) return tracker.ints.regs[source];
-        
-        found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
-        if (found1.size() != 0) begin
-            InstructionInfo ii = imap.get(U2M(producer));
-            UopInfo ui = imap.getU(producer);
-            verifyForward(ii, ui, source, found1[0].result);
-            return found1[0].result;
-        end
-        
-        found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
-        if (found0.size() != 0) begin
-            InstructionInfo ii = imap.get(U2M(producer));
-            UopInfo ui = imap.getU(producer);
-            verifyForward(ii, ui, source, found0[0].result);
-            return found0[0].result;
-        end
-
-        $fatal(2, "oh no\n%p, %d", producer, source);
-    endfunction
-
-
-    function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
-        FEQ found1, found0;
-                       
-        if (ready) return tracker.floats.regs[source];
-
-        found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
-        if (found1.size() != 0) begin
-            InstructionInfo ii = imap.get(U2M(producer));
-            UopInfo ui = imap.getU(producer);
-            verifyForward(ii, ui, source, found1[0].result);
-            return found1[0].result;
-        end
-        
-        found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
-        if (found0.size() != 0) begin
-            InstructionInfo ii = imap.get(U2M(producer));
-            UopInfo ui = imap.getU(producer);
-            verifyForward(ii, ui, source, found0[0].result);
-            return found0[0].result;
-        end
-
-        $fatal(2, "oh no");
-    endfunction
 
 
     // IQs
-    function automatic Wakeup checkForwardSourceInt(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceInt(input UidT producer, input ForwardingElement fea[N_INT_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe %d (%d):\n%p", p, found, fea[p]);
-            else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+            
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
-
             res.producer = producer;
             res.group = PG_INT;
             res.port = p;
             res.stage = found[0];
-                res.poison = fea[p][found[0]].poison;
+            res.poison = fea[p][found[0]].poison;
             return res;
         end
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceMem(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    function automatic Wakeup checkForwardSourceVec(input UidT producer, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UIDT_NONE) return res;
         foreach (fea[p]) begin
             int found[$] = fea[p].find_index with (item.TMP_oid == producer);
             if (found.size() == 0) continue;
             else if (found.size() > 1) $error("Repeated op id in same subpipe");
-            else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
-
-            res.active = 1;
-                
-            // Don't wake up if this is a failed op
-            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
             
-            res.producer = producer;
-            res.group = PG_MEM;
-            res.port = p;
-            res.stage = found[0];
-            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
-            return res;
-        end
-        return res;
-    endfunction;
-
-    function automatic Wakeup checkForwardSourceVec(input InstructionMap imap, input UidT producer, input int source, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
-        Wakeup res = EMPTY_WAKEUP;
-        if (producer == UIDT_NONE) return res;
-        foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
-            if (found.size() == 0) continue;
-            else if (found.size() > 1) $error("Repeated op id in same subpipe");
-            else if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
             res.active = 1;
             res.producer = producer;
@@ -447,17 +359,30 @@ package ExecDefs;
     endfunction;
 
 
-    function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
-        if (fe.TMP_oid != UIDT_NONE) begin
-            UidT inds[$] = p.find_first with (item == fe.TMP_oid);
-            return inds.size() > 0;
+    function automatic Wakeup checkForwardSourceMem(input UidT producer, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        Wakeup res = EMPTY_WAKEUP;
+        if (producer == UIDT_NONE) return res;
+        foreach (fea[p]) begin
+            int found[$] = fea[p].find_index with (item.TMP_oid == producer);
+            if (found.size() == 0) continue;
+            else if (found.size() > 1) $error("Repeated op id in same subpipe");
+            
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+
+            res.active = 1;
+
+            // Don't wake up if this is a failed op
+            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
+            
+            res.producer = producer;
+            res.group = PG_MEM;
+            res.port = p;
+            res.stage = found[0];
+            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
+            return res;
         end
-        return 0;
-    endfunction
-
-
-
-
+        return res;
+    endfunction;
 
 
 
@@ -471,124 +396,6 @@ package ExecDefs;
     endfunction
 
 
-    function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
-        Mword res = 'x;
-        
-        case (name)
-            UOP_int_and:  res = args[0] & args[1];
-            UOP_int_or:   res = args[0] | args[1];
-            UOP_int_xor:  res = args[0] ^ args[1];
-            
-            UOP_int_addc: res = args[0] + args[1];
-            UOP_int_addh: res = args[0] + (args[1] << 16);
-            
-            UOP_int_add:  res = args[0] + args[1];
-            UOP_int_sub:  res = args[0] - args[1];
-
-            
-            UOP_int_cgtu:  res = $unsigned(args[0]) > $unsigned(args[1]);
-            UOP_int_cgts:  res = $signed(args[0]) > $signed(args[1]);
-
-            UOP_int_shl:
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shlc:
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];
-            UOP_int_shac:       // TODO: arg0 should be signed? 
-                            if ($signed(args[1]) >= 0) res = $unsigned(args[0]) << args[1];
-                            else                       res = $unsigned(args[0]) >> -args[1];                     
-            UOP_int_rotc:
-                            if ($signed(args[1]) >= 0) res = {args[0], args[0]} << args[1];
-                            else                       res = {args[0], args[0]} >> -args[1];
-            
-            // mul/div/rem
-            UOP_int_mul:   res = w2m( multiplyW(args[0], args[1]) );
-            UOP_int_mulhu: res = w2m( multiplyHighUnsignedW(args[0], args[1]) );
-            UOP_int_mulhs: res = w2m( multiplyHighSignedW(args[0], args[1]) );
-            UOP_int_divu:  res = w2m( divUnsignedW(args[0], args[1]) );
-            UOP_int_divs:  res = w2m( divSignedW(args[0], args[1]) );
-            UOP_int_remu:  res = w2m( remUnsignedW(args[0], args[1]) );
-            UOP_int_rems:  res = w2m( remSignedW(args[0], args[1]) );
-            
-            UOP_int_link: res = linkAdr;
-            
-            // FP
-            UOP_fp_move:   res = args[0];
-            UOP_fp_xor:     res = args[0] ^ args[1];
-            UOP_fp_and:     res = args[0] & args[1];
-            UOP_fp_or:     res = args[0] | args[1];
-            UOP_fp_addi:   res = args[0] + args[1];
-
-                UOP_fp_muli:   res = Word'(args[0] * args[1]);
-                UOP_fp_divi:   res = Word'(args[0] / args[1]);
-                UOP_fp_inv:   res = 1;
-                UOP_fp_ov:   res = 1;
-
-            UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
-            UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
-            UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-            UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
-            UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
-            UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
-            UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
-
-            UOP_fp_move32: res = Word'(args[0]);
-            UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
-            UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
-            UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
-
-            default: $fatal(2, "Wrong uop");
-        endcase
-        
-        // Handling of cases of division by 0  
-        if ((name inside {UOP_int_divs, UOP_int_divu, UOP_int_rems, UOP_int_remu}) && $isunknown(res)) res = -1;
-
-        return res;
-    endfunction
-
-
-
-    function automatic FpResult32 calcArithFp(UopName name, Mword args[3], Rounding rm);
-        FpResult32 res;
-        
-        case (name)
-            UOP_fp_xor:     res = '{NO_EXCEPTION, args[0] ^ args[1]};
-            UOP_fp_and:     res = '{NO_EXCEPTION, args[0] & args[1]};
-            UOP_fp_or:     res = '{NO_EXCEPTION, args[0] | args[1]};
-            UOP_fp_addi:   res = '{NO_EXCEPTION, args[0] + args[1]};
-
-                UOP_fp_muli:   res = '{NO_EXCEPTION, Word'(args[0] * args[1])};
-                UOP_fp_divi:   res = '{NO_EXCEPTION, Word'(args[0] / args[1])};
-
-                UOP_fp_inv:   res = '{EXC_INVALID, 1};
-                UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
-
-            UOP_fp_add32: res = //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]))};
-                                TMP_addF32(args[0], args[1], rm);
-
-            UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
-            UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
-            UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
-            UOP_fp_cmpeq32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]))};
-            UOP_fp_cmpge32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]))};
-            UOP_fp_cmpgt32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]))};
-
-            UOP_fp_move32: res = '{NO_EXCEPTION, Word'(args[0])};
-            UOP_fp_neg32: res = '{NO_EXCEPTION, Word'(args[0] ^ 'h80000000)};
-            UOP_fp_abs32: res = '{NO_EXCEPTION, Word'(args[0] & 'h7FFFFFFF)};
-            UOP_fp_cpys: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
-
-            default: $fatal(2, "Wrong uop");
-        endcase
-
-        return res;//'{NO_EXCEPTION, res};
-    endfunction
-
-
-
-
-
     function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
         assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
         
@@ -598,32 +405,6 @@ package ExecDefs;
             UOP_bc_a, UOP_bc_l: return 1;  
             default: $fatal(2, "Wrong branch uop");
         endcase            
-    endfunction
-
-
-
-    // > needs InsMap (InstructionInfo)
-    function automatic EventInfo eventFromOp(input InsId id, input InstructionInfo ii, input EventDesc eDesc, input EventDesc dbDesc);
-        Mword adr = ii.basicData.adr;
-        EventInfo res = '{1, id, eDesc.etype, 1, 'x, adr, 'x};
-
-        if (eDesc.id == id) begin
-            if (eDesc.etype == PE_EXT_DEBUG) begin
-                $fatal(2, "DB event should not be here");
-            end
-            else if (eDesc.etype inside {PE_HW_SYNC, PE_HW_SEND})
-                res.target = adr + 4;
-            else if (eDesc.etype == PE_HW_REFETCH)
-                res.target = adr;
-            else
-                res.target = programEvent2trg(eDesc.etype);
-        end
-        else if (dbDesc.id == id) begin
-            res = DB_EVENT;
-        end
-        else $fatal(2, "Wrongly detected event\n%p", ii);
-
-        return res;
     endfunction
 
 endpackage

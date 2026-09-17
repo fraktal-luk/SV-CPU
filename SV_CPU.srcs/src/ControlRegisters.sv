@@ -18,7 +18,7 @@ package ControlRegisters;
             logic       dbStep;
             
             logic [1:0] resC;
-            logic       enArithExc;
+            logic       enArithExc; // DEPREC?
             logic [4:0] resD;
              
             logic [3:0] intMask;

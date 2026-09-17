@@ -131,7 +131,7 @@ module ReplayQueue(
 
             case (entries[i].p.status)
                 ES_TLB_MISS: begin
-                    if (getPageBaseM(entries[i].ad.vadr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
+                    if (getPageBaseM(entries[i].ad.info.vadr) === getPageBaseM(AbstractCore.dataCache.tlbFillEngine.notifiedTr.vadr)) begin
                         entries[i].ready = 1;                    
                     end
                 end

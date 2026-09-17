@@ -5,37 +5,15 @@ package EmulationDefs;
     import Base::*;
     import InsDefs::*;
     import Asm::*;
-        import ControlRegisters::*;
-        
-        import Arith::*;
+
+    import ControlRegisters::*;
+    
+    import Arith::*;
 
 
-    typedef struct {
-        logic allowed;
-        logic canRead;
-        logic canWrite;
-        logic canExec;
-        logic cached;
-    } DataLineDesc;
-
-    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
 
 
-    typedef struct {
-        logic present; // TLB hit
-        Mword vadr;
-        DataLineDesc desc;
-        Dword padr;
-    } Translation;
-
-    localparam Translation DEFAULT_TRANSLATION = '{
-        present: 0,
-        vadr: 'x,
-        desc: DEFAULT_DATA_LINE_DESC,
-        padr: 'x
-    };
-
-
+    // (arch)
     // Not including memory
     function automatic logic isFloatCalcIns(input AbstractInstruction ins);
         return ins.def.o inside {
@@ -75,10 +53,9 @@ package EmulationDefs;
         };
     endfunction
 
-
+    // (arch)
     function automatic logic requiresFP(input AbstractInstruction ins);
         return ins.mnemonic inside {
-            //"mov_f",
             "xor_f",
             "and_f",
             "or_f",
@@ -147,7 +124,7 @@ package EmulationDefs;
     function automatic logic isMemBarrierIns(input AbstractInstruction ins);
         return ins.def.o inside {
                 O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF,    O_intLoadAqW
-                };
+            };
     endfunction
 
     function automatic logic isMemBarrierFwIns(input AbstractInstruction ins);
@@ -259,12 +236,43 @@ package EmulationDefs;
                 
                 O_floatMove32, O_floatNeg32, O_floatAbs32, O_floatCpys32,
 
-
             O_floatLoadW,
             O_floatLoadD
         };
     endfunction
 
+
+
+
+
+
+    typedef struct {
+        logic allowed;
+        logic canRead;
+        logic canWrite;
+        logic canExec;
+        logic cached;
+    } DataLineDesc;
+
+    localparam DataLineDesc DEFAULT_DATA_LINE_DESC = '{0, 0, 0, 0, 0};
+
+    typedef struct {
+        logic present; // TLB hit
+        Mword vadr;
+        DataLineDesc desc;
+        Dword padr;
+    } Translation;
+
+    localparam Translation DEFAULT_TRANSLATION = '{
+        present: 0,
+        vadr: 'x,
+        desc: DEFAULT_DATA_LINE_DESC,
+        padr: 'x
+    };
+
+
+
+    // (emul) specific
     function automatic Mword getArgValue(input Mword intRegs[32], input Mword floatRegs[32], input int src, input byte spec);
         case (spec)
            "i": return (intRegs[src]);
@@ -284,17 +292,8 @@ package EmulationDefs;
 
 
 
-
-        function automatic Mword addFp32(input Word arg0, input Word arg1, input Rounding rd);
-            Word res = $shortrealtobits($bitstoshortreal(arg0) + $bitstoshortreal(arg1));
-            return $unsigned(res);
-        endfunction
-
-
-
-    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
+    function automatic Mword calculateResult(input AbstractInstruction ins, input Mword3 vals, input Mword ip);
         Mword result;
-        Rounding rd = convertRM(rm);
 
         case (ins.def.o)            
             O_intAnd:  result = vals[0] & vals[1];
@@ -329,34 +328,6 @@ package EmulationDefs;
                 else                       result = {vals[0], vals[0]} >> -vals[1];
             end
 
-            //O_floatMove: result = vals[0];
-
-            // O_floatMove32: result = Word'(vals[0]);
-            // O_floatNeg32: result = Word'(vals[0] ^ 'h80000000);
-            // O_floatAbs32: result = Word'(vals[0] & 'h7FFFFFFF);
-            // O_floatCpys32: result = Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) ); 
-
-
-            // O_floatXor:   result = vals[0] ^ vals[1];
-            // O_floatAnd:   result = vals[0] & vals[1];
-            // O_floatOr:   result = vals[0] | vals[1];
-            // O_floatAddInt: result = vals[0] + vals[1];
-            // O_floatMulInt: result = vals[0] * vals[1];
-            // O_floatDivInt: result = vals[0] / vals[1];
-            
-            // O_floatGenInv: result = 1;
-            // O_floatGenOv: result = 1;
-
-
-            // O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
-            //                        addFp32(vals[0], vals[1], rd);
-            // O_floatSub32: result = $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]));
-            // O_floatMul32: result = $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]));
-            // O_floatDiv32: result = $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]));
-            // O_floatCmpEq32: result = ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]));
-            // O_floatCmpGe32: result = ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]));
-            // O_floatCmpGt32: result = ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]));
-
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase
         
@@ -367,11 +338,9 @@ package EmulationDefs;
     endfunction
 
 
-
     function automatic FpResult32 calculateResultFP(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
         FpResult32 result;
-        //FpResult32 fpRes;
-        Rounding rd = convertRM(rm);
+        Rounding rd = convertRM(RoundingMode'(rm));
 
         case (ins.def.o)
             O_floatMove32: result = '{NO_EXCEPTION, Word'(vals[0])};
@@ -391,9 +360,7 @@ package EmulationDefs;
             O_floatGenOv: result = '{'{overflow: 1, default: 0}, 1};
 
 
-            O_floatAdd32: result = //$shortrealtobits($bitstoshortreal(vals[0]) + $bitstoshortreal(vals[1]));
-                                   //'{NO_EXCEPTION, addFp32(vals[0], vals[1], rd)};
-                                   TMP_addF32(vals[0], vals[1], rd);
+            O_floatAdd32: result = TMP_addF32(vals[0], vals[1], rd);
             O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
             O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
@@ -415,12 +382,12 @@ package EmulationDefs;
     endfunction
 
 
-
     typedef struct {
        Mword target;
        logic redirect;
     } ExecEvent;
 
+    // 1 use
     function automatic ExecEvent resolveBranch(input AbstractInstruction abs, input Mword adr, input Mword3 vals);
         Mword3 args = vals;
         logic redirect = 0;
@@ -464,6 +431,8 @@ package EmulationDefs;
     endfunction
 
 
+    // (emul specific)
+    // Use in 1 function Emulation
     typedef struct {
         bit active;
         Mword vadr;
@@ -473,7 +442,6 @@ package EmulationDefs;
     } MemoryWrite;
 
     const MemoryWrite DEFAULT_MEM_WRITE = '{active: 0, vadr: 'x, padr: 'x, value: 'x, size: -1};
-
 
 
     function automatic void writeIntReg(ref CpuState state, input int regNum, input Mword value);
@@ -498,21 +466,36 @@ package EmulationDefs;
     endfunction
 
 
-    function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
-        // syndrome
-        status.eventType = ProgramEvent'(sysRegs[6]);
+    function automatic int getAccessSize(input AbstractInstruction ins);
+        case (ins.def.o)
+            O_intLoadW, O_intStoreW: return 4;
+            O_intLoadD, O_intStoreD: return 8;
+            O_intLoadB, O_intStoreB: return 1;
+
+            O_floatLoadW, O_floatStoreW: return 4;
+            O_floatLoadD, O_floatStoreD: return 8;
+
+            O_intLoadAqW, O_intStoreRelW: return 4;
+
+//            O_mbLoadB, O_mbLoadF, O_mbLoadBF, O_mbStoreB, O_mbStoreF, O_mbStoreBF,
+
+            default: return -1;
+        endcase
     endfunction
 
 
 
+    function automatic void setStatusFromRegs(ref CoreStatus status, Mword sysRegs[32]);
+        // syndrome
+        status.eventType = ProgramEvent'(sysRegs[6]); // TODO: look also to sysRegs[7] (int syndrome) or refactor it?
+    endfunction
+
     function automatic AbstractInstruction suppressDisabledInstruction(input AbstractInstruction ins, input logic fpEnabled);
-        if (!fpEnabled && requiresFP(ins)) begin
+        if (!fpEnabled && requiresFP(ins))
             return FP_DISABLED_INS;
-        end
         else 
             return ins;
     endfunction
-
 
     function automatic Rounding convertRM(input RoundingMode rm);
         case (rm)

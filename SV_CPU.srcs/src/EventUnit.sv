@@ -28,10 +28,10 @@ module EventUnit(input logic clk);
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
 
-    EventDesc frontH = EMPTY_EVENT_DESC, front = EMPTY_EVENT_DESC,
+    EventDesc   frontH = EMPTY_EVENT_DESC, front = EMPTY_EVENT_DESC,
                 dbStepH = EMPTY_EVENT_DESC, dbStep = EMPTY_EVENT_DESC, // Separate because can be overridden by exception
-              execMemH = EMPTY_EVENT_DESC, execMem = EMPTY_EVENT_DESC,
-              execArithH = EMPTY_EVENT_DESC, execArith = EMPTY_EVENT_DESC,
+                execMemH = EMPTY_EVENT_DESC, execMem = EMPTY_EVENT_DESC,
+                execArithH = EMPTY_EVENT_DESC, execArith = EMPTY_EVENT_DESC,
                 fpInvH = EMPTY_EVENT_DESC, fpInv = EMPTY_EVENT_DESC,
                 fpDiv0H = EMPTY_EVENT_DESC, fpDiv0 = EMPTY_EVENT_DESC,
                 fpOvH = EMPTY_EVENT_DESC, fpOv = EMPTY_EVENT_DESC,
@@ -40,12 +40,12 @@ module EventUnit(input logic clk);
                 fpOvInexH = EMPTY_EVENT_DESC,
                 fpUndInexH = EMPTY_EVENT_DESC,
 
-              execRefetchH = EMPTY_EVENT_DESC, execRefetch = EMPTY_EVENT_DESC,
-              lqRefetchH = EMPTY_EVENT_DESC, lqRefetch = EMPTY_EVENT_DESC,
+                execRefetchH = EMPTY_EVENT_DESC, execRefetch = EMPTY_EVENT_DESC,
+                lqRefetchH = EMPTY_EVENT_DESC, lqRefetch = EMPTY_EVENT_DESC,
 
-              interruptH = EMPTY_EVENT_DESC, interrupt = EMPTY_EVENT_DESC,
-              nmiH = EMPTY_EVENT_DESC, nmi = EMPTY_EVENT_DESC,
-              generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC,
+                interruptH = EMPTY_EVENT_DESC, interrupt = EMPTY_EVENT_DESC,
+                nmiH = EMPTY_EVENT_DESC, nmi = EMPTY_EVENT_DESC,
+                generalH = EMPTY_EVENT_DESC, general = EMPTY_EVENT_DESC,
                 interruptEvtH = EMPTY_EVENT_DESC, interruptEvt = EMPTY_EVENT_DESC,
                 resetEvtH = EMPTY_EVENT_DESC, resetEvt = EMPTY_EVENT_DESC,
                 dbEvtH = EMPTY_EVENT_DESC, dbEvt = EMPTY_EVENT_DESC;
@@ -111,15 +111,15 @@ module EventUnit(input logic clk);
 
 
     function automatic EventDesc getFrontEv();
-        OpSlotB found[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active && hasStaticEvent(item.mid));
-        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
+        OpSlotB found[$] = AbstractCore.stageRename1.arr.find_first with (item.active && hasStaticEvent(item.mid));
+        OpSlotB foundAny[$] = AbstractCore.stageRename1.arr.find_first with (item.active);
         // No need to find oldest because they are ordered in slot. They are also younger than any executed op and current slot content.
 
-        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+        if (!AbstractCore.stageRename1.active) return EMPTY_EVENT_DESC;
 
         assert (foundAny.size() > 0) else $error("Renamed group active, must have active element");
 
-        if (AbstractCore.stageRename1_N.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1_N.evt};
+        if (AbstractCore.stageRename1.evt != PE_NONE) return '{1, foundAny[0].mid, AbstractCore.stageRename1.evt};
 
         if (found.size() == 0) return EMPTY_EVENT_DESC;
 
@@ -127,9 +127,9 @@ module EventUnit(input logic clk);
     endfunction
 
     function automatic EventDesc getDbEv();
-        OpSlotB foundAny[$] = AbstractCore.stageRename1_N.arr.find_first with (item.active);
+        OpSlotB foundAny[$] = AbstractCore.stageRename1.arr.find_first with (item.active);
 
-        if (!AbstractCore.stageRename1_N.active) return EMPTY_EVENT_DESC;
+        if (!AbstractCore.stageRename1.active) return EMPTY_EVENT_DESC;
 
         if (AbstractCore.CurrentConfig.dbStep) return '{1, foundAny[0].mid, PE_EXT_DEBUG};
         else return EMPTY_EVENT_DESC;
@@ -173,7 +173,6 @@ module EventUnit(input logic clk);
 
     function automatic EventDesc edFromLqRefetch(input InsId id);
         if (id == -1) return EMPTY_EVENT_DESC;
-
         return '{1, id, PE_HW_REFETCH};
     endfunction 
 
@@ -184,9 +183,6 @@ module EventUnit(input logic clk);
         if (slot.mid == -1) return EMPTY_EVENT_DESC;
 
         uname = decMainUop(slot.mid);
-
-              //  if (uname == UOP_ctrl_fp_disabled) $error("We have FP disabled");
-
         evt = eventFromUop(uname);
 
         return '{1, slot.mid, evt};
@@ -203,6 +199,11 @@ module EventUnit(input logic clk);
         if (backendState != BS_HANDLING) begin
             if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
+
+
+                if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
+
+                if (theRob.prevRowEvent) backendState <= BS_HANDLING;
         end
 
         general <= newValue;
@@ -225,10 +226,8 @@ module EventUnit(input logic clk);
             int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
-            lastEvtAD <= //theExecBlock.accessDescs_E2[inds[0]];
-                            mn.adE2[inds[0]];
-            lastEvtTr <= //theExecBlock.dcacheTranslations_E2[inds[0]];
-                            mn.trE2[inds[0]];
+            lastEvtAD <= mn.adE2[inds[0]];
+            lastEvtTr <= mn.trE2[inds[0]];
         end
     endtask
 
@@ -241,7 +240,6 @@ module EventUnit(input logic clk);
 
         if (prevId == -1) older = next;
         else if (nextId != -1 && prevId > nextId) older = next;
-        //else if (prevId == nextId && prev.etype == PE_EXT_DEBUG) older = next; // DB step is overridden by exceptions 
 
         assert (olderId == (older.id)) else $error("Ids differ");
 
@@ -249,16 +247,29 @@ module EventUnit(input logic clk);
         return older;
     endfunction
 
+
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
 
-        if (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapInv) begin
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapInv)
             tmp = replaceEvt(tmp, fpInvH);
-        end
 
-        if (AbstractCore.CurrentConfig.enArithExc || AbstractCore.CurrentConfig.enTrapOv) begin
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapOv)
             tmp = replaceEvt(tmp, fpOvH);
-        end
+
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapUnd)
+            tmp = replaceEvt(tmp, fpUndH);
+
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapInex)
+            tmp = replaceEvt(tmp, fpInexH);
+
+        if (//AbstractCore.CurrentConfig.enArithExc || 
+            AbstractCore.CurrentConfig.enTrapDiv0)
+            tmp = replaceEvt(tmp, fpDiv0H);
 
         tmp = replaceEvt(tmp, execMemH);
         tmp = replaceEvt(tmp, execRefetchH);
@@ -276,12 +287,6 @@ module EventUnit(input logic clk);
             || interruptEvt.active
             ;
     endfunction 
-
-
-    function automatic void setHandling();
-        backendState <= BS_HANDLING;
-    endfunction
-
 
     // > Needs ForwardingElement
     function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
@@ -304,6 +309,5 @@ module EventUnit(input logic clk);
         assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
         return oldest[0];
     endfunction
-
 
 endmodule

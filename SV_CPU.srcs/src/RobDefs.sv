@@ -8,6 +8,8 @@ package RobDefs;
     import Emulation::*;
 
     import AbstractSim::*;
+    import CoreConfig::*;
+
     import Insmap::*;
 
     import UopList::*;
@@ -33,14 +35,14 @@ package RobDefs;
     localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
 
-    // Experimental
-    typedef struct {
-        int row;
-        int slot;
-        InsId mid;
-    } TableIndex;
+    // // Experimental
+    // typedef struct {
+    //     int row;
+    //     int slot;
+    //     InsId mid;
+    // } TableIndex;
     
-    localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
+    // localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
 
 
     function automatic CompletedVec initCompletedVec(input int n);

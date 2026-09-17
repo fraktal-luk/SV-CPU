@@ -10,8 +10,20 @@ package CacheDefs;
     
     import AbstractSim::*;
     import Insmap::*;
+    import CoreConfig::*;
 
 
+        function automatic Dword getBlockBaseD(input Dword adr);
+            Dword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
+
+        function automatic Mword getBlockBaseM(input Mword adr);
+            Mword res = adr;
+            res[BLOCK_OFFSET_BITS-1:0] = 0;
+            return res;
+        endfunction
 
 
     class DataCacheBlock;
@@ -98,24 +110,39 @@ package CacheDefs;
     endclass
 
 
-
-    localparam Mbyte CLEAN_BLOCK[BLOCK_SIZE] = '{default: 0};
-
     typedef DataCacheBlock DataWay[BLOCKS_PER_WAY];
 
 
+        // Used throughout mem (can move to CacheDefs?)
+        typedef struct {
+            logic valid;
+            integer way;
+            Dword tag;
+            logic locked;
+            Mword value;
+        } ReadResult;
+
+
+            // Only CacheDefs
+        function automatic int getBlockIndex(input Dword adr);
+            return (adr % WAY_SIZE)/BLOCK_SIZE;
+        endfunction
+
+
+
+
     function automatic ReadResult readWay(input DataCacheBlock way[], input AccessDesc aDesc);
-        DataCacheBlock block = way[aDesc.blockIndex];
+        DataCacheBlock block = way[aDesc.info.blockIndex];
 
         if (block == null) return '{0, -1, 'x, 'x, 'x};
         else begin
             Dword tag0 = block.pbase;
             Mword val0 = 'x;
 
-            case (aDesc.size)    
-                SIZE_1: val0 = block.readByte(aDesc.blockOffset);
-                SIZE_4: val0 = block.readWord(aDesc.blockOffset);
-                SIZE_8: val0 = block.readDword(aDesc.blockOffset);
+            case (aDesc.info.size)    
+                SIZE_1: val0 = block.readByte(aDesc.info.blockOffset);
+                SIZE_4: val0 = block.readWord(aDesc.info.blockOffset);
+                SIZE_8: val0 = block.readDword(aDesc.info.blockOffset);
                 default: ;
             endcase
 
@@ -139,14 +166,14 @@ package CacheDefs;
     endfunction
 
     function automatic void lockInWay(input DataCacheBlock way[], input AccessDesc aDesc);
-        DataCacheBlock block = way[aDesc.blockIndex];
+        DataCacheBlock block = way[aDesc.info.blockIndex];
         if (block == null) return;
         if (block.getLock()) block.clearLock(); // If already locked, clear it and fail locking
         else block.setLock();
     endfunction
 
     function automatic void unlockInWay(input DataCacheBlock way[], input AccessDesc aDesc);
-        DataCacheBlock block = way[aDesc.blockIndex];
+        DataCacheBlock block = way[aDesc.info.blockIndex];
         if (block == null) return;
         block.clearLock(); // If already locked, clear it and fail locking
     endfunction
@@ -270,12 +297,12 @@ package CacheDefs;
     } ReadResult_I;
 
     function automatic ReadResult_I readWay_I(input InsWay way, input AccessDesc aDesc);
-        InstructionCacheBlock block = way[aDesc.blockIndex];
+        InstructionCacheBlock block = way[aDesc.info.blockIndex];
 
         if (block == null) return '{0, 'x, '{default: 'x}};
         begin
-            FetchLine val0 = block.readLine(aDesc.blockOffset);                    
-            if (aDesc.blockCross) $error("Read crossing block at %x", aDesc.vadr);
+            FetchLine val0 = block.readLine(aDesc.info.blockOffset);                    
+            if (aDesc.info.blockCross) $error("Read crossing block at %x", aDesc.info.vadr);
             return '{1, block.pbase, val0};
         end
     endfunction

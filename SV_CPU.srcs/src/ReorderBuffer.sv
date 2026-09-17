@@ -26,6 +26,7 @@ module ReorderBuffer
     OpRecord array[ROB_SIZE] = '{default: EMPTY_RECORD};
 
     OpRecordA currentRow = '{default: EMPTY_RECORD}, prevRow = '{default: EMPTY_RECORD}, lastRec = '{default: EMPTY_RECORD};
+    logic currentRowEvent = 0, prevRowEvent = 0;
 
     int pDrain = 0, pCommit = 0, pRead = 0, pScan = 0, pEnd = 0, pScanPrev = 0, pReadPrev = 0;;
 
@@ -116,12 +117,18 @@ module ReorderBuffer
         lastReadIdVar = lastReadId;
 
         prevRow <= currentRow;
+        prevRowEvent <= currentRowEvent;
+
         currentRow <= '{default: EMPTY_RECORD};
+        currentRowEvent <= 0;
 
         while (1) begin
             if (p == pScan) break;
             if (p == pNextRow) break;
 
+                if (array[p2i(p)].mid != -1 && (array[p2i(p)].mid == eventUnit.general.id || array[p2i(p)].mid == eventUnit.dbEvt.id)) begin
+                    currentRowEvent <= 1;
+                end
             currentRow[p % WIDTH] <= array[p2i(p)];
             putMilestoneM(array[p2i(p)].mid, InstructionMap::RobExit);
 
@@ -272,7 +279,7 @@ module ReorderBuffer
         InstructionInfo info = insMap.get(mid);
         BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == mid);
 
-        trg <= findTarget(info, found);
+        trg <= findTarget(info.mainUop, info.basicData.adr, found);
 
         lastScannedIdVar = mid;
     endfunction

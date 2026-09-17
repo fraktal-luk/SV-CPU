@@ -50,7 +50,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
  
     function automatic DataCacheOutput getSysReadResponse(input AccessDesc aDesc);
         DataCacheOutput res = EMPTY_DATA_CACHE_OUTPUT;
-        Mword regAdr = aDesc.vadr;
+        Mword regAdr = aDesc.info.vadr;
         
         if (!aDesc.active || !aDesc.sys) return res;
         
@@ -68,6 +68,9 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     endfunction
 
 
+        localparam Mword EXEC_LEVEL_EXC = 1;
+        localparam Mword EXEC_LEVEL_INT = 16;
+
 
     function automatic void modifyStateSync(
                                 input Mword adr,
@@ -78,7 +81,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr + 4;
                 
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                sysRegs[1] |= EXEC_LEVEL_EXC;
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
                 sysRegs[6] = pe;
@@ -91,7 +94,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
                 sysRegs[4] = sysRegs[1];
                 sysRegs[2] = adr;
                 
-                sysRegs[1] |= 1; // FUTURE: handle state register correctly
+                sysRegs[1] |= EXEC_LEVEL_EXC;
                 sysRegs[1] &= ~('h00100000); // clear dbstep
 
                 sysRegs[6] = pe;
@@ -111,14 +114,13 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         sysRegs[5] = sysRegs[1];
         sysRegs[3] = prevTarget;
 
-        sysRegs[1] |= 16; // FUTURE: handle state register correctly
+        sysRegs[1] |= EXEC_LEVEL_INT;
         sysRegs[1] &= ~('h00100000); // clear dbstep
 
         sysRegs[7] = pe;
     endfunction
 
     function automatic void setFpInv();
-        sysRegs[8][31] = 1;
         sysRegs[8][4] = 1;
     endfunction
 
@@ -127,7 +129,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     endfunction
 
     function automatic void setFpOv();
-        sysRegs[8][30] = 1;
         sysRegs[8][2] = 1;
     endfunction
 
