@@ -243,7 +243,7 @@ package Insmap;
         endfunction
 
 
-        function automatic UopInfo getU(input UidT uid);
+        function automatic UopInfo getU(input UopId uid);
             Unum uIndex = uid2unum(uid);
             assert (insBase.uinfos.exists(uIndex)) else $fatal(2, "wrong id %p", uid);
             return insBase.uinfos[uIndex];
@@ -263,25 +263,25 @@ package Insmap;
         endfunction
 
 
-        function automatic Unum uid2unum(input UidT uid);
+        function automatic Unum uid2unum(input UopId uid);
             InstructionInfo ii = insBase.minfos[U2M(uid)];
             assert (ii.nUops > 0) else $fatal("Mop %d ha 0 uops!\n%p", U2M(uid), ii);
             return ii.firstUop + uid.s;
         endfunction
 
 
-        function automatic void setActualResult(input UidT uid, input Mword res);
+        function automatic void setActualResult(input UopId uid, input Mword res);
             insBase.uinfos[uid2unum(uid)].resultA = res;
         endfunction
 
-        function automatic void setActualArgs(input UidT uid, input Mword args[3]);
+        function automatic void setActualArgs(input UopId uid, input Mword args[3]);
             Mword3 argsM = getU(uid).argsE;
             insBase.uinfos[uid2unum(uid)].argsA = args;
             
             setArgError(uid, (args !== argsM));
         endfunction
 
-        function automatic void setArgError(input UidT uid, input logic value);
+        function automatic void setArgError(input UopId uid, input logic value);
             insBase.uinfos[uid2unum(uid)].argError = value;
         endfunction
         
@@ -317,8 +317,8 @@ package Insmap;
         endfunction
         
         // For uops
-        function automatic void putMilestone(input UidT uid, input Milestone kind, input int cycle);
-            if (uid != UIDT_NONE) recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});            
+        function automatic void putMilestone(input UopId uid, input Milestone kind, input int cycle);
+            if (uid != UID_NONE) recordsU[ insBase.minfos[uid.m].firstUop + uid.s ].tags.push_back('{kind, cycle});            
         endfunction
         
         // For committed
@@ -604,7 +604,7 @@ package Insmap;
             
             current.deps.types[2] = SRC_ZERO;
             current.deps.sources[2] = 0;
-            current.deps.producers[2] = UIDT_NONE;
+            current.deps.producers[2] = UID_NONE;
             current.argsE[2] = 0;
             
             res.push_back(current);
@@ -627,7 +627,7 @@ package Insmap;
             
             current.deps.types[2] = SRC_ZERO;
             current.deps.sources[2] = 0;
-            current.deps.producers[2] = UIDT_NONE;
+            current.deps.producers[2] = UID_NONE;
             current.argsE[2] = 0;
             
             res.push_back(current);

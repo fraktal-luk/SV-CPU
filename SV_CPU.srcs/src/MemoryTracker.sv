@@ -127,7 +127,7 @@
             return (writers.size() == 0) ? EMPTY_TRANSACTION : writers[0];
         endfunction
 
-        function automatic logic checkIssue(input UidT uid);
+        function automatic logic checkIssue(input UopId uid);
             Transaction checked[$] = transactions.find_first with (item.owner == U2M(uid));
 
             Transaction allStores[$] = {committedStores, stores};

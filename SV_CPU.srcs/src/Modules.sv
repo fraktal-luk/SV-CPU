@@ -142,10 +142,10 @@ module FloatSubpipe(
         UopPacket res = p;
         FpResult32 fpRes;
 
-        if (p.TMP_oid == UIDT_NONE) return res;
+        if (p.uid == UID_NONE) return res;
         
         begin
-            fpRes = calcRegularFpOp(p.TMP_oid);
+            fpRes = calcRegularFpOp(p.uid);
             res.result = fpRes.value;
 
             if (fpRes.exc.invalid) begin
@@ -186,7 +186,7 @@ module FloatSubpipe(
          || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
             )
         begin
-            insMap.setException(U2M(p.TMP_oid), PE_ARITH_EXCEPTION);
+            insMap.setException(U2M(p.uid), PE_ARITH_EXCEPTION);
         end
         
         return res;
@@ -218,7 +218,7 @@ module BranchSubpipe(
         pD0 <= tickP(pE0);
         pD1 <= tickP(pD0);
 
-        runExecBranch(p1_E.active, p1_E.TMP_oid);
+        runExecBranch(p1_E.active, p1_E.uid);
 
     end
 
@@ -243,7 +243,7 @@ module BranchSubpipe(
     function automatic UopPacket performBranchE0(input UopPacket p);
         if (!p.active) return p;
         begin
-            UidT uid = p.TMP_oid;
+            UopId uid = p.uid;
             Mword3 args = getAndVerifyArgs(uid);
             p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
         end
@@ -251,7 +251,7 @@ module BranchSubpipe(
     endfunction
     
 
-    task automatic runExecBranch(input logic active, input UidT uid);
+    task automatic runExecBranch(input logic active, input UopId uid);
         AbstractCore.branchEventInfo <= EMPTY_EVENT_INFO;
 
         if (!active) return;
@@ -261,7 +261,7 @@ module BranchSubpipe(
     endtask
 
 
-    task automatic setBranchInCore(input UidT uid);
+    task automatic setBranchInCore(input UopId uid);
         UopName uname = decUname(uid);
         Mword3 args = insMap.getU(uid).argsA;
         Mword adr = getAdr(U2M(uid));
@@ -437,11 +437,11 @@ module StoreDataSubpipe(
 
 
     function automatic UopPacket performStoreData(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
+        if (p.uid == UID_NONE) return p;
 
         begin
             UopPacket res = p;
-            Mword3 args = getAndVerifyArgs(p.TMP_oid);
+            Mword3 args = getAndVerifyArgs(p.uid);
             res.result = args[2];
             return res;
         end

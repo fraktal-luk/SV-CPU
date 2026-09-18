@@ -112,7 +112,7 @@ module MemSubpipe#()
     // 
     function automatic AccessDesc getAccessDesc(input UopMemPacket p, input Mword adr, input logic isUpper);
         AccessDesc res;
-        UopName uname = decUname(p.TMP_oid);
+        UopName uname = decUname(p.uid);
 
         AccessSize trSize = getTransactionSize(uname);
 
@@ -158,7 +158,7 @@ module MemSubpipe#()
  
     task automatic performE0();    
         UopMemPacket stateE0 = tickP(p1);
-        Mword adr = getEffectiveAddress(stateE0.TMP_oid);
+        Mword adr = getEffectiveAddress(stateE0.uid);
         accessDescE0 <= getAccessDesc(stateE0, adr, (p1.memClass == MC_UPPER_B));
         pE0 <= updateE0(stateE0, adr);
     endtask
@@ -183,7 +183,7 @@ module MemSubpipe#()
 
         if (!p.active) return res;
       
-        uname = decUname(p.TMP_oid);
+        uname = decUname(p.uid);
 
         if (p.memClass != MC_UPPER_B)
             res.result = adr;
@@ -214,7 +214,7 @@ module MemSubpipe#()
                                              input DataCacheOutput cacheResp, input DataCacheOutput uncachedResp, 
                                              input DataCacheOutput sysResp, input UopPacket sqResp, input UopPacket lqResp);
         UopMemPacket res = p;
-        UidT uid = p.TMP_oid;
+        UopId uid = p.uid;
         UopName uname;
 
         if (!p.active) return res;
@@ -225,7 +225,7 @@ module MemSubpipe#()
         if (ad.invalid) begin
             res.status = ES_INVALID;
             res.result = 0;
-            insMap.setException(U2M(p.TMP_oid), PE_MEM_INVALID_ADDRESS);
+            insMap.setException(U2M(p.uid), PE_MEM_INVALID_ADDRESS);
             return res;
         end
 
@@ -248,7 +248,7 @@ module MemSubpipe#()
                 case (p.status)
                     ES_BEGIN, ES_INSTANT_REPLAY: begin
                         if (ad.info.unaligned) begin
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
+                            insMap.setException(U2M(p.uid), PE_MEM_UNALIGNED_ADDRESS);
                             res.status = ES_UNALIGNED;
                             res.result = 0;
                             return res;
@@ -256,13 +256,13 @@ module MemSubpipe#()
                         else if (cacheResp.status == CR_NOT_ALLOWED) begin
                             res.status = ES_ILLEGAL;
                             res.result = 0;
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                            insMap.setException(U2M(p.uid), PE_MEM_DISALLOWED_ACCESS);
                             return res;
                         end
                         else if (cacheResp.status == CR_UNCACHED) begin
                             res.status = ES_ILLEGAL;
                             res.result = 0;
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                            insMap.setException(U2M(p.uid), PE_MEM_DISALLOWED_ACCESS);
                             return res;
                         end
 
@@ -295,7 +295,7 @@ module MemSubpipe#()
                         else if (uncachedResp.status == CR_INVALID) begin
                             res.status = ES_NONEXISTENT;
                             res.result = 0;
-                            insMap.setException(U2M(p.TMP_oid), PE_MEM_NONEXISTENT_ADDRESS);
+                            insMap.setException(U2M(p.uid), PE_MEM_NONEXISTENT_ADDRESS);
                             return res;
                         end
                         else
@@ -323,18 +323,18 @@ module MemSubpipe#()
             return res;
         end
         else if (cacheResp.status == CR_NOT_ALLOWED) begin
-            insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+            insMap.setException(U2M(p.uid), PE_MEM_DISALLOWED_ACCESS);
             res.status = ES_ILLEGAL;
             return res;
         end
         else if (cacheResp.status == CR_UNCACHED) begin
             if (p.memClass != MC_NORMAL) begin
-                insMap.setException(U2M(p.TMP_oid), PE_MEM_DISALLOWED_ACCESS);
+                insMap.setException(U2M(p.uid), PE_MEM_DISALLOWED_ACCESS);
                 res.status = ES_ILLEGAL;
                 return res;
             end
             if (ad.info.unaligned) begin
-                insMap.setException(U2M(p.TMP_oid), PE_MEM_UNALIGNED_ADDRESS);
+                insMap.setException(U2M(p.uid), PE_MEM_UNALIGNED_ADDRESS);
                 res.status = ES_UNALIGNED;
                 return res;
             end
@@ -354,10 +354,10 @@ module MemSubpipe#()
 
     function automatic UopMemPacket TMP_updateSysTransfer(input UopMemPacket p, input DataCacheOutput sysResp);
         UopMemPacket res = p;
-        UidT uid = p.TMP_oid;
+        UopId uid = p.uid;
 
         if (sysResp.status == CR_INVALID) begin
-            insMap.setException(U2M(p.TMP_oid), PE_SYS_INVALID_ADDRESS); // Exception on invalid sys reg access: set in relevant of SQ/LQ
+            insMap.setException(U2M(p.uid), PE_SYS_INVALID_ADDRESS); // Exception on invalid sys reg access: set in relevant of SQ/LQ
             res.status = ES_INVALID;
         end
         else begin
@@ -376,7 +376,7 @@ module MemSubpipe#()
     function automatic UopMemPacket updateE2_Regular(input UopMemPacket p, input AccessDesc ad, input DataCacheOutput cacheResp,
                                                      input UopPacket sqResp, input UopPacket lqResp);
         UopPacket res = p;
-        UidT uid = p.TMP_oid;
+        UopId uid = p.uid;
 
         assert (!(p.memClass inside {MC_UNCACHED, MC_SYS, MC_BARRIER})) else $fatal(2, "Wrong class for %p", p.memClass);
 
@@ -434,8 +434,8 @@ module MemSubpipe#()
     endfunction
 
 
-    function automatic Mword getEffectiveAddress(input UidT uid);
-        return (uid == UIDT_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
+    function automatic Mword getEffectiveAddress(input UopId uid);
+        return (uid == UID_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
     endfunction
 
 endmodule

@@ -40,7 +40,7 @@ package IqLogic;
 
     typedef struct {
         logic used;
-        UidT uid;
+        UopId uid;
         logic active_;
         SlotStatus status;
         IqArgState state;
@@ -51,10 +51,10 @@ package IqLogic;
 
     localparam IqEntry EMPTY_ENTRY = '{used: 0, active_: 0,
                                 status: IqEmpty,
-                                state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UIDT_NONE};
+                                state: EMPTY_ARG_STATE, barrier: -1, poisons: DEFAULT_POISON_STATE, issueCounter: -1, uid: UID_NONE};
 
     typedef struct {
-        UidT uid;
+        UopId uid;
         logic used;
         logic active;
         logic3 registers;

@@ -666,7 +666,7 @@ module AbstractCore
 
         // RET: update regs
         for (int u = 0; u < insInfo.nUops; u++) begin
-            UidT uid = '{id, u};
+            UopId uid = '{id, u};
             registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, abnormal); // Need to modify to handle Exceptional and Hidden
         end
 
@@ -756,15 +756,15 @@ module AbstractCore
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
-        putMilestone(p.TMP_oid, InstructionMap::WriteResult);
-        registerTracker.writeValue(decUname(p.TMP_oid), decId(U2M(p.TMP_oid)).dest, p.TMP_oid, p.result);
+        putMilestone(p.uid, InstructionMap::WriteResult);
+        registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
     endtask
 
 
     // General
 
-    function automatic UopName decUname(input UidT uid);
-        return (uid == UIDT_NONE) ? UOP_none : insMap.getU(uid).name;
+    function automatic UopName decUname(input UopId uid);
+        return (uid == UID_NONE) ? UOP_none : insMap.getU(uid).name;
     endfunction
 
     function automatic UopName decMainUop(input InsId id);
@@ -795,7 +795,7 @@ module AbstractCore
         insMap.putMilestoneC(id, kind, cycleCtr);
     endfunction
 
-    function automatic void putMilestone(input UidT uid, input InstructionMap::Milestone kind);
+    function automatic void putMilestone(input UopId uid, input InstructionMap::Milestone kind);
         insMap.putMilestone(uid, kind, cycleCtr);
     endfunction
 
@@ -804,12 +804,12 @@ module AbstractCore
         if (!op.active) return EMPTY_UOP_PACKET;
 
         if (shouldFlushPoison(op.poison)) begin
-            putMilestone(op.TMP_oid, InstructionMap::FlushPoison);
+            putMilestone(op.uid, InstructionMap::FlushPoison);
             return EMPTY_UOP_PACKET;
         end
 
-        if (shouldFlushEvent(op.TMP_oid)) begin 
-            putMilestone(op.TMP_oid, InstructionMap::FlushExec);
+        if (shouldFlushEvent(op.uid)) begin 
+            putMilestone(op.uid, InstructionMap::FlushExec);
             return EMPTY_UOP_PACKET;
         end
         return op;
@@ -818,11 +818,11 @@ module AbstractCore
     function automatic UopPacket effP(input UopPacket op);
         if (!op.active) return EMPTY_UOP_PACKET;
         if (shouldFlushPoison(op.poison)) return EMPTY_UOP_PACKET;            
-        if (shouldFlushEvent(op.TMP_oid)) return EMPTY_UOP_PACKET;
+        if (shouldFlushEvent(op.uid)) return EMPTY_UOP_PACKET;
         return op;
     endfunction
 
-    function automatic logic shouldFlushEvent(input UidT uid);
+    function automatic logic shouldFlushEvent(input UopId uid);
         return shouldFlushId(U2M(uid));
     endfunction
 

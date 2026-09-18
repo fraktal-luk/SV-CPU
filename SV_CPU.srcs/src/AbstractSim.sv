@@ -23,26 +23,23 @@ package AbstractSim;
 
     localparam UopId UID_NONE = '{-1, -1};
 
-    typedef UopId UidT; // FUTURE change to UopId
-    localparam UidT UIDT_NONE = UID_NONE;
-
-    function automatic UidT FIRST_U(input InsId id);
+    function automatic UopId FIRST_U(input InsId id);
         return '{id, 0};
     endfunction
     
-    function automatic InsId U2M(input UidT uid);
+    function automatic InsId U2M(input UopId uid);
         return uid.m;
     endfunction
 
-    function automatic int SUBOP(input UidT uid);
+    function automatic int SUBOP(input UopId uid);
         return uid.s;
     endfunction
 
-    typedef UidT UidQueueT[$];
+    typedef UopId UidQueueT[$];
 
 
-    typedef UidT WriterId;
-    localparam WriterId WID_NONE = UIDT_NONE;
+    typedef UopId WriterId;
+    localparam WriterId WID_NONE = UID_NONE;
 
     // Defs for tracking, insMap
     typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
@@ -54,7 +51,7 @@ package AbstractSim;
         WriterId producers[3];
     } InsDependencies;
 
-    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UIDT_NONE}};
+    localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UID_NONE}};
 
 
 

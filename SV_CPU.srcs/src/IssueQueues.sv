@@ -30,7 +30,7 @@ module IssueQueue
     localparam int N_HOLD_MAX = (HOLD_CYCLES+1) * OUT_WIDTH;
     localparam int TOTAL_SIZE = SIZE + N_HOLD_MAX;
 
-    typedef UidT UidArray[];
+    typedef UopId UidArray[];
     typedef int InputLocs[RENAME_WIDTH];
 
     typedef UopPacket OutGroupP[OUT_WIDTH];
@@ -154,7 +154,7 @@ module IssueQueue
         pIssued0 <= '{default: EMPTY_UOP_PACKET};
         
         readyForIssue = '{default: 0};
-        foreach (readyForIssue[i]) readyForIssue[i] = (selected[i] != UIDT_NONE);
+        foreach (readyForIssue[i]) readyForIssue[i] = (selected[i] != UID_NONE);
         
         if (allow) begin
             issueFromArray_0(selected);
@@ -164,17 +164,17 @@ module IssueQueue
 
 
     function automatic UidArray getArrOpsToIssue_A();
-        UidT res[] = new[OUT_WIDTH];
+        UopId res[] = new[OUT_WIDTH];
         int cnt = 0;
         
         UidQueueT idsSorted = getActiveIdQueue(array);
         
-        res = '{default: UIDT_NONE};
+        res = '{default: UID_NONE};
         
         idsSorted.sort with (U2M(item));
 
         foreach (idsSorted[i]) begin
-            UidT thisId = idsSorted[i];
+            UopId thisId = idsSorted[i];
 
             int arrayLoc[$] = array.find_index with (item.uid == thisId); // array
             IqEntry entry = array[arrayLoc[0]];     // array
@@ -219,11 +219,11 @@ module IssueQueue
     task automatic issueFromArray_0(input UidArray ua);
 
         foreach (ua[i]) begin
-            UidT theId = ua[i];
+            UopId theId = ua[i];
             int found[$] = array.find_first_index with (item.uid == theId);
             int s = found[0];
 
-            if (theId == UIDT_NONE) continue;
+            if (theId == UID_NONE) continue;
 
             assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
 
@@ -244,11 +244,11 @@ module IssueQueue
     
     task automatic issueFromArray_1(input UidArray ua);
         foreach (ua[i]) begin
-            UidT theId = ua[i];
+            UopId theId = ua[i];
             int found[$] = array.find_first_index with (item.uid == theId);
             int s = found[0];
 
-            if (theId == UIDT_NONE) continue;
+            if (theId == UID_NONE) continue;
 
             assert (array[s].status == IqActive) else $fatal(2, "!!!!!Inactive slot to issue?");
 
@@ -424,10 +424,10 @@ module IssueQueue
     endfunction
 
     function automatic UidQueueT getIdQueue(input IqEntry entries[]);
-        UidT res[$];
+        UopId res[$];
         
         foreach (entries[i]) begin
-            UidT uid = (entries[i].status != IqEmpty) ? entries[i].uid : UIDT_NONE;
+            UopId uid = (entries[i].status != IqEmpty) ? entries[i].uid : UID_NONE;
             res.push_back(uid);
         end
         
@@ -435,7 +435,7 @@ module IssueQueue
     endfunction
 
         function automatic UidQueueT getActiveIdQueue(input IqEntry entries[]);
-            UidT res[$];
+            UopId res[$];
             
             foreach (entries[i]) begin
                 if (entries[i].status == IqActive)
@@ -457,7 +457,7 @@ module IssueQueue
     function automatic WakeupMatrixD getForwardsD(input IqEntry arr[]);
         WakeupMatrixD res = new[arr.size()];
         foreach (arr[i]) begin
-            if (arr[i].uid == UIDT_NONE)
+            if (arr[i].uid == UID_NONE)
                 res[i] = '{default: EMPTY_WAKEUP}; 
             else
                 res[i] = getForwardsForOp(arr[i]);
@@ -472,7 +472,7 @@ module IssueQueue
 
         foreach (entry.state.readyArgs[a]) begin
             SourceType argType = deps.types[a];
-            UidT prod = deps.producers[a];
+            UopId prod = deps.producers[a];
             Wakeup wup = EMPTY_WAKEUP;
 
             case (argType)
@@ -523,8 +523,8 @@ module IssueQueue
 //////////////////////////////////
 
 
-    function automatic logic3 getReadyRegisterArgsForUid(input InstructionMap imap, input UidT uid);
-        if (uid == UIDT_NONE) return '{'z, 'z, 'z};
+    function automatic logic3 getReadyRegisterArgsForUid(input InstructionMap imap, input UopId uid);
+        if (uid == UID_NONE) return '{'z, 'z, 'z};
         else begin
             InsDependencies deps = imap.getU(uid).deps;
             return checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
@@ -536,7 +536,7 @@ module IssueQueue
         
         res.uid = entry.uid;
         
-        if (entry.uid == UIDT_NONE) return res;
+        if (entry.uid == UID_NONE) return res;
         
         res.used = entry.status != IqEmpty;
         res.active = entry.status == IqActive;

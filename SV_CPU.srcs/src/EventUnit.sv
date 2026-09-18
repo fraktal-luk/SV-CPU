@@ -142,7 +142,7 @@ module EventUnit(input logic clk);
 
         if (!p.active) return EMPTY_EVENT_DESC;
 
-        uname = decUname(p.TMP_oid);
+        uname = decUname(p.uid);
 
         case (p.status)
             ES_UNALIGNED:
@@ -168,7 +168,7 @@ module EventUnit(input logic clk);
             default: ;
         endcase
 
-        return '{1, U2M(p.TMP_oid), evt};
+        return '{1, U2M(p.uid), evt};
     endfunction
 
     function automatic EventDesc edFromLqRefetch(input InsId id);
@@ -223,7 +223,7 @@ module EventUnit(input logic clk);
         lqRefetch <= replaceEvt(lqRefetch, lqRefetchH);
 
         if (execMemH != execMem && execMemH.active) begin
-            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.TMP_oid) == execMemH.id); 
+            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.uid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
             lastEvtAD <= mn.adE2[inds[0]];
@@ -291,22 +291,22 @@ module EventUnit(input logic clk);
     // > Needs ForwardingElement
     function automatic UopPacket findOldestWithState(input ExecStatus refSt, input ForwardingElement stages[]);
         ForwardingElement found[$] = stages.find with (item.active && item.status == refSt);
-        ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+        ForwardingElement oldest[$] = found.min with (U2M(item.uid));
 
         if (found.size() == 0) return EMPTY_UOP_PACKET;
 
-        assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+        assert (oldest[0].uid != UID_NONE) else $fatal(2, "id none");
         return oldest[0];
     endfunction
 
     // > Needs ForwardingElement
     function automatic UopPacket findOldestMemEvt(input ForwardingElement stages[]);
         ForwardingElement found[$] = stages.find with (item.active && item.status inside {ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT, ES_UNALIGNED});
-        ForwardingElement oldest[$] = found.min with (U2M(item.TMP_oid));
+        ForwardingElement oldest[$] = found.min with (U2M(item.uid));
         
         if (found.size() == 0) return EMPTY_UOP_PACKET;
         
-        assert (oldest[0].TMP_oid != UIDT_NONE) else $fatal(2, "id none");
+        assert (oldest[0].uid != UID_NONE) else $fatal(2, "id none");
         return oldest[0];
     endfunction
 

@@ -209,9 +209,9 @@ module TmpSubSq();
 
             StoreQueue.responseE1d_N[p] <= EMPTY_UOP_PACKET;
 
-            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.TMP_oid))) continue;
+            if (!loadOp.active || !isLoadMemUop(decUname(loadOp.uid))) continue;
 
-            StoreQueue.responseE1d_N[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.TMP_oid), tr, ad);
+            StoreQueue.responseE1d_N[p] <= scanStoreQueue(StoreQueue.content, U2M(loadOp.uid), tr, ad);
         end
     endtask
 
@@ -223,24 +223,24 @@ module TmpSubSq();
 
         foreach (packetsE0[p]) begin
             UopMemPacket packet = packetsE0[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
                updateEntry(StoreQueue.content[index], packet, mn.trE0d[p], mn.adE0[p]);
-               putMilestone(packet.TMP_oid, InstructionMap::WriteStoreAddress);
+               putMilestone(packet.uid, InstructionMap::WriteStoreAddress);
             end
         end
 
         foreach (packetsE1[p]) begin
             UopMemPacket packet = packetsE1[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
                DataCacheOutput dcOut = mn.cacheOutE1[p];
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
 
                // On first run of StoreRel we find out whether the store succeeds
                if (isStoreRelUop(uname) && packet.status != ES_BEGIN) begin
@@ -255,13 +255,13 @@ module TmpSubSq();
 
         foreach (packetsE2[p]) begin
             UopMemPacket packet = packetsE2[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             if (!(packet.status inside {ES_REFETCH, ES_ILLEGAL, ES_INVALID})) continue;
 
             begin
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
                if (packet.status == ES_REFETCH) StoreQueue.content[index].refetch = 1;
                else if (packet.status inside {ES_ILLEGAL, ES_INVALID}) StoreQueue.content[index].error = 1;            
             end
@@ -296,7 +296,7 @@ module TmpSubSq();
         else                                // Covers and has data -> OK
             res = '{1, FIRST_U(fwEntry.mid), MC_NONE, ES_OK,        EMPTY_POISON, fwEntry.val};
 
-        if (res.active) checkSqResp(id, res, StoreQueue.memTracker.findStoreAll(U2M(res.TMP_oid)), fwEntry.accessDesc.info.size, tr.padr, loadSize);
+        if (res.active) checkSqResp(id, res, StoreQueue.memTracker.findStoreAll(U2M(res.uid)), fwEntry.accessDesc.info.size, tr.padr, loadSize);
 
         return res;
     endfunction
@@ -308,8 +308,8 @@ module TmpSubSq();
 
         // If sr source is not latestOverlap, denote this fact somewhere (so far printing an error, hasn't happened yet).
         // On Retire, if the load has taken its value from FW but not latestOverlap, raise an error.
-        assert (latestOverlap.owner == U2M(sr.TMP_oid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
-        assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.TMP_oid));
+        assert (latestOverlap.owner == U2M(sr.uid)) else $error("not the same Tr:\n%p\n%p", latestOverlap, tr);
+        assert (tr.owner != -1) else $error("Forwarded store unknown by memTracker! %d", U2M(sr.uid));
 
         if (sr.status == ES_CANT_FORWARD) begin
             logic isOverlapping = memOverlap(padr, esize, tr.padr, trSize);
@@ -333,7 +333,7 @@ module TmpSubSq();
     endfunction
 
     function automatic void updateEntry(ref SqEntry entry, input UopPacket p, input Translation tr, input AccessDesc desc);
-        UopName uname = decUname(p.TMP_oid);
+        UopName uname = decUname(p.uid);
 
         if (isStoreUop(uname)) begin
             entry.accessDesc = desc;
@@ -347,13 +347,13 @@ module TmpSubSq();
 
     task automatic updateStoreData();
         UopPacket dataUop = theExecBlock.storeDataE0_E;
-        if (dataUop.active && isStoreDataUop(decUname(dataUop.TMP_oid))) begin
-            int dataFound[$] = StoreQueue.content.find_first_index with (item.mid == U2M(dataUop.TMP_oid));
+        if (dataUop.active && isStoreDataUop(decUname(dataUop.uid))) begin
+            int dataFound[$] = StoreQueue.content.find_first_index with (item.mid == U2M(dataUop.uid));
             assert (dataFound.size() == 1) else $fatal(2, "Not found SQ entry");
 
             updateStoreDataImpl(StoreQueue.content[dataFound[0]], dataUop);
             dataUop.result = StoreQueue.content[dataFound[0]].translation.padr; // This may be used in the future for waking up RQ when missed on store forwarding
-            putMilestone(dataUop.TMP_oid, InstructionMap::WriteStoreValue);
+            putMilestone(dataUop.uid, InstructionMap::WriteStoreValue);
         end
 
         storeDataD0 <= tickP(dataUop);
@@ -363,7 +363,7 @@ module TmpSubSq();
 
 
     function automatic void updateStoreDataImpl(ref SqEntry entry, input UopPacket p);
-        UopName uname = decUname(p.TMP_oid);
+        UopName uname = decUname(p.uid);
 
         if (p.status == ES_UNCACHED_1) return;
         assert (isStoreDataUop(uname)) else $fatal(2, "Wrong uop for store data!!!!  %p", uname);
@@ -419,8 +419,8 @@ module TmpSubLq();
         // So loads performed in previous cycle, which stored .valRedy at E2 1 cycle earlier, are ready to be scanned
         foreach (mn.uopE1[p]) begin
             UopMemPacket storeUop = mn.uopE1[p];
-            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.TMP_oid))) continue;
-            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.TMP_oid), mn.trE1[p].padr, mn.adE1[p].info.size));
+            if (!storeUop.active || !isStoreMemUop(decUname(storeUop.uid))) continue;
+            void'(scanLoadQueue(StoreQueue.content, U2M(storeUop.uid), mn.trE1[p].padr, mn.adE1[p].info.size));
         end
     endtask
 
@@ -434,33 +434,33 @@ module TmpSubLq();
 
         foreach (packetsE0[p]) begin
             UopMemPacket packet = packetsE0[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
                updateEntry(StoreQueue.content[index], packet, mn.trE0d[p], mn.adE0[p]);
-               putMilestone(packet.TMP_oid, InstructionMap::WriteLoadAddress);
+               putMilestone(packet.uid, InstructionMap::WriteLoadAddress);
             end
         end
 
         foreach (packetsE1[p]) begin
             UopMemPacket packet = packetsE1[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
             end
         end
 
         foreach (packetsE2[p]) begin
             UopMemPacket packet = packetsE2[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
                if (packet.status == ES_REFETCH) StoreQueue.content[index].refetch = 1;
                else if (packet.status inside {ES_ILLEGAL, ES_INVALID}) StoreQueue.content[index].error = 1;
                else if (packet.status == ES_OK) StoreQueue.content[index].valReady = 1;  // CAREFUL: this is critical because needed to find order violations
@@ -550,7 +550,7 @@ module TmpSubBr();
         UopPacket p = theExecBlock.branch0.p0_E;
 
         if (p.active) begin
-            int index = findIndex(p.TMP_oid);     
+            int index = findIndex(p.uid);     
             lookupTarget <= StoreQueue.content[index].immTarget;
             lookupLink <= StoreQueue.content[index].linkAdr;
         end
@@ -589,11 +589,11 @@ module TmpSubBr();
         
         foreach (packetsE0[p]) begin
             UopMemPacket packet = packetsE0[p];
-            UopName uname = decUname(packet.TMP_oid);
+            UopName uname = decUname(packet.uid);
             if (!packet.active || !appliesU(uname)) continue;
 
             begin
-               int index = findIndex(packet.TMP_oid);
+               int index = findIndex(packet.uid);
                updateEntry(StoreQueue.content[index], packet);
             end
         end
@@ -601,7 +601,7 @@ module TmpSubBr();
     endtask
 
     function automatic void updateEntry(ref BqEntry entry, input UopPacket p);            
-        UopInfo uInfo = StoreQueue.insMap.getU(p.TMP_oid);
+        UopInfo uInfo = StoreQueue.insMap.getU(p.uid);
         UopName name = uInfo.name;
         Mword trgArg = uInfo.argsA[1];
         

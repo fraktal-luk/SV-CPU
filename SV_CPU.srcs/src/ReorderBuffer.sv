@@ -260,17 +260,17 @@ module ReorderBuffer
 
     task automatic markPacketCompleted(input UopPacket p);         
         int found[$];
-        int sub = SUBOP(p.TMP_oid);
+        int sub = SUBOP(p.uid);
 
         if (!p.active) return;
         
-        found = array.find_first_index with (item.mid == U2M(p.TMP_oid));
+        found = array.find_first_index with (item.mid == U2M(p.uid));
 
-        assert (found.size() > 0) else $error("%p not found in ROB!", p.TMP_oid);
+        assert (found.size() > 0) else $error("%p not found in ROB!", p.uid);
 
         array[found[0]].completed[sub] = 1;
 
-        if (array[found[0]].completed.and() !== 0) putMilestoneM(U2M(p.TMP_oid), InstructionMap::RobComplete);
+        if (array[found[0]].completed.and() !== 0) putMilestoneM(U2M(p.uid), InstructionMap::RobComplete);
     endtask
 
 
