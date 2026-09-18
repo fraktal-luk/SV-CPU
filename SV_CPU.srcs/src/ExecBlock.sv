@@ -42,13 +42,15 @@ module ExecBlock(ref InstructionMap insMap,
 
     ForwardingElement intImages[N_INT_PORTS][-3:1];
     ForwardingElement memImages[N_MEM_PORTS][-3:1];
+    ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
     ForwardingElement floatImages[N_VEC_PORTS][-3:1];
 
     IntByStage intImagesTr;
     MemByStage memImagesTr;
+    MemByStage memImagesVecTr;
     VecByStage floatImagesTr;
 
-    ForwardsByStage_0 allByStage;
+    ForwardsByStage_0 allByStage, allByStageVec;
     
         logic ch0, ch1, ch2, ch3;
 
@@ -183,7 +185,7 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        memImagesTr[-3],
+        memImagesTr[-3], // TODO: this must include FP/vector too
         memImagesTr[0],
         issuedReplayQueue
     );
@@ -211,15 +213,25 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
+    
+        assign memImagesVec = memImages; // TODO:
+    
+
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
 
     always_comb intImagesTr = trsInt(intImages);
     always_comb memImagesTr = trsMem(memImages);
+    always_comb memImagesVecTr = trsMem(memImagesVec);
     always_comb floatImagesTr = trsVec(floatImages);
 
     assign allByStage.ints = intImagesTr;
     assign allByStage.mems = memImagesTr;
     assign allByStage.vecs = floatImagesTr;
+
+
+    assign allByStageVec.ints = intImagesTr;
+    assign allByStageVec.mems = memImagesVecTr;
+    assign allByStageVec.vecs = floatImagesTr;
 
 
     assign mn.uopE0 = '{0: mem0.pE0_E, 1: mem1.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
@@ -316,7 +328,7 @@ module ExecBlock(ref InstructionMap insMap,
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = deps.sources[i];
                 SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
-                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], allByStageVec, ready[i]);
             endcase
         end
 
@@ -377,6 +389,8 @@ module ExecBlock(ref InstructionMap insMap,
 
     function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feVec.find with (matchProducer(item, producer));
+        if (res.size() == 0)
+            res = feMem.find with (matchProducer(item, producer));
         return res;
     endfunction
 

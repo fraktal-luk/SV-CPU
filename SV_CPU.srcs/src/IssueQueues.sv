@@ -460,13 +460,13 @@ module IssueQueue
             if (arr[i].uid == UIDT_NONE)
                 res[i] = '{default: EMPTY_WAKEUP}; 
             else
-                res[i] = getForwardsForOp(arr[i], theExecBlock.memImagesTr[0]);
+                res[i] = getForwardsForOp(arr[i]);
         end
         return res;
     endfunction
 
 
-    function automatic Wakeup3 getForwardsForOp(input IqEntry entry, input ForwardingElement memStage0[N_MEM_PORTS]);
+    function automatic Wakeup3 getForwardsForOp(input IqEntry entry);
         Wakeup3 res = '{default: EMPTY_WAKEUP};
         InsDependencies deps = insMap.getU(entry.uid).deps;
 
@@ -482,8 +482,7 @@ module IssueQueue
                 end
                 SRC_FLOAT: begin
                     wup = checkForwardSourceVec(prod, AbstractCore.theExecBlock.floatImages);
-                    // TODO: mem forwarding for FP
-                    //if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImages);
+                    if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImagesVec);
                 end
                 default: ; // nothing
             endcase

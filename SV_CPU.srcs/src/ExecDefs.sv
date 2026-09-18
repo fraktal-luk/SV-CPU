@@ -352,7 +352,7 @@ package ExecDefs;
             res.group = PG_VEC;
             res.port = p;
             res.stage = found[0];
-            res.poison = EMPTY_POISON; //TMP!
+            res.poison = fea[p][found[0]].poison;
             return res;
         end
         return res;
