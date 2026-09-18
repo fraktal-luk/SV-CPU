@@ -212,12 +212,11 @@ module ExecBlock(ref InstructionMap insMap,
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
-    assign memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
-    
-        assign memImagesVec = memImages; // TODO:
-    
-
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
+
+    assign memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};    
+    assign memImagesVec = memImages; //  TODO: separate, 1c longer load pipe on FP side? 
+
 
     always_comb intImagesTr = trsInt(intImages);
     always_comb memImagesTr = trsMem(memImages);
@@ -262,20 +261,20 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic UopPacket performRegularE0(input UopPacket p);
-        if (p.TMP_oid == UIDT_NONE) return p;
+        if (p.uid == UID_NONE) return p;
         begin
             UopPacket res = p;
-            res.result = calcRegularOp(p.TMP_oid);
+            res.result = calcRegularOp(p.uid);
             return res;
         end
     endfunction
 
 
     // function automatic UopPacket performRegularFP(input UopPacket p);
-    //     if (p.TMP_oid == UIDT_NONE) return p;
+    //     if (p.uid == UID_NONE) return p;
     //     begin
     //         UopPacket res = p;
-    //         FpResult32 fpRes = calcRegularFpOp(p.TMP_oid);
+    //         FpResult32 fpRes = calcRegularFpOp(p.uid);
     //         res.result = fpRes.value;
     //         return res;
     //     end
@@ -283,7 +282,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-    function automatic Mword calcRegularOp(input UidT uid);
+    function automatic Mword calcRegularOp(input UopId uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
         Mword result = calcArith(decUname(uid), args, lk);  
@@ -293,7 +292,7 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    function automatic FpResult32 calcRegularFpOp(input UidT uid);
+    function automatic FpResult32 calcRegularFpOp(input UopId uid);
         Rounding rm = convertRM(AbstractCore.CurrentConfig.rm);
         Mword3 args = getAndVerifyArgs(uid);
         FpResult32 result;  
@@ -306,11 +305,8 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-
-        // TODO: Introduce forwarding of FP args
-        // FUTURE: 1c longer load pipe on FP side? 
     // Used before Exec0 to get final values
-    function automatic Mword3 getAndVerifyArgs(input UidT uid);
+    function automatic Mword3 getAndVerifyArgs(input UopId uid);
         InsDependencies deps = insMap.getU(uid).deps;
         Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
         insMap.setActualArgs(uid, argsP);
@@ -337,7 +333,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                            input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
         if (ready) return tracker.ints.regs[source];
@@ -359,7 +355,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-                                            input UidT producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+                                            input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
         if (ready) return tracker.floats.regs[source];
@@ -380,14 +376,14 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    function automatic FEQ findForwardInt(input UidT producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardInt(input UopId producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feInt.find with (matchProducer(item, producer));
         if (res.size() == 0)
             res = feMem.find with (matchProducer(item, producer));
         return res;
     endfunction
 
-    function automatic FEQ findForwardVec(input UidT producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    function automatic FEQ findForwardVec(input UopId producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
         FEQ res = feVec.find with (matchProducer(item, producer));
         if (res.size() == 0)
             res = feMem.find with (matchProducer(item, producer));
@@ -396,7 +392,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
-    function automatic void verifyForward(input UidT producer, input int source, input Mword result);
+    function automatic void verifyForward(input UopId producer, input int source, input Mword result);
         InstructionInfo ii = insMap.get(U2M(producer));
         UopInfo ui = insMap.getU(producer);
 

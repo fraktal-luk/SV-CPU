@@ -24,7 +24,7 @@ module ReplayQueue(
 
     typedef struct {
         logic used;
-        UidT uid;
+        UopId uid;
         logic issued;
         logic cancel;
         int outCnt;
@@ -37,7 +37,7 @@ module ReplayQueue(
         Translation tr;
     } TMP_Entry;
 
-    localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UIDT_NONE, 0, 0, -1,
+    localparam TMP_Entry TMP_EMPTY_ENTRY = '{0, UID_NONE, 0, 0, -1,
                                              0, -1,
                                             EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
@@ -79,20 +79,20 @@ module ReplayQueue(
         foreach (inputUopsE0[i]) begin
             if (inputUopsE0[i].active) begin 
                 // Already present?
-                int inds[$] = entries.find_first_index with (item.uid == inputUopsE0[i].TMP_oid);
+                int inds[$] = entries.find_first_index with (item.uid == inputUopsE0[i].uid);
                 if (inds.size() > 0) continue;
 
-                entries[inLocs[i]] = '{1, inputUopsE0[i].TMP_oid, 0, 0, -1,
+                entries[inLocs[i]] = '{1, inputUopsE0[i].uid, 0, 0, -1,
                                         0, 15,
                                         EMPTY_UOP_PACKET, DEFAULT_ACCESS_DESC, DEFAULT_TRANSLATION};
 
-                putMilestone(inputUopsE0[i].TMP_oid, InstructionMap::RqEnter);
+                putMilestone(inputUopsE0[i].uid, InstructionMap::RqEnter);
             end
         end
 
         foreach (inputUopsE3[i]) begin
             if (inputUopsE3[i].active) begin 
-                int inds[$] = entries.find_first_index with (item.uid == inputUopsE3[i].TMP_oid);
+                int inds[$] = entries.find_first_index with (item.uid == inputUopsE3[i].uid);
 
                 if (needsReplay(inputUopsE3[i].status)) begin
                     entries[inds[0]].cancel = 0;
@@ -124,7 +124,7 @@ module ReplayQueue(
 
     task automatic wakeup();
         UopPacket wrInput = AbstractCore.theSq.submod.storeDataD2_E;
-        logic storeDataActive = wrInput.active && (decUname(wrInput.TMP_oid) inside {UOP_data_int, UOP_data_fp});
+        logic storeDataActive = wrInput.active && (decUname(wrInput.uid) inside {UOP_data_int, UOP_data_fp});
 
         foreach (entries[i]) begin
             if (!entries[i].used || !entries[i].p.active || entries[i].ready || entries[i].cancel) continue;
@@ -149,7 +149,7 @@ module ReplayQueue(
                 end
 
                 ES_SQ_MISS: begin
-                    if (storeDataActive && U2M(entries[i].uid) > U2M(wrInput.TMP_oid))
+                    if (storeDataActive && U2M(entries[i].uid) > U2M(wrInput.uid))
                         entries[i].ready = 1;
                 end
 
