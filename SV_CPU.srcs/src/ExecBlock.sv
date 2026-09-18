@@ -213,7 +213,10 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
     assign memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};
-    //assign memImagesVec = memImages; // TODO:
+    
+        assign memImagesVec = memImages; // TODO:
+    
+
     assign floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
 
     always_comb intImagesTr = trsInt(intImages);
