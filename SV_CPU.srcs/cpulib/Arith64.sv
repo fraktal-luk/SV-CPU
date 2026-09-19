@@ -531,4 +531,288 @@ package Arith64;
 
 
 
+
+    function automatic FpResult64 TMP_addF64(input FpFormat64 a, input FpFormat64 b, input Rounding rm);
+    	FpFormat64 arg0, arg1;
+
+    	if (isNaN64(a) || isNaN64(b))
+    		return handleNanArgs64(a, b);
+
+	   	// Which input has bigger exponent?
+	   	//if (b.exp > a.exp) begin
+	   	if (absF64(b) >= absF64(a)) begin
+			arg0 = b;
+			arg1 = a;
+	   	end
+	   	else begin
+	   		arg0 = a;
+	   		arg1 = b;
+	   	end
+
+	   	// Now arg0 is at least a big in magnitude as arg1, NaNs have been handled
+	   	if (isInfinity64(arg0)) begin
+	   		if (isInfinity64(arg1)) begin
+	   			if (arg0.sign == arg1.sign)
+	   				return '{NO_EXCEPTION, arg0};
+	   			else
+	   				return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+	   		end
+	   		else
+	   			return '{NO_EXCEPTION, arg0};
+	   	end
+
+	   	return addRegularF64(arg0, arg1, rm);
+    endfunction
+
+
+  function automatic FpResult64 TMP_subF64(input FpFormat64 a, input FpFormat64 b, input Rounding rm);
+    	FpFormat64 arg0, arg1;
+
+    	if (isNaN64(a) || isNaN64(b))
+    		return handleNanArgs64(a, b);
+
+	   	// Which input has bigger exponent?
+	   	if (b.exp > a.exp) begin
+			arg0 = negateF64(b);
+			arg1 = a;
+	   	end
+	   	else begin
+	   		arg0 = a;
+	   		arg1 = negateF64(b);
+	   	end
+
+	   	// Now arg0 is at least a big in magnitude as arg1, NaNs have been handled
+	   	if (isInfinity64(arg0)) begin
+	   		if (isInfinity64(arg1)) begin
+	   			if (arg0.sign == arg1.sign)
+	   				return '{NO_EXCEPTION, arg0};
+	   			else
+	   				return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+	   		end
+	   		else
+	   			return '{NO_EXCEPTION, arg0};
+	   	end
+
+	   	return addRegularF64(arg0, arg1, rm);
+    endfunction
+
+
+
+    // CAREFUL: assumes abs(arg0) >= abs(arg1)
+    function automatic FpResult64 addRegularF64(input FpFormat64 arg0, input FpFormat64 arg1, input Rounding rm);
+   		FpFormat64 res;
+   		logic inexact, overflow, underflow = 0;
+   		FpIntermediate64 inter, interRounded;
+
+   		if (arg0.sign != arg1.sign) inter = TMP_subMag64(arg0, arg1);
+   		else inter = TMP_addMag64(arg0, arg1);
+
+   		if (inter.mantissa[31:0] != 0) inexact = 1;
+   		else inexact = 0;
+
+   		interRounded = roundInter64(inter, rm);
+
+   		if (interRounded.mantissa == 0 && (arg0.sign != arg1.sign)) begin
+   			if (rm == RoundMinusInf) interRounded.sign = 1;
+   			else interRounded.sign = 0;
+   		end
+
+   		if (interRounded.exp >= EXP_MAX_64) overflow = 1;
+   		else overflow = 0;
+
+   		if (overflow || underflow) inexact = 1;
+
+   		res = fromIntermediate64(interRounded);
+
+   			/*$displayh("... %p\n... %p", inter, interRounded);
+			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
+			$display("--------------------------");
+*/
+   		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
+    endfunction
+
+
+
+    // TODO: exact and non-exact variants:
+    //			exact signals Inexact when input is not integer
+    function automatic FpResult64 TMP_roundToInteger64(input FpFormat32 x, input Rounding rm);
+    	// If SNaN input -> Invalid
+    	// If QNaN or inf -> copy?
+
+    	FpFormat64 res;
+    	FpIntermediate64 inter, interRounded;
+    	logic isInexact = 0;
+
+    	if (isSNaN64(x))
+    		return '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN};
+
+    	if (isQNaN64(x) || isInfinity64(x))
+    		return '{NO_EXCEPTION, x};
+
+    	inter = convToIntermediate64(x);
+
+    	// LSB of integer range [127]
+    	// if exp == 127, implicit '1' (m[23]) is the Unit bit
+    	// if exp == 150, m[0] is the Unit bit
+    	// if exp > 150, Unit bit is lower than eps
+    	// if exp == 126, Unit bit is 0, m[23] is at[-1], m[22:0] goes to [-2]
+    	// if exp == 125, Unit bit is 0, [-1] is 0, all mantissa goes to [-2]
+    	// if exp < 125, the above applies too
+
+    	// exp >= 150 -> stays the same
+    	// exp <= 125 -> [-1:-2] = {0, mantissa != 0};  the result will have exp 127
+
+    	// when 125 < exp < 150:
+    	//	shift right by (150-exp) 
+    	// 	round
+    	//  shift back left (remember that at rounding exp may have grown by 1)
+
+    	if (inter.exp >= 1023 + 52) begin
+    		interRounded = inter;
+    	end
+    	else if (inter.exp <= 1023 - 2) begin
+    		logic dirUp = 0;
+    		interRounded = inter;
+    		if (inter.mantissa != 0)
+    			interRounded.mantissa = 'h000000004000000000000000;
+
+    		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
+    		if (interRounded.mantissa[63:0] !== 0) isInexact = 1;
+
+    		case (rm)
+	    		RoundNearestEven: ;	    			
+	    		RoundNearestAway: ;
+	    		RoundPlusInf:
+	    			dirUp = !inter.sign && (interRounded.mantissa != 0);
+	    		RoundZero: ;
+	    		RoundMinusInf:
+	    			dirUp = inter.sign && (interRounded.mantissa != 0);
+    		endcase
+
+    		if (dirUp) interRounded.mantissa += 'h10000000000000000;
+
+    		interRounded.mantissa[63:0] = 0;
+
+    		interRounded.mantissa = interRounded.mantissa << 52;
+    		interRounded.exp = 1023;
+    		interRounded.subn = 0;
+
+    		interRounded = normalizeAdded64(interRounded);
+
+    		 //   $displayh("inter__A____: %p\ninterRounded: %p", inter, interRounded);
+    	end
+    	else begin
+    		logic dirUp = 0;
+    		int sh = 1023 + 52 - inter.exp;
+    		Qword shiftedMantissa = shiftCompress30(inter.mantissa, sh);
+    		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
+
+    		if (shiftedMantissa[63:0] !== 0) isInexact = 1;
+
+    		interRounded = inter;
+
+    		case (rm)
+	    		RoundNearestEven:
+	    			if (shiftedMantissa[64:62] inside {'b111, 'b110, 'b011}) dirUp = 1;
+	    		RoundNearestAway:
+	    			if (shiftedMantissa[63:62] inside {'b10, 'b11}) dirUp = 1;
+	    		RoundPlusInf:
+	    			dirUp = !inter.sign && (shiftedMantissa[63:62] != 0);
+	    		RoundZero:
+	    			dirUp = 0;
+	    		RoundMinusInf:
+	    			dirUp = inter.sign && (shiftedMantissa[63:62] != 0);
+    		endcase
+
+    		if (dirUp) shiftedMantissa += 'h10000000000000000;
+
+    		shiftedMantissa[63:0] = 0;
+
+    		interRounded.mantissa = shiftedMantissa << sh;
+
+    		interRounded = normalizeAdded64(interRounded);
+
+    		//    $displayh("inter__B____: %p\ninterRounded: %p", inter, interRounded);
+    	end
+
+    	if (interRounded.mantissa == 0) begin
+    		interRounded.exp = 1;
+    		interRounded.subn = 1;
+    	end
+
+    	res = fromIntermediate64(interRounded);
+
+    	//	$display("Rounded %.10f -> %.10f\n", $bitstoshortreal(x), $bitstoshortreal(res));
+
+    	return '{'{inexact: isInexact, default: 0}, res};
+    endfunction
+
+
+
+
+
+    function automatic FpResult64 TMP_cmpF64(input FpFormat64 a, input FpFormat64 b, input CmpPredicate pred, input logic signalling);
+    	logic answer;
+    	Relation r;
+
+    	Dword ma = absF64(a);
+    	Dword mb = absF64(b);
+
+    	if (isSNaN64(a) || isSNaN64(b))
+    		return '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN}; // ???
+
+    	r = cmpInternalF32(a, b);
+
+    	if (signalling && (r == R_UNORDERED))
+    		return '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN}; // ???
+
+    	case (pred)
+    		CMP_EQ: answer = r == R_EQUAL;
+    		CMP_NE: answer = r != R_EQUAL; 
+    		
+    		CMP_GT: answer = r == R_GREATER;
+    		CMP_GE: answer = r inside {R_GREATER, R_EQUAL};
+    		CMP_GU: answer = r inside {R_GREATER, R_UNORDERED};
+    		CMP_NG: answer = r != R_GREATER; 
+
+    		CMP_LT: answer = r == R_LESS;
+    		CMP_LE: answer = r inside {R_LESS, R_EQUAL};
+    		CMP_LU: answer = r inside {R_LESS, R_UNORDERED};
+    		CMP_NL: answer = r != R_LESS;
+
+    		CMP_UN: answer = r == R_UNORDERED;
+    		CMP_OR: answer = r != R_UNORDERED;
+    	endcase
+
+    	if (answer) return '{NO_EXCEPTION, 1};
+    	else return '{NO_EXCEPTION, 0};
+    endfunction
+
+
+
+    function automatic Relation cmpInternalF64(input FpFormat64 a, input FpFormat64 b);
+    	Dword ma = absF64(a);
+    	Dword mb = absF64(b);
+
+    	if (isNaN64(a) || isNaN64(b))
+    		return R_UNORDERED;
+    	else if (isZero64(a) && isZero64(b))
+    		return R_EQUAL;
+    	else if (!a.sign && !b.sign) begin
+    		if (ma > mb) return R_GREATER;
+    		if (ma < mb) return R_LESS;
+    		return R_EQUAL;
+    	end
+    	else if (!a.sign && b.sign)
+    		return R_GREATER;
+    	else if (a.sign && !b.sign)
+    		return R_LESS;
+    	else if (a.sign && b.sign) begin
+    		if (ma > mb) return R_LESS;
+    		if (ma < mb) return R_GREATER;
+    		return R_EQUAL;
+    	end
+    endfunction
+
+
 endpackage
