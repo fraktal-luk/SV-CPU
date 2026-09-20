@@ -571,7 +571,7 @@ package Arith64;
 	   			if (arg0.sign == arg1.sign)
 	   				return '{NO_EXCEPTION, arg0};
 	   			else
-	   				return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+	   				return '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN};
 	   		end
 	   		else
 	   			return '{NO_EXCEPTION, arg0};

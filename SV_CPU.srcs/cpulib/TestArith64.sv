@@ -166,49 +166,49 @@ package TestArith64;
 			'{FP64_PLUS_MAX_FINITE, FP64_PLUS_MIN_SUBN, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, 	FP64_PLUS_INF},
 
 
-			// '{'{0, 20, 'h7FFFFF}, '{0, 20, 'h7FFFFF}, RoundZero, NO_EXCEPTION,  '{0, 21, 'h7FFFFF}},
-			// '{'{0, 20, 'h7FFFFF}, '{0, 21, 'h7FFFFF}, RoundZero, '{inexact: 1, default: 0},  '{0, 22, 'h3FFFFF}},
+			'{'{0, 20, 'hFFFFFFFFFFFFF}, '{0, 20, 'hFFFFFFFFFFFFF}, RoundZero, NO_EXCEPTION,  '{0, 21, 'hFFFFFFFFFFFFF}},
+			'{'{0, 20, 'hFFFFFFFFFFFFF}, '{0, 21, 'hFFFFFFFFFFFFF}, RoundZero, '{inexact: 1, default: 0},  '{0, 22, 'h7FFFFFFFFFFFF}},
 
-			// '{'{0, 20, 'h0}, '{0, 19, 'h7FFFFE}, RoundZero, '{inexact: 0, default: 0},  '{0, 20, 'h7FFFFF}},
-			// '{'{0, 20, 'h0}, '{0, 19, 'h7FFFFF}, RoundZero, '{inexact: 1, default: 0},  '{0, 20, 'h7FFFFF}},
-			// '{'{0, 20, 'h0}, '{0, 19, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 21, 'h0}},
-
-
-			// '{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-			// '{'{0, 46, 'h0}, '{0, 15, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+			'{'{0, 20, 'h0}, '{0, 19, 'hFFFFFFFFFFFFE}, RoundZero, '{inexact: 0, default: 0},  '{0, 20, 'hFFFFFFFFFFFFF}},
+			'{'{0, 20, 'h0}, '{0, 19, 'hFFFFFFFFFFFFF}, RoundZero, '{inexact: 1, default: 0},  '{0, 20, 'hFFFFFFFFFFFFF}},
+			'{'{0, 20, 'h0}, '{0, 19, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 21, 'h0}},
 
 
-			// '{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-			// '{'{0, 46, 'h0}, '{0, 21, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+			'{'{0, 75, 'h0}, '{0, 15, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 75, 'h1}},
+			'{'{0, 75, 'h0}, '{0, 15, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 75, 'h0}},
 
 
-			// '{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
-			// '{'{0, 46, 'h0}, '{0, 22, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h0}},
+			'{'{0, 75, 'h0}, '{0, 21, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 75, 'h1}},
+			'{'{0, 75, 'h0}, '{0, 21, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 75, 'h0}},
 
 
-			// '{'{0, 46, 'h0}, '{0, 23, 'h7FFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 46, 'h2}},
-			// '{'{0, 46, 'h0}, '{0, 23, 'h7FFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 46, 'h1}},
+			'{'{0, 75, 'h0}, '{0, 22, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 75, 'h1}},
+			'{'{0, 75, 'h0}, '{0, 22, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 75, 'h0}},
 
 
-			// '{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0000}, RoundPlusInf, '{inexact: 0, default: 0}, FP32_PLUS_MAX_FINITE},
-			// '{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0100}, RoundZero, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
-			// '{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundZero, '{inexact: 1, overflow: 0, default: 0}, FP32_PLUS_MAX_FINITE},
-			// '{'{0, 254, 'h770FFF}, '{0, 250, 'h0F0001}, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF},
+			'{'{0, 75, 'h0}, '{0, 23, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{inexact: 1, default: 0},  '{0, 75, 'h2}},
+			'{'{0, 75, 'h0}, '{0, 23, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{inexact: 1, default: 0},  '{0, 75, 'h1}},
+
+
+			'{'{0, 2046, 'hEF0FFFFFFFFFF}, '{0, 2042, 'h0F00000000000}, RoundPlusInf, '{inexact: 0, default: 0}, FP64_PLUS_MAX_FINITE},
+			'{'{0, 2046, 'hEF0FFFFFFFFFF}, '{0, 2042, 'h0F01000000000}, RoundZero, '{inexact: 1, overflow: 1, default: 0}, FP64_PLUS_INF},
+			'{'{0, 2046, 'hEF0FFFFFFFFFF}, '{0, 2042, 'h0F00000000001}, RoundZero, '{inexact: 1, overflow: 0, default: 0}, FP64_PLUS_MAX_FINITE},
+			'{'{0, 2046, 'hEF0FFFFFFFFFF}, '{0, 2042, 'h0F00000000001}, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, FP64_PLUS_INF},
 
 
 			'{FP64_PLUS_MIN_SUBN, FP64_MINUS_MIN_SUBN, RoundZero, 	 NO_EXCEPTION, 	FP64_PLUS_ZERO},
 			'{FP64_PLUS_MIN_SUBN, FP64_MINUS_MIN_SUBN, RoundMinusInf, NO_EXCEPTION, 	FP64_MINUS_ZERO},
 
-			// '{'{1, 20, 0}, '{0, 20, 0}, RoundZero, 	 NO_EXCEPTION, 	FP32_PLUS_ZERO},
-			// '{'{1, 20, 0}, '{0, 20, 0}, RoundMinusInf, NO_EXCEPTION, 	FP32_MINUS_ZERO},
+			'{'{1, 20, 0}, '{0, 20, 0}, RoundZero, 	 NO_EXCEPTION, 	FP64_PLUS_ZERO},
+			'{'{1, 20, 0}, '{0, 20, 0}, RoundMinusInf, NO_EXCEPTION, 	FP64_MINUS_ZERO},
 
-			// '{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFE}},
-			// '{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFE}},
-			// '{'{0, 150, 'h7FFFFF}, FP32_MINUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'h7FFFFF}},
+			'{'{0, 150, 'hFFFFFFFFFFFFF}, FP64_MINUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'hFFFFFFFFFFFFE}},
+			'{'{0, 150, 'hFFFFFFFFFFFFF}, FP64_MINUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'hFFFFFFFFFFFFE}},
+			'{'{0, 150, 'hFFFFFFFFFFFFF}, FP64_MINUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{0, 150, 'hFFFFFFFFFFFFF}},
 
-			// '{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFE}},
-			// '{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFF}},
-			// '{'{1, 150, 'h7FFFFF}, FP32_PLUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'h7FFFFE}},
+			'{'{1, 150, 'hFFFFFFFFFFFFF}, FP64_PLUS_MIN_SUBN, RoundZero, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'hFFFFFFFFFFFFE}},
+			'{'{1, 150, 'hFFFFFFFFFFFFF}, FP64_PLUS_MIN_SUBN, RoundMinusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'hFFFFFFFFFFFFF}},
+			'{'{1, 150, 'hFFFFFFFFFFFFF}, FP64_PLUS_MIN_SUBN, RoundPlusInf, 	 '{inexact: 1, default: 0}, 	'{1, 150, 'hFFFFFFFFFFFFE}},
 
 
 			'{FP64_PLUS_INF, FP64_PLUS_INF, RoundPlusInf, NO_EXCEPTION, FP64_PLUS_INF},
@@ -221,14 +221,14 @@ package TestArith64;
 			'{FP64_MINUS_INF, FP64_MINUS_INF, RoundMinusInf, NO_EXCEPTION, FP64_MINUS_INF},
 
 
-		//	'{FP64_PLUS_INF, FP64_MINUS_INF, RoundPlusInf, '{invalid: 1, default: 0}, FP64_CANONICAL_QNAN},
+			'{FP64_PLUS_INF, FP64_MINUS_INF, RoundPlusInf, '{invalid: 1, default: 0}, FP64_CANONICAL_QNAN},
 
 			'{FP64_MINUS_INF, FP64_PLUS_MIN_SUBN, RoundZero, NO_EXCEPTION, FP64_MINUS_INF},
-			// '{FP32_MINUS_INF, '{0, 32, 'h00FFFF}, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
-			// '{FP32_MINUS_INF, FP32_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP32_MINUS_INF},
+			'{FP64_MINUS_INF, '{0, 32, 'h00FFFFFFFFFFF}, RoundZero, NO_EXCEPTION, FP64_MINUS_INF},
+			'{FP64_MINUS_INF, FP64_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP64_MINUS_INF},
 
 			'{FP64_CANONICAL_QNAN, FP64_MINUS_MAX_FINITE, RoundMinusInf, NO_EXCEPTION, FP64_CANONICAL_QNAN},
-			// '{'{1, 20, 0}, FP32_CANONICAL_QNAN, RoundMinusInf, NO_EXCEPTION, 	FP32_CANONICAL_QNAN},
+			'{'{1, 20, 0}, FP64_CANONICAL_QNAN, RoundMinusInf, NO_EXCEPTION, 	FP64_CANONICAL_QNAN},
 
 
 			'{FP64_CANONICAL_QNAN, FP64_CANONICAL_QNAN, RoundPlusInf, NO_EXCEPTION, FP64_CANONICAL_QNAN}
