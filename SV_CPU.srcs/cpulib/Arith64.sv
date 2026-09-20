@@ -815,4 +815,158 @@ package Arith64;
     endfunction
 
 
+
+
+
+
+    function automatic FpResult64 TMP_int64toFP64(input Dword x, input logic isSigned, input Rounding rm);
+    	logic sign = 0;
+    	logic inexact;
+    	Dword absX;
+
+    	if (isSigned) sign = x[63];
+
+    	absX = sign ? -x : x; // If x is the most negative number, no problem because it will stay the same in bits
+    						  // but be interpreted as unsigned magnitude
+
+    	if (absX == 0) begin
+    		if (rm == RoundMinusInf) // ???
+    			return '{NO_EXCEPTION, FP64_MINUS_ZERO};
+    		else
+    			return '{NO_EXCEPTION, FP64_PLUS_ZERO};
+    	end
+    	begin
+    		Qword mantissa, mantissaC;
+    		FpIntermediate64 inter, interRounded;
+    		FpFormat64 result;
+
+    		// Determine exp
+			int exp, shiftNeeded;
+			int wantedMag = 64 + 52;
+			int log = $clog2(absX);
+			if (absX[log] === 0) log--;
+
+			// log == 0 corresponds to exp 127
+			exp = 1023 + log;
+
+			// We want MSB of input at index [23 + 32] of extended mantissa
+			shiftNeeded = wantedMag - log;
+
+			if (shiftNeeded >= 0)
+				mantissa = absX << shiftNeeded;
+			else
+				mantissa = absX >> -shiftNeeded;
+
+			mantissaC = shiftCompress62(mantissa, 0);
+
+
+			inter = '{sign, 0, exp, mantissaC};
+
+			inexact = (inter.mantissa[63:0] != 0);
+
+			interRounded = roundInter64(inter, rm);
+
+			//	$display(" conv: %016X  -> (%d) %016X // (%d) %016X", absX, exp, mantissa,  exp,  mantissaC);
+
+			result = fromIntermediate64(interRounded);
+
+			//	$displayh("    rounded: %p\n %d -> %.2f", interRounded,  x, $bitstoshortreal(result));
+
+			return '{'{inexact: inexact, default: 0}, result};
+    	end
+
+    endfunction
+
+
+
+
+
+    // FP -> Int: when is input out of range?
+    // range u32: [0, 2^32)		 - sign 0, exp 127+31 ; -0 is allowed!   What about range (-1, 0) if rounded up?
+    // range s32: [-2^31, 2^31)  - exp 127+30; if sign 1, then exp 127+31 with 0 mantissa is allowed	
+    // range u64: [0, 2^64)		 - sign 0, exp 127+63 ; -0 is allowed!   What about range (-1, 0) if rounded up?
+    // range s64: [-2^63, 2^63)  - exp 127+62; if sign 1, then exp 127+63 with 0 mantissa is allowed
+    function automatic FpResult64 fp64toInt64(input FpFormat64 x, input Rounding rm, input logic isSigned);
+    	if (isSNaN64(x))
+    		return '{'{invalid: 1, default: 0}, 0};
+
+    	// QNaN treated the same as SNaN?
+       	if (isQNaN64(x))
+    		return '{'{invalid: 1, default: 0}, 0};
+	
+    	begin
+	    	FpResult64 res;
+	    	Qword mantissaSh;
+	    	Dword intValue;
+
+	    	FpResult64 fpRounded = TMP_roundToInteger64(x, rm);
+	    	FpIntermediate64 inter = convToIntermediate64(fpRounded.value);
+
+	    	int shiftNeeded = 1023 - inter.exp + 52;
+
+	    	// Check range
+	    	if (isSigned) begin
+	    		// Effective power above 62 is invalid, unless special case: sign negative, eff power == 63 AND mantissa[64+51:64] == 0
+	    		if (int'(inter.exp) - 1023 > 62) begin
+	    			if (inter.sign && inter.exp - 1023 == 63 && inter.mantissa[51+64:64] === 0) /* Allowed */;
+	    			else
+	    				return '{'{invalid: 1, default: 0}, 0};
+	    		end
+	    	end
+	    	else begin
+	    		if (int'(inter.exp) - 1023 > 63) // Effective power above 63 is invalid
+	    			return '{'{invalid: 1, default: 0}, 0};
+
+	    		if (inter.sign && !isZero64(x)) // Negative are invalid unless zero
+	    			return '{'{invalid: 1, default: 0}, 0};
+	    	end
+
+
+	    	if (shiftNeeded >= 0)
+	    		mantissaSh = inter.mantissa >> shiftNeeded;
+	    	else
+	    		mantissaSh = inter.mantissa << -shiftNeeded;
+
+	    	if (isSigned && inter.sign)
+	    		intValue = -mantissaSh[127:64];
+	    	else
+	    		intValue = mantissaSh[127:64];
+
+	    	res = '{'{inexact: fpRounded.exc.inexact, default: 0}, intValue};
+
+	    	return res;
+    	end
+    endfunction
+
+
+    function automatic FpResult32 convertF64to32();
+    	// handle SNaN
+    	// QNaN copy
+    	// inf copy
+
+    	// else:
+    	//  effective exp > 128 -> inf Ov Inex? | max finite Inex? (dep on rounding?)
+    	//  effective exp <= -127 -> subnormal, may underflow? 
+    	//  mantissa over precision -> round Inex ?
+    	//  else trunc
+
+    	return '{NO_EXCEPTION, 'x};
+    endfunction
+
+
+    function automatic FpResult64 convertF32to64();
+    	// handle SnaN
+    	// QNan copy
+    	// inf copy
+
+    	// else:
+    	// zero: extend
+    	// subn: normalize into F64
+    	// normal: exp - 127 + 1023, extend
+
+    	return '{NO_EXCEPTION, 'x};
+    endfunction
+
+
+
 endpackage
