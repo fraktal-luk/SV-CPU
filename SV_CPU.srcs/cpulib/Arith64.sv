@@ -52,6 +52,17 @@ package Arith64;
 
 
 
+		function automatic void dispLong64(input string s, input Qword x);
+			$display({s, "%016X|%016X"}, x >> 64, Dword'(x));
+		endfunction
+
+
+		function automatic void dispInter64(input string s, input FpIntermediate64 x);
+			$display({s, "%d (%d) %016X|%016X"}, x.sign, x.exp, x.mantissa >> 64, Dword'(x.mantissa));
+		endfunction
+
+
+
 
     function automatic isZero64(input FpFormat64 a);
     	return a.exp == 0 && a.mantissa == 0;
@@ -142,7 +153,7 @@ package Arith64;
 
 	function automatic FpIntermediate64 convToIntermediate64(input FpFormat64 a);
 		Word expA = (a.exp == 0) ? a.exp + 1 : a.exp;
-		Dword normA = (a.exp == 0) ? a.mantissa : ('h100000000000000000000000000000 | a.mantissa);
+		Dword normA = (a.exp == 0) ? a.mantissa : ('h0010000000000000 | a.mantissa);
 
 		// Shift a to upper Word of a Dword
 		Qword fullA = {normA, Dword'(0)};
@@ -168,7 +179,7 @@ package Arith64;
 		// Which bit will go to pos [63]?  v[63 + sh]
 		// Which bit will go to pos [62]?  v[62 + sh]
 
-		Qword mask = 'h1FFFFFFFFFFFFF;
+		Qword mask = 'h7FFFFFFFFFFFFFFF;
 		Qword mask62;
 
 		if (shift >= 63)
@@ -276,7 +287,7 @@ package Arith64;
 		// If reached infinity
 		if (res.exp >= EXP_MAX_64) begin
 			res.exp = EXP_MAX_64;
-			res.mantissa = 'h80000000000000000000000000000;
+			res.mantissa = 'h100000000000000000000000000000;
 		end
 
 		return res;
@@ -372,11 +383,16 @@ package Arith64;
 			interA = convToIntermediate64(a);
 			interB = convToIntermediate64(b);
 
-			//$display("Add  normA: %08X, normB: %08X", normA, normB);
+				$display("Add  normA: %016X, normB: %016X", normA, normB);
 			interFull = addInter64(interA, interB);
 
+				dispInter64(" a ", interA);
+				dispInter64(" b ", interB);
+
+				dispInter64(" . ", interFull);
+
 			interFullN = normalizeAdded64(interFull);
-			//dispInter(" n ", interFullN);
+				dispInter64(" n ", interFullN);
     	end
 
     	return interFullN;

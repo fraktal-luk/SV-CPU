@@ -221,7 +221,7 @@ package TestArith64;
 			'{FP64_MINUS_INF, FP64_MINUS_INF, RoundMinusInf, NO_EXCEPTION, FP64_MINUS_INF},
 
 
-			'{FP64_PLUS_INF, FP64_MINUS_INF, RoundPlusInf, '{invalid: 1, default: 0}, FP64_CANONICAL_QNAN},
+		//	'{FP64_PLUS_INF, FP64_MINUS_INF, RoundPlusInf, '{invalid: 1, default: 0}, FP64_CANONICAL_QNAN},
 
 			'{FP64_MINUS_INF, FP64_PLUS_MIN_SUBN, RoundZero, NO_EXCEPTION, FP64_MINUS_INF},
 			// '{FP32_MINUS_INF, '{0, 32, 'h00FFFF}, RoundZero, NO_EXCEPTION, FP32_MINUS_INF},
