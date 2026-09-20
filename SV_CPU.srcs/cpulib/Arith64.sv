@@ -607,7 +607,7 @@ package Arith64;
    		if (arg0.sign != arg1.sign) inter = TMP_subMag64(arg0, arg1);
    		else inter = TMP_addMag64(arg0, arg1);
 
-   		if (inter.mantissa[31:0] != 0) inexact = 1;
+   		if (inter.mantissa[63:0] != 0) inexact = 1;
    		else inexact = 0;
 
    		interRounded = roundInter64(inter, rm);
