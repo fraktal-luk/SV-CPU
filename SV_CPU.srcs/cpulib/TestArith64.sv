@@ -502,13 +502,34 @@ package TestArith64;
 		checkNarrow('{0, 1023, 1}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
 		checkNarrow('{0, 1023, 'h0000080000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 127, 4}});
 		checkNarrow('{0, 1023, 'h0000080000000}, RoundZero, '{NO_EXCEPTION, '{0, 127, 4}});
+		checkNarrow('{0, 1023, 'h0000080000001}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 5}});
+		checkNarrow('{0, 1023, 'h0000080000001}, RoundZero, '{EXC_INEXACT, '{0, 127, 4}});
 		checkNarrow('{0, 1023, 'h0000020000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 127, 1}});
 		checkNarrow('{0, 1023, 'h0000010000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
 		checkNarrow('{0, 1023, 'h0000010000000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
 
-		// TODO: fix rounding
-		//checkNarrow('{0, 1023, 'h0000000200000}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
-		//checkNarrow('{0, 1023, 'h0000000200000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
+		checkNarrow('{0, 1023, 'h0000000200000}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
+		checkNarrow('{0, 1023, 'h0000000200000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
+
+		//////////////////
+		// High normal range of f32 
+		checkNarrow('{0, 1023 + (254-127), 'h0000000000000}, RoundZero, '{NO_EXCEPTION, '{0, 254, 0}});
+		checkNarrow('{0, 1023 + (254-127), 'hFFFFFE0000000}, RoundZero, '{NO_EXCEPTION, '{0, 254, 'h7FFFFF}});
+
+		checkNarrow('{0, 1023 + (254-127), 'hFFFFFE0010000}, RoundZero, '{EXC_INEXACT, '{0, 254, 'h7FFFFF}});
+		checkNarrow('{0, 1023 + (254-127), 'hFFFFFE0010000}, RoundPlusInf, '{'{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF});
+		
+		///////////////
+		// Low normal range of f32
+		checkNarrow('{0, 1023 - 125, 'h0000000010000}, RoundZero, '{EXC_INEXACT, '{0, 2, 0}});
+		checkNarrow('{0, 1023 - 125, 'h0000000010000}, RoundPlusInf, '{EXC_INEXACT, '{0, 2, 1}});
+		checkNarrow('{0, 1023 - 125, 'hFFFFFE0000000}, RoundZero, '{NO_EXCEPTION, '{0, 2, 'h7FFFFF}});
+		checkNarrow('{0, 1023 - 126, 'hFFFFFE0000000}, RoundZero, '{NO_EXCEPTION, '{0, 1, 'h7FFFFF}});
+		checkNarrow('{0, 1023 - 126, 'hFFFFFE0010000}, RoundZero, '{EXC_INEXACT, '{0, 1, 'h7FFFFF}});
+		checkNarrow('{0, 1023 - 126, 'hFFFFFE0010000}, RoundPlusInf, '{EXC_INEXACT, '{0, 2, 0}});
+
+
+
 	endfunction
 
 
