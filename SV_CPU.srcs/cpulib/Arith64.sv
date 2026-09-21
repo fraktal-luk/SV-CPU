@@ -1019,6 +1019,7 @@ package Arith64;
 
 
 			inter32.exp += (127-1023);
+			inter32.mantissa = shiftCompress30(inter32.mantissa, 0); // Shift by 0 to correctly encode bits [-1:-2]
 
 			rounded = roundInter(inter32, rm);
 

@@ -499,12 +499,16 @@ package TestArith64;
 			$display("test narrowing");
 		checkNarrow('{0, 1023, 0}, RoundZero, '{NO_EXCEPTION, '{0, 127, 0}});
 		checkNarrow('{0, 1023, 1}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
-		checkNarrow('{0, 1023, 1}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkNarrow('{0, 1023, 1}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
 		checkNarrow('{0, 1023, 'h0000080000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 127, 4}});
+		checkNarrow('{0, 1023, 'h0000080000000}, RoundZero, '{NO_EXCEPTION, '{0, 127, 4}});
 		checkNarrow('{0, 1023, 'h0000020000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 127, 1}});
 		checkNarrow('{0, 1023, 'h0000010000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
 		checkNarrow('{0, 1023, 'h0000010000000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
 
+		// TODO: fix rounding
+		//checkNarrow('{0, 1023, 'h0000000200000}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
+		//checkNarrow('{0, 1023, 'h0000000200000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
 	endfunction
 
 
