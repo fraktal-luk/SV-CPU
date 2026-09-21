@@ -651,7 +651,7 @@ package Arith64;
 
     // TODO: exact and non-exact variants:
     //			exact signals Inexact when input is not integer
-    function automatic FpResult64 TMP_roundToInteger64(input FpFormat32 x, input Rounding rm);
+    function automatic FpResult64 TMP_roundToInteger64(input FpFormat64 x, input Rounding rm);
     	// If SNaN input -> Invalid
     	// If QNaN or inf -> copy?
 
@@ -685,9 +685,13 @@ package Arith64;
 
     	if (inter.exp >= 1023 + 52) begin
     		interRounded = inter;
+    			//$display("   Big");
     	end
     	else if (inter.exp <= 1023 - 2) begin
     		logic dirUp = 0;
+
+    			//$display("  Small");
+
     		interRounded = inter;
     		if (inter.mantissa != 0)
     			interRounded.mantissa = 'h000000004000000000000000;
@@ -720,7 +724,7 @@ package Arith64;
     	else begin
     		logic dirUp = 0;
     		int sh = 1023 + 52 - inter.exp;
-    		Qword shiftedMantissa = shiftCompress30(inter.mantissa, sh);
+    		Qword shiftedMantissa = shiftCompress62(inter.mantissa, sh);
     		// TODO: now detect Inexact - is Inexact if mantissa[31:0] != 0
 
     		if (shiftedMantissa[63:0] !== 0) isInexact = 1;
