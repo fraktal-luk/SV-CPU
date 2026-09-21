@@ -21,7 +21,7 @@ package TestArith64;
 
 		Test_Cmp0();
 
-		// Test_i2f();
+		Test_i2f();
 
 		// Test_f2i();
 
@@ -399,34 +399,38 @@ package TestArith64;
 
 
 
-	// function automatic void checkI2F(input Dword x, input logic isSigned, input Rounding rm, FpResult32 expected);
-	// 	 FpResult32 actual = TMP_int64toFP32(x, isSigned, rm);
-	// 	 assert (actual === expected) else begin
-	// 	 	$displayh("%016X (%d) (%p)\n%p\n%p", x, isSigned, rm, actual, expected);
-	// 	 	$fatal(2, "Wromg conv");
-	// 	 end
-	// endfunction
+	function automatic void checkI2F(input Dword x, input logic isSigned, input Rounding rm, FpResult64 expected);
+		 FpResult64 actual = TMP_int64toFP64(x, isSigned, rm);
+		 assert (actual === expected) else begin
+		 	$displayh("%016X (%d) (%p)\n%p\n%p", x, isSigned, rm, actual, expected);
+		 	$fatal(2, "Wromg conv");
+		 end
+	endfunction
 
 
-	// function automatic void Test_i2f();
-	// 	checkI2F(0, 0, RoundZero, '{NO_EXCEPTION, FP32_PLUS_ZERO});
-	// 	checkI2F(0, 0, RoundMinusInf, '{NO_EXCEPTION, FP32_MINUS_ZERO});
+	function automatic void Test_i2f();
+		checkI2F(0, 0, RoundZero, '{NO_EXCEPTION, FP64_PLUS_ZERO});
+		checkI2F(0, 0, RoundMinusInf, '{NO_EXCEPTION, FP64_MINUS_ZERO});
 
-	// 	checkI2F('h0000000000001000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+12, 0}});
+		checkI2F('h0000000000001000, 0, RoundZero, '{NO_EXCEPTION, '{0, 1023+12, 0}});
 
-	// 	checkI2F('h0010000000000000, 0, RoundZero, '{NO_EXCEPTION, '{0, 127+52, 0}});
+		checkI2F('h0010000000000000, 0, RoundZero, '{NO_EXCEPTION, '{0, 1023+52, 0}});
 
-	// 	checkI2F('h0010000001000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 0}});
+		checkI2F('h0100000000000001, 0, RoundZero, '{EXC_INEXACT, '{0, 1023+56, 0}});
+		checkI2F('h0010000000000001, 0, RoundZero, '{NO_EXCEPTION, '{0, 1023+52, 'h0000000000001}});
 
-	// 	checkI2F('h001FFFFFFF000000, 0, RoundZero, '{EXC_INEXACT, '{0, 127+52, 'h7FFFFF}});
-	// 	checkI2F('h001FFFFFFF000000, 0, RoundPlusInf, '{EXC_INEXACT, '{0, 127+53, 0}});
-	// 	checkI2F('h001FFFFFFF000000, 0, RoundNearestEven, '{EXC_INEXACT, '{0, 127+53, 0}});
 
-	// 	checkI2F(-'h001FFFFFFF000000, 1, RoundNearestEven, '{EXC_INEXACT, '{1, 127+53, 0}});
+		checkI2F('h01FFFFFFFFFFFFF0, 0, RoundZero, '{NO_EXCEPTION, '{0, 1023+56, 'hFFFFFFFFFFFFF}});
 
-	// 	checkI2F(+'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{0, 127+25, 0}});
-	// 	checkI2F(-'h01FFFFFF, 1, RoundPlusInf, '{EXC_INEXACT, '{1, 127+24, 'h7FFFFF}});
-	// endfunction
+		checkI2F('h01FFFFFFFFFFFFF8, 0, RoundZero, '{EXC_INEXACT, '{0, 1023+56, 'hFFFFFFFFFFFFF}});
+		checkI2F('h01FFFFFFFFFFFFF8, 0, RoundPlusInf, '{EXC_INEXACT, '{0, 1023+57, 0}});
+		checkI2F('h01FFFFFFFFFFFFF8, 0, RoundNearestEven, '{EXC_INEXACT, '{0, 1023+57, 0}});
+
+		checkI2F(-'h01FFFFFFFFFFFFF8, 1, RoundNearestEven, '{EXC_INEXACT, '{1, 1023+57, 0}});
+
+		checkI2F(+'h03FFFFFFFFFFFFF8, 1, RoundPlusInf, '{EXC_INEXACT, '{0, 1023+58, 0}});
+		checkI2F(-'h03FFFFFFFFFFFFF8, 1, RoundPlusInf, '{EXC_INEXACT, '{1, 1023+57, 'hFFFFFFFFFFFFF}});
+	endfunction
 
 
 
