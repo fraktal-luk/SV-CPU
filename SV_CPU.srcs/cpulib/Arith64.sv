@@ -959,16 +959,81 @@ package Arith64;
     endfunction
 
 
-    function automatic FpResult32 convertF64to32();
+
+    	function automatic FpIntermediate narrowIntermediate(input FpIntermediate64 x);
+    		FpIntermediate inter;
+
+    		inter.sign = x.sign;
+    		inter.subn = 0;
+    		inter.exp = x.exp; 
+    		inter.mantissa = x.mantissa >> (52-23 + 32);
+
+    		return inter;
+    	endfunction 
+
+
+
+    function automatic FpResult32 convertF64to32(input FpFormat64 x, input Rounding rm);
+    	int effPower = x.exp - 1023;
+
+    	FpIntermediate64 inter64 = convToIntermediate64(x);
+    	FpIntermediate inter32 = narrowIntermediate(inter64);
+
     	// handle SNaN
     	// QNaN copy
     	// inf copy
+    	if (isSNaN64(x))
+    		return '{'{invalid: 1}, FP32_CANONICAL_QNAN};
+
+    	if (isQNaN64(x))
+    		return '{NO_EXCEPTION, FP32_CANONICAL_QNAN}; // TODO: preserve payload
+
+    	if (isInfinity64(x)) begin
+    		if (x.sign) return '{NO_EXCEPTION, FP32_MINUS_INF};
+    		else return '{NO_EXCEPTION, FP32_PLUS_INF};
+    	end
+
+    	if (isZero64(x)) begin
+    		if (x.sign) return '{NO_EXCEPTION, FP32_MINUS_ZERO};
+    		else return '{NO_EXCEPTION, FP32_PLUS_ZERO};
+    	end
 
     	// else:
     	//  effective exp > 128 -> inf Ov Inex? | max finite Inex? (dep on rounding?)
     	//  effective exp <= -127 -> subnormal, may underflow? 
     	//  mantissa over precision -> round Inex ?
     	//  else trunc
+
+    	if  (effPower > 127) begin
+    		// Too big
+
+    	end
+    	else if (effPower < -126) begin
+    		
+    	end
+		else begin
+			logic inexact = inter32.mantissa[31:0] != 0;
+			logic ov;
+			FpIntermediate rounded;// = roundInter(inter32, rm);
+			FpFormat32 res;// = fromIntermediate(rounded);
+
+
+			inter32.exp += (127-1023);
+
+			rounded = roundInter(inter32, rm);
+
+			//rounded.exp += (127 - 1023);
+
+			ov = rounded.exp > 254;
+			
+				$displayh("inter64: %p", inter64);
+				$displayh("inter32: %p", inter32);
+				$displayh("rounded: %p", rounded);
+
+			res = fromIntermediate(rounded);
+
+			return '{'{inexact: inexact, overflow: ov, default: 0}, res};
+		end
 
     	return '{NO_EXCEPTION, 'x};
     endfunction

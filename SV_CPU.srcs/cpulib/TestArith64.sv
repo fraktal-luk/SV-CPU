@@ -25,6 +25,9 @@ package TestArith64;
 
 		Test_f2i();
 
+
+		Test_narrow();
+
 	endfunction
 
 
@@ -468,13 +471,39 @@ package TestArith64;
 	 	checkF2I('{0, 1023 + 64, 0}, RoundMinusInf, 0, '{'{invalid: 1, default: 0}, 0});
 
 	 	checkF2I('{0, 1023 + 62, 'hFFFFFFFFFFFFF}, RoundMinusInf, 1, '{NO_EXCEPTION, 'h7FFFFFFFFFFFFC00});
-	 	checkF2I('{0, 1023 + 63, 'h0000000000000}, RoundMinusInf, 1, '{{invalid: 1, default: 0}, 0});
+	 	checkF2I('{0, 1023 + 63, 'h0000000000000}, RoundMinusInf, 1, '{'{invalid: 1, default: 0}, 0});
 	 	checkF2I('{1, 1023 + 63, 'h0}, RoundMinusInf, 1, '{NO_EXCEPTION, 'h8000000000000000});
 
 
 	 	checkF2I(FP64_PLUS_INF, RoundZero, 0, '{'{invalid: 1, default: 0}, 0});
 	 	checkF2I(FP64_SNAN, RoundZero, 0, '{'{invalid: 1, default: 0}, 0});
 	 	checkF2I(FP64_CANONICAL_QNAN, RoundZero, 0, '{'{invalid: 1, default: 0}, 0});
+
+	endfunction
+
+
+
+
+
+	function automatic void checkNarrow(input FpFormat64 x, input Rounding rm, input FpResult32 expected);
+		FpResult32 actual = convertF64to32(x, rm);
+		 assert (actual === expected) else begin
+		 	$displayh("%p (%p)\n%p\n%p", x, rm, actual, expected);
+		 	$displayh("a %08X, e %08X", actual.value, expected.value);
+		 	$fatal(2, "Wromg narrowing");
+		 end
+	endfunction
+
+
+	function automatic void Test_narrow();
+			$display("test narrowing");
+		checkNarrow('{0, 1023, 0}, RoundZero, '{NO_EXCEPTION, '{0, 127, 0}});
+		checkNarrow('{0, 1023, 1}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
+		checkNarrow('{0, 1023, 1}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkNarrow('{0, 1023, 'h0000080000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 127, 4}});
+		checkNarrow('{0, 1023, 'h0000020000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 127, 1}});
+		checkNarrow('{0, 1023, 'h0000010000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
+		checkNarrow('{0, 1023, 'h0000010000000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
 
 	endfunction
 
