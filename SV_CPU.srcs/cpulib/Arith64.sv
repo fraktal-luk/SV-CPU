@@ -781,7 +781,7 @@ package Arith64;
     	if (isSNaN64(a) || isSNaN64(b))
     		return '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN}; // ???
 
-    	r = cmpInternalF32(a, b);
+    	r = cmpInternalF64(a, b);
 
     	if (signalling && (r == R_UNORDERED))
     		return '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN}; // ???

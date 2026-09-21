@@ -19,7 +19,7 @@ package TestArith64;
 
 		Test_Rounding0();
 
-		// Test_Cmp0();
+		Test_Cmp0();
 
 		// Test_i2f();
 
@@ -276,21 +276,20 @@ package TestArith64;
 		checkRoundToInteger(FP64_PLUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP64_PLUS_ZERO});
 
 
-		// checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 146, 0}});
-		// checkRoundToInteger('{0, 139, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 140, 0}});
-		// checkRoundToInteger('{0, 130, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 131, 0}});
-		// checkRoundToInteger('{0, 128, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 129, 0}});
-		// checkRoundToInteger('{0, 127, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 128, 0}});
-		// checkRoundToInteger('{0, 126, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger('{0, 125, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger('{0, 89, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger('{0, 0, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger(FP32_PLUS_ZERO, RoundPlusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 1023 + 18, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023 + 19, 0}});
+		checkRoundToInteger('{0, 1023 + 12, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023 + 13, 0}});
+		checkRoundToInteger('{0, 1023 + 3, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023 + 4, 0}});
+		checkRoundToInteger('{0, 1023 + 1, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023 + 2, 0}});
+		checkRoundToInteger('{0, 1023 , 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023 + 1, 0}});
+		checkRoundToInteger('{0, 1023 - 1, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger('{0, 1023 - 2, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger('{0, 89, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger('{0, 0, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger(FP64_PLUS_ZERO, RoundPlusInf, '{NO_EXCEPTION, FP64_PLUS_ZERO});
 
 
-		// checkRoundToInteger('{1, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT , '{1, 145, 'h7FFFE0}});
-		// checkRoundToInteger('{1, 145, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{1, 146, 0}});
-
+		checkRoundToInteger('{1, 1023+18, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{EXC_INEXACT , '{1, 1023+18, 'hFFFFC00000000}});
+		checkRoundToInteger('{1, 1023+18, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, '{1, 1023+19, 0}});
 
 
 		checkRoundToInteger('{0, 1022, 0}, RoundNearestEven, '{EXC_INEXACT, FP64_PLUS_ZERO});
@@ -310,91 +309,93 @@ package TestArith64;
 
 
 
-	// localparam FpResult32 cmpTrue = '{NO_EXCEPTION, FP32_PLUS_MIN_SUBN};
-	// localparam FpResult32 cmpFalse = '{NO_EXCEPTION, FP32_PLUS_ZERO};
-	// localparam FpResult32 cmpInvalid = '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+	localparam FpResult64 cmpTrue = '{NO_EXCEPTION, FP64_PLUS_MIN_SUBN};
+	localparam FpResult64 cmpFalse = '{NO_EXCEPTION, FP64_PLUS_ZERO};
+	localparam FpResult64 cmpInvalid = '{'{invalid: 1, default: 0}, FP64_CANONICAL_QNAN};
 
 
-	// function automatic void checkCmp(input FpFormat32 a, input FpFormat32 b, input CmpPredicate pred, input logic signal, input FpResult32 expected);
-	// 	FpResult32 res = TMP_cmpF32(a, b, pred, signal);
-	// 	assert (res === expected) else begin
-	// 		$displayh("Compare %p, %p, (%p)", a, b, pred);
-	// 		$fatal(2, "Comparison failed:\n%p\n%p", res, expected);
-	// 	end
-	// endfunction
+	function automatic void checkCmp(input FpFormat64 a, input FpFormat64 b, input CmpPredicate pred, input logic signal, input FpResult64 expected);
+		FpResult64 res = TMP_cmpF64(a, b, pred, signal);
+		assert (res === expected) else begin
+			$displayh("Compare %p, %p, (%p)", a, b, pred);
+			$fatal(2, "Comparison failed:\n%p\n%p", res, expected);
+		end
+	endfunction
 
 
-	// function automatic void Test_Cmp0();
-	// 	FpFormat32 x = '{0, 160, 0},
-	// 			   y = '{0, 160, 'h000200},
-	// 			   z = '{0, 161, 0};
+	function automatic void Test_Cmp0();
+		FpFormat64 x = '{0, 160, 0},
+				   y = '{0, 160, 'h0002000000000},
+				   z = '{0, 161, 0};
 
-	// 	checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_LT, 1,  cmpFalse);
-	// 	checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_GT, 1,  cmpFalse);
-	// 	checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_EQ, 1,  cmpTrue);
-	// 	checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_GE, 1,  cmpTrue);
-	// 	checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_LE, 1,  cmpTrue);
-	// 	checkCmp(FP32_MINUS_ZERO, FP32_PLUS_ZERO, CMP_UN, 1,  cmpFalse);
+				   	$display(" comparison");
 
-
-	// 	checkCmp(x, y, CMP_LT, 1,  cmpTrue);
-	// 	checkCmp(x, y, CMP_LE, 1,  cmpTrue);
-	// 	checkCmp(x, y, CMP_LU, 1,  cmpTrue);
-	// 	checkCmp(x, y, CMP_NE, 1,  cmpTrue);
-	// 	checkCmp(x, y, CMP_NG, 1,  cmpTrue);
-	// 	checkCmp(x, y, CMP_OR, 1,  cmpTrue);
-
-	// 	checkCmp(z, y, CMP_GT, 1,  cmpTrue);
-	// 	checkCmp(z, y, CMP_LE, 1,  cmpFalse);
-	// 	checkCmp(z, y, CMP_LU, 1,  cmpFalse);
-	// 	checkCmp(z, y, CMP_NE, 1,  cmpTrue);
-	// 	checkCmp(z, y, CMP_NG, 1,  cmpFalse);
-	// 	checkCmp(z, y, CMP_OR, 1,  cmpTrue);
+		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_LT, 1,  cmpFalse);
+		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_GT, 1,  cmpFalse);
+		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_EQ, 1,  cmpTrue);
+		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_GE, 1,  cmpTrue);
+		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_LE, 1,  cmpTrue);
+		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_UN, 1,  cmpFalse);
 
 
-	// 	checkCmp(negateF32(x), negateF32(y), CMP_GT, 1,  cmpTrue);
+		checkCmp(x, y, CMP_LT, 1,  cmpTrue);
+		checkCmp(x, y, CMP_LE, 1,  cmpTrue);
+		checkCmp(x, y, CMP_LU, 1,  cmpTrue);
+		checkCmp(x, y, CMP_NE, 1,  cmpTrue);
+		checkCmp(x, y, CMP_NG, 1,  cmpTrue);
+		checkCmp(x, y, CMP_OR, 1,  cmpTrue);
 
-	// 	checkCmp(negateF32(z), y, CMP_LT, 1,  cmpTrue);
+		checkCmp(z, y, CMP_GT, 1,  cmpTrue);
+		checkCmp(z, y, CMP_LE, 1,  cmpFalse);
+		checkCmp(z, y, CMP_LU, 1,  cmpFalse);
+		checkCmp(z, y, CMP_NE, 1,  cmpTrue);
+		checkCmp(z, y, CMP_NG, 1,  cmpFalse);
+		checkCmp(z, y, CMP_OR, 1,  cmpTrue);
+
+
+		checkCmp(negateF64(x), negateF64(y), CMP_GT, 1,  cmpTrue);
+
+		checkCmp(negateF64(z), y, CMP_LT, 1,  cmpTrue);
 		
-	// 	checkCmp(negateF32(z), z, CMP_LT, 1,  cmpTrue);
+		checkCmp(negateF64(z), z, CMP_LT, 1,  cmpTrue);
 
-	// 	checkCmp(negateF32(x), z, CMP_LT, 1,  cmpTrue);
-
-
-	// 	checkCmp(z, y, CMP_LU, 1,  cmpFalse);
-	// 	checkCmp(z, y, CMP_NE, 1,  cmpTrue);
-	// 	checkCmp(z, y, CMP_NG, 1,  cmpFalse);
-	// 	checkCmp(z, y, CMP_OR, 1,  cmpTrue);
+		checkCmp(negateF64(x), z, CMP_LT, 1,  cmpTrue);
 
 
-	// 	checkCmp(FP32_MINUS_INF, x, CMP_LT, 1, cmpTrue);
-	// 	checkCmp(FP32_MINUS_INF, negateF32(x), CMP_LT, 1, cmpTrue);
-
-	// 	checkCmp(FP32_PLUS_INF, x, CMP_GT, 1, cmpTrue);
-	// 	checkCmp(FP32_PLUS_INF, negateF32(x), CMP_GT, 1, cmpTrue);
-
-	// 	checkCmp(FP32_MINUS_INF, FP32_MINUS_INF, CMP_EQ, 1, cmpTrue);
-	// 	checkCmp(FP32_PLUS_INF, FP32_PLUS_INF, CMP_EQ, 1, cmpTrue);
-	// 	checkCmp(FP32_MINUS_INF, FP32_PLUS_INF, CMP_LT, 1, cmpTrue);
+		checkCmp(z, y, CMP_LU, 1,  cmpFalse);
+		checkCmp(z, y, CMP_NE, 1,  cmpTrue);
+		checkCmp(z, y, CMP_NG, 1,  cmpFalse);
+		checkCmp(z, y, CMP_OR, 1,  cmpTrue);
 
 
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, CMP_UN, 0, cmpTrue);
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_MINUS_INF, CMP_UN, 0, cmpTrue);
-	// 	checkCmp(FP32_CANONICAL_QNAN, x, CMP_UN, 0, cmpTrue);
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_PLUS_INF, CMP_UN, 0, cmpTrue);
+		checkCmp(FP64_MINUS_INF, x, CMP_LT, 1, cmpTrue);
+		checkCmp(FP64_MINUS_INF, negateF64(x), CMP_LT, 1, cmpTrue);
 
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, CMP_NE, 1, cmpInvalid);
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_MINUS_INF, CMP_NE, 1, cmpInvalid);
-	// 	checkCmp(FP32_CANONICAL_QNAN, x, CMP_NE, 1, cmpInvalid);
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_PLUS_INF, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP64_PLUS_INF, x, CMP_GT, 1, cmpTrue);
+		checkCmp(FP64_PLUS_INF, negateF64(x), CMP_GT, 1, cmpTrue);
 
-	// 	// SNaN causes Invalid even if not signalling variant
-	// 	checkCmp(FP32_CANONICAL_QNAN, FP32_SNAN, CMP_UN, 0, cmpInvalid);
-	// 	checkCmp(FP32_MINUS_INF, FP32_SNAN, CMP_UN, 0, cmpInvalid);
-	// 	checkCmp(FP32_SNAN, x, CMP_UN, 0, cmpInvalid);
+		checkCmp(FP64_MINUS_INF, FP64_MINUS_INF, CMP_EQ, 1, cmpTrue);
+		checkCmp(FP64_PLUS_INF, FP64_PLUS_INF, CMP_EQ, 1, cmpTrue);
+		checkCmp(FP64_MINUS_INF, FP64_PLUS_INF, CMP_LT, 1, cmpTrue);
 
 
-	// endfunction
+		checkCmp(FP64_CANONICAL_QNAN, FP64_CANONICAL_QNAN, CMP_UN, 0, cmpTrue);
+		checkCmp(FP64_CANONICAL_QNAN, FP64_MINUS_INF, CMP_UN, 0, cmpTrue);
+		checkCmp(FP64_CANONICAL_QNAN, x, CMP_UN, 0, cmpTrue);
+		checkCmp(FP64_CANONICAL_QNAN, FP64_PLUS_INF, CMP_UN, 0, cmpTrue);
+
+		checkCmp(FP64_CANONICAL_QNAN, FP64_CANONICAL_QNAN, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP64_CANONICAL_QNAN, FP64_MINUS_INF, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP64_CANONICAL_QNAN, x, CMP_NE, 1, cmpInvalid);
+		checkCmp(FP64_CANONICAL_QNAN, FP64_PLUS_INF, CMP_NE, 1, cmpInvalid);
+
+		// SNaN causes Invalid even if not signalling variant
+		checkCmp(FP64_CANONICAL_QNAN, FP64_SNAN, CMP_UN, 0, cmpInvalid);
+		checkCmp(FP64_MINUS_INF, FP64_SNAN, CMP_UN, 0, cmpInvalid);
+		checkCmp(FP64_SNAN, x, CMP_UN, 0, cmpInvalid);
+
+
+	endfunction
 
 
 
