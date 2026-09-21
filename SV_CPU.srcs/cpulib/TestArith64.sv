@@ -258,23 +258,22 @@ package TestArith64;
 
 		checkRoundToInteger(x, RoundPlusInf, '{EXC_INEXACT , '{0, 1031, 'h0700000000000}});
 
-		// checkRoundToInteger('{0, 221, 'h7FFFFF}, RoundMinusInf, '{NO_EXCEPTION, '{0, 221, 'h7FFFFF}});
-		// checkRoundToInteger('{0, 221, 'h7FFFFF}, RoundPlusInf, '{NO_EXCEPTION, '{0, 221, 'h7FFFFF}});
+		checkRoundToInteger('{0, 1507, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{NO_EXCEPTION, '{0, 1507, 'hFFFFFFFFFFFFF}});
+		checkRoundToInteger('{0, 1507, 'hFFFFFFFFFFFFF}, RoundPlusInf, '{NO_EXCEPTION, '{0, 1507, 'hFFFFFFFFFFFFF}});
+
+		checkRoundToInteger('{0, 1023+18, 'hFFFFFF0000000}, RoundMinusInf, '{EXC_INEXACT , '{0, 1023+18, 'hFFFFC00000000}});
+		checkRoundToInteger('{0, 1023+12, 'hFFF0000000000}, RoundMinusInf, '{NO_EXCEPTION, '{0, 1023+12, 'hFFF0000000000}});
+		checkRoundToInteger('{0, 1023+12, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 1023+12, 'hFFF0000000000}});
+		checkRoundToInteger('{0, 1023+3, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 1023+3, 'hE000000000000}});
+		checkRoundToInteger('{0, 1023+1, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 1023+1, 'h8000000000000}});
+		checkRoundToInteger('{0, 1023, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 1023, 'h0000000000000}});
 
 
-		// checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT , '{0, 145, 'h7FFFE0}});
-		// checkRoundToInteger('{0, 139, 'h7FF800}, RoundMinusInf, '{NO_EXCEPTION, '{0, 139, 'h7FF800}});
-		// checkRoundToInteger('{0, 139, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 139, 'h7FF800}});
-		// checkRoundToInteger('{0, 130, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 130, 'h700000}});
-		// checkRoundToInteger('{0, 128, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 128, 'h400000}});
-		// checkRoundToInteger('{0, 127, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, '{0, 127, 'h000000}});
-
-
-		// checkRoundToInteger('{0, 126, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT,  FP32_PLUS_ZERO});
-		// checkRoundToInteger('{0, 125, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-		// checkRoundToInteger('{0, 89, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-		// checkRoundToInteger('{0, 0, 'h7FFFFF}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
-		// checkRoundToInteger(FP32_PLUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 1022, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT,  FP64_PLUS_ZERO});
+		checkRoundToInteger('{0, 1021, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, FP64_PLUS_ZERO});
+		checkRoundToInteger('{0, 890, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, FP64_PLUS_ZERO});
+		checkRoundToInteger('{0, 0, 'hFFFFFFFFFFFFF}, RoundMinusInf, '{EXC_INEXACT, FP64_PLUS_ZERO});
+		checkRoundToInteger(FP64_PLUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP64_PLUS_ZERO});
 
 
 		// checkRoundToInteger('{0, 145, 'h7FFFFF}, RoundPlusInf, '{EXC_INEXACT, '{0, 146, 0}});
@@ -294,18 +293,18 @@ package TestArith64;
 
 
 
-		// checkRoundToInteger('{0, 126, 0}, RoundNearestEven, '{EXC_INEXACT, FP32_PLUS_ZERO});
-		// checkRoundToInteger('{0, 126, 0}, RoundNearestAway, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger('{0, 126, 0}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger('{0, 126, 0}, RoundZero, '{EXC_INEXACT, FP32_PLUS_ZERO});
-		// checkRoundToInteger('{0, 126, 0}, RoundMinusInf, '{EXC_INEXACT, FP32_PLUS_ZERO});
+		checkRoundToInteger('{0, 1022, 0}, RoundNearestEven, '{EXC_INEXACT, FP64_PLUS_ZERO});
+		checkRoundToInteger('{0, 1022, 0}, RoundNearestAway, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger('{0, 1022, 0}, RoundPlusInf, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger('{0, 1022, 0}, RoundZero, '{EXC_INEXACT, FP64_PLUS_ZERO});
+		checkRoundToInteger('{0, 1022, 0}, RoundMinusInf, '{EXC_INEXACT, FP64_PLUS_ZERO});
 
 
-		// checkRoundToInteger('{0, 127, 'h400000}, RoundNearestEven, '{EXC_INEXACT, '{0, 128, 0}});
-		// checkRoundToInteger('{0, 127, 'h400000}, RoundNearestAway, '{EXC_INEXACT, '{0, 128, 0}});
-		// checkRoundToInteger('{0, 127, 'h400000}, RoundPlusInf, '{EXC_INEXACT, '{0, 128, 0}});
-		// checkRoundToInteger('{0, 127, 'h400000}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
-		// checkRoundToInteger('{0, 127, 'h400000}, RoundMinusInf, '{EXC_INEXACT, '{0, 127, 0}});
+		checkRoundToInteger('{0, 1023, 'h8000000000000}, RoundNearestEven, '{EXC_INEXACT, '{0, 1024, 0}});
+		checkRoundToInteger('{0, 1023, 'h8000000000000}, RoundNearestAway, '{EXC_INEXACT, '{0, 1024, 0}});
+		checkRoundToInteger('{0, 1023, 'h8000000000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 1024, 0}});
+		checkRoundToInteger('{0, 1023, 'h8000000000000}, RoundZero, '{EXC_INEXACT, '{0, 1023, 0}});
+		checkRoundToInteger('{0, 1023, 'h8000000000000}, RoundMinusInf, '{EXC_INEXACT, '{0, 1023, 0}});
 
 	endfunction
 
