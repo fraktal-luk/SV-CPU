@@ -9,6 +9,8 @@ vlog  -incr -mfcu -sv -work cpulib  \
 "../../../../SV_CPU.srcs/cpulib/Base.sv" \
 "../../../../SV_CPU.srcs/cpulib/Arith.sv" \
 "../../../../SV_CPU.srcs/cpulib/TestArith32.sv" \
+"../../../../SV_CPU.srcs/cpulib/Arith64.sv" \
+"../../../../SV_CPU.srcs/cpulib/TestArith64.sv" \
 "../../../../SV_CPU.srcs/cpulib/Cpulib.sv" \
 
 quit -force

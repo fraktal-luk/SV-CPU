@@ -358,6 +358,8 @@ package Arith;
 	endfunction
 
 
+
+
 	function automatic FpIntermediate subInter(input FpIntermediate a, FpIntermediate b);
 		FpIntermediate res;
 
@@ -427,6 +429,7 @@ package Arith;
 
 		return res;
 	endfunction
+
 
 
     function automatic FpIntermediate TMP_addMag(input FpFormat32 a, input FpFormat32 b);
@@ -806,6 +809,8 @@ package Arith;
 
     	return '{'{inexact: isInexact, default: 0}, res};
     endfunction
+
+
 
 
 
