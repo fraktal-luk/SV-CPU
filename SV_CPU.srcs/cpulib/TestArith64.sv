@@ -496,7 +496,6 @@ package TestArith64;
 
 
 	function automatic void Test_narrow();
-			$display("test narrowing");
 		checkNarrow('{0, 1023, 0}, RoundZero, '{NO_EXCEPTION, '{0, 127, 0}});
 		checkNarrow('{0, 1023, 1}, RoundZero, '{EXC_INEXACT, '{0, 127, 0}});
 		checkNarrow('{0, 1023, 1}, RoundPlusInf, '{EXC_INEXACT, '{0, 127, 1}});
@@ -528,6 +527,22 @@ package TestArith64;
 		checkNarrow('{0, 1023 - 126, 'hFFFFFE0010000}, RoundZero, '{EXC_INEXACT, '{0, 1, 'h7FFFFF}});
 		checkNarrow('{0, 1023 - 126, 'hFFFFFE0010000}, RoundPlusInf, '{EXC_INEXACT, '{0, 2, 0}});
 
+		///////////////////
+		// Subnormal range of f32
+		checkNarrow('{0, 1023 - 127, 'h0000000000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 0, 'h400000}});
+		checkNarrow('{0, 1023 - 127 - 20, 'h0000000000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 0, 'h000004}});
+		checkNarrow('{0, 1023 - 127 - 22, 'h0000000000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 0, 'h000001}});
+
+		checkNarrow('{0, 1023 - 127 - 23, 'h0000000000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 0, 'h000001}});
+		checkNarrow('{0, 1023 - 127 - 23, 'h0000000000000}, RoundZero, '{'{inexact: 1, underflow: 1, default: 0}, '{0, 0, 'h000000}});
+
+
+		checkNarrow('{0, 1023 - 127 - 22, 'h8000000000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 0, 'h000002}});
+		checkNarrow('{0, 1023 - 127 - 22, 'h8000000000000}, RoundZero, '{EXC_INEXACT, '{0, 0, 'h000001}});
+
+
+		checkNarrow('{0, 1023 - 127 - 50, 'h0000000000000}, RoundPlusInf, '{'{inexact: 1, underflow: 0, default: 0}, '{0, 0, 1}});
+		checkNarrow('{0, 1023 - 127 - 50, 'h8000010000000}, RoundZero, '{'{inexact: 1, underflow: 1, default: 0}, '{0, 0, 0}});
 
 
 	endfunction

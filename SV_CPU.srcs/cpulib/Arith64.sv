@@ -1009,7 +1009,29 @@ package Arith64;
 
     	end
     	else if (effPower < -126) begin
-    		
+    		int expShift;
+			logic inexact, und;// = inter32.mantissa[31:0] != 0;
+			FpIntermediate rounded;// = roundInter(inter32, rm);
+			FpFormat32 res;// = fromIntermediate(rounded);
+
+			inter32.exp += (127-1023);
+			inter32.mantissa = shiftCompress30(inter32.mantissa, 0); // Shift by 0 to correctly encode bits [-1:-2]
+
+			expShift = 1 - inter32.exp;
+
+			inter32.mantissa = shiftCompress30(inter32.mantissa, expShift);
+			inter32.exp = 1;
+			inter32.subn = 1;
+
+			inexact = inter32.mantissa[31:0] != 0;
+
+			rounded = roundInter(inter32, rm);
+
+			und = rounded.mantissa == 0;
+
+			res = fromIntermediate(rounded);
+
+			return '{'{inexact: inexact, underflow: und, default: 0}, res};		
     	end
 		else begin
 			logic inexact = inter32.mantissa[31:0] != 0;
