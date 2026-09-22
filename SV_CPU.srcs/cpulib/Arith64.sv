@@ -1006,7 +1006,7 @@ package Arith64;
 
     	if  (effPower > 127) begin
     		// Too big
-
+    		return '{'{inexact: 1, overflow: 1, default: 0}, '{x.sign, EXP_MAX_32, 0}};
     	end
     	else if (effPower < -126) begin
     		int expShift;

@@ -529,6 +529,11 @@ package TestArith64;
 
 		///////////////////
 		// Subnormal range of f32
+		checkNarrow('{0, 1023 - 127, 'hFFFFFE0000000}, RoundPlusInf, '{EXC_INEXACT, '{0, 1, 'h000000}});
+		checkNarrow('{0, 1023 - 127, 'hFFFFFE0000000}, RoundMinusInf, '{EXC_INEXACT, '{0, 0, 'h7FFFFF}});
+		checkNarrow('{0, 1023 - 127, 'hFFFFFC0000000}, RoundMinusInf, '{NO_EXCEPTION, '{0, 0, 'h7FFFFF}});
+
+		checkNarrow('{0, 1023 - 127, 'h0000000000001}, RoundPlusInf, '{EXC_INEXACT, '{0, 0, 'h400001}});
 		checkNarrow('{0, 1023 - 127, 'h0000000000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 0, 'h400000}});
 		checkNarrow('{0, 1023 - 127 - 20, 'h0000000000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 0, 'h000004}});
 		checkNarrow('{0, 1023 - 127 - 22, 'h0000000000000}, RoundPlusInf, '{NO_EXCEPTION, '{0, 0, 'h000001}});
@@ -544,7 +549,29 @@ package TestArith64;
 		checkNarrow('{0, 1023 - 127 - 50, 'h0000000000000}, RoundPlusInf, '{'{inexact: 1, underflow: 0, default: 0}, '{0, 0, 1}});
 		checkNarrow('{0, 1023 - 127 - 50, 'h8000010000000}, RoundZero, '{'{inexact: 1, underflow: 1, default: 0}, '{0, 0, 0}});
 
+		//////
+		// Too large for f32
+		checkNarrow('{0, 1023 + (255-127), 'h0000000000000}, RoundZero, '{'{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF});
+		checkNarrow('{0, 1023 + (255-127+300), 'h0000000000000}, RoundZero, '{'{inexact: 1, overflow: 1, default: 0}, FP32_PLUS_INF});
 
+		///////////////////////////////////////////
+		// negative:
+		checkNarrow('{1, 1023 - 125, 'h0000000010000}, RoundZero, '{EXC_INEXACT, '{1, 2, 0}});
+		checkNarrow('{1, 1023 - 125, 'h0000000010000}, RoundPlusInf, '{EXC_INEXACT, '{1, 2, 0}});
+		checkNarrow('{1, 1023 - 125, 'h0000000010000}, RoundMinusInf, '{EXC_INEXACT, '{1, 2, 1}});
+
+		////////////////////////////////
+		// Special:
+
+		checkNarrow(FP64_MINUS_INF, RoundPlusInf, '{NO_EXCEPTION, FP32_MINUS_INF});
+		
+		checkNarrow(FP64_SNAN, RoundZero, '{EXC_INVALID, FP32_CANONICAL_QNAN});
+		checkNarrow(FP64_MINUS_INF, RoundPlusInf, '{NO_EXCEPTION, FP32_MINUS_INF});
+
+		checkNarrow(FP64_PLUS_ZERO, RoundPlusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+		checkNarrow(FP64_PLUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP32_PLUS_ZERO});
+		checkNarrow(FP64_MINUS_ZERO, RoundPlusInf, '{NO_EXCEPTION, FP32_MINUS_ZERO});
+		checkNarrow(FP64_MINUS_ZERO, RoundMinusInf, '{NO_EXCEPTION, FP32_MINUS_ZERO});
 	endfunction
 
 
