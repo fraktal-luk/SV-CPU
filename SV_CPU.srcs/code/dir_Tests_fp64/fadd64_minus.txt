@@ -1,0 +1,45 @@
+
+@section prog_main
+	
+	jl r31, $get_adr_data_main
+	or_r  r8, r0, r1
+
+	jl r31, $get_adr_data_output
+	or_r  r9, r0, r1
+
+
+	add_i 	r1, r0, 2
+	jl 		r31, $set_rm
+
+	add_i r10, r0, 2
+
+$loop
+	ldf_i  f2, r8, 0
+	ldf_i  f3, r8, 4
+
+	addf32 f10, f2, f3
+
+	stf_i  f10, r9, 0
+
+	add_i  r8, r8, 8
+	add_i  r9, r9, 4
+
+	add_i r10, r10, -1
+	jnz_i r10, $loop
+
+	sys_dbcall
+
+
+@include "common_code/basic_pointers.txt"
+@include "common_code/fp_helpers.txt"
+
+
+@section data0
+	0x3F800001
+	0x3F800000
+	0x0
+	0x0
+
+@section output
+	0x40000000
+	0

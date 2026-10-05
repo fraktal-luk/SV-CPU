@@ -304,6 +304,11 @@ package InsDefs;
         O_floatAbs32,
         O_floatCpys32,
 
+        O_floatMove64,
+        O_floatNeg64,
+        O_floatAbs64,
+        O_floatCpys64,
+
 
         O_floatXor,
         O_floatAnd,
@@ -415,7 +420,6 @@ package InsDefs;
             "subf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatSub32, O_floatSub32},
             "mulf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatMul32, O_floatMul32},
             "divf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatDiv32, O_floatDiv32},
-
             "cmpeqf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpEq32, O_floatCmpEq32},
             "cmpgef32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGe32, O_floatCmpGe32},
             "cmpgtf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatCmpGt32, O_floatCmpGt32},

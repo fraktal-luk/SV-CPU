@@ -9,6 +9,7 @@ package EmulationDefs;
     import ControlRegisters::*;
     
     import Arith::*;
+    import Arith64::*;
 
 
 
@@ -22,6 +23,10 @@ package EmulationDefs;
             O_floatAbs32,
             O_floatCpys32,
 
+            O_floatMove64,
+            O_floatNeg64,
+            O_floatAbs64,
+            O_floatCpys64,
 
             O_floatXor,
             O_floatAnd,
@@ -64,6 +69,7 @@ package EmulationDefs;
             "divi_f",
             "inv_f",
             "ov_f",
+
             "addf32",
             "subf32",
             "mulf32",
@@ -71,6 +77,7 @@ package EmulationDefs;
             "cmpeqf32",
             "cmpgef32",
             "cmpgtf32",
+
             "addf64",
             "subf64",
             "mulf64",
@@ -235,6 +242,7 @@ package EmulationDefs;
                 O_floatAdd64, O_floatSub64, O_floatMul64, O_floatDiv64, O_floatCmpEq64,O_floatCmpGe64, O_floatCmpGt64,
                 
                 O_floatMove32, O_floatNeg32, O_floatAbs32, O_floatCpys32,
+                O_floatMove64, O_floatNeg64, O_floatAbs64, O_floatCpys64,
 
             O_floatLoadW,
             O_floatLoadD
@@ -338,8 +346,8 @@ package EmulationDefs;
     endfunction
 
 
-    function automatic FpResult32 calculateResultFP(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
-        FpResult32 result;
+    function automatic FpResult64 calculateResultFP(input AbstractInstruction ins, input Mword3 vals, input Mword ip, input logic[1:0] rm);
+        FpResult64 result;
         Rounding rd = convertRM(RoundingMode'(rm));
 
         case (ins.def.o)
@@ -347,6 +355,12 @@ package EmulationDefs;
             O_floatNeg32: result = '{NO_EXCEPTION,  Word'(vals[0] ^ 'h80000000)};
             O_floatAbs32: result = '{NO_EXCEPTION, Word'(vals[0] & 'h7FFFFFFF)};
             O_floatCpys32: result = '{NO_EXCEPTION, Word'( (vals[0] & 'h7FFFFFFF) | (vals[1] & 'h80000000) )}; 
+
+            O_floatMove64: result = '{NO_EXCEPTION, Dword'(vals[0])};
+            O_floatNeg64: result = '{NO_EXCEPTION,  Dword'(vals[0] ^ 'h8000000000000000)};
+            O_floatAbs64: result = '{NO_EXCEPTION, Dword'(vals[0] & 'h7FFFFFFFFFFFFFFF)};
+            O_floatCpys64: result = '{NO_EXCEPTION, Dword'( (vals[0] & 'h7FFFFFFFFFFFFFFF) | (vals[1] & 'h8000000000000000) )}; 
+
 
 
             O_floatXor:   result = '{NO_EXCEPTION, vals[0] ^ vals[1]};
@@ -360,13 +374,21 @@ package EmulationDefs;
             O_floatGenOv: result = '{'{overflow: 1, default: 0}, 1};
 
 
-            O_floatAdd32: result = TMP_addF32(vals[0], vals[1], rd);
+            O_floatAdd32: result = widenFP(TMP_addF32(vals[0], vals[1], rd));
             O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
             O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
             O_floatCmpEq32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]))};
             O_floatCmpGe32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]))};
             O_floatCmpGt32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]))};
+
+            O_floatAdd64: result = TMP_addF64(vals[0], vals[1], rd);
+            O_floatSub64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) - $bitstoreal(vals[1]))};
+            O_floatMul64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) * $bitstoreal(vals[1]))};
+            O_floatDiv64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) / $bitstoreal(vals[1]))};
+            O_floatCmpEq64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) == $bitstoreal(vals[1]))};
+            O_floatCmpGe64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) >= $bitstoreal(vals[1]))};
+            O_floatCmpGt64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) > $bitstoreal(vals[1]))};
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase

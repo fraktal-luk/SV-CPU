@@ -1,0 +1,71 @@
+
+@section prog_main
+	
+	jl r31, $get_adr_data_main
+	or_r  r8, r0, r1
+
+	jl r31, $get_adr_data_output
+	or_r  r9, r0, r1
+
+
+		ldf_d  f2, r8, 8
+		ldf_d  f3, r8, 8
+
+		addf64 f10, f2, f3
+		addf64 f11, f10, f3
+
+
+		ldf_d  f4, r8, 0x10
+		ldf_d  f5, r8, 0x18
+		addf64 f12, f4, f4
+		addf64 f13, f4, f5
+
+		;sys_error
+
+
+	sys_dbcall
+
+@include "common_code/basic_pointers.txt"
+@include "common_code/fp_helpers.txt"
+
+
+
+@section data0
+		
+		; TODO: change to 64
+		; sign, exp, frac: 1, 8, 23
+
+		; 007FFFFF - max fraction
+		; 40000000 - 1.0f
+		; 7F800000 - inf
+		; 7FFFFFFF - QNaN?
+		; 7FBFFFFF - SNaN?
+
+		; 7F000000 - max finite exponent
+		; 7F7FFFFF - max finite exponent and max fraction
+		; 7E000000 - half of max exponent
+
+	; 0
+	0x00000000
+	0x00000000
+	; 8
+	0x40000000  ; 1.0
+	0x00000000
+	; 10
+	0x7FF80000  ; max exponent * 1.5
+	0x00000000
+	; 18
+	0x7FF90000  ; max exponent * (1.5 + ...)
+	0x00000000
+	; 20
+	0x00000000
+	0x00000000
+	; 28
+	0x00000000
+	0x00000000
+	; 30
+	0x00000000
+	0x00000000
+
+@section output
+

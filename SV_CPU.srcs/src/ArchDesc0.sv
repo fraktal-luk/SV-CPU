@@ -38,6 +38,7 @@ module ArchDesc0();
         "Tests_sys_transfers",
 
         "Tests_fp32",
+        "Tests_fp64",
 
         "Tests_fetch",
         "Tests_DEV_basic"

@@ -15,6 +15,7 @@ package ExecLogic;
     import ExecDefs::*;
 
     import Arith::*;
+    import Arith64::*;
 
 
     function automatic Mword calcArith(UopName name, Mword args[3], Mword linkAdr);
@@ -60,31 +61,31 @@ package ExecLogic;
             UOP_int_link: res = linkAdr;
             
             // FP
-            UOP_fp_move:   res = args[0];
-            UOP_fp_xor:     res = args[0] ^ args[1];
-            UOP_fp_and:     res = args[0] & args[1];
-            UOP_fp_or:     res = args[0] | args[1];
-            UOP_fp_addi:   res = args[0] + args[1];
+            // UOP_fp_move:   res = args[0];
+            // UOP_fp_xor:     res = args[0] ^ args[1];
+            // UOP_fp_and:     res = args[0] & args[1];
+            // UOP_fp_or:     res = args[0] | args[1];
+            // UOP_fp_addi:   res = args[0] + args[1];
 
-                UOP_fp_muli:   res = Word'(args[0] * args[1]);
+                //UOP_fp_muli:   res = Word'(args[0] * args[1]);
                 UOP_fp_divi:   res = Word'(args[0] / args[1]);
-                UOP_fp_inv:   res = 1;
-                UOP_fp_ov:   res = 1;
+            //     UOP_fp_inv:   res = 1;
+            //     UOP_fp_ov:   res = 1;
 
-            UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
-            UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
-            UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-            UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
-            UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
-            UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
-            UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
+            // UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
+            // UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
+            // UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
+             UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+            // UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
+            // UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
+            // UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
 
-            UOP_fp_move32: res = Word'(args[0]);
-            UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
-            UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
-            UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
+            // UOP_fp_move32: res = Word'(args[0]);
+            // UOP_fp_neg32: res = Word'(args[0] ^ 'h80000000);
+            // UOP_fp_abs32: res = Word'(args[0] & 'h7FFFFFFF);
+            // UOP_fp_cpys: res = Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) );
 
-            default: $fatal(2, "Wrong uop");
+            default: $fatal(2, "Wrong uop: %p", name);
         endcase
         
         // Handling of cases of division by 0  
@@ -95,8 +96,8 @@ package ExecLogic;
 
 
 
-    function automatic FpResult32 calcArithFp(UopName name, Mword args[3], Rounding rm);
-        FpResult32 res;
+    function automatic FpResult64 calcArithFp(UopName name, Mword args[3], Rounding rm);
+        FpResult64 res;
         
         case (name)
             UOP_fp_xor:     res = '{NO_EXCEPTION, args[0] ^ args[1]};
@@ -104,13 +105,13 @@ package ExecLogic;
             UOP_fp_or:     res = '{NO_EXCEPTION, args[0] | args[1]};
             UOP_fp_addi:   res = '{NO_EXCEPTION, args[0] + args[1]};
 
-                UOP_fp_muli:   res = '{NO_EXCEPTION, Word'(args[0] * args[1])};
-                UOP_fp_divi:   res = '{NO_EXCEPTION, Word'(args[0] / args[1])};
+                 UOP_fp_muli:   res = '{NO_EXCEPTION, (args[0] * args[1])};
+                // UOP_fp_divi:   res = '{NO_EXCEPTION, (args[0] / args[1])};
 
                 UOP_fp_inv:   res = '{EXC_INVALID, 1};
                 UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
 
-            UOP_fp_add32: res = TMP_addF32(args[0], args[1], rm);
+            UOP_fp_add32: res = widenFP(TMP_addF32(args[0], args[1], rm));
 
             UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
             UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
@@ -122,9 +123,25 @@ package ExecLogic;
             UOP_fp_move32: res = '{NO_EXCEPTION, Word'(args[0])};
             UOP_fp_neg32: res = '{NO_EXCEPTION, Word'(args[0] ^ 'h80000000)};
             UOP_fp_abs32: res = '{NO_EXCEPTION, Word'(args[0] & 'h7FFFFFFF)};
-            UOP_fp_cpys: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
+            UOP_fp_cpys32: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
 
-            default: $fatal(2, "Wrong uop");
+
+            UOP_fp_add64: res = TMP_addF64(args[0], args[1], rm);
+
+            UOP_fp_sub64: res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) - $bitstoreal(args[1]))};
+            UOP_fp_mul64: res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) * $bitstoreal(args[1]))};
+            UOP_fp_div64: res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) / $bitstoreal(args[1]))};
+            UOP_fp_cmpeq64: res = '{NO_EXCEPTION, ($bitstoreal(args[0]) == $bitstoreal(args[1]))};
+            UOP_fp_cmpge64: res = '{NO_EXCEPTION, ($bitstoreal(args[0]) >= $bitstoreal(args[1]))};
+            UOP_fp_cmpgt64: res = '{NO_EXCEPTION, ($bitstoreal(args[0]) > $bitstoreal(args[1]))};
+
+            UOP_fp_move64: res = '{NO_EXCEPTION, (args[0])};
+            UOP_fp_neg64: res = '{NO_EXCEPTION, (args[0] ^ 'h8000000000000000)};
+            UOP_fp_abs64: res = '{NO_EXCEPTION, (args[0] & 'h7FFFFFFFFFFFFFFF)};
+            UOP_fp_cpys64: res = '{NO_EXCEPTION, ( (args[0] & 'h7FFFFFFFFFFFFFFF) | (args[1] & 'h8000000000000000) )};
+
+
+            default: $fatal(2, "Wrong uop: %p", name);
         endcase
 
         return res;//'{NO_EXCEPTION, res};

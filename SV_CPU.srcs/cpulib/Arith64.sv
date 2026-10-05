@@ -42,6 +42,11 @@ package Arith64;
 	} FpResult64;
 
 
+	function automatic FpResult64 widenFP(input FpResult32 x);
+		return '{x.exc, x.value};
+	endfunction
+
+
 
     typedef struct {
     	logic sign;
@@ -383,16 +388,16 @@ package Arith64;
 			interA = convToIntermediate64(a);
 			interB = convToIntermediate64(b);
 
-				$display("Add  normA: %016X, normB: %016X", normA, normB);
+				//$display("Add  normA: %016X, normB: %016X", normA, normB);
 			interFull = addInter64(interA, interB);
 
-				dispInter64(" a ", interA);
-				dispInter64(" b ", interB);
+				//dispInter64(" a ", interA);
+				//dispInter64(" b ", interB);
 
-				dispInter64(" . ", interFull);
+				//dispInter64(" . ", interFull);
 
 			interFullN = normalizeAdded64(interFull);
-				dispInter64(" n ", interFullN);
+				//dispInter64(" n ", interFullN);
     	end
 
     	return interFullN;
@@ -1049,9 +1054,9 @@ package Arith64;
 
 			ov = rounded.exp > 254;
 			
-				$displayh("inter64: %p", inter64);
-				$displayh("inter32: %p", inter32);
-				$displayh("rounded: %p", rounded);
+				//$displayh("inter64: %p", inter64);
+				//$displayh("inter32: %p", inter32);
+				//$displayh("rounded: %p", rounded);
 
 			res = fromIntermediate(rounded);
 

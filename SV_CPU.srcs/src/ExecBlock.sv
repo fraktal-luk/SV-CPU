@@ -10,6 +10,7 @@ import ExecDefs::*;
 import Queues::*;
 
 import Arith::*;
+import Arith64::*;
 
 import ExecLogic::*;
 
@@ -292,10 +293,10 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    function automatic FpResult32 calcRegularFpOp(input UopId uid);
+    function automatic FpResult64 calcRegularFpOp(input UopId uid);
         Rounding rm = convertRM(AbstractCore.CurrentConfig.rm);
         Mword3 args = getAndVerifyArgs(uid);
-        FpResult32 result;  
+        FpResult64 result;  
 
         result = calcArithFp(decUname(uid), args, rm);  
         insMap.setActualResult(uid, result.value);

@@ -140,7 +140,7 @@ module FloatSubpipe(
 
     function automatic UopPacket performFP(input UopPacket p);        
         UopPacket res = p;
-        FpResult32 fpRes;
+        FpResult64 fpRes;
 
         if (p.uid == UID_NONE) return res;
         

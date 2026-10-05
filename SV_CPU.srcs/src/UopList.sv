@@ -61,7 +61,20 @@ package UopList;
                 UOP_fp_move32,
                 UOP_fp_neg32,
                 UOP_fp_abs32,
-                UOP_fp_cpys,
+                UOP_fp_cpys32,
+
+            UOP_fp_add64,
+            UOP_fp_sub64,
+            UOP_fp_mul64,
+            UOP_fp_div64,
+            UOP_fp_cmpeq64,
+            UOP_fp_cmpge64,
+            UOP_fp_cmpgt64,
+
+                UOP_fp_move64,
+                UOP_fp_neg64,
+                UOP_fp_abs64,
+                UOP_fp_cpys64,
 
 
          UOP_mem_ldi,
@@ -174,7 +187,22 @@ package UopList;
             "move_f32":    UOP_fp_move32,
             "neg_f32":     UOP_fp_neg32,
             "abs_f32":     UOP_fp_abs32,
-            "cpys_f32":    UOP_fp_cpys,
+            "cpys_f32":    UOP_fp_cpys32,
+
+
+            "addf64":       UOP_fp_add64,
+            "subf64":       UOP_fp_sub64,
+            "mulf64":       UOP_fp_mul64,
+            "divf64":       UOP_fp_div64,
+            "cmpeqf64":     UOP_fp_cmpeq64,
+            "cmpgef64":     UOP_fp_cmpge64,
+            "cmpgtf64":     UOP_fp_cmpgt64,
+        
+            "move_f64":    UOP_fp_move64,
+            "neg_f64":     UOP_fp_neg64,
+            "abs_f64":     UOP_fp_abs64,
+            "cpys_f64":    UOP_fp_cpys64,
+
 
 
         "ldi_i":      UOP_mem_ldi,
@@ -254,7 +282,22 @@ package UopList;
                 UOP_fp_move32,
                 UOP_fp_neg32,
                 UOP_fp_abs32,
-                UOP_fp_cpys
+                UOP_fp_cpys32,
+
+
+                UOP_fp_add64,
+                UOP_fp_sub64,
+                UOP_fp_mul64,
+                UOP_fp_div64,
+                
+                UOP_fp_cmpeq64,
+                UOP_fp_cmpge64,
+                UOP_fp_cmpgt64,
+
+                UOP_fp_move64,
+                UOP_fp_neg64,
+                UOP_fp_abs64,
+                UOP_fp_cpys64
               };
     endfunction    
 
@@ -443,7 +486,23 @@ package UopList;
                 UOP_fp_move32,
                 UOP_fp_neg32,
                 UOP_fp_abs32,
-                UOP_fp_cpys,
+                UOP_fp_cpys32,
+
+
+
+                UOP_fp_add64,
+                UOP_fp_sub64,
+                UOP_fp_mul64,
+                UOP_fp_div64,
+                
+                UOP_fp_cmpeq64,
+                UOP_fp_cmpge64,
+                UOP_fp_cmpgt64,
+
+                UOP_fp_move64,
+                UOP_fp_neg64,
+                UOP_fp_abs64,
+                UOP_fp_cpys64,
 
              UOP_mem_ldf,
              UOP_mem_ldfd
