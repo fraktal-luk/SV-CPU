@@ -217,6 +217,11 @@ package InsDefs;
             T_floatAbs32 = 32*S_floatMoveFP + 2,
             T_floatCpys32 = 32*S_floatMoveFP + 3,
 
+            T_floatMove64 = 32*S_floatMoveFP + 4,
+            T_floatNeg64 = 32*S_floatMoveFP + 5,
+            T_floatAbs64 = 32*S_floatMoveFP + 6,
+            T_floatCpys64 = 32*S_floatMoveFP + 7,
+
         T_jumpRegZ  = 32*S_jumpReg + 0,
         T_jumpRegNZ = 32*S_jumpReg + 1,
 
@@ -404,6 +409,11 @@ package InsDefs;
         "neg_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatNeg32, O_floatNeg32},
         "abs_f32": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatAbs32, O_floatAbs32},
         "cpys_f32": '{F_float2R, P_floatOp, S_floatMoveFP, T_floatCpys32, O_floatCpys32},
+
+        "move_f64": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatMove64, O_floatMove64},
+        "neg_f64": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatNeg64, O_floatNeg64},
+        "abs_f64": '{F_float1R, P_floatOp, S_floatMoveFP, T_floatAbs64, O_floatAbs64},
+        "cpys_f64": '{F_float2R, P_floatOp, S_floatMoveFP, T_floatCpys64, O_floatCpys64},
 
 
         "xor_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatXor, O_floatXor},  // -- Float operations
