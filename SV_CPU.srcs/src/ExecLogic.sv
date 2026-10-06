@@ -116,15 +116,15 @@ package ExecLogic;
             UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
             UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
             UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
-            UOP_fp_cmpeq32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]))};
-            UOP_fp_cmpge32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]))};
-            UOP_fp_cmpgt32: res = '{NO_EXCEPTION, ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]))};
+
+            UOP_fp_cmpeq32: res = widenFP(TMP_cmpF32(args[0], args[1], CMP_EQ, 0));
+            UOP_fp_cmpge32: res = widenFP(TMP_cmpF32(args[0], args[1], CMP_GE, 0));
+            UOP_fp_cmpgt32: res = widenFP(TMP_cmpF32(args[0], args[1], CMP_GT, 0));
 
             UOP_fp_move32: res = '{NO_EXCEPTION, Word'(args[0])};
             UOP_fp_neg32: res = '{NO_EXCEPTION, Word'(args[0] ^ 'h80000000)};
             UOP_fp_abs32: res = '{NO_EXCEPTION, Word'(args[0] & 'h7FFFFFFF)};
             UOP_fp_cpys32: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
-
 
             UOP_fp_add64: res = TMP_addF64(args[0], args[1], rm);
 

@@ -80,3 +80,7 @@ sim:/ArchDesc0/core/theSq/responseE1d_N
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/allByStage \
 sim:/ArchDesc0/core/theExecBlock/allByStageVec
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theExecBlock/floatImages \
+sim:/ArchDesc0/core/theExecBlock/floatImagesTr

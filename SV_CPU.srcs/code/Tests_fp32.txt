@@ -1,16 +1,18 @@
 
 disable_fp
 flag_setting
-dev_add32
+
+fp_tmp_ops     		; some FP ops, no checking
+
 dev_moves32
 
 fp_tmp          	; setting INV and OV bits with sync after each setting
 fp_tmp_2        	; setting INV and OV quickly, one sync
 fp_tmp_3        	; enable INV trap, cause it
-fp_tmp_simple_ops 	; some dummy FP ops, no checking
-fp_tmp_ops     		; some FP ops, no checking
 
 fadd32_0
 fadd32_plus
 fadd32_minus
 fadd32_exceptions
+
+fcmp32

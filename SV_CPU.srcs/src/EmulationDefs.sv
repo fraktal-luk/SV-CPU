@@ -235,7 +235,12 @@ package EmulationDefs;
     function automatic bit hasFloatDest(input AbstractInstruction ins);
         return ins.def.o inside {
             O_floatMove,
-            O_floatOr, O_floatAddInt,
+
+            O_floatXor,
+            O_floatAnd,
+            O_floatOr,
+
+            O_floatAddInt,
             O_floatMulInt, O_floatDivInt,
             O_floatGenInv, O_floatGenOv,
                 O_floatAdd32, O_floatSub32, O_floatMul32, O_floatDiv32, O_floatCmpEq32,O_floatCmpGe32, O_floatCmpGt32,
@@ -378,14 +383,19 @@ package EmulationDefs;
             O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
             O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
-            O_floatCmpEq32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) == $bitstoshortreal(vals[1]))};
-            O_floatCmpGe32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]))};
-            O_floatCmpGt32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]))};
+
+            O_floatCmpEq32: result = widenFP(TMP_cmpF32(vals[0], vals[1], CMP_EQ, 0));
+            O_floatCmpGe32: result = widenFP(TMP_cmpF32(vals[0], vals[1], CMP_GE, 0));
+            O_floatCmpGt32: result = widenFP(TMP_cmpF32(vals[0], vals[1], CMP_GT, 0));
+
+            //O_floatCmpGe32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) >= $bitstoshortreal(vals[1]))};
+            //O_floatCmpGt32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]))};
 
             O_floatAdd64: result = TMP_addF64(vals[0], vals[1], rd);
             O_floatSub64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) - $bitstoreal(vals[1]))};
             O_floatMul64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) * $bitstoreal(vals[1]))};
             O_floatDiv64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) / $bitstoreal(vals[1]))};
+            
             O_floatCmpEq64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) == $bitstoreal(vals[1]))};
             O_floatCmpGe64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) >= $bitstoreal(vals[1]))};
             O_floatCmpGt64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) > $bitstoreal(vals[1]))};

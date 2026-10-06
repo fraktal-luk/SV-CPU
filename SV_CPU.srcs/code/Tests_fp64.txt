@@ -1,7 +1,6 @@
 
 ;disable_fp
 ;flag_setting
-dev_add64
 dev_moves64
 
 ;fp_tmp          	; setting INV and OV bits with sync after each setting
@@ -14,3 +13,5 @@ fadd64_0
 fadd64_plus
 fadd64_minus
 fadd64_exceptions
+
+fcmp64
