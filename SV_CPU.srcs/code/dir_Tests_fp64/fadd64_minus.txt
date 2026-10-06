@@ -14,15 +14,15 @@
 	add_i r10, r0, 2
 
 $loop
-	ldf_i  f2, r8, 0
-	ldf_i  f3, r8, 4
+	ldf_d  f2, r8, 0
+	ldf_d  f3, r8, 8
 
-	addf32 f10, f2, f3
+	addf64 f10, f2, f3
 
-	stf_i  f10, r9, 0
+	stf_d  f10, r9, 0
 
-	add_i  r8, r8, 8
-	add_i  r9, r9, 4
+	add_i  r8, r8, 16
+	add_i  r9, r9, 8
 
 	add_i r10, r10, -1
 	jnz_i r10, $loop
@@ -35,11 +35,21 @@ $loop
 
 
 @section data0
-	0x3F800001
-	0x3F800000
+	0x00000001
+	0x3FF00000
+
+	0
+	0x3FF00000
+	
+	0
 	0x0
+	
+	0
 	0x0
 
 @section output
+	0
 	0x40000000
+	
+	0
 	0

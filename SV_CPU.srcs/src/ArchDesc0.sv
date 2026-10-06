@@ -30,15 +30,15 @@ module ArchDesc0();
     squeue testsDevCached = '{
         "Tests_events",
 
+        "Tests_fp32",
+        "Tests_fp64",
+
         "Tests_misc",
         "Tests_barriers",
         "Tests_mem_simple",
         "Tests_mem_align",
         "Tests_mem_advanced",
         "Tests_sys_transfers",
-
-        "Tests_fp32",
-        "Tests_fp64",
 
         "Tests_fetch",
         "Tests_DEV_basic"
