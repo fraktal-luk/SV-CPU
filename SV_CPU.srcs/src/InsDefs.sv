@@ -222,6 +222,25 @@ package InsDefs;
             T_floatAbs64 = 32*S_floatMoveFP + 6,
             T_floatCpys64 = 32*S_floatMoveFP + 7,
 
+
+            T_floatConv32toU32 = 32*S_floatConvToIntFP + 0,
+            T_floatConv32toS32 = 32*S_floatConvToIntFP + 1,
+            T_floatConv32toU64 = 32*S_floatConvToIntFP + 2,
+            T_floatConv32toS64 = 32*S_floatConvToIntFP + 3,
+            T_floatConv64toU32 = 32*S_floatConvToIntFP + 4,
+            T_floatConv64toS32 = 32*S_floatConvToIntFP + 5,
+            T_floatConv64toU64 = 32*S_floatConvToIntFP + 6,
+            T_floatConv64toS64 = 32*S_floatConvToIntFP + 7,
+
+            T_floatConv32fromU32 = 32*S_floatConvFromInt + 0,
+            T_floatConv32fromS32 = 32*S_floatConvFromInt + 1,
+            T_floatConv32fromU64 = 32*S_floatConvFromInt + 2,
+            T_floatConv32fromS64 = 32*S_floatConvFromInt + 3,
+            T_floatConv64fromU32 = 32*S_floatConvFromInt + 4,
+            T_floatConv64fromS32 = 32*S_floatConvFromInt + 5,
+            T_floatConv64fromU64 = 32*S_floatConvFromInt + 6,
+            T_floatConv64fromS64 = 32*S_floatConvFromInt + 7,
+
         T_jumpRegZ  = 32*S_jumpReg + 0,
         T_jumpRegNZ = 32*S_jumpReg + 1,
 
@@ -344,6 +363,16 @@ package InsDefs;
             O_floatCmpGt64,
 
 
+            O_floatConv32toU32, O_floatConv32toS32,
+            O_floatConv32toU64, O_floatConv32toS64,
+            O_floatConv64toU32, O_floatConv64toS32,
+            O_floatConv64toU64, O_floatConv64toS64,
+
+            O_floatConv32fromU32, O_floatConv32fromS32,
+            O_floatConv32fromU64, O_floatConv32fromS64,
+            O_floatConv64fromU32, O_floatConv64fromS32,
+            O_floatConv64fromU64, O_floatConv64fromS64,
+
 
         O_intLoadW, O_intStoreW,
         O_intLoadD, O_intStoreD,
@@ -425,6 +454,42 @@ package InsDefs;
 
         "inv_f":      '{F_float2R, P_floatOp, S_floatArith, T_floatGenInv, O_floatGenInv},  // -- Float operations
         "ov_f":       '{F_float2R, P_floatOp, S_floatArith, T_floatGenOv,  O_floatGenOv},  // -- Float operations
+
+        /*
+                S_floatConvFP       = 64*P_floatOp + 10,
+                S_floatConvFromInt = 64*P_floatOp + 11,
+                S_floatConvToIntFP = 64*P_floatOp + 12,
+                S_floatConvToIntInt = 64*P_floatOp + 13,
+                S_floatIntegerOp  = 64*P_floatOp + 14,
+        */
+
+            // I32 -> F32
+            "u32tof32":     '{F_float1R, P_floatOp, S_floatConvFromInt, T_floatConv32fromU32, O_floatConv32fromU32},
+            // "s32tof32":
+            // // I32 -> F64
+            // "u32tof64":
+            // "s32tof64":
+            // // I64 -> F32
+            // "u64tof32":
+            // "s64tof32":
+            // // I64 -> F64
+            // "u64tof64":
+            // "s64tof64":
+
+            // // F32 -> I32
+            // "f32tou32":     '{F_float1R, P_floatOp, S_floatConvToIntFP,              T_floatGenInv, O_floatGenInv},
+            // "f32tos32":
+            // // F64 -> I32
+            // "f64tou32":
+            // "f64tos32":
+            // // F32 -> I64
+            // "f32tou64":
+            // "f32tos64":
+            // // F64 -> I64
+            // "f64tou64":
+            // "f64tos64":
+        
+ 
 
             "addf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatAdd32, O_floatAdd32},
             "subf32":   '{F_float2R, P_floatOp, S_floatArith, T_floatSub32, O_floatSub32},

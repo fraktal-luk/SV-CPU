@@ -54,7 +54,11 @@ package EmulationDefs;
 
             O_floatCmpEq64,
             O_floatCmpGe64,
-            O_floatCmpGt64
+            O_floatCmpGt64,
+
+
+                O_floatConv32fromU32
+
         };
     endfunction
 
@@ -94,7 +98,10 @@ package EmulationDefs;
             "move_f32",
             "neg_f32",
             "abs_f32",
-            "cpys_f32"
+            "cpys_f32",
+
+                "u32tof32"
+
         };
     endfunction
 
@@ -249,6 +256,8 @@ package EmulationDefs;
                 O_floatMove32, O_floatNeg32, O_floatAbs32, O_floatCpys32,
                 O_floatMove64, O_floatNeg64, O_floatAbs64, O_floatCpys64,
 
+                O_floatConv32fromU32,
+
             O_floatLoadW,
             O_floatLoadD
         };
@@ -399,6 +408,12 @@ package EmulationDefs;
             O_floatCmpEq64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) == $bitstoreal(vals[1]))};
             O_floatCmpGe64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) >= $bitstoreal(vals[1]))};
             O_floatCmpGt64: result = '{NO_EXCEPTION, ($bitstoreal(vals[0]) > $bitstoreal(vals[1]))};
+
+
+            O_floatConv32fromU32:  result = widenFP(TMP_int64toFP32(Word'(vals[0]), 0, rd));
+
+                                    // result = fp32toInt32(vals[0], rd, 0);
+
 
             default: $fatal(2, "Unknown operation %p", ins.def.o);
         endcase

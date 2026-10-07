@@ -18,3 +18,5 @@ fadd32_exceptions
 fcmp32
 
 fadd32_round
+
+conv32

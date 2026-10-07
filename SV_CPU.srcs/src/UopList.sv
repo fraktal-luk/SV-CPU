@@ -77,6 +77,9 @@ package UopList;
                 UOP_fp_cpys64,
 
 
+                UOP_fp_itof_u32_f32,
+
+
          UOP_mem_ldi,
          UOP_mem_sti,
 
@@ -203,6 +206,7 @@ package UopList;
             "abs_f64":     UOP_fp_abs64,
             "cpys_f64":    UOP_fp_cpys64,
 
+            "u32tof32":     UOP_fp_itof_u32_f32,
 
 
         "ldi_i":      UOP_mem_ldi,
@@ -297,7 +301,9 @@ package UopList;
                 UOP_fp_move64,
                 UOP_fp_neg64,
                 UOP_fp_abs64,
-                UOP_fp_cpys64
+                UOP_fp_cpys64,
+
+                    UOP_fp_itof_u32_f32
               };
     endfunction    
 
@@ -503,6 +509,8 @@ package UopList;
                 UOP_fp_neg64,
                 UOP_fp_abs64,
                 UOP_fp_cpys64,
+
+                    UOP_fp_itof_u32_f32,
 
              UOP_mem_ldf,
              UOP_mem_ldfd

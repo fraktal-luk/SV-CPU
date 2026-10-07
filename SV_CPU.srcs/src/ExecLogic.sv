@@ -140,6 +140,8 @@ package ExecLogic;
             UOP_fp_abs64: res = '{NO_EXCEPTION, (args[0] & 'h7FFFFFFFFFFFFFFF)};
             UOP_fp_cpys64: res = '{NO_EXCEPTION, ( (args[0] & 'h7FFFFFFFFFFFFFFF) | (args[1] & 'h8000000000000000) )};
 
+            UOP_fp_itof_u32_f32:  res = widenFP(TMP_int64toFP32(Word'(args[0]), 0, rm));
+
 
             default: $fatal(2, "Wrong uop: %p", name);
         endcase
