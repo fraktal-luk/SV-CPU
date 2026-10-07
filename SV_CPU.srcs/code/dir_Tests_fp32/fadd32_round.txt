@@ -1,0 +1,120 @@
+
+@section prog_main
+	
+	jl r31, $get_adr_data_main
+	or_r  r8, r0, r1
+
+	jl r31, $get_adr_data_output
+	or_r  r9, r0, r1
+
+
+	add_i 	r1, r0, 1
+	jl 		r31, $set_rm
+
+	add_i r10, r0, 2
+
+	ldf_i  f2, r8, 0
+	ldf_i  f3, r8, 4
+	ldf_i  f4, r8, 8
+	ldf_i  f5, r8, 12
+	ldf_i  f6, r8, 16
+	ldf_i  f7, r8, 20
+
+	    ;    RM_Even = 0,
+	    ;    RM_Up = 1,
+	    ;    RM_Down = 2,
+	    ;    RM_Zero = 3
+
+
+	add_i 	r1, r0, 0
+	jl 		r31, $set_rm  ; rm = 0 / RM_Even
+	addf32 f10, f2, f3
+	addf32 f11, f4, f5
+	addf32 f12, f6, f7
+	stf_i  f10, r9, 0
+	stf_i  f11, r9, 4
+	stf_i  f12, r9, 8
+	add_i  r9, r9, 12
+
+	sys_sync
+		;sys_dbcall
+
+	add_i 	r1, r0, 1
+	jl 		r31, $set_rm  ; rm = 1 / RM_Up
+	addf32 f10, f2, f3
+	addf32 f11, f4, f5
+	addf32 f12, f6, f7
+	stf_i  f10, r9, 0
+	stf_i  f11, r9, 4
+	stf_i  f12, r9, 8
+	add_i  r9, r9, 12
+
+	sys_sync
+		;sys_dbcall
+
+
+	add_i 	r1, r0, 2
+	jl 		r31, $set_rm  ; rm = 2 / RM_Down
+	addf32 f10, f2, f3
+	addf32 f11, f4, f5
+	addf32 f12, f6, f7
+	stf_i  f10, r9, 0
+	stf_i  f11, r9, 4
+	stf_i  f12, r9, 8
+	add_i  r9, r9, 12
+
+	sys_sync
+
+		;sys_dbcall
+
+	add_i 	r1, r0, 3
+	jl 		r31, $set_rm  ; rm = 3 / RM_Zero
+	addf32 f10, f2, f3
+	addf32 f11, f4, f5
+	addf32 f12, f6, f7
+	stf_i  f10, r9, 0
+	stf_i  f11, r9, 4
+	stf_i  f12, r9, 8
+	add_i  r9, r9, 12
+
+	sys_sync
+
+	;add_i  r8, r8, 8
+	;add_i  r9, r9, 4
+
+	;add_i r10, r10, -1
+	;jnz_i r10, $loop
+
+	sys_dbcall
+
+
+@include "common_code/basic_pointers.txt"
+@include "common_code/fp_helpers.txt"
+
+
+@section data0
+	0x3F800001
+	0x3F800000
+
+	0x3F800003
+	0x3F800000
+	
+	0x00000000
+	0x80000000
+
+@section output
+	0x40000000
+	0x40000002
+	0x00000000
+
+	0x40000001
+	0x40000002
+	0x00000000
+
+	0x40000000
+	0x40000001
+	0x80000000
+
+	0x40000000
+	0x40000001
+	0x00000000

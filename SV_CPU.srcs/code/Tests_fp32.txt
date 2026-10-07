@@ -16,3 +16,5 @@ fadd32_minus
 fadd32_exceptions
 
 fcmp32
+
+fadd32_round
