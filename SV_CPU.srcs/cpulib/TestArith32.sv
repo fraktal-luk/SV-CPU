@@ -22,6 +22,7 @@ package TestArith32;
 
 		Test_f2i();
 
+		Test_mul();
 	endfunction
 
 
@@ -469,5 +470,46 @@ package TestArith32;
 	endfunction
 
 
+
+
+	function automatic void checkExpectation_Mul(input Expectation2a e);
+		FpResult32 result = TMP_mulF32(e.arg0, e.arg1, e.rm);
+		FpResult32 expected = '{e.exc, e.value};
+
+		assert (result === expected) else begin	
+			$displayh("%p (actual) vs %p (expected)", result, expected);
+			$fatal(2, "Failed expectation");
+		end
+	endfunction
+
+
+
+	function automatic void Test_mul();
+		Expectation2a list[] = '{
+			'{FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, RoundPlusInf, 	NO_EXCEPTION, FP32_CANONICAL_QNAN},
+
+			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundPlusInf, 	NO_EXCEPTION, FP32_PLUS_INF},
+			'{FP32_MINUS_INF, FP32_PLUS_INF, RoundPlusInf, 	NO_EXCEPTION, FP32_MINUS_INF},
+			'{FP32_PLUS_INF, '{1, 160, 'h001000}, RoundPlusInf, 	NO_EXCEPTION, FP32_MINUS_INF},
+
+			'{FP32_MINUS_INF, FP32_MINUS_ZERO, RoundPlusInf, 	'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN},
+			'{FP32_MINUS_INF, FP32_PLUS_ZERO, RoundPlusInf, 	'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN},
+
+
+
+			'{'{0, 127, 0}, '{0, 127, 0}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 127, 0}},
+
+			'{'{0, 127, 0}, '{0, 0, 'h000001}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 'h000001}},
+			'{'{0, 127, 0}, '{0, 0, 'h400000}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 'h400000}}
+
+		};
+
+
+
+			$display("Tes tmul32");
+
+		foreach (list[i])
+			checkExpectation_Mul(list[i]);
+	endfunction
 
 endpackage

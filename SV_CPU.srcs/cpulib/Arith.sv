@@ -480,28 +480,7 @@ package Arith;
     endfunction 
 
 
-    function automatic FpIntermediate multiplyInter(input FpIntermediate a, input FpIntermediate b);
-    	FpIntermediate res, aSh;
 
-    	Word expOut = a.exp + b.exp - 127; // 127 is the exp of 1.0
-
-    	// Shifted by 8 to align with high subword
-    	Dword product = (a.mantissa << 8) * b.mantissa;
-
-    	aSh = '{a.sign, a.subn, a.exp, a.mantissa << 8};
-
-    	res.sign = a.sign ^ b.sign;
-    	res.subn = 'x; // TODO
-    	res.exp = expOut;
-    	res.mantissa = product;
-
-	    /*	$display("Mult");
-	    	dispInter("a: ", aSh);
-	    	dispInter("b: ", b);
-	    	dispInter(" =", res);
-*/
-    	return res;
-    endfunction
 
 
     // TODO: this doesn't distinguish zero of undefined sign form zero of defined sign (problem when rounding X - X vs +0 + +0 or -0 + -0)
@@ -1022,5 +1001,96 @@ package Arith;
 
     endfunction
 
+
+
+
+    function automatic FpIntermediate multiplyInter(input FpIntermediate a, input FpIntermediate b);
+    	FpIntermediate res, aSh;
+
+    	Word expOut = a.exp + b.exp - 127; // 127 is the exp of 1.0
+
+    	// Shifted by 8 to align with high subword
+    	Dword product = (a.mantissa >> 32) * (b.mantissa >> 32);
+    	Dword productSh = product << (32+23-46);
+
+    	aSh = '{a.sign, a.subn, a.exp, a.mantissa << 8};
+
+    	res.sign = a.sign ^ b.sign;
+    	res.subn = !productSh[32+23]; // TODO
+    	res.exp = expOut;
+    	res.mantissa = productSh;
+
+	    /*	$display("Mult");
+	    	dispInter("a: ", aSh);
+	    	dispInter("b: ", b);
+	    	dispInter(" =", res);
+*/
+			$displayh(" %p\n*%p\n=%p\n", a, b, res);
+
+
+    	return res;
+    endfunction
+
+
+
+
+	    function automatic FpResult32 TMP_mulF32(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
+	    	//FpFormat32 arg0, arg1;
+	    	logic sign = a.sign ^ b.sign;
+
+	    		//$displayh(" %p * %p ;  sign %p", a , b, sign);
+
+
+	    	if (isNaN(a) || isNaN(b))
+	    		return handleNanArgs(a, b);
+
+		   	if (isInfinity(a)) begin
+		   		if (isZero(b)) return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{sign, EXP_MAX_32, 0}};
+		   	end
+
+		   	if (isInfinity(b)) begin
+		   		if (isZero(a)) return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{sign, EXP_MAX_32, 0}};
+		   	end
+
+		   	return mulRegularF32(a, b, rm);
+
+	    endfunction
+
+
+	    function automatic FpResult32 mulRegularF32(input FpFormat32 arg0, input FpFormat32 arg1, input Rounding rm);
+	   		FpFormat32 res;
+	   		logic inexact = 0, overflow = 0, underflow = 0;
+	   		FpIntermediate inter, interRounded;
+			FpIntermediate interA = convToIntermediate(arg0);
+			FpIntermediate interB = convToIntermediate(arg1);
+
+	//    		if (arg0.sign != arg1.sign) inter = TMP_subMag(arg0, arg1);
+    		inter = multiplyInter(interA, interB);
+
+	//    		if (inter.mantissa[31:0] != 0) inexact = 1;
+	//    		else inexact = 0;
+
+    		interRounded = roundInter(inter, rm);
+
+	//    		if (interRounded.mantissa == 0 && (arg0.sign != arg1.sign)) begin
+	//    			if (rm == RoundMinusInf) interRounded.sign = 1;
+	//    			else interRounded.sign = 0;
+	//    		end
+
+	//    		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
+	//    		else overflow = 0;
+
+	//    		if (overflow || underflow) inexact = 1;
+
+    		res = fromIntermediate(interRounded);
+
+	//    			/*$displayh("... %p\n... %p", inter, interRounded);
+	// 			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
+	// 			$display("--------------------------");
+	// */
+    		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
+	    endfunction
 
 endpackage

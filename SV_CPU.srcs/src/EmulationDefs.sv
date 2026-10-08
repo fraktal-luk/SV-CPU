@@ -389,7 +389,9 @@ package EmulationDefs;
 
 
             O_floatAdd32: result = widenFP(TMP_addF32(vals[0], vals[1], rd));
-            O_floatSub32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
+            O_floatSub32: result = widenFP(TMP_subF32(vals[0], vals[1], rd));
+                                    //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
+
             O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
 
@@ -401,7 +403,9 @@ package EmulationDefs;
             //O_floatCmpGt32: result = '{NO_EXCEPTION, ($bitstoshortreal(vals[0]) > $bitstoshortreal(vals[1]))};
 
             O_floatAdd64: result = TMP_addF64(vals[0], vals[1], rd);
-            O_floatSub64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) - $bitstoreal(vals[1]))};
+            O_floatSub64: result = TMP_subF64(vals[0], vals[1], rd);
+                                    //'{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) - $bitstoreal(vals[1]))};
+
             O_floatMul64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) * $bitstoreal(vals[1]))};
             O_floatDiv64: result = '{NO_EXCEPTION, $realtobits($bitstoreal(vals[0]) / $bitstoreal(vals[1]))};
             

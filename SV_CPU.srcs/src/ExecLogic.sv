@@ -112,8 +112,8 @@ package ExecLogic;
                 UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
 
             UOP_fp_add32: res = widenFP(TMP_addF32(args[0], args[1], rm));
+            UOP_fp_sub32: res = widenFP(TMP_subF32(args[0], args[1], rm));
 
-            UOP_fp_sub32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]))};
             UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
             UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
 
@@ -127,8 +127,9 @@ package ExecLogic;
             UOP_fp_cpys32: res = '{NO_EXCEPTION, Word'( (args[0] & 'h7FFFFFFF) | (args[1] & 'h80000000) )};
 
             UOP_fp_add64: res = TMP_addF64(args[0], args[1], rm);
+            UOP_fp_sub64: res = TMP_subF64(args[0], args[1], rm);
+                            //res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) - $bitstoreal(args[1]))};
 
-            UOP_fp_sub64: res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) - $bitstoreal(args[1]))};
             UOP_fp_mul64: res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) * $bitstoreal(args[1]))};
             UOP_fp_div64: res = '{NO_EXCEPTION, $realtobits($bitstoreal(args[0]) / $bitstoreal(args[1]))};
             UOP_fp_cmpeq64: res = '{NO_EXCEPTION, ($bitstoreal(args[0]) == $bitstoreal(args[1]))};
