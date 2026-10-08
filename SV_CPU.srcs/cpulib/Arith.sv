@@ -1034,6 +1034,13 @@ package Arith;
 
 
 
+		// else if (a.mantissa[32 + 24] === 1) begin
+		// 	res.subn = 0;
+		// 	res.exp = a.exp + 1;
+		// 	res.mantissa = a.mantissa >> 1;
+		// 	// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
+		// 	if (res.mantissa[30:29] != 0) res.mantissa[30:29] = 'h2;  
+		// end
 
 		function automatic FpIntermediate normalizeMultiplied(input FpIntermediate a);
 			FpIntermediate res;
@@ -1054,6 +1061,17 @@ package Arith;
 				res.mantissa = a.mantissa;
 				//res.subn = 0;
 			end
+
+
+				if (a.mantissa[32 + 24] === 1) begin
+					res.subn = 0;
+					res.exp = a.exp + 1;
+					res.mantissa = a.mantissa >> 1;
+					// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
+					if (res.mantissa[30:29] != 0) res.mantissa[30:29] = 'h2;  
+				end
+
+
 
 			// If reached infinity
 			if (res.exp >= EXP_MAX_32) begin
