@@ -1034,6 +1034,37 @@ package Arith;
 
 
 
+
+		function automatic FpIntermediate normalizeMultiplied(input FpIntermediate a);
+			FpIntermediate res;
+			
+			res.sign = a.sign;
+			res.subn = a.subn;
+
+			if (a.exp < 1) begin
+				int sh = 1 - a.exp;
+				res.exp = 1;
+				res.mantissa = a.mantissa >> sh;
+
+				if (res.mantissa[32+23] == 0)
+					res.subn = 1;
+			end
+			else begin
+				res.exp = a.exp;
+				res.mantissa = a.mantissa;
+				//res.subn = 0;
+			end
+
+			// If reached infinity
+			if (res.exp >= EXP_MAX_32) begin
+				res.exp = EXP_MAX_32;
+				res.mantissa = 'h80000000000000;
+			end
+
+			return res;
+		endfunction
+
+
 	    function automatic FpResult32 TMP_mulF32(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
 	    	//FpFormat32 arg0, arg1;
 	    	logic sign = a.sign ^ b.sign;
@@ -1062,27 +1093,28 @@ package Arith;
 	    function automatic FpResult32 mulRegularF32(input FpFormat32 arg0, input FpFormat32 arg1, input Rounding rm);
 	   		FpFormat32 res;
 	   		logic inexact = 0, overflow = 0, underflow = 0;
-	   		FpIntermediate inter, interRounded;
+	   		FpIntermediate inter, interN, interRounded;
 			FpIntermediate interA = convToIntermediate(arg0);
 			FpIntermediate interB = convToIntermediate(arg1);
 
 	//    		if (arg0.sign != arg1.sign) inter = TMP_subMag(arg0, arg1);
     		inter = multiplyInter(interA, interB);
 
-	//    		if (inter.mantissa[31:0] != 0) inexact = 1;
-	//    		else inexact = 0;
+    		interN = normalizeMultiplied(inter);
 
-    		interRounded = roundInter(inter, rm);
+	   		if (interN.mantissa[31:0] != 0) inexact = 1;
+	   		else inexact = 0;
 
-	//    		if (interRounded.mantissa == 0 && (arg0.sign != arg1.sign)) begin
-	//    			if (rm == RoundMinusInf) interRounded.sign = 1;
-	//    			else interRounded.sign = 0;
-	//    		end
+    		interRounded = roundInter(interN, rm);
 
-	//    		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
-	//    		else overflow = 0;
+    			$displayh("interN: %p\ninterR: %p\n", interN, interRounded);
 
-	//    		if (overflow || underflow) inexact = 1;
+	   		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
+	   		else overflow = 0;
+
+	   		underflow = (interN.mantissa != 0 && interRounded.mantissa == 0); // underflow is when nonzero rounded to 0
+
+	   		if (overflow || underflow) inexact = 1;
 
     		res = fromIntermediate(interRounded);
 

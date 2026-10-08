@@ -499,8 +499,11 @@ package TestArith32;
 
 			'{'{0, 127, 0}, '{0, 127, 0}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 127, 0}},
 
-			'{'{0, 127, 0}, '{0, 0, 'h000001}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 'h000001}},
-			'{'{0, 127, 0}, '{0, 0, 'h400000}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 'h400000}}
+			'{'{0, 127, 0}, '{0, 0, 'h000001}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 'h000001}}, // 1 * minSubn
+			'{'{0, 127, 0}, '{0, 0, 'h400000}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 'h400000}}, 
+
+			'{'{0, 126, 0}, '{0, 0, 'h000001}, RoundPlusInf, 	EXC_INEXACT,  '{0, 0, 'h000001}}, // 0.5 * minSubn
+			'{'{0, 126, 0}, '{0, 0, 'h000001}, RoundMinusInf, 	'{inexact: 1, underflow: 1, default: 0},  '{0, 0, 'h000000}}
 
 		};
 
