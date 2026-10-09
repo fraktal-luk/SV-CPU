@@ -1048,11 +1048,13 @@ package Arith;
 			res.sign = a.sign;
 			res.subn = a.subn;
 
-			if (a.exp < 1) begin
-				int sh = 1 - a.exp;
-				res.exp = 1;
-				res.mantissa = a.mantissa >> sh;
+			if ($signed(a.exp) < 1) begin
+				int sh = 1 - $signed(a.exp);
+									$display("  exp = %h < 1", a.exp);
 
+				res.exp = 1;
+				res.mantissa = //a.mantissa >> sh;
+								shiftCompress30(a.mantissa, sh);
 				if (res.mantissa[32+23] == 0)
 					res.subn = 1;
 			end
@@ -1111,7 +1113,7 @@ package Arith;
 	    function automatic FpResult32 mulRegularF32(input FpFormat32 arg0, input FpFormat32 arg1, input Rounding rm);
 	   		FpFormat32 res;
 	   		logic inexact = 0, overflow = 0, underflow = 0;
-	   		FpIntermediate inter, interN, interRounded;
+	   		FpIntermediate inter, interN, interC, interRounded;
 			FpIntermediate interA = convToIntermediate(arg0);
 			FpIntermediate interB = convToIntermediate(arg1);
 
@@ -1120,10 +1122,13 @@ package Arith;
 
     		interN = normalizeMultiplied(inter);
 
-	   		if (interN.mantissa[31:0] != 0) inexact = 1;
+    		interC = interN;
+    		interC.mantissa = shiftCompress30(interC.mantissa, 0);
+
+	   		if (interC.mantissa[31:0] != 0) inexact = 1;
 	   		else inexact = 0;
 
-    		interRounded = roundInter(interN, rm);
+    		interRounded = roundInter(interC, rm);
 
     			$displayh("interN: %p\ninterR: %p\n", interN, interRounded);
 

@@ -510,7 +510,28 @@ package TestArith32;
 
 
 			'{'{0, 127+23, 'h400000}, '{1, 127+99, 'h000000}, RoundMinusInf, 	NO_EXCEPTION,  '{1, 127+122, 'h400000}},
-			'{'{0, 127+23, 'h400000}, '{1, 127+99, 'h400000}, RoundMinusInf, 	NO_EXCEPTION,  '{1, 127+123, 'h100000}}
+			'{'{0, 127+23, 'h400000}, '{1, 127+99, 'h400000}, RoundMinusInf, 	NO_EXCEPTION,  '{1, 127+123, 'h100000}},
+
+			'{'{0, 127+40, 'h400000}, '{1, 127+99, 'h400000}, RoundMinusInf, 	'{inexact: 1, overflow: 1, default: 0},  FP32_MINUS_INF},
+
+
+			'{'{0, 127, 'h7FFFFF}, '{0, 127, 'h7FFFFF}, RoundMinusInf, 	'{inexact: 1, default: 0},  '{0, 128, 'h7FFFFE}},
+			'{'{0, 127, 'h7FFFFF}, '{0, 127, 'h7FFFFF}, RoundPlusInf, 	'{inexact: 1, default: 0},  '{0, 128, 'h7FFFFF}},
+
+
+			'{'{0, 127, 0}, '{0, 0, 1}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 1}},
+
+			'{'{0, 104, 0}, '{0, 1, 0}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 1}},
+
+			'{'{0, 94, 0}, '{0, 11, 0}, RoundPlusInf, 	NO_EXCEPTION,  '{0, 0, 1}},
+
+			'{'{0, 93, 0}, '{0, 11, 0}, RoundNearestEven, 	'{underflow: 1, inexact: 1, default: 0},  '{0, 0, 0}},
+			'{'{0, 93, 1}, '{0, 11, 0}, RoundNearestEven, 	'{underflow: 0, inexact: 1, default: 0},  '{0, 0, 1}},
+
+
+			'{'{0, 93, 0}, '{0, 11, 0}, RoundMinusInf, 	'{underflow: 1, inexact: 1, default: 0},  '{0, 0, 0}},
+			'{'{0, 93, 0}, '{0, 11, 0}, RoundPlusInf, 	EXC_INEXACT,  '{0, 0, 1}}
+
 
 		};
 
