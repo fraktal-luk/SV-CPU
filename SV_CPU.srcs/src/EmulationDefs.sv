@@ -392,7 +392,8 @@ package EmulationDefs;
             O_floatSub32: result = widenFP(TMP_subF32(vals[0], vals[1], rd));
                                     //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) - $bitstoshortreal(vals[1]))};
 
-            O_floatMul32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
+            O_floatMul32: result = widenFP(TMP_mulF32(vals[0], vals[1], rd));
+                                    //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) * $bitstoshortreal(vals[1]))};
             O_floatDiv32: result = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(vals[0]) / $bitstoshortreal(vals[1]))};
 
             O_floatCmpEq32: result = widenFP(TMP_cmpF32(vals[0], vals[1], CMP_EQ, 0));

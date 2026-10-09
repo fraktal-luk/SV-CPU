@@ -20,3 +20,5 @@ fcmp32
 fadd32_round
 
 conv32
+
+fmul32_0

@@ -1025,7 +1025,7 @@ package Arith;
 	    	dispInter("b: ", b);
 	    	dispInter(" =", res);
 */
-			$displayh(" %p\n*%p\n=%p\n", a, b, res);
+			//$displayh(" %p\n*%p\n=%p\n", a, b, res);
 
 
     	return res;
@@ -1050,7 +1050,7 @@ package Arith;
 
 			if ($signed(a.exp) < 1) begin
 				int sh = 1 - $signed(a.exp);
-									$display("  exp = %h < 1", a.exp);
+									//$display("  exp = %h < 1", a.exp);
 
 				res.exp = 1;
 				res.mantissa = //a.mantissa >> sh;
@@ -1130,7 +1130,7 @@ package Arith;
 
     		interRounded = roundInter(interC, rm);
 
-    			$displayh("interN: %p\ninterR: %p\n", interN, interRounded);
+    			//$displayh("interN: %p\ninterR: %p\n", interN, interRounded);
 
 	   		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
 	   		else overflow = 0;

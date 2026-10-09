@@ -114,7 +114,8 @@ package ExecLogic;
             UOP_fp_add32: res = widenFP(TMP_addF32(args[0], args[1], rm));
             UOP_fp_sub32: res = widenFP(TMP_subF32(args[0], args[1], rm));
 
-            UOP_fp_mul32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
+            UOP_fp_mul32: res = widenFP(TMP_mulF32(args[0], args[1], rm));
+                                //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
             UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
 
             UOP_fp_cmpeq32: res = widenFP(TMP_cmpF32(args[0], args[1], CMP_EQ, 0));
