@@ -997,9 +997,9 @@ package Arith;
 
 
 
-    function automatic FpResult32 floatAdd32(input Word arg0, input Word arg1, input Rounding rd);
+    // function automatic FpResult32 floatAdd32(input Word arg0, input Word arg1, input Rounding rd);
 
-    endfunction
+    // endfunction
 
 
 
@@ -1146,6 +1146,86 @@ package Arith;
 	// 			$display("--------------------------");
 	// */
     		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
+	    endfunction
+
+
+
+
+
+	    function automatic int highBitPos(input Dword x);
+			int log = $clog2(x);
+			if (x[log] === 0) log--;
+			return log;
+		endfunction
+
+
+
+	    function automatic FpIntermediate convPower(input FpIntermediate x);
+	    	FpIntermediate res = x;
+	    	int highBit, shift;
+
+	    	if (!x.subn) return res;
+
+	    	highBit = highBitPos(x.mantissa);
+	    	// We want high bit at [32+23]
+	    	shift = (32+23) - highBit;
+
+	    	res.mantissa <<= shift;
+	    	res.exp = 1 - shift;
+	    	res.subn = 0;
+
+	    	return res;
+	    endfunction 
+
+
+	    function automatic FpIntermediate unconvPower(input FpIntermediate x);
+	    	FpIntermediate res = x;
+	    	int shift;
+
+	    	if ($signed(res.exp) > 0) return res;
+
+	    	shift = 1-res.exp;
+
+	    	res.mantissa >>= shift;
+	    	res.exp = 1;
+	    	res.subn = 1;
+
+	    	return res;
+	    endfunction 
+
+
+
+	    function automatic FpIntermediate divInternal(input FpIntermediate a, input FpIntermediate b, input Rounding rm);
+	    	FpIntermediate arg0 = convPower(a);
+	    	FpIntermediate arg1 = convPower(b);
+
+	    	FpIntermediate res, inter;
+
+	    	inter.sign = arg0.sign ^ arg1.sign;
+	    	inter.subn = 0;
+	    	inter.exp = arg0.exp - arg1.exp + 127;
+	    		inter.mantissa   = arg0.mantissa;
+
+	    	res = unconvPower(inter);
+
+	    		$displayh("Divided:  %p;  %p", inter, res);
+
+	    	return res;
+	    endfunction
+
+
+	    function automatic FpResult32 TMP_div(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
+	    	FpFormat32 res;
+	    	FpIntermediate argA, argB, inter;
+
+	    	argA = convToIntermediate(a);
+	    	argB = convToIntermediate(b);
+
+	    	inter = divInternal(argA, argB, rm);
+
+	    	res = fromIntermediate(inter);
+
+	    	return '{NO_EXCEPTION, res};
 	    endfunction
 
 endpackage

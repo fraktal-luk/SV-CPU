@@ -23,6 +23,8 @@ package TestArith32;
 		Test_f2i();
 
 		Test_mul();
+
+		Test_div();
 	endfunction
 
 
@@ -541,6 +543,32 @@ package TestArith32;
 
 		foreach (list[i])
 			checkExpectation_Mul(list[i]);
+	endfunction
+
+
+
+	function automatic void Test_div();
+		FpFormat32 x = '{0, 0, 'h400000};
+		FpFormat32 y = '{0, 0, 'h001000};
+
+		FpIntermediate interX = convToIntermediate(x);
+		FpIntermediate interY = convToIntermediate(y);
+
+		FpIntermediate interXn = convPower(interX);
+		FpIntermediate interYn = convPower(interY);
+
+		$displayh("%p -> %p", interX, interXn);
+		$displayh("%p -> %p", interY, interYn);
+
+
+
+			TMP_div('{0, 127, 0}, '{0, 127, 0}, RoundPlusInf);
+
+			TMP_div('{0, 127, 0}, '{0, 128, 0}, RoundPlusInf);
+
+			TMP_div('{0, 0, 1}, '{0, 127, 0}, RoundPlusInf);
+			TMP_div('{0, 0, 1}, '{0, 128, 0}, RoundPlusInf);
+
 	endfunction
 
 endpackage
