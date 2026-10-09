@@ -569,6 +569,8 @@ package TestArith32;
 			TMP_div('{0, 0, 1}, '{0, 127, 0}, RoundPlusInf);
 			TMP_div('{0, 0, 1}, '{0, 128, 0}, RoundPlusInf);
 
+			TMP_div('{0, 127, 0}, '{0, 127, 'h7FFFFF}, RoundPlusInf);
+
 	endfunction
 
 endpackage

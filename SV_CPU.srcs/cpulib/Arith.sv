@@ -1206,6 +1206,43 @@ package Arith;
 	    	inter.exp = arg0.exp - arg1.exp + 127;
 	    		inter.mantissa   = arg0.mantissa;
 
+
+	    		// TODO: if rem remains > 0, it means there may be 1's further, outside the precision.
+	    		//		In infinite precision they would be delivered, so we must detect them and set 'permanent' bit of quo to mark it! 
+
+	    	begin
+	    		Dword quo = 0;
+	    		Dword rem = arg0.mantissa;
+	    		Dword divisor = arg1.mantissa;
+
+	    		for (int i = 0; i <= 23 + 3; i++) begin
+
+	    			if (rem >= divisor) begin
+	    				rem -= divisor;
+	    				quo[32] = 1;
+	    			end
+	    			else begin
+	    				
+	    			end
+
+	    			divisor >>= 1;
+
+	    			quo <<= 1;
+	    		end
+
+	    		// TODO: now add another bit to quo if rem > 0
+	    		// ....
+	    		if (rem !== 0)
+	    			quo[32] = 1;
+
+	    		quo >>= 4;
+
+
+	    		$displayh("%p ; %p", quo, rem);
+
+	    		inter.mantissa = quo;
+	    	end
+
 	    	res = unconvPower(inter);
 
 	    		$displayh("Divided:  %p;  %p", inter, res);
@@ -1216,16 +1253,55 @@ package Arith;
 
 	    function automatic FpResult32 TMP_div(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
 	    	FpFormat32 res;
-	    	FpIntermediate argA, argB, inter;
+	    	FpIntermediate argA, argB, inter, interN, interC, interR;
+	    	logic inexact, underflow, overflow;
+
+	    	if (isNaN(a) || isNaN(b))
+	    		return handleNanArgs(a, b);
+
+		   	if (isInfinity(a)) begin
+		   		if (isInfinity(b)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{a.sign^b.sign, EXP_MAX_32, 0}};
+		   	end
+
+		   	if (isZero(b)) begin
+		   		if (isInfinity(a)) return '{NO_EXCEPTION, '{a.sign^b.sign, EXP_MAX_32, 0}}; // Already handled in infinity check  
+		   		else if (isZero(a)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		else return '{EXC_DIV0, '{a.sign^b.sign, EXP_MAX_32, 0}};
+		   	end
 
 	    	argA = convToIntermediate(a);
 	    	argB = convToIntermediate(b);
 
 	    	inter = divInternal(argA, argB, rm);
 
-	    	res = fromIntermediate(inter);
 
-	    	return '{NO_EXCEPTION, res};
+	    	interN = normalizeSubtracted(inter);
+				
+				$displayh("Normalized:  %p", interN);
+
+	    	interC = interN;
+	    	interC.mantissa = shiftCompress30(interN.mantissa, 0);
+
+	    	interR = roundInter(interC, rm);
+
+
+	    	if (interR.exp >= EXP_MAX_32) overflow = 1;
+	    	else overflow = 0;
+
+
+	    	if (interR.mantissa[63:32] === 0) underflow = 1;
+	    	else underflow = 0;
+
+
+	    	if (interR.mantissa[31:0] !== 0) inexact = 1;
+	    	else inexact = 0;
+
+	    	inexact |= (underflow || overflow);
+
+	    	res = fromIntermediate(interR);
+
+	    	return '{'{inexact: inexact, underflow: underflow, overflow: overflow, default: 0}, res};
 	    endfunction
 
 endpackage
