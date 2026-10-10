@@ -547,6 +547,17 @@ package TestArith32;
 
 
 
+	function automatic void checkExpectation_Div(input Expectation2a e);
+		FpResult32 result = TMP_div(e.arg0, e.arg1, e.rm);
+		FpResult32 expected = '{e.exc, e.value};
+
+		assert (result === expected) else begin	
+			$displayh("%p (actual) vs %p (expected)", result, expected);
+			$fatal(2, "Failed expectation");
+		end
+	endfunction
+
+
 	function automatic void Test_div();
 		FpFormat32 x = '{0, 0, 'h400000};
 		FpFormat32 y = '{0, 0, 'h001000};
@@ -557,19 +568,54 @@ package TestArith32;
 		FpIntermediate interXn = convPower(interX);
 		FpIntermediate interYn = convPower(interY);
 
-		$displayh("%p -> %p", interX, interXn);
-		$displayh("%p -> %p", interY, interYn);
+
+		Expectation2a list[] = '{
+			'{FP32_CANONICAL_QNAN, FP32_CANONICAL_QNAN, RoundPlusInf, 	NO_EXCEPTION, FP32_CANONICAL_QNAN},
+
+			'{FP32_PLUS_INF, FP32_PLUS_INF, RoundPlusInf, 	EXC_INVALID, FP32_CANONICAL_QNAN},
+			'{FP32_MINUS_INF, FP32_PLUS_INF, RoundPlusInf, 	EXC_INVALID, FP32_CANONICAL_QNAN},
+			'{FP32_PLUS_INF, '{1, 160, 'h001000}, RoundPlusInf, 	NO_EXCEPTION, FP32_MINUS_INF},
+
+
+			'{'{0, 129, 0}, FP32_PLUS_MIN_SUBN, RoundPlusInf, '{overflow: 1, inexact: 1, default: 0}, FP32_PLUS_INF},
+
+
+			'{'{0, 250, 0}, '{0, 123, 0}, RoundPlusInf, NO_EXCEPTION, '{0, 254, 0}},
+			'{'{0, 150, 0}, '{0, 23, 0}, RoundPlusInf, NO_EXCEPTION, '{0, 254, 0}},
+			'{'{0, 150, 0}, '{1, 22, 0}, RoundPlusInf, '{inexact: 1, overflow: 1, default: 0}, FP32_MINUS_INF},
+
+
+			'{'{0, 200, 0}, '{0, 200, 0}, RoundPlusInf, NO_EXCEPTION, '{0, 127, 0}},
+			'{'{0, 112, 0}, '{0, 113, 0}, RoundPlusInf, NO_EXCEPTION, '{0, 126, 0}},
+
+
+				'{'{0, 127, 0}, '{0, 127, 1}, RoundPlusInf, '{inexact: 1, default: 0}, '{0, 126, 'h7FFFFF}},
+				'{'{0, 127, 0}, '{0, 127, 1}, RoundMinusInf, '{inexact: 1, default: 0}, '{0, 126, 'h7FFFFE}},
+
+
+				'{FP32_PLUS_MIN_SUBN, '{0, 128, 0}, RoundMinusInf, '{inexact: 1, underflow: 1, default: 0}, FP32_PLUS_ZERO},
+				'{FP32_PLUS_MIN_SUBN, '{0, 128, 0}, RoundPlusInf, '{inexact: 1, default: 0}, FP32_PLUS_MIN_SUBN},
+
+
+			'{FP32_PLUS_ZERO, '{1, 170, 'h31A600}, RoundPlusInf, NO_EXCEPTION, FP32_MINUS_ZERO},
+			'{'{1, 170, 'h31A600}, FP32_MINUS_INF, RoundPlusInf, NO_EXCEPTION, FP32_PLUS_ZERO},
+
+
+			'{'{0, 0, 171*64}, '{0, 127+6, 0}, RoundPlusInf, NO_EXCEPTION, '{0, 0, 171}},
+
+			'{'{0, 127+22, 'h700000}, '{0, 127-6, 'h200000}, RoundPlusInf, NO_EXCEPTION, '{0, 127+22+6, 'h400000}},
 
 
 
-			TMP_div('{0, 127, 0}, '{0, 127, 0}, RoundPlusInf);
+			'{'{0, 127, 0}, '{0, 127, 0}, RoundPlusInf, NO_EXCEPTION, '{0, 127, 0}},
+			'{'{0, 127, 0}, '{1, 127, 0}, RoundPlusInf, NO_EXCEPTION, '{1, 127, 0}}
 
-			TMP_div('{0, 127, 0}, '{0, 128, 0}, RoundPlusInf);
 
-			TMP_div('{0, 0, 1}, '{0, 127, 0}, RoundPlusInf);
-			TMP_div('{0, 0, 1}, '{0, 128, 0}, RoundPlusInf);
+		};
 
-			TMP_div('{0, 127, 0}, '{0, 127, 'h7FFFFF}, RoundPlusInf);
+
+		foreach (list[i])
+			checkExpectation_Div(list[i]);
 
 	endfunction
 

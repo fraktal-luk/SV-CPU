@@ -427,6 +427,12 @@ package Arith;
 			end
 		end
 
+		// If reached infinity - ! this can happen in division, not subtraction
+		if (res.exp >= EXP_MAX_32) begin
+			res.exp = EXP_MAX_32;
+			res.mantissa = 'h80000000000000;
+		end
+
 		return res;
 	endfunction
 
@@ -1263,10 +1269,17 @@ package Arith;
 		   		if (isInfinity(b)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
 		   		else return '{NO_EXCEPTION, '{a.sign^b.sign, EXP_MAX_32, 0}};
 		   	end
+		   	else if (isInfinity(b)) begin
+		   		return '{NO_EXCEPTION, '{a.sign^b.sign, 0, 0}};
+		   	end
 
-		   	if (isZero(b)) begin
+		   	if (isZero(a)) begin
+		   		if (isZero(b)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{a.sign^b.sign, 0, 0}};
+		   	end
+		   	else if (isZero(b)) begin
 		   		if (isInfinity(a)) return '{NO_EXCEPTION, '{a.sign^b.sign, EXP_MAX_32, 0}}; // Already handled in infinity check  
-		   		else if (isZero(a)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		//else if (isZero(a)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
 		   		else return '{EXC_DIV0, '{a.sign^b.sign, EXP_MAX_32, 0}};
 		   	end
 
@@ -1283,6 +1296,10 @@ package Arith;
 	    	interC = interN;
 	    	interC.mantissa = shiftCompress30(interN.mantissa, 0);
 
+
+	    	if (interC.mantissa[31:0] !== 0) inexact = 1;
+	    	else inexact = 0;
+
 	    	interR = roundInter(interC, rm);
 
 
@@ -1294,8 +1311,7 @@ package Arith;
 	    	else underflow = 0;
 
 
-	    	if (interR.mantissa[31:0] !== 0) inexact = 1;
-	    	else inexact = 0;
+
 
 	    	inexact |= (underflow || overflow);
 
