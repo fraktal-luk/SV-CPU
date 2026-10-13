@@ -138,59 +138,59 @@ module FloatSubpipe(
     };
 
 
-    function automatic UopPacket performFP(input UopPacket p);        
-        UopPacket res = p;
-        FpResult64 fpRes;
+    // function automatic UopPacket performFP(input UopPacket p);        
+    //     UopPacket res = p;
+    //     FpResult64 fpRes;
 
-        if (p.uid == UID_NONE) return res;
+    //     if (p.uid == UID_NONE) return res;
         
-        begin
-            fpRes = calcRegularFpOp(p.uid);
-            res.result = fpRes.value;
+    //     begin
+    //         fpRes = calcRegularFpOp(p.uid);
+    //         res.result = fpRes.value;
 
-            if (fpRes.exc.invalid) begin
-                res.status = ES_FP_INVALID;
-            end
+    //         if (fpRes.exc.invalid) begin
+    //             res.status = ES_FP_INVALID;
+    //         end
             
-            if (fpRes.exc.div0) begin
-                res.status = ES_FP_DIV0;
-            end
+    //         if (fpRes.exc.div0) begin
+    //             res.status = ES_FP_DIV0;
+    //         end
 
-            if (fpRes.exc.overflow) begin
-                res.status = ES_FP_OVERFLOW;
-            end
+    //         if (fpRes.exc.overflow) begin
+    //             res.status = ES_FP_OVERFLOW;
+    //         end
 
-            if (fpRes.exc.underflow) begin
-                res.status = ES_FP_UNDERFLOW;
-            end
+    //         if (fpRes.exc.underflow) begin
+    //             res.status = ES_FP_UNDERFLOW;
+    //         end
 
-            if (fpRes.exc.inexact) begin
-                if (fpRes.exc.overflow)
-                    res.status = ES_FP_OV_INEXACT;
-                else if (fpRes.exc.underflow)
-                    res.status = ES_FP_UND_INEXACT;
-                else
-                    res.status = ES_FP_INEXACT;
-            end
-        end
+    //         if (fpRes.exc.inexact) begin
+    //             if (fpRes.exc.overflow)
+    //                 res.status = ES_FP_OV_INEXACT;
+    //             else if (fpRes.exc.underflow)
+    //                 res.status = ES_FP_UND_INEXACT;
+    //             else
+    //                 res.status = ES_FP_INEXACT;
+    //         end
+    //     end
 
 
-        // TODO: full set of exc including combined Inexact+Overflow, Inexact+Underflow
-        //       Priority: Inexact over Ov/Und
+    //     // TODO: full set of exc including combined Inexact+Overflow, Inexact+Underflow
+    //     //       Priority: Inexact over Ov/Und
 
-        if (
-            fpRes.exc.invalid && AbstractCore.CurrentConfig.enTrapInv
-         || fpRes.exc.overflow && AbstractCore.CurrentConfig.enTrapOv
-         || fpRes.exc.inexact && AbstractCore.CurrentConfig.enTrapInex
-         || fpRes.exc.underflow && AbstractCore.CurrentConfig.enTrapUnd
-         || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
-            )
-        begin
-            insMap.setException(U2M(p.uid), PE_ARITH_EXCEPTION);
-        end
+    //     if (
+    //         fpRes.exc.invalid && AbstractCore.CurrentConfig.enTrapInv
+    //      || fpRes.exc.overflow && AbstractCore.CurrentConfig.enTrapOv
+    //      || fpRes.exc.inexact && AbstractCore.CurrentConfig.enTrapInex
+    //      || fpRes.exc.underflow && AbstractCore.CurrentConfig.enTrapUnd
+    //      || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
+    //         )
+    //     begin
+    //         insMap.setException(U2M(p.uid), PE_ARITH_EXCEPTION);
+    //     end
         
-        return res;
-    endfunction
+    //     return res;
+    // endfunction
 
 endmodule
 
@@ -330,7 +330,11 @@ module DividerSubpipe#(
     always @(posedge AbstractCore.clk) begin
         
         if (p1_E.active) begin
-            mainStage <= performRegularE0(p1_E); // New uop enters
+            if (IS_FP)
+                mainStage <= performFP(p1_E); // New uop enters     
+            else
+                mainStage <= performRegularE0(p1_E); // New uop enters
+
             cnt <= 0;
         end
         else if (cnt == CONST_CYCLES-1) begin  // End of work for current uop

@@ -22,3 +22,4 @@ fadd32_round
 conv32
 
 fmul32_0
+fdiv32_0

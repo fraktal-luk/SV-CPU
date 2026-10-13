@@ -68,14 +68,14 @@ package ExecLogic;
             // UOP_fp_addi:   res = args[0] + args[1];
 
                 //UOP_fp_muli:   res = Word'(args[0] * args[1]);
-                UOP_fp_divi:   res = Word'(args[0] / args[1]);
+               // UOP_fp_divi:   res = Word'(args[0] / args[1]);
             //     UOP_fp_inv:   res = 1;
             //     UOP_fp_ov:   res = 1;
 
             // UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
             // UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
             // UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-             UOP_fp_div32: res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+             UOP_fp_div32: $fatal(2, "FP diviiosn not here!") ;//res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
             // UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
             // UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
             // UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));
@@ -106,7 +106,7 @@ package ExecLogic;
             UOP_fp_addi:   res = '{NO_EXCEPTION, args[0] + args[1]};
 
                  UOP_fp_muli:   res = '{NO_EXCEPTION, (args[0] * args[1])};
-                // UOP_fp_divi:   res = '{NO_EXCEPTION, (args[0] / args[1])};
+                 UOP_fp_divi:   res = '{NO_EXCEPTION, (args[0] / args[1])};
 
                 UOP_fp_inv:   res = '{EXC_INVALID, 1};
                 UOP_fp_ov:   res = '{EXC_OVERFLOW, 1};
@@ -116,7 +116,11 @@ package ExecLogic;
 
             UOP_fp_mul32: res = widenFP(TMP_mulF32(args[0], args[1], rm));
                                 //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]))};
-            UOP_fp_div32: res = '{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
+            UOP_fp_div32: begin
+                            res = widenFP(TMP_div(args[0], args[1], rm));
+                                //'{NO_EXCEPTION, $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]))};
+                    //$error("Division: %08X / %08X = %08X (%p), rm = %p", args[0], args[1], res.value, res.exc, rm);
+            end
 
             UOP_fp_cmpeq32: res = widenFP(TMP_cmpF32(args[0], args[1], CMP_EQ, 0));
             UOP_fp_cmpge32: res = widenFP(TMP_cmpF32(args[0], args[1], CMP_GE, 0));
