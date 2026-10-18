@@ -75,7 +75,7 @@ package ExecLogic;
             // UOP_fp_add32: res = $shortrealtobits($bitstoshortreal(args[0]) + $bitstoshortreal(args[1]));
             // UOP_fp_sub32: res = $shortrealtobits($bitstoshortreal(args[0]) - $bitstoshortreal(args[1]));
             // UOP_fp_mul32: res = $shortrealtobits($bitstoshortreal(args[0]) * $bitstoshortreal(args[1]));
-             UOP_fp_div32: $fatal(2, "FP diviiosn not here!") ;//res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
+            // UOP_fp_div32: $fatal(2, "FP diviiosn not here!") ;//res = $shortrealtobits($bitstoshortreal(args[0]) / $bitstoshortreal(args[1]));
             // UOP_fp_cmpeq32: res = ($bitstoshortreal(args[0]) == $bitstoshortreal(args[1]));
             // UOP_fp_cmpge32: res = ($bitstoshortreal(args[0]) >= $bitstoshortreal(args[1]));
             // UOP_fp_cmpgt32: res = ($bitstoshortreal(args[0]) > $bitstoshortreal(args[1]));

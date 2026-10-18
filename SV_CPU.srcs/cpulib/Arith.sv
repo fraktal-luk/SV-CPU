@@ -1244,14 +1244,14 @@ package Arith;
 	    		quo >>= 4;
 
 
-	    		$displayh("%p ; %p", quo, rem);
+	    		//$displayh("%p ; %p", quo, rem);
 
 	    		inter.mantissa = quo;
 	    	end
 
 	    	res = unconvPower(inter);
 
-	    		$displayh("Divided:  %p;  %p", inter, res);
+	    		//$displayh("Divided:  %p;  %p", inter, res);
 
 	    	return res;
 	    endfunction
@@ -1291,7 +1291,7 @@ package Arith;
 
 	    	interN = normalizeSubtracted(inter);
 				
-				$displayh("Normalized:  %p", interN);
+				//$displayh("Normalized:  %p", interN);
 
 	    	interC = interN;
 	    	interC.mantissa = shiftCompress30(interN.mantissa, 0);
