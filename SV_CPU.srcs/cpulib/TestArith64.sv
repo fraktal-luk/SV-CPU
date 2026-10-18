@@ -11,7 +11,7 @@ package TestArith64;
 	end
 
 	function automatic void run();
-			$display("Tt 64!");
+			//$display("Tt 64!");
 
 		testNext();
 
@@ -331,7 +331,7 @@ package TestArith64;
 				   y = '{0, 160, 'h0002000000000},
 				   z = '{0, 161, 0};
 
-				   	$display(" comparison");
+				   //	$display(" comparison");
 
 		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_LT, 1,  cmpFalse);
 		checkCmp(FP64_MINUS_ZERO, FP64_PLUS_ZERO, CMP_GT, 1,  cmpFalse);

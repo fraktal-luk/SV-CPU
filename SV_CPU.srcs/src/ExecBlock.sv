@@ -10,6 +10,7 @@ import ExecDefs::*;
 import Queues::*;
 
 import Arith::*;
+import Arith64::*;
 
 import ExecLogic::*;
 
@@ -292,10 +293,10 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    function automatic FpResult32 calcRegularFpOp(input UopId uid);
+    function automatic FpResult64 calcRegularFpOp(input UopId uid);
         Rounding rm = convertRM(AbstractCore.CurrentConfig.rm);
         Mword3 args = getAndVerifyArgs(uid);
-        FpResult32 result;  
+        FpResult64 result;  
 
         result = calcArithFp(decUname(uid), args, rm);  
         insMap.setActualResult(uid, result.value);
@@ -398,6 +399,64 @@ module ExecBlock(ref InstructionMap insMap,
 
         assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
+    endfunction
+
+
+
+
+
+    function automatic UopPacket performFP(input UopPacket p);        
+        UopPacket res = p;
+        FpResult64 fpRes;
+
+        if (p.uid == UID_NONE) return res;
+        
+        begin
+            fpRes = calcRegularFpOp(p.uid);
+            res.result = fpRes.value;
+
+            if (fpRes.exc.invalid) begin
+                res.status = ES_FP_INVALID;
+            end
+            
+            if (fpRes.exc.div0) begin
+                res.status = ES_FP_DIV0;
+            end
+
+            if (fpRes.exc.overflow) begin
+                res.status = ES_FP_OVERFLOW;
+            end
+
+            if (fpRes.exc.underflow) begin
+                res.status = ES_FP_UNDERFLOW;
+            end
+
+            if (fpRes.exc.inexact) begin
+                if (fpRes.exc.overflow)
+                    res.status = ES_FP_OV_INEXACT;
+                else if (fpRes.exc.underflow)
+                    res.status = ES_FP_UND_INEXACT;
+                else
+                    res.status = ES_FP_INEXACT;
+            end
+        end
+
+
+        // TODO: full set of exc including combined Inexact+Overflow, Inexact+Underflow
+        //       Priority: Inexact over Ov/Und
+
+        if (
+            fpRes.exc.invalid && AbstractCore.CurrentConfig.enTrapInv
+         || fpRes.exc.overflow && AbstractCore.CurrentConfig.enTrapOv
+         || fpRes.exc.inexact && AbstractCore.CurrentConfig.enTrapInex
+         || fpRes.exc.underflow && AbstractCore.CurrentConfig.enTrapUnd
+         || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
+            )
+        begin
+            insMap.setException(U2M(p.uid), PE_ARITH_EXCEPTION);
+        end
+        
+        return res;
     endfunction
 
 endmodule

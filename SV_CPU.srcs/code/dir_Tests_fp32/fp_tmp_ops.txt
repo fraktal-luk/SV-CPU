@@ -26,6 +26,11 @@ $start
 	cmpgef32 f21, f3, f3
 	cmpgtf32 f22, f16, f17
 
+	xor_f f10, f10, f10
+	xor_f f11, f11, f11
+	xor_f f12, f12, f12
+	or_f  f13, f12, f11
+
 $check
 	sys_dbcall
 $error

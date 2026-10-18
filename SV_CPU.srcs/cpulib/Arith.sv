@@ -427,6 +427,12 @@ package Arith;
 			end
 		end
 
+		// If reached infinity - ! this can happen in division, not subtraction
+		if (res.exp >= EXP_MAX_32) begin
+			res.exp = EXP_MAX_32;
+			res.mantissa = 'h80000000000000;
+		end
+
 		return res;
 	endfunction
 
@@ -480,28 +486,7 @@ package Arith;
     endfunction 
 
 
-    function automatic FpIntermediate multiplyInter(input FpIntermediate a, input FpIntermediate b);
-    	FpIntermediate res, aSh;
 
-    	Word expOut = a.exp + b.exp - 127; // 127 is the exp of 1.0
-
-    	// Shifted by 8 to align with high subword
-    	Dword product = (a.mantissa << 8) * b.mantissa;
-
-    	aSh = '{a.sign, a.subn, a.exp, a.mantissa << 8};
-
-    	res.sign = a.sign ^ b.sign;
-    	res.subn = 'x; // TODO
-    	res.exp = expOut;
-    	res.mantissa = product;
-
-	    /*	$display("Mult");
-	    	dispInter("a: ", aSh);
-	    	dispInter("b: ", b);
-	    	dispInter(" =", res);
-*/
-    	return res;
-    endfunction
 
 
     // TODO: this doesn't distinguish zero of undefined sign form zero of defined sign (problem when rounding X - X vs +0 + +0 or -0 + -0)
@@ -1018,9 +1003,321 @@ package Arith;
 
 
 
-    function automatic FpResult32 floatAdd32(input Word arg0, input Word arg1, input Rounding rd);
+    // function automatic FpResult32 floatAdd32(input Word arg0, input Word arg1, input Rounding rd);
 
+    // endfunction
+
+
+
+
+    function automatic FpIntermediate multiplyInter(input FpIntermediate a, input FpIntermediate b);
+    	FpIntermediate res, aSh;
+
+    	Word expOut = a.exp + b.exp - 127; // 127 is the exp of 1.0
+
+    	// Shifted by 8 to align with high subword
+    	Dword product = (a.mantissa >> 32) * (b.mantissa >> 32);
+    	Dword productSh = product << (32+23-46);
+
+    	aSh = '{a.sign, a.subn, a.exp, a.mantissa << 8};
+
+    	res.sign = a.sign ^ b.sign;
+    	res.subn = !productSh[32+23]; // TODO
+    	res.exp = expOut;
+    	res.mantissa = productSh;
+
+	    /*	$display("Mult");
+	    	dispInter("a: ", aSh);
+	    	dispInter("b: ", b);
+	    	dispInter(" =", res);
+*/
+			//$displayh(" %p\n*%p\n=%p\n", a, b, res);
+
+
+    	return res;
     endfunction
 
+
+
+
+		// else if (a.mantissa[32 + 24] === 1) begin
+		// 	res.subn = 0;
+		// 	res.exp = a.exp + 1;
+		// 	res.mantissa = a.mantissa >> 1;
+		// 	// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
+		// 	if (res.mantissa[30:29] != 0) res.mantissa[30:29] = 'h2;  
+		// end
+
+		function automatic FpIntermediate normalizeMultiplied(input FpIntermediate a);
+			FpIntermediate res;
+			
+			res.sign = a.sign;
+			res.subn = a.subn;
+
+			if ($signed(a.exp) < 1) begin
+				int sh = 1 - $signed(a.exp);
+									//$display("  exp = %h < 1", a.exp);
+
+				res.exp = 1;
+				res.mantissa = //a.mantissa >> sh;
+								shiftCompress30(a.mantissa, sh);
+				if (res.mantissa[32+23] == 0)
+					res.subn = 1;
+			end
+			else begin
+				res.exp = a.exp;
+				res.mantissa = a.mantissa;
+				//res.subn = 0;
+			end
+
+
+				if (a.mantissa[32 + 24] === 1) begin
+					res.subn = 0;
+					res.exp = a.exp + 1;
+					res.mantissa = a.mantissa >> 1;
+					// Now the bits [-1:-2] have shifted to [-2:-3], we must refill bit [-2] considering [-3]
+					if (res.mantissa[30:29] != 0) res.mantissa[30:29] = 'h2;  
+				end
+
+
+
+			// If reached infinity
+			if (res.exp >= EXP_MAX_32) begin
+				res.exp = EXP_MAX_32;
+				res.mantissa = 'h80000000000000;
+			end
+
+			return res;
+		endfunction
+
+
+	    function automatic FpResult32 TMP_mulF32(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
+	    	//FpFormat32 arg0, arg1;
+	    	logic sign = a.sign ^ b.sign;
+
+	    		//$displayh(" %p * %p ;  sign %p", a , b, sign);
+
+
+	    	if (isNaN(a) || isNaN(b))
+	    		return handleNanArgs(a, b);
+
+		   	if (isInfinity(a)) begin
+		   		if (isZero(b)) return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{sign, EXP_MAX_32, 0}};
+		   	end
+
+		   	if (isInfinity(b)) begin
+		   		if (isZero(a)) return '{'{invalid: 1, default: 0}, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{sign, EXP_MAX_32, 0}};
+		   	end
+
+		   	return mulRegularF32(a, b, rm);
+
+	    endfunction
+
+
+	    function automatic FpResult32 mulRegularF32(input FpFormat32 arg0, input FpFormat32 arg1, input Rounding rm);
+	   		FpFormat32 res;
+	   		logic inexact = 0, overflow = 0, underflow = 0;
+	   		FpIntermediate inter, interN, interC, interRounded;
+			FpIntermediate interA = convToIntermediate(arg0);
+			FpIntermediate interB = convToIntermediate(arg1);
+
+	//    		if (arg0.sign != arg1.sign) inter = TMP_subMag(arg0, arg1);
+    		inter = multiplyInter(interA, interB);
+
+    		interN = normalizeMultiplied(inter);
+
+    		interC = interN;
+    		interC.mantissa = shiftCompress30(interC.mantissa, 0);
+
+	   		if (interC.mantissa[31:0] != 0) inexact = 1;
+	   		else inexact = 0;
+
+    		interRounded = roundInter(interC, rm);
+
+    			//$displayh("interN: %p\ninterR: %p\n", interN, interRounded);
+
+	   		if (interRounded.exp >= EXP_MAX_32) overflow = 1;
+	   		else overflow = 0;
+
+	   		underflow = (interN.mantissa != 0 && interRounded.mantissa == 0); // underflow is when nonzero rounded to 0
+
+	   		if (overflow || underflow) inexact = 1;
+
+    		res = fromIntermediate(interRounded);
+
+	//    			/*$displayh("... %p\n... %p", inter, interRounded);
+	// 			$display(" %8X\n+%08X\n=%08X", arg0, arg1, res);
+	// 			$display("--------------------------");
+	// */
+    		return '{'{inexact: inexact, overflow: overflow, underflow: underflow, default: 0}, res};
+	    endfunction
+
+
+
+
+
+	    function automatic int highBitPos(input Dword x);
+			int log = $clog2(x);
+			if (x[log] === 0) log--;
+			return log;
+		endfunction
+
+
+
+	    function automatic FpIntermediate convPower(input FpIntermediate x);
+	    	FpIntermediate res = x;
+	    	int highBit, shift;
+
+	    	if (!x.subn) return res;
+
+	    	highBit = highBitPos(x.mantissa);
+	    	// We want high bit at [32+23]
+	    	shift = (32+23) - highBit;
+
+	    	res.mantissa <<= shift;
+	    	res.exp = 1 - shift;
+	    	res.subn = 0;
+
+	    	return res;
+	    endfunction 
+
+
+	    function automatic FpIntermediate unconvPower(input FpIntermediate x);
+	    	FpIntermediate res = x;
+	    	int shift;
+
+	    	if ($signed(res.exp) > 0) return res;
+
+	    	shift = 1-res.exp;
+
+	    	res.mantissa >>= shift;
+	    	res.exp = 1;
+	    	res.subn = 1;
+
+	    	return res;
+	    endfunction 
+
+
+
+	    function automatic FpIntermediate divInternal(input FpIntermediate a, input FpIntermediate b, input Rounding rm);
+	    	FpIntermediate arg0 = convPower(a);
+	    	FpIntermediate arg1 = convPower(b);
+
+	    	FpIntermediate res, inter;
+
+	    	inter.sign = arg0.sign ^ arg1.sign;
+	    	inter.subn = 0;
+	    	inter.exp = arg0.exp - arg1.exp + 127;
+	    		inter.mantissa   = arg0.mantissa;
+
+
+	    		// TODO: if rem remains > 0, it means there may be 1's further, outside the precision.
+	    		//		In infinite precision they would be delivered, so we must detect them and set 'permanent' bit of quo to mark it! 
+
+	    	begin
+	    		Dword quo = 0;
+	    		Dword rem = arg0.mantissa;
+	    		Dword divisor = arg1.mantissa;
+
+	    		for (int i = 0; i <= 23 + 3; i++) begin
+
+	    			if (rem >= divisor) begin
+	    				rem -= divisor;
+	    				quo[32] = 1;
+	    			end
+	    			else begin
+	    				
+	    			end
+
+	    			divisor >>= 1;
+
+	    			quo <<= 1;
+	    		end
+
+	    		// TODO: now add another bit to quo if rem > 0
+	    		// ....
+	    		if (rem !== 0)
+	    			quo[32] = 1;
+
+	    		quo >>= 4;
+
+
+	    		//$displayh("%p ; %p", quo, rem);
+
+	    		inter.mantissa = quo;
+	    	end
+
+	    	res = unconvPower(inter);
+
+	    		//$displayh("Divided:  %p;  %p", inter, res);
+
+	    	return res;
+	    endfunction
+
+
+	    function automatic FpResult32 TMP_div(input FpFormat32 a, input FpFormat32 b, input Rounding rm);
+	    	FpFormat32 res;
+	    	FpIntermediate argA, argB, inter, interN, interC, interR;
+	    	logic inexact, underflow, overflow;
+
+	    	if (isNaN(a) || isNaN(b))
+	    		return handleNanArgs(a, b);
+
+		   	if (isInfinity(a)) begin
+		   		if (isInfinity(b)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{a.sign^b.sign, EXP_MAX_32, 0}};
+		   	end
+		   	else if (isInfinity(b)) begin
+		   		return '{NO_EXCEPTION, '{a.sign^b.sign, 0, 0}};
+		   	end
+
+		   	if (isZero(a)) begin
+		   		if (isZero(b)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		else return '{NO_EXCEPTION, '{a.sign^b.sign, 0, 0}};
+		   	end
+		   	else if (isZero(b)) begin
+		   		if (isInfinity(a)) return '{NO_EXCEPTION, '{a.sign^b.sign, EXP_MAX_32, 0}}; // Already handled in infinity check  
+		   		//else if (isZero(a)) return '{EXC_INVALID, FP32_CANONICAL_QNAN};
+		   		else return '{EXC_DIV0, '{a.sign^b.sign, EXP_MAX_32, 0}};
+		   	end
+
+	    	argA = convToIntermediate(a);
+	    	argB = convToIntermediate(b);
+
+	    	inter = divInternal(argA, argB, rm);
+
+
+	    	interN = normalizeSubtracted(inter);
+				
+				//$displayh("Normalized:  %p", interN);
+
+	    	interC = interN;
+	    	interC.mantissa = shiftCompress30(interN.mantissa, 0);
+
+
+	    	if (interC.mantissa[31:0] !== 0) inexact = 1;
+	    	else inexact = 0;
+
+	    	interR = roundInter(interC, rm);
+
+
+	    	if (interR.exp >= EXP_MAX_32) overflow = 1;
+	    	else overflow = 0;
+
+
+	    	if (interR.mantissa[63:32] === 0) underflow = 1;
+	    	else underflow = 0;
+
+
+
+
+	    	inexact |= (underflow || overflow);
+
+	    	res = fromIntermediate(interR);
+
+	    	return '{'{inexact: inexact, underflow: underflow, overflow: overflow, default: 0}, res};
+	    endfunction
 
 endpackage

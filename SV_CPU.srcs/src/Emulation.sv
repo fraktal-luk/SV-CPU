@@ -7,6 +7,7 @@ package Emulation;
     import EmulationDefs::*;
     import EmulationMemories::*;
     import Arith::*;
+    import Arith64::*;
     
 
     class Emulator;
@@ -134,7 +135,7 @@ package Emulation;
 
             if (!(isBranchIns(ins) || isMemIns(ins) || isSysIns(ins) || isLoadSysIns(ins))) begin
                 if (isFloatCalcIns(ins)) begin
-                    FpResult32 fpRes = calculateResultFP(ins, args, adr, rmode);
+                    FpResult64 fpRes = calculateResultFP(ins, args, adr, rmode);
                     return fpRes.value;
                 end
                 else
@@ -390,7 +391,7 @@ package Emulation;
         local function automatic void performCalculation(input Mword adr, input AbstractInstruction ins, input Mword3 vals, input logic[1:0] rm);
             Mword result;
             if (isFloatCalcIns(ins)) begin
-                FpResult32 fpRes = calculateResultFP(ins, vals, adr, rm);
+                FpResult64 fpRes = calculateResultFP(ins, vals, adr, rm);
                 result = fpRes.value;
                 if (catchArithException(ins, vals, result, fpRes)) return;
             end
@@ -402,7 +403,7 @@ package Emulation;
         endfunction
 
         
-        function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result, input FpResult32 fpResult);
+        function logic catchArithException(input AbstractInstruction ins, input Mword3 vals, input Mword result, input FpResult64 fpResult);
             logic fpInv = 0;
             logic fpDiv0 = 0;
             logic fpOv = 0;
