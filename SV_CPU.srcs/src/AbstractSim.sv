@@ -327,18 +327,39 @@ package AbstractSim;
             else return index + 1;
         endfunction
 
+        function automatic Mbyte TMP_predEncode(input BranchGroup bg);
+            int found[$]; 
+
+            logic arr[FETCH_WIDTH] = {>>{bg}};
+
+            found = arr.find_index with (item === '1);
+            if (found.size() > 0) begin
+                if (found[0] >= 3) return 3;
+                else return found[0] + 1;
+            end
+
+            found = arr.find_index with (item === '0);
+            if (found.size() > 0) return 0;
+
+            return 'z;
+        endfunction
+
         function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last, input logic[FETCH_WIDTH] lastFull);
             TMP_PredState res = prev;
-            logic[FETCH_WIDTH] xGroup = '{default: 'x};
+            //logic[FETCH_WIDTH] xGroup = '{default: 'x};
+
+                assert (TMP_predEncode(lastFull)[1:0] === last) else $error("endcoded fiffered: %p, %p", TMP_predEncode(lastFull), last);
 
             if (res.recentHist[1] !== 'z) begin
+                    assert (res.recentFull[1] !== '{default: 'z}) else $error(" Mismatched?  %p, %p", res.recentHist[1], res.recentFull[1]);
+
                 res.sct++;
                 res.strHist = {res.recentHist[1], res.strHist[0:14]};
-                    res.histFull = {xGroup, res.histFull[0:14]};
+                    res.histFull = {res.recentFull[1], res.histFull[0:14]};
             end
 
             res.recentHist = {last, res.recentHist[0]};
-                res.recentFull = {'{default: 'x}, res.recentFull[0]};
+                res.recentFull = {lastFull, res.recentFull[0]};
 
             return res;
         endfunction

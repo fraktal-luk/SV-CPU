@@ -241,6 +241,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (stageFetch1.active) begin
                 logic[1:0] predX = TMP_predictionFromArr(newStageF2);
                 logic[FETCH_WIDTH] predFull = TMP_getFullPrediction(newStageF2);//'{default: 'z}; // TODO: generate
+                    logic[1:0] predEncoded = TMP_predEncode(predFull);
+                        logic predUnp[FETCH_WIDTH] = {<<{predFull}};
+
+                            //predFull[0] = 'x;
+
+                     predUnp = {>>{predFull}};
+
+                    assert (predEncoded === predX) else $error("  %p  vs  %p <= %p ", predX, predEncoded, predUnp);
 
                 assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
 
