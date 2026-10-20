@@ -681,7 +681,7 @@ module AbstractCore
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePred(committedPredState, 'z, '{default: 'z});
+                committedPredState = updatePred(committedPredState, '{default: 'z});
             end
         end
 
@@ -689,7 +689,7 @@ module AbstractCore
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
             assert (
-                    bce.predState.sct === committedPredStatePrev.sct
+                    bce.predState.len === committedPredStatePrev.len
                 &&  bce.predState.strHist === committedPredStatePrev.strHist
                 &&  bce.predState.recentHist === committedPredStatePrev.recentHist
                     )
@@ -697,12 +697,7 @@ module AbstractCore
 
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
-                logic[FETCH_WIDTH] updatedBranchSig = '{default: 'z};
-
-                if (insInfo.takenBranch)
-                    committedPredState = replacePred(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}), bg);
-                else
-                    committedPredState = replacePred(committedPredState, 0, bg);
+                committedPredState = replacePred(committedPredState, bg);
             end
         end
 
