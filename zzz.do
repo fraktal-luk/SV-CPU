@@ -84,3 +84,10 @@ sim:/ArchDesc0/core/theExecBlock/allByStageVec
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theExecBlock/floatImages \
 sim:/ArchDesc0/core/theExecBlock/floatImagesTr
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/committedPredState \
+sim:/ArchDesc0/core/committedPredStatePrev
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/predState \
+sim:/ArchDesc0/core/theFrontend/predStateF2

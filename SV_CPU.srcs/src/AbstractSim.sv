@@ -296,9 +296,12 @@ package AbstractSim;
                 integer sct;
                 logic[1:0] strHist[16];
                 logic[1:0] recentHist[2];
+
+                logic[FETCH_WIDTH] histFull[16];
+                logic[FETCH_WIDTH] recentFull[2];
             } TMP_PredState;
 
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}}; 
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}, '{default: '{default: 'x}}, '{default: '{default: 'x}}}; 
 
 
         typedef struct {
@@ -309,9 +312,10 @@ package AbstractSim;
             Dword padr;
             OpSlotAF arr;
             TMP_PredState predState;
+            logic[FETCH_WIDTH] ownPred;
         } FrontStage;
 
-        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE};
+        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE, '{default: 'z}};
 
 
         function automatic Mbyte TMP_bpEncode(input int index);
@@ -320,15 +324,18 @@ package AbstractSim;
             else return index + 1;
         endfunction
 
-        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last);
+        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[1:0] last, input logic[FETCH_WIDTH] lastFull);
             TMP_PredState res = prev;
+            logic[FETCH_WIDTH] xGroup = '{default: 'x};
 
             if (res.recentHist[1] !== 'z) begin
                 res.sct++;
                 res.strHist = {res.recentHist[1], res.strHist[0:14]};
+                    res.histFull = {xGroup, res.histFull[0:14]};
             end
 
             res.recentHist = {last, res.recentHist[0]};
+                res.recentFull = {'{default: 'x}, res.recentFull[0]};
 
             return res;
         endfunction
@@ -336,6 +343,7 @@ package AbstractSim;
         function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
             TMP_PredState res = prev;
             res.recentHist[0] = last;
+                res.recentFull[0] = '{default: 'x};
             return res;
         endfunction
 
@@ -343,6 +351,22 @@ package AbstractSim;
             // TODO: generate prediction (use VADR too)
             return 'z;
         endfunction
+
+
+        typedef logic[FETCH_WIDTH] BranchGroup;
+
+        function automatic BranchGroup TMP_updateBranchSig(input logic[FETCH_WIDTH] baseSig, input int slot, input logic dir);
+            BranchGroup res = baseSig;
+
+            res[slot] = dir;
+
+            foreach (res[i]) begin
+                if (i > slot) res[i] = 'z;
+            end
+
+            return res;
+        endfunction
+
 
         function automatic logic anyActiveB(input OpSlotAB s);
             foreach (s[i]) if (s[i].active) return 1;
@@ -358,8 +382,8 @@ package AbstractSim;
                     input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
-                    input int branchInd,
-                    input Emulator em, input TMP_PredState predState);
+                    input int branchInd, input int slotInd,
+                    input Emulator em, input TMP_PredState predState, input logic[FETCH_WIDTH] ownPred);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
@@ -368,9 +392,11 @@ package AbstractSim;
             this.inds = indexSet;
             this.markers = markerSet;
             this.branchInd = branchInd;
+            this.slotInd = slotInd;
             this.emul = em.copyCore();
             this.emul.dataMem = new em.dataMem;
             this.predState = predState;
+            this.ownPred = ownPred;
         endfunction
 
         InsId id;
@@ -380,9 +406,11 @@ package AbstractSim;
         int floatMapR[32];
         IndexSet inds;
         int branchInd; // branch index within block (from 0)
+        int slotInd;
         MarkerSet markers;
         Emulator emul;
         TMP_PredState predState;
+        logic[FETCH_WIDTH] ownPred;
         logic predDir;
     endclass
 
