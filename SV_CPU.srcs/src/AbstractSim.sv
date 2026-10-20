@@ -304,6 +304,9 @@ package AbstractSim;
             localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 0}, '{default: 'z}, '{default: '{default: 'x}}, '{default: '{default: 'x}}}; 
 
 
+        typedef logic[FETCH_WIDTH] BranchGroup;
+
+
         typedef struct {
             logic active;
             CacheReadStatus status;
@@ -340,10 +343,10 @@ package AbstractSim;
             return res;
         endfunction
 
-        function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last);
+        function automatic TMP_PredState replacePred(input TMP_PredState prev, input logic[1:0] last, input BranchGroup bg);
             TMP_PredState res = prev;
             res.recentHist[0] = last;
-                res.recentFull[0] = '{default: 'x};
+                res.recentFull[0] = bg;
             return res;
         endfunction
 
@@ -353,7 +356,6 @@ package AbstractSim;
         endfunction
 
 
-        typedef logic[FETCH_WIDTH] BranchGroup;
 
         function automatic BranchGroup TMP_updateBranchSig(input logic[FETCH_WIDTH] baseSig, input int slot, input logic dir);
             BranchGroup res = baseSig;

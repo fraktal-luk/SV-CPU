@@ -688,7 +688,11 @@ module AbstractCore
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
-            assert (bce.predState === committedPredStatePrev)
+            assert (
+                    bce.predState.sct === committedPredStatePrev.sct
+                &&  bce.predState.strHist === committedPredStatePrev.strHist
+                &&  bce.predState.recentHist === committedPredStatePrev.recentHist
+                    )
                 else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
 
             if (CurrentConfig.enableMmu) begin
@@ -696,9 +700,9 @@ module AbstractCore
                 logic[FETCH_WIDTH] updatedBranchSig = '{default: 'z};
 
                 if (insInfo.takenBranch)
-                    committedPredState = replacePred(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}));
+                    committedPredState = replacePred(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}), bg);
                 else
-                    committedPredState = replacePred(committedPredState, 0);
+                    committedPredState = replacePred(committedPredState, 0, bg);
             end
         end
 

@@ -135,6 +135,18 @@ package FrontendHelpers;
     endfunction
 
 
+    function automatic BranchGroup TMP_getFullPrediction(input FrontStage fs);
+        BranchGroup res = '{default: 'z};
+
+        foreach (fs.arr[i]) begin
+            if (fs.arr[i].branch) res[i] = 0;
+            if (fs.arr[i].takenBranch) res[i] = 1;
+        end
+
+        return res;
+    endfunction
+
+
 
     function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);
         FrontStage res = DEFAULT_FRONT_STAGE;
