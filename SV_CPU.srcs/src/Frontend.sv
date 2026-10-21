@@ -82,7 +82,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         FrontStage stageIP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE, stageFetch2 = DEFAULT_FRONT_STAGE;
 
-        TMP_PredState predState = DEFAULT_PRED_STATE, predStateF2 = DEFAULT_PRED_STATE;
+        TMP_PredState predStateF0 = DEFAULT_PRED_STATE, // Generated from IP stage
+                      predStateF2 = DEFAULT_PRED_STATE; // Generated from F1 stage
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
 
@@ -112,10 +113,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedRedirectLate();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
-            stageIP <= makeStage_IP(lateEventInfo.target, 1);
+            stageIP <= makeStage_IP(lateEventInfo.target);
 
             // @pred: restore from late
-            predState <= AbstractCore.committedPredState;
+            predStateF0 <= AbstractCore.committedPredState;
             predStateF2 <= AbstractCore.committedPredState;
 
             expectedTargetF2 <= lateEventInfo.target;
@@ -124,14 +125,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedRedirectBranch();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
-            stageIP <= makeStage_IP(branchEventInfo.target, 1);
+            stageIP <= makeStage_IP(branchEventInfo.target);
 
             // @pred: restore from branch
             begin
                 BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
                 BranchCheckpoint causingCP = foundCP[0];
                 BranchGroup bg = TMP_updateBranchSig(causingCP.ownPred, causingCP.slotInd, branchEventInfo.dir);
-                predState <= updatePred(causingCP.predState, bg);
+                predStateF0 <= updatePred(causingCP.predState, bg);
                 predStateF2 <= updatePred(causingCP.predState, bg);  //  As well
             end
 
@@ -142,10 +143,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedRedirectFront();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
-            stageIP <= makeStage_IP(expectedTargetF2, 1);
+            stageIP <= makeStage_IP(expectedTargetF2);
 
             // @pred: restore from front
-            predState <= predStateF2;
+            predStateF0 <= predStateF2;
         endtask
 
         task automatic cachedWaitCtrl();
@@ -183,13 +184,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                         cachedRedirectFront();
                     else if (fetchAllowCa && stageIP.active) begin // Normal flow
                         Mword nextTrg = fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4; // @pred use
-                        stageIP <= makeStage_IP(nextTrg, 1);
+                        stageIP <= makeStage_IP(nextTrg);
 
                         // @pred update
-                        predState <= updatePred(predState, '{default: 'z});
+                        predStateF0 <= updatePred(predStateF0, '{default: 'z});
 
                         stageFetch0 <= stageIP;
-                        stageFetch0.predState <= predState;
+                        stageFetch0.predState <= predStateF0;
                         stageFetch0.ownPred = '{default: 'z};
                         cachedMoveStagesToF2();
                     end

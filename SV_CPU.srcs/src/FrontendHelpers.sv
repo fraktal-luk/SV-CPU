@@ -50,14 +50,14 @@ package FrontendHelpers;
     endfunction
 
 
-    function automatic FrontStage makeStage_IP(input Mword target, input logic on);
+    function automatic FrontStage makeStage_IP(input Mword target);
         FrontStage res = DEFAULT_FRONT_STAGE;
         Mword baseAdr = fetchLineBase(target);
         logic already = 0;
         Mword targetFloor = target;
         targetFloor[1:0] = 0;
 
-        res.active = on;
+        res.active = 1;
         res.status = CR_HIT;
         res.vadr = target;
 

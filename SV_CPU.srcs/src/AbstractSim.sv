@@ -349,6 +349,34 @@ package AbstractSim;
         function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull);
             TMP_PredState res = prev;
             logic[1:0] last = TMP_predEncode(lastFull);
+            logic[1:0] recent1 = TMP_predEncode(prev.recentFull[1]);
+
+                assert (prev.recentHist[1] === recent1) else $error("huhuhh %p  %p", prev.recentHist[1], recent1);
+
+            res.count++;
+
+            if (res.recentHist[1] !== 'z) begin
+                assert (res.recentFull[1] !== '{default: 'z}) else $error(" Mismatched?  %p, %p", res.recentHist[1], res.recentFull[1]);
+
+                res.len++;
+                
+                res.strHist = {res.recentHist[1], res.strHist[0:14]};
+                res.histFull = {res.recentFull[1], res.histFull[0:14]};
+            end
+
+            res.recentHist = {last, res.recentHist[0]};
+            res.recentFull = {lastFull, res.recentFull[0]};
+
+            return res;
+        endfunction
+
+
+        function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull);
+            TMP_PredState res = prev;
+            logic[1:0] last = TMP_predEncode(lastFull);
+            logic[1:0] recent1 = TMP_predEncode(prev.recentFull[1]);
+
+                assert (prev.recentHist[1] === recent1) else $error("huhuhh %p  %p", prev.recentHist[1], recent1);
 
             res.count++;
 
@@ -368,6 +396,15 @@ package AbstractSim;
         endfunction
 
         function automatic TMP_PredState replacePred(input TMP_PredState prev, input BranchGroup bg);
+            logic[1:0] last = TMP_predEncode(bg);
+            TMP_PredState res = prev;
+            res.recentHist[0] = last;
+            res.recentFull[0] = bg;
+            return res;
+        endfunction
+
+
+        function automatic TMP_PredState replacePredFirst(input TMP_PredState prev, input BranchGroup bg);
             logic[1:0] last = TMP_predEncode(bg);
             TMP_PredState res = prev;
             res.recentHist[0] = last;

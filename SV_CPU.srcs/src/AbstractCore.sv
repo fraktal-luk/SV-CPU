@@ -80,6 +80,7 @@ module AbstractCore
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
     TMP_PredState committedPredState = DEFAULT_PRED_STATE, committedPredStatePrev = DEFAULT_PRED_STATE;
+    logic latestPredPresent = 0;
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
@@ -680,8 +681,9 @@ module AbstractCore
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
+                latestPredPresent = 0;
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePred(committedPredState, '{default: 'z});
+                committedPredState = updatePredCommit(committedPredState, '{default: 'z});
             end
         end
 
@@ -690,6 +692,8 @@ module AbstractCore
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
             assert (
                     bce.predState.len === committedPredStatePrev.len
+                &&  bce.predState.count === committedPredStatePrev.count
+                //&&  bce.predState.histFull === committedPredStatePrev.histFull
                 &&  bce.predState.strHist === committedPredStatePrev.strHist
                 &&  bce.predState.recentHist === committedPredStatePrev.recentHist
                     )
@@ -697,7 +701,11 @@ module AbstractCore
 
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
-                committedPredState = replacePred(committedPredState, bg);
+
+                if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg); // push into hist (inc lenAll)
+                else                    committedPredState = replacePred(committedPredState, bg); //replace [0] in hist (not inc lenAll)
+
+                latestPredPresent = 1;
             end
         end
 
