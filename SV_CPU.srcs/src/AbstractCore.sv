@@ -691,15 +691,10 @@ module AbstractCore
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
             assert (
-                    bce.predState.len === committedPredStatePrev.len
-                &&  bce.predState.count === committedPredStatePrev.count
-                //&&  bce.predState.histFull === committedPredStatePrev.histFull
-
-                &&  bce.predState.lenAll === committedPredStatePrev.lenAll
-                &&  bce.predState.strHistAll === committedPredStatePrev.strHistAll
-
-                &&  bce.predState.strHist === committedPredStatePrev.strHist
-                &&  bce.predState.recentHist === committedPredStatePrev.recentHist
+                     bce.predState.count === committedPredStatePrev.count
+                &&  bce.predState.len === committedPredStatePrev.len
+                &&  bce.predState.histCoded === committedPredStatePrev.histCoded
+                &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
                     )
                 else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
 

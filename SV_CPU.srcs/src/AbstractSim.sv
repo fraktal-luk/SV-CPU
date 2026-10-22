@@ -292,24 +292,15 @@ package AbstractSim;
         localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
-            typedef struct {
-                integer count; // keeps how many times was updated
-                integer len; // keeps how many times nonempty prediction transferred from recent to main hist
+        typedef struct {
+            integer count; // keeps how many times was updated
+            logic[1:0] recentCoded[2];
+            integer len;
+            logic[1:0] histCoded[16];
+            logic[FETCH_WIDTH] histFull[16];
+        } TMP_PredState;
 
-                logic[1:0] recentHist[2];
-                logic[1:0] strHist[16];
-
-                logic[FETCH_WIDTH] recentFull[2];
-                logic[FETCH_WIDTH] histFull[16];
-
-                integer lenAll;
-                logic[1:0] strHistAll[16];
-                logic[FETCH_WIDTH] histFullAll[16];
-            } TMP_PredState;
-
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, -1, '{default: 'z}, '{default: 0}, '{default: '{default: 'x}}, '{default: '{default: 'x}},
-                                                                -1, '{default: 0}, '{default: '{default: 'x}}}; 
-
+        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 'z}, -1, '{default: 0}, '{default: '{default: 'x}}}; 
 
         typedef logic[FETCH_WIDTH] BranchGroup;
 
@@ -351,36 +342,20 @@ package AbstractSim;
             return 'z;
         endfunction
 
+
         function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull);
             TMP_PredState res = prev;
             logic[1:0] last = TMP_predEncode(lastFull);
-            logic[1:0] recent1 = TMP_predEncode(prev.recentFull[1]);
-
-                assert (prev.recentHist[1] === recent1) else $error("huhuhh %p  %p", prev.recentHist[1], recent1);
 
             res.count++;
 
-            if (res.recentHist[1] !== 'z) begin
-                assert (res.recentFull[1] !== '{default: 'z}) else $error(" Mismatched?  %p, %p", res.recentHist[1], res.recentFull[1]);
+            res.recentCoded = {last, res.recentCoded[0]};
 
-                res.len++;
-                
-                res.strHist = {res.recentHist[1], res.strHist[0:14]};
-                res.histFull = {res.recentFull[1], res.histFull[0:14]};
+            if (last !== 'z) begin
+               res.len++;
+                res.histCoded = {last, res.histCoded[0:14]};
+                res.histFull = {lastFull, res.histFull[0:14]};
             end
-
-            res.recentHist = {last, res.recentHist[0]};
-            res.recentFull = {lastFull, res.recentFull[0]};
-
-
-            begin
-                if (last !== 'z) begin
-                   res.lenAll++;
-                    res.strHistAll = {last, res.strHistAll[0:14]};
-                    res.histFullAll = {lastFull, res.histFullAll[0:14]};
-                end
-            end
-
 
             return res;
         endfunction
@@ -389,23 +364,9 @@ package AbstractSim;
         function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull);
             TMP_PredState res = prev;
             logic[1:0] last = TMP_predEncode(lastFull);
-            logic[1:0] recent1 = TMP_predEncode(prev.recentFull[1]);
-
-                assert (prev.recentHist[1] === recent1) else $error("huhuhh %p  %p", prev.recentHist[1], recent1);
 
             res.count++;
-
-            if (res.recentHist[1] !== 'z) begin
-                assert (res.recentFull[1] !== '{default: 'z}) else $error(" Mismatched?  %p, %p", res.recentHist[1], res.recentFull[1]);
-
-                res.len++;
-                
-                res.strHist = {res.recentHist[1], res.strHist[0:14]};
-                res.histFull = {res.recentFull[1], res.histFull[0:14]};
-            end
-
-            res.recentHist = {last, res.recentHist[0]};
-            res.recentFull = {lastFull, res.recentFull[0]};
+            res.recentCoded = {last, res.recentCoded[0]};
 
             return res;
         endfunction
@@ -413,16 +374,11 @@ package AbstractSim;
         function automatic TMP_PredState replacePred(input TMP_PredState prev, input BranchGroup bg);
             logic[1:0] last = TMP_predEncode(bg);
             TMP_PredState res = prev;
-            res.recentHist[0] = last;
-            res.recentFull[0] = bg;
+            res.recentCoded[0] = last;
 
-
-            begin
-                if (last !== 'z) begin
-                   //res.lenAll++;
-                    res.strHistAll[0] = last;//, res.strHistAll[0:14]};
-                    res.histFullAll[0] = bg;//, res.histFullAll[0:14]};
-                end
+            if (last !== 'z) begin
+                res.histCoded[0] = last;
+                res.histFull[0] = bg;
             end
 
             return res;
@@ -432,18 +388,13 @@ package AbstractSim;
         function automatic TMP_PredState replacePredFirst(input TMP_PredState prev, input BranchGroup bg);
             logic[1:0] last = TMP_predEncode(bg);
             TMP_PredState res = prev;
-            res.recentHist[0] = last;
-            res.recentFull[0] = bg;
+            res.recentCoded[0] = last;
 
-
-            begin
-                if (last !== 'z) begin
-                   res.lenAll++;
-                    res.strHistAll = {last, res.strHistAll[0:14]};
-                    res.histFullAll = {bg, res.histFullAll[0:14]};
-                end
+            if (last !== 'z) begin
+               res.len++;
+                res.histCoded = {last, res.histCoded[0:14]};
+                res.histFull = {bg, res.histFull[0:14]};
             end
-
 
             return res;
         endfunction
