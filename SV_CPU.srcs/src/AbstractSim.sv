@@ -301,9 +301,14 @@ package AbstractSim;
 
                 logic[FETCH_WIDTH] recentFull[2];
                 logic[FETCH_WIDTH] histFull[16];
+
+                integer lenAll;
+                logic[1:0] strHistAll[16];
+                logic[FETCH_WIDTH] histFullAll[16];
             } TMP_PredState;
 
-            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, -1, '{default: 'z}, '{default: 0}, '{default: '{default: 'x}}, '{default: '{default: 'x}}}; 
+            localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, -1, '{default: 'z}, '{default: 0}, '{default: '{default: 'x}}, '{default: '{default: 'x}},
+                                                                -1, '{default: 0}, '{default: '{default: 'x}}}; 
 
 
         typedef logic[FETCH_WIDTH] BranchGroup;
@@ -367,6 +372,16 @@ package AbstractSim;
             res.recentHist = {last, res.recentHist[0]};
             res.recentFull = {lastFull, res.recentFull[0]};
 
+
+            begin
+                if (last !== 'z) begin
+                   res.lenAll++;
+                    res.strHistAll = {last, res.strHistAll[0:14]};
+                    res.histFullAll = {lastFull, res.histFullAll[0:14]};
+                end
+            end
+
+
             return res;
         endfunction
 
@@ -400,6 +415,16 @@ package AbstractSim;
             TMP_PredState res = prev;
             res.recentHist[0] = last;
             res.recentFull[0] = bg;
+
+
+            begin
+                if (last !== 'z) begin
+                   //res.lenAll++;
+                    res.strHistAll[0] = last;//, res.strHistAll[0:14]};
+                    res.histFullAll[0] = bg;//, res.histFullAll[0:14]};
+                end
+            end
+
             return res;
         endfunction
 
@@ -409,6 +434,17 @@ package AbstractSim;
             TMP_PredState res = prev;
             res.recentHist[0] = last;
             res.recentFull[0] = bg;
+
+
+            begin
+                if (last !== 'z) begin
+                   res.lenAll++;
+                    res.strHistAll = {last, res.strHistAll[0:14]};
+                    res.histFullAll = {bg, res.histFullAll[0:14]};
+                end
+            end
+
+
             return res;
         endfunction
 

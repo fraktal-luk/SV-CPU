@@ -683,7 +683,7 @@ module AbstractCore
             if (insInfo.firstInGroup) begin
                 latestPredPresent = 0;
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePredCommit(committedPredState, '{default: 'z});
+                committedPredState = updatePredCommit(committedPredState, '{default: 'z}); // don't inc lenAll
             end
         end
 
@@ -694,6 +694,10 @@ module AbstractCore
                     bce.predState.len === committedPredStatePrev.len
                 &&  bce.predState.count === committedPredStatePrev.count
                 //&&  bce.predState.histFull === committedPredStatePrev.histFull
+
+                &&  bce.predState.lenAll === committedPredStatePrev.lenAll
+                &&  bce.predState.strHistAll === committedPredStatePrev.strHistAll
+
                 &&  bce.predState.strHist === committedPredStatePrev.strHist
                 &&  bce.predState.recentHist === committedPredStatePrev.recentHist
                     )
