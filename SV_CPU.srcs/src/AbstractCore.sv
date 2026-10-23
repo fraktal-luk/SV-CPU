@@ -120,7 +120,7 @@ module AbstractCore
 
     EventUnit eventUnit(clk);
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1.arr);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
         theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
@@ -262,7 +262,7 @@ module AbstractCore
     task automatic runInOrderPartRe();
         OpSlotAF ops = theFrontend.stageRename0.arr;
         TMP_PredState predState = theFrontend.stageRename0.predState;
-        BranchGroup ownPred = theFrontend.stageRename0.ownPred;
+        BranchGroup ownPred = theFrontend.stageRename0.ownPredF2;
         int bi = 0;
 
         if (anyActiveB(ops))

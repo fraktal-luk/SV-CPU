@@ -18,7 +18,8 @@ module ReorderBuffer
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotAB inGroup
+    //input OpSlotAB inGroup
+    input FrontStage inGroup
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
 
@@ -57,7 +58,7 @@ module ReorderBuffer
         else if (branchEventInfo.redirect) begin
             flushPartial();
         end
-        else if (anyActiveB(inGroup)) begin
+        else if (anyActiveB(inGroup.arr)) begin
             writeInput(inGroup);
         end
     end
@@ -221,7 +222,7 @@ module ReorderBuffer
     endtask
 
 
-    task automatic writeInput(input OpSlotAB in);
+    task automatic writeInput(/*input OpSlotAB in,*/ input FrontStage in);
         OpRecordA rec = makeRecord(in);
 
         array[p2i(pEnd) +: WIDTH] = rec;
@@ -330,12 +331,15 @@ module ReorderBuffer
         return pNew;
     endfunction
 
-    function automatic OpRecordA makeRecord(input OpSlotAB ops);
+    function automatic OpRecordA makeRecord(/*input OpSlotAB ops*/ input FrontStage ops);
         OpRecordA res = '{default: EMPTY_RECORD};
-        foreach (ops[i]) begin
-            if (ops[i].active) begin
-                int nUops = insMap.get(ops[i].mid).nUops;
-                res[i] = '{1, ops[i].mid, initCompletedVec(nUops)};
+
+        // TODO: in slot [0] mark predicted adr (predicted from prev group)
+
+        foreach (ops.arr[i]) begin
+            if (ops.arr[i].active) begin
+                int nUops = insMap.get(ops.arr[i].mid).nUops;
+                res[i] = '{1, ops.arr[i].mid, initCompletedVec(nUops)};
             end
             else
                 res[i].used = 1; // Empty slots within occupied rows

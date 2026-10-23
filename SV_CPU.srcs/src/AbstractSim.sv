@@ -313,10 +313,13 @@ package AbstractSim;
             Dword padr;
             OpSlotAF arr;
             TMP_PredState predState;
-            logic[FETCH_WIDTH] ownPred;
+            logic[1:0] ownPredF0;
+            logic[FETCH_WIDTH] ownPredF2;
+            Mword ownPredTargetF0;
+            Mword ownPredTargetF2;
         } FrontStage;
 
-        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE, '{default: 'z}};
+        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE, 'z, '{default: 'z}, 'z, 'z};
 
 
         function automatic Mbyte TMP_bpEncode(input int index);
@@ -399,8 +402,14 @@ package AbstractSim;
             return res;
         endfunction
 
-        function automatic logic TMP_getPrediction(input TMP_PredState pred);
-            // TODO: generate prediction (use VADR too)
+
+        function automatic Mbyte TMP_getLinePrediction(input TMP_PredState pred0, input TMP_PredState pred2);
+            /* Input data: 
+                pred2.histCoded
+                pred0.recentCoded
+                pred0.count - pred2.count
+            */
+
             return 'z;
         endfunction
 
