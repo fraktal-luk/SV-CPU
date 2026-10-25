@@ -44,6 +44,8 @@ module AbstractCore
     PageBasedProgramMemory programMem;
     SparseDataMemory dataMem;
 
+    BranchTracker branchTracker();
+
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
@@ -123,11 +125,11 @@ module AbstractCore
     ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
 
     bind StoreQueue: theSq TmpSubSq submod();
     bind StoreQueue: theLq TmpSubLq submod();
@@ -683,7 +685,11 @@ module AbstractCore
             if (insInfo.firstInGroup) begin
                 latestPredPresent = 0;
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePredCommit(committedPredState, '{default: 'z}); // don't inc lenAll
+                committedPredState = updatePredCommit(committedPredState, '{default: 'z}); // don't inc len
+
+                // TODO: prediction and target for F0: push stage for previous group, open for currently committed group
+                //      In FrontStage it is ownPredF0, ownPredTargetF0
+                branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
             end
         end
 
@@ -701,8 +707,20 @@ module AbstractCore
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
 
-                if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg); // push into hist (inc lenAll)
-                else                    committedPredState = replacePred(committedPredState, bg); //replace [0] in hist (not inc lenAll)
+//                BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == id);
+//                Mword target = findTarget(insInfo.mainUop, insInfo.basicData.adr, found);
+
+                if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
+                else                    committedPredState = replacePred(committedPredState, bg);
+
+                // TODO: push prediction info for this branch
+                //       If verified taken, push target
+                //          takenBranch - verified direction
+                //          [target]
+                //          ownPred - F2 prediction to verify
+                //          bg - actual branch outcome
+                //          slotInd - shows correct slot in above to compare
+                branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
 
                 latestPredPresent = 1;
             end

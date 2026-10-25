@@ -334,8 +334,6 @@ module ReorderBuffer
     function automatic OpRecordA makeRecord(/*input OpSlotAB ops*/ input FrontStage ops);
         OpRecordA res = '{default: EMPTY_RECORD};
 
-        // TODO: in slot [0] mark predicted adr (predicted from prev group)
-
         foreach (ops.arr[i]) begin
             if (ops.arr[i].active) begin
                 int nUops = insMap.get(ops.arr[i].mid).nUops;
@@ -344,6 +342,9 @@ module ReorderBuffer
             else
                 res[i].used = 1; // Empty slots within occupied rows
         end
+
+        // TODO: in slot [0] mark predicted adr (predicted from prev group)
+
         return res;
     endfunction
 

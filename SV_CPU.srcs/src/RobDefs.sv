@@ -22,6 +22,7 @@ package RobDefs;
         logic used;
         InsId mid;
         CompletedVec completed;
+
     } OpRecord;
     
     localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};

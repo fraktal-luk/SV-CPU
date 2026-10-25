@@ -26,7 +26,7 @@ module StoreQueue
     ref MemTracker memTracker,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input OpSlotAB inGroup
+    input FrontStage inGroup
 );
 
     localparam logic IS_STORE_QUEUE = !IS_LOAD_QUEUE && !IS_BRANCH_QUEUE;
@@ -165,20 +165,21 @@ module StoreQueue
     endfunction
 
 
-    function automatic QEntry newEntry(input InsId mid);
-        return submod.getNewEntry(mid);
+    function automatic QEntry newEntry(input int i, input InsId mid, input FrontStage fs);
+        return submod.getNewEntry(i, mid, fs);
     endfunction
 
 
     // .active, .mid
-    task automatic writeInput(input OpSlotAB inGroup);
-        if (!anyActiveB(inGroup)) return;
+    //task automatic writeInput(input OpSlotAB inGroup);
+    task automatic writeInput(input FrontStage inGroup);
+        if (!anyActiveB(inGroup.arr)) return;
 
-        foreach (inGroup[i]) begin
-            InsId thisMid = inGroup[i].mid;
+        foreach (inGroup.arr[i]) begin
+            InsId thisMid = inGroup.arr[i].mid;
 
             if (appliesU(decMainUop(thisMid))) begin
-                content[endPointer % SIZE] = newEntry(thisMid);
+                content[endPointer % SIZE] = newEntry(i, thisMid, inGroup);
                 putMilestoneM(thisMid, QUEUE_ENTER);
                 endPointer = (endPointer+1) % (2*SIZE);
             end
@@ -381,7 +382,7 @@ module TmpSubSq();
         entry.committed = 1;
     endfunction
 
-    function automatic SqEntry getNewEntry(input InsId mid);
+    function automatic SqEntry getNewEntry(input int i, input InsId mid, input FrontStage fs);
         return  '{
             mid: mid,
             valReady: 0,
@@ -520,7 +521,7 @@ module TmpSubLq();
     function automatic void setCommitted(ref LqEntry entry);
     endfunction
 
-    function automatic LqEntry getNewEntry(input InsId mid);
+    function automatic LqEntry getNewEntry(input int i, input InsId mid, input FrontStage fs);
         return '{
             mid: mid,
             valReady: 'x,
@@ -622,7 +623,7 @@ module TmpSubBr();
     function automatic void setCommitted(ref BqEntry entry);
     endfunction
     
-    function automatic BqEntry getNewEntry(input InsId mid);
+    function automatic BqEntry getNewEntry(input int i, input InsId mid, input FrontStage fs);
         BqEntry res = BranchQueueHelper::EMPTY_QENTRY;
         InstructionInfo ii = StoreQueue.insMap.get(mid);
         UopInfo ui = StoreQueue.insMap.getU(FIRST_U(mid));
@@ -640,6 +641,11 @@ module TmpSubBr();
         // If branch immediate, calculate target for taken
         if (ui.name inside {UOP_bc_a, UOP_bc_l, UOP_bc_z, UOP_bc_nz})
             res.immTarget = ii.basicData.adr + ui.argsE[1];
+
+        // Save br hist before this group
+        res.histCount = fs.predState.count;
+        res.histLen = fs.predState.len;
+
 
         return res;
     endfunction

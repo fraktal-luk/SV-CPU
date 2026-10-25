@@ -452,3 +452,19 @@ module StoreDataSubpipe(
     endfunction
 
 endmodule
+
+
+module BranchTracker;
+
+    task automatic addGroupPredInfo();
+
+    endtask
+
+
+    task automatic addBranchPredInfo();
+
+    endtask
+
+endmodule
+
+
