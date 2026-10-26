@@ -34,7 +34,12 @@ sim:/ArchDesc0/core/theFrontend/frontRedOnMiss
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theFrontend/predStateF0 \
-sim:/ArchDesc0/core/theFrontend/predStateF2
+sim:/ArchDesc0/core/theFrontend/predStateF2 \
+sim:/ArchDesc0/core/theFrontend/stageFetch2 \
+sim:/ArchDesc0/core/theFrontend/stageFetch2_N \
+sim:/ArchDesc0/core/theFrontend/chk \
+sim:/ArchDesc0/core/theFrontend/chk_2
+
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/committedPredState \

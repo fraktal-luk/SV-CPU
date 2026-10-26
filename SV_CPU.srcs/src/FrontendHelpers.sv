@@ -108,13 +108,26 @@ package FrontendHelpers;
     endfunction
 
 
+    function automatic Mword getImmTarget(input OpSlotF slot);
+        AbstractInstruction ins = decodeAbstract(slot.bits);
+
+        assert (isBranchIns(ins)) else $fatal(2, "Not a branch");
+
+        return slot.adr + Mword'(ins.sources[1]);
+    endfunction
+
+
     function automatic Mword TMP_trgFromArr(input FrontStage fs);
         Mword target = fetchLineBase(fs.vadr) + 4*FETCH_WIDTH;
-        
+
         foreach (fs.arr[i]) begin
+            if (!fs.arr[i].active) continue;
+
             if (fs.arr[i].takenBranch) begin
                 AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
                 target = fs.arr[i].adr + Mword'(ins.sources[1]);
+
+                    //$error("target from slot %d: %x + %x", i, fs.arr[i].adr, Mword'(ins.sources[1]));
                 break;
             end
         end
@@ -139,6 +152,8 @@ package FrontendHelpers;
         BranchGroup res = '{default: 'z};
 
         foreach (fs.arr[i]) begin
+            if (!fs.arr[i].active) continue;
+
             if (fs.arr[i].branch) res[i] = 0;
             if (fs.arr[i].takenBranch) res[i] = 1;
         end
