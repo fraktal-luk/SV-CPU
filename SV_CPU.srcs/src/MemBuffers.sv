@@ -130,6 +130,10 @@ module StoreQueue
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
             submod.setCommitted(entry);
         end
+        else if (IS_BRANCH_QUEUE) begin
+            submod.setCommitted(entry);
+            setEmpty(entry);    
+        end
         else begin
             setEmpty(entry);
         end
@@ -619,10 +623,15 @@ module TmpSubBr();
     function automatic logic isCommitted(input BqEntry entry);
         return 0;
     endfunction
-    
+
+
     function automatic void setCommitted(ref BqEntry entry);
+           // $error("BQ commit");
+        branchTracker.update(entry);
+
     endfunction
-    
+
+
     function automatic BqEntry getNewEntry(input int i, input InsId mid, input FrontStage fs);
         BqEntry res = BranchQueueHelper::EMPTY_QENTRY;
         InstructionInfo ii = StoreQueue.insMap.get(mid);

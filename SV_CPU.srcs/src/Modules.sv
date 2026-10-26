@@ -456,6 +456,9 @@ endmodule
 
 module BranchTracker;
 
+    int lastCount = -1;
+    int lastLen = -1;
+
     task automatic addGroupPredInfo();
 
     endtask
@@ -464,6 +467,11 @@ module BranchTracker;
     task automatic addBranchPredInfo();
 
     endtask
+
+    function automatic void update(input BqEntry entry);
+        lastCount = entry.histCount;
+        lastLen = entry.histLen;
+    endfunction
 
 endmodule
 
