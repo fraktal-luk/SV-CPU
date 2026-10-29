@@ -52,6 +52,7 @@ package Queues;
 
     typedef struct {
         InsId mid;
+            int slot;
         logic predictedTaken;
         logic taken;
         logic condReady;

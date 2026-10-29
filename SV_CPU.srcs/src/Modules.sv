@@ -456,8 +456,28 @@ endmodule
 
 module BranchTracker;
 
+    logic[FETCH_WIDTH] histFull[16];
+
     int lastCount = -1;
     int lastLen = -1;
+
+    int newCount = -1;
+    int newLen = -1; // 
+
+        Mword p0i = -1, p0, p1, p2;
+        Mword a0i, a0, a1, a2;
+
+    logic ch0, ch1, ch2, ch3, ch4; 
+
+
+        assign ch0 = newCount == AbstractCore.committedPredState.count;
+        assign ch1 = newLen == AbstractCore.committedPredState.len;
+
+        assign ch2 = newCount == AbstractCore.committedPredStatePrev.count;
+        assign ch3 = newLen == AbstractCore.committedPredStatePrev.len;
+
+
+
 
     task automatic addGroupPredInfo();
 
@@ -469,8 +489,71 @@ module BranchTracker;
     endtask
 
     function automatic void update(input BqEntry entry);
+        logic[FETCH_WIDTH] allZ = '{default: 'z};
+
         lastCount = entry.histCount;
         lastLen = entry.histLen;
+
+
+        if (entry.histLen + 1 > newLen) begin // Open new group
+            histFull = {allZ, histFull[0:14]};
+        end
+
+        histFull[0][entry.slot] = entry.taken;
+
+        newCount = entry.histCount + 1;
+        newLen = entry.histLen + 1;
+
+
+    endfunction
+
+
+
+    function automatic Mbyte getSimplePredictionSig();
+        return 'z;
+    endfunction
+
+    function automatic Mword getSimplePredictionTarget();
+        return 'x;
+    endfunction
+
+
+    function automatic Mbyte getAdvancedPredictionSig();
+        return 0;
+    endfunction
+
+    function automatic Mword getAdvancedPredictionTarget();
+        return 'x;
+    endfunction
+
+
+
+
+    function automatic DummyPrediction getDummyPredictionSimple();
+        return '{-1, p0i, a0i};
+    endfunction
+
+
+    function automatic DummyPrediction getDummyPredictionAdvanced();
+        return '{-1, p1, a1};
+    endfunction
+
+
+
+    function automatic void startPrediction(input int count, input int len, input Mword adr);
+        a0i <= adr;
+        p0i <= //p0i + 1;
+                len;
+    endfunction
+
+    function automatic void move();
+        p0 <= p0i;
+        p1 <= p0;
+        p2 <= p1;
+
+        a0 <= a0i;
+        a1 <= a0;
+        a2 <= a1;
     endfunction
 
 endmodule

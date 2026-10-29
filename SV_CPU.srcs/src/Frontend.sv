@@ -88,6 +88,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
 
+            DummyPrediction dummyPredF0, dummyPredF2;
+
 
         assign groupMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
         assign frontRedCa = stageFetch1.active && groupMismatchF2;
@@ -189,16 +191,24 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     else if (frontRedCa)
                         cachedRedirectFront();
                     else if (fetchAllowCa && stageIP.active) begin // Normal flow
+                            logic[1:0] linePred_T = branchTracker.getSimplePredictionSig();
+                            Mword nextTrg_T = branchTracker.getSimplePredictionTarget();
+
+
                         logic[1:0] linePred = TMP_getLinePrediction(predStateF0, predStateF2); // @pred use
-                        Mword nextTrg = fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4; // @pred use
+                        Mword nextTrg = linePred_T === '{default: 'z} ? fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4 : nextTrg_T;
+
+                            // if prediction is no taken jump, use incremented, otherwise use nextTrg_T
+                            dummyPredF0 <= branchTracker.getDummyPredictionSimple();
+
                         stageIP <= makeStage_IP(nextTrg);
 
                         // @pred update
-                        predStateF0 <= updatePred(predStateF0, linePred);
+                        predStateF0 <= updatePred(predStateF0, linePred_T);
 
                         stageFetch0 <= stageIP;
                         stageFetch0.predState <= predStateF0;
-                        stageFetch0.ownPredF0 <= linePred;
+                        stageFetch0.ownPredF0 <= linePred_T;
                         //stageFetch0.ownPredF2 <= '{default: 'z};
                         stageFetch0.ownPredTargetF0 <= nextTrg; 
                         cachedMoveStagesToF2();
@@ -236,14 +246,32 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         always @(posedge clk) begin
             runCached();
+
+            movePredictor();
+        end
+
+        always @(negedge clk) begin
+            branchTracker.startPrediction(predStateF0.count, predStateF0.len, stageIP.vadr);
         end
 
 
+        task automatic movePredictor();
+            branchTracker.move();
+        endtask
+
+
+
         task automatic cachedMoveStagesToF2();
-            FrontStage newStageF2 = TMP_predictAdvanced(stageFetch1, '{default: 0}, 'x, expectedTargetF2);
+            logic[FETCH_WIDTH] linePred_T = branchTracker.getAdvancedPredictionSig();
+            Mword nextTrg_T = branchTracker.getAdvancedPredictionTarget();
+
+            FrontStage newStageF2 = TMP_predictAdvanced(stageFetch1, linePred_T, nextTrg_T, expectedTargetF2);
 
             stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
             stageFetch2 <= newStageF2;
+
+                dummyPredF2 <= branchTracker.getDummyPredictionAdvanced();
+
 
             if (!stageFetch1.active) return;
 

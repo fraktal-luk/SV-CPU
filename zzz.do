@@ -46,4 +46,15 @@ sim:/ArchDesc0/core/committedPredStatePrev
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/branchTracker/lastCount \
-sim:/ArchDesc0/core/branchTracker/lastLen
+sim:/ArchDesc0/core/branchTracker/lastLen \
+sim:/ArchDesc0/core/branchTracker/newCount \
+sim:/ArchDesc0/core/branchTracker/newLen \
+sim:/ArchDesc0/core/branchTracker/ch0 \
+sim:/ArchDesc0/core/branchTracker/ch1 \
+sim:/ArchDesc0/core/branchTracker/ch2 \
+sim:/ArchDesc0/core/branchTracker/ch3
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/theFrontend/dummyPredF0 \
+sim:/ArchDesc0/core/theFrontend/dummyPredF2 \
+sim:/ArchDesc0/core/theFrontend/stageIP

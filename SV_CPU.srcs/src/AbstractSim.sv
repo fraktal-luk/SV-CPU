@@ -403,6 +403,14 @@ package AbstractSim;
         endfunction
 
 
+
+    typedef struct {
+        int count;
+        int len;
+        Mword adr;
+    } DummyPrediction;
+
+
         function automatic Mbyte TMP_getLinePrediction(input TMP_PredState pred0, input TMP_PredState pred2);
             /* Input data: 
                 pred2.histCoded

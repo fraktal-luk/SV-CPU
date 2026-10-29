@@ -680,6 +680,13 @@ module AbstractCore
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
 
+
+           // if (id > 3520 && id < 3540) begin
+           //      $error("Committing %d: %s\n%p", id, disasm(insInfo.basicData.bits), insInfo);
+           //      $error("%p", committedPredState);
+           //  end
+
+
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
@@ -693,6 +700,12 @@ module AbstractCore
             end
         end
 
+ 
+           // if (id > 3520 && id < 3540) begin
+           //      $error("then:");
+           //      $error("%p", committedPredState);
+           //  end
+
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
@@ -703,6 +716,11 @@ module AbstractCore
                 &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
                     )
                 else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
+
+
+                if (committedPredState.len == 79) begin
+                   // $error("comm br: %d\n%p\n%s", id, insInfo, disasm(insInfo.basicData.bits));
+                end
 
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
@@ -724,7 +742,14 @@ module AbstractCore
 
                 latestPredPresent = 1;
             end
+
         end
+
+
+           // if (id > 3520 && id < 3540) begin
+           //      $error("finally:");
+           //      $error("%p", committedPredState);
+           //  end
 
         // Elements related to crucial signals:
         // RET: update inds

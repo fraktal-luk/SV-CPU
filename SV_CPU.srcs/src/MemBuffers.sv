@@ -639,7 +639,7 @@ module TmpSubBr();
         AbstractInstruction abs = ii.basicData.dec;
         
         res.mid = mid;
-        
+            res.slot = i;
         res.predictedTaken = 0;
 
         res.condReady = 0;
