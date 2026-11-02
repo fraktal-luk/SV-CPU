@@ -36,7 +36,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
 
     logic FETCH_UNC;
-    logic fetchAllowCa;
+    logic fetchAllowCa, waitEvt;
 
 
     FrontStage fetchQueue[$:FETCH_QUEUE_SIZE];
@@ -59,10 +59,12 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
 
     assign fetchAllowCa = (fqSize < FETCH_QUEUE_SIZE - FQ_SLACK);
+    always_comb waitEvt = eventUnit.hasEvent();
 
     // GENERAL
     assign fetchEnable = FETCH_UNC ? stageUncIpSig.active : stageIpSig.active;
     assign fetchAdr = FETCH_UNC ? stageUncIpSig.vadr : fetchLineBase(stageIpSig.vadr);
+
 
 
     always @(posedge clk) begin
@@ -78,11 +80,15 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         InstructionCacheOutput cacheOut;
         InstructionL1 instructionCache(clk, stageIP.active, fetchLineBase(stageIP.vadr), cacheOut);
 
-        FrontStage stageIP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE, stageFetch2 = DEFAULT_FRONT_STAGE;
+        FrontStage stageIP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE,
+                    stageFetch2 = DEFAULT_FRONT_STAGE;//, stageFetch2_N = DEFAULT_FRONT_STAGE;
 
-        TMP_PredState predState = DEFAULT_PRED_STATE, predStateF2 = DEFAULT_PRED_STATE;
+        TMP_PredState predStateF0 = DEFAULT_PRED_STATE, // Generated from IP stage
+                      predStateF2 = DEFAULT_PRED_STATE; // Generated from F1 stage
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
+
+            DummyPrediction dummyPredF0, dummyPredF2;
 
 
         assign groupMismatchF2 = (fetchLineBase(stageFetch1.arr[0].adr) !== fetchLineBase(expectedTargetF2));
@@ -92,6 +98,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         
         assign stageIpSig = stageIP;
         assign finalFetchStage = stageFetch2;
+
+
+              //  assign chk = (stageFetch2_N === stageFetch2);
+              //  assign chk_2 = (stageFetch2_N.arr === stageFetch2.arr);
 
 
         task automatic flushFrontendBeforeF2();
@@ -104,16 +114,17 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             markKilledFrontStage(stageFetch2.arr);
             stageFetch2 <= DEFAULT_FRONT_STAGE;
+                //stageFetch2_N <= DEFAULT_FRONT_STAGE;
         endtask
 
 
         task automatic cachedRedirectLate();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
-            stageIP <= makeStage_IP(lateEventInfo.target, 1);
+            stageIP <= makeStage_IP(lateEventInfo.target);
 
             // @pred: restore from late
-            predState <= AbstractCore.committedPredState;
+            predStateF0 <= AbstractCore.committedPredState;
             predStateF2 <= AbstractCore.committedPredState;
 
             expectedTargetF2 <= lateEventInfo.target;
@@ -122,16 +133,17 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedRedirectBranch();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
-            stageIP <= makeStage_IP(branchEventInfo.target, 1);
+            stageIP <= makeStage_IP(branchEventInfo.target);
 
             // @pred: restore from branch
             begin
                 BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
                 BranchCheckpoint causingCP = foundCP[0];
-                logic taken = branchEventInfo.dir;
-                Mbyte brEncoding = taken ? TMP_bpEncode({0, branchEventInfo.adr[3:2]}) : 0;
-                predState <= updatePred(causingCP.predState, brEncoding);
-                predStateF2 <= updatePred(causingCP.predState, brEncoding);  //  As well
+                BranchGroup bg = TMP_updateBranchSig(causingCP.ownPred, causingCP.slotInd, branchEventInfo.dir);
+
+                // CAREFUL: branchEventInfo.adr is not exactly the past state to be restored - may be on a different slot from the beginning
+                predStateF0 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);
+                predStateF2 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);  //  As well
             end
 
             expectedTargetF2 <= branchEventInfo.target;
@@ -141,10 +153,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedRedirectFront();
             flushFrontendBeforeF2();
             cachedFetcherState <= FS_RUN;
-            stageIP <= makeStage_IP(expectedTargetF2, 1);
+            stageIP <= makeStage_IP(expectedTargetF2);
 
             // @pred: restore from front
-            predState <= predStateF2;
+            predStateF0 <= predStateF2;
         endtask
 
         task automatic cachedWaitCtrl();
@@ -174,22 +186,33 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                         cachedRedirectLate();
                     else if (branchEventInfo.redirect)
                         cachedRedirectBranch();
-                    else if (eventUnit.hasEvent())
+                    else if (waitEvt)
                         cachedWaitCtrl();
                     else if (frontRedOnMiss)
                         cachedWaitMiss();
                     else if (frontRedCa)
                         cachedRedirectFront();
                     else if (fetchAllowCa && stageIP.active) begin // Normal flow
-                        Mword nextTrg = fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4; // @pred use
-                        logic nextPred = TMP_getPrediction(predState);
-                        stageIP <= makeStage_IP(nextTrg, 1);
-                        
+                            logic[1:0] linePred_T = branchTracker.getSimplePredictionSig();
+                            Mword nextTrg_T = branchTracker.getSimplePredictionTarget();
+
+
+                        logic[1:0] linePred = TMP_getLinePrediction(predStateF0, predStateF2); // @pred use
+                        Mword nextTrg = linePred_T === '{default: 'z} ? fetchLineBase(stageIP.vadr) + FETCH_WIDTH*4 : nextTrg_T;
+
+                            // if prediction is no taken jump, use incremented, otherwise use nextTrg_T
+                            dummyPredF0 <= branchTracker.getDummyPredictionSimple();
+
+                        stageIP <= makeStage_IP(nextTrg);
+
                         // @pred update
-                        predState <= updatePred(predState, 'z);
+                        predStateF0 <= updatePred(predStateF0, linePred_T, stageIP.vadr);
 
                         stageFetch0 <= stageIP;
-                        stageFetch0.predState <= predState;
+                        stageFetch0.predState <= predStateF0;
+                        stageFetch0.ownPredF0 <= linePred_T;
+                        stageFetch0.ownPredF2 <= '{default: 'z};
+                        stageFetch0.ownPredTargetF0 <= nextTrg; 
                         cachedMoveStagesToF2();
                     end
                     else begin
@@ -204,7 +227,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                         cachedRedirectLate();
                     else if (branchEventInfo.redirect)
                         cachedRedirectBranch();
-                    else if (eventUnit.hasEvent())
+                    else if (waitEvt)
                         cachedWaitCtrl();
                     else if (instructionCache.tlbFillEngine.notifyFill || instructionCache.blockFillEngine.notifyFill)
                         cachedResumeFill();
@@ -225,31 +248,47 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         always @(posedge clk) begin
             runCached();
+
+            movePredictor();
+        end
+
+        always @(negedge clk) begin
+            branchTracker.startPrediction(predStateF0.count, predStateF0.len, stageIP.vadr);
         end
 
 
+        task automatic movePredictor();
+            branchTracker.move();
+        endtask
+
+
+
         task automatic cachedMoveStagesToF2();
-            FrontStage newStageF2 = getFrontStageF2(stageFetch1, expectedTargetF2);
-            Mword trgX = TMP_trgFromArr(newStageF2);
+            logic[FETCH_WIDTH] linePred_T = branchTracker.getAdvancedPredictionSig();
+            Mword nextTrg_T = branchTracker.getAdvancedPredictionTarget();
+
+            FrontStage newStageF2 = TMP_predictAdvanced(stageFetch1, linePred_T, nextTrg_T, expectedTargetF2);
 
             stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
             stageFetch2 <= newStageF2;
 
-            if (stageFetch1.active) begin
-                logic[1:0] predX = TMP_predictionFromArr(newStageF2);
+                dummyPredF2 <= branchTracker.getDummyPredictionAdvanced();
 
-                assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
 
-                expectedTargetF2 <= trgX;
-                predStateF2 <= updatePred(predStateF2, predX);
-                stageFetch2.predState <= predStateF2; // prediction generated by previous block, if correct, corresponds to adr of new F2
-            end
+            if (!stageFetch1.active) return;
+
+            assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
+
+            expectedTargetF2 <= newStageF2.ownPredTargetF2;
+            predStateF2 <= updatePred(predStateF2, newStageF2.ownPredF2, newStageF2.vadr);
+            stageFetch2.predState <= predStateF2; // prediction generated by previous block, if correct, corresponds to adr of new F2
         endtask
 
 
         function automatic FrontStage setCacheResponse(input FrontStage stage, input InstructionCacheOutput cacheOut, input Dword padr);
             OpSlotAF arr = stage.arr;
-            FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr, stage.predState};
+            FrontStage resFS = '{stage.active, cacheOut.status, PE_NONE, stage.vadr, padr, arr,
+                                    stage.predState, stage.ownPredF0, stage.ownPredF2, 'z, 'z};
             ProgramEvent pe = PE_NONE;
 
             if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;
@@ -275,7 +314,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                     Word memBits = AbstractCore.programMem.fetch(tr.padr);
                     AbstractInstruction absIns;
                     assert (realBits === memBits) else $fatal(2, "Bits fetched at %X not same: %X, %X", arr[i].adr, realBits, memBits);
-                    
+         
                     absIns = decodeAbstract(realBits);
                     arr[i].branch = isBranchIns(absIns);
                 end                
@@ -285,6 +324,73 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             return resFS;
         endfunction
+
+
+            function automatic FrontStage TMP_predictAdvanced(input FrontStage stage, input logic[FETCH_WIDTH] dirPredictions, input Mword predictedRegTarget,
+                                                        input Mword expectedTarget);
+                FrontStage res = stage;
+
+                logic[FETCH_WIDTH] immBranches, regBranches, unconditionalBranches, fullPrediction = '{default: 'z};
+                logic branches[FETCH_WIDTH], taken[FETCH_WIDTH];
+
+
+                Mword target = 'x;
+
+                int firstTakenIndex[$];
+
+                OpSlotAF array = clearBeforeStart(stage.arr, expectedTarget);
+                
+                if (!stage.active) return DEFAULT_FRONT_STAGE;
+
+                foreach (stage.arr[i]) begin
+                    AbstractInstruction ins = decodeAbstract(array[i].bits);
+                    immBranches[i] = array[i].active & isBranchImmIns(ins);
+                    regBranches[i] = array[i].active & isBranchRegIns(ins);
+                    unconditionalBranches[i] = array[i].active & isBranchAlwaysIns(ins);
+                    
+                    branches[i] = immBranches[i] | regBranches[i];
+                    taken[i] = unconditionalBranches[i] | dirPredictions[i];
+                end
+
+                firstTakenIndex = taken.find_first_index with (item === 1);
+
+                if (firstTakenIndex.size() == 0) begin // No taken branches
+                    target = fetchLineBase(stage.vadr) + FETCH_WIDTH*4;
+
+                end
+                else begin
+                    int index = firstTakenIndex[0];
+                    if (immBranches[index]) begin
+                        target = getImmTarget(array[index]);
+                    end
+                    else if (regBranches[index]) begin
+                        target = predictedRegTarget; // TODO: make proper reg target prediction. For now we'll use imm target (although this will be always* incorrect)
+                            target = getImmTarget(array[index]);
+                    end
+                    else $fatal(2, "First taken branch in group (%d), but it's not a branch!", index);
+
+                    array = clearAfterBranch(array, firstTakenIndex[0]);
+                    array[firstTakenIndex[0]].takenBranch = 1;
+                end
+
+                foreach (fullPrediction[i]) begin
+                    if (taken[i]) begin
+                        fullPrediction[i] = 1;
+                        break;
+                    end
+                    else if (branches[i])
+                        fullPrediction[i] = 0;
+                end
+
+                    res.ownPredF2 = fullPrediction;
+                    res.ownPredTargetF2 = target;
+
+                res.padr = 'x;
+                res.arr = array;
+
+                return res;
+            endfunction
+
 
     endgenerate
 
@@ -405,7 +511,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         function automatic FrontStage setUncachedResponse(input FrontStage stage, input InstructionCacheOutput uncachedOut);
             OpSlotAF arr = EMPTY_STAGE;
-            FrontStage resFS = '{stage.active, uncachedOut.status, PE_NONE, stage.vadr, stage.vadr, stage.arr, stage.predState};
+            FrontStage resFS = '{stage.active, uncachedOut.status, PE_NONE, stage.vadr, stage.vadr, stage.arr,
+                                    stage.predState, stage.ownPredF0, stage.ownPredF2, 'z, 'z};
             ProgramEvent pe = PE_NONE;
 
             if ((stage.vadr % 4) != 0) pe = PE_FETCH_UNALIGNED_ADDRESS;

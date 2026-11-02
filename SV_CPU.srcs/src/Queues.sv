@@ -52,6 +52,7 @@ package Queues;
 
     typedef struct {
         InsId mid;
+        int slot;
         logic predictedTaken;
         logic taken;
         logic condReady;
@@ -60,7 +61,9 @@ package Queues;
         Mword predictedTarget;
         Mword immTarget;
         Mword regTarget;
-    } BqEntry;     
+        int histCount; // stores number of updates (PredState::count)
+        int histLen;   //                          (PredState::len)
+    } BqEntry;
 
 
     class StoreQueueHelper;
@@ -85,7 +88,7 @@ package Queues;
     
     class BranchQueueHelper;
         typedef BqEntry Entry;
-        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x};
+        localparam Entry EMPTY_QENTRY = '{-1, 'x, 'x, 'x, 'x, 'x, 'x, 'x, 'x, -1, -1};
 
         localparam InstructionMap::Milestone QUEUE_ENTER = InstructionMap::BqEnter;
         localparam InstructionMap::Milestone QUEUE_FLUSH = InstructionMap::BqFlush;

@@ -44,6 +44,8 @@ module AbstractCore
     PageBasedProgramMemory programMem;
     SparseDataMemory dataMem;
 
+    BranchTracker branchTracker();
+
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
     BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
@@ -80,6 +82,7 @@ module AbstractCore
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
     TMP_PredState committedPredState = DEFAULT_PRED_STATE, committedPredStatePrev = DEFAULT_PRED_STATE;
+    logic latestPredPresent = 0;
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
@@ -119,14 +122,14 @@ module AbstractCore
 
     EventUnit eventUnit(clk);
 
-    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1.arr);
+    ReorderBuffer theRob(insMap, branchEventInfo, lateEventInfo, stageRename1);
 
     StoreQueue#(.SIZE(SQ_SIZE), .HELPER(StoreQueueHelper))
-        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
+        theSq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_LOAD_QUEUE(1), .SIZE(LQ_SIZE), .HELPER(LoadQueueHelper))
-        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
+        theLq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
     StoreQueue#(.IS_BRANCH_QUEUE(1), .SIZE(BQ_SIZE), .HELPER(BranchQueueHelper))
-        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1.arr);
+        theBq(insMap, memTracker, branchEventInfo, lateEventInfo, stageRename1);
 
     bind StoreQueue: theSq TmpSubSq submod();
     bind StoreQueue: theLq TmpSubLq submod();
@@ -261,6 +264,7 @@ module AbstractCore
     task automatic runInOrderPartRe();
         OpSlotAF ops = theFrontend.stageRename0.arr;
         TMP_PredState predState = theFrontend.stageRename0.predState;
+        BranchGroup ownPred = theFrontend.stageRename0.ownPredF2;
         int bi = 0;
 
         if (anyActiveB(ops))
@@ -270,7 +274,7 @@ module AbstractCore
             if (ops[i].active !== 1) continue;
 
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, ops[i], i, bi, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState);
+            renameOp(ops[i].mid, ops[i], i, bi, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState, ownPred);
 
             if (ops[i].branch) bi++;
         end
@@ -333,14 +337,14 @@ module AbstractCore
         end
     endtask
 
-    task automatic saveCP(input InsId id, input int branchInd, input TMP_PredState predState);
+    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input logic[FETCH_WIDTH] ownPred);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
                                     renameInds, renameMarkers,
-                                    branchInd,
+                                    branchInd, slot,
                                     renamedEmul,
-                                    predState);
+                                    predState, ownPred);
         branchCheckpointQueue.push_back(cp);
     endtask
 
@@ -349,7 +353,7 @@ module AbstractCore
                             input OpSlotF opSlot,
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
-                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState);
+                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState, input logic[FETCH_WIDTH] ownPred);
 
         AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
@@ -444,7 +448,7 @@ module AbstractCore
             memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
         end
 
-        if (isBranchIns(ins)) saveCP(id, currentBranch, predState); // Crucial state
+        if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, predState, ownPred); // Crucial state
 
         updateInds(renameInds, id); // Crucial state
         updateMarkers(renameMarkers, id); // Crucial state
@@ -567,7 +571,6 @@ module AbstractCore
     endtask
 
 
-
     function automatic logic noWaitingEvents();
         return
                    eventUnit.backendState != BS_HANDLING
@@ -657,7 +660,6 @@ module AbstractCore
     endtask
 
 
-
     task automatic commitOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
         logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
@@ -679,23 +681,36 @@ module AbstractCore
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
+                latestPredPresent = 0;
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePred(committedPredState, 'z);
+                committedPredState = updatePredCommit(committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
+
+                branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
             end
         end
 
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
-            assert (bce.predState === committedPredStatePrev)
+            assert (
+                     bce.predState.count === committedPredStatePrev.count
+                &&  bce.predState.len === committedPredStatePrev.len
+                &&  bce.predState.histCoded === committedPredStatePrev.histCoded
+                &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
+                    )
                 else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
 
             if (CurrentConfig.enableMmu) begin
-                if (insInfo.takenBranch)
-                    committedPredState = replacePred(committedPredState, TMP_bpEncode({0, insInfo.basicData.adr[3:2]}));
-                else
-                    committedPredState = replacePred(committedPredState, 0);
+                BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
+
+                if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
+                else                    committedPredState = replacePred(committedPredState, bg);
+
+                branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
+
+                latestPredPresent = 1;
             end
+
         end
 
         // Elements related to crucial signals:
