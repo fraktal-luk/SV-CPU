@@ -294,13 +294,14 @@ package AbstractSim;
 
         typedef struct {
             integer count; // keeps how many times was updated
+            Mword pathHist[16];
             logic[1:0] recentCoded[2];
             integer len;
             logic[1:0] histCoded[16];
             logic[FETCH_WIDTH] histFull[16];
         } TMP_PredState;
 
-        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 'z}, -1, '{default: 0}, '{default: '{default: 'x}}}; 
+        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 'z}, '{default: 'z}, -1, '{default: 0}, '{default: '{default: 'x}}}; 
 
         typedef logic[FETCH_WIDTH] BranchGroup;
 
@@ -346,11 +347,12 @@ package AbstractSim;
         endfunction
 
 
-        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull);
+        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull, input Mword vadr);
             TMP_PredState res = prev;
             logic[1:0] last = TMP_predEncode(lastFull);
 
             res.count++;
+            res.pathHist = {vadr, res.pathHist[0:14]};
 
             res.recentCoded = {last, res.recentCoded[0]};
 
@@ -364,11 +366,13 @@ package AbstractSim;
         endfunction
 
 
-        function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull);
+        function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull, input Mword vadr);
             TMP_PredState res = prev;
             logic[1:0] last = TMP_predEncode(lastFull);
 
             res.count++;
+            res.pathHist = {vadr, res.pathHist[0:14]};
+
             res.recentCoded = {last, res.recentCoded[0]};
 
             return res;
@@ -377,6 +381,9 @@ package AbstractSim;
         function automatic TMP_PredState replacePred(input TMP_PredState prev, input BranchGroup bg);
             logic[1:0] last = TMP_predEncode(bg);
             TMP_PredState res = prev;
+
+            //res.pathHist[0] = 
+
             res.recentCoded[0] = last;
 
             if (last !== 'z) begin
@@ -394,7 +401,7 @@ package AbstractSim;
             res.recentCoded[0] = last;
 
             if (last !== 'z) begin
-               res.len++;
+                res.len++;
                 res.histCoded = {last, res.histCoded[0:14]};
                 res.histFull = {bg, res.histFull[0:14]};
             end

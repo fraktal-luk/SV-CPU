@@ -692,7 +692,7 @@ module AbstractCore
             if (insInfo.firstInGroup) begin
                 latestPredPresent = 0;
                 committedPredStatePrev = committedPredState;
-                committedPredState = updatePredCommit(committedPredState, '{default: 'z}); // don't inc len
+                committedPredState = updatePredCommit(committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
 
                 // TODO: prediction and target for F0: push stage for previous group, open for currently committed group
                 //      In FrontStage it is ownPredF0, ownPredTargetF0
