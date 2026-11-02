@@ -616,7 +616,6 @@ module TmpSubBr();
 
         if (name inside {UOP_br_z, UOP_br_nz})
             entry.regTarget = trgArg;
- 
     endfunction
 
 
@@ -626,9 +625,7 @@ module TmpSubBr();
 
 
     function automatic void setCommitted(ref BqEntry entry);
-           // $error("BQ commit");
         branchTracker.update(entry);
-
     endfunction
 
 
@@ -639,7 +636,7 @@ module TmpSubBr();
         AbstractInstruction abs = ii.basicData.dec;
         
         res.mid = mid;
-            res.slot = i;
+        res.slot = i;
         res.predictedTaken = 0;
 
         res.condReady = 0;
@@ -654,7 +651,6 @@ module TmpSubBr();
         // Save br hist before this group
         res.histCount = fs.predState.count;
         res.histLen = fs.predState.len;
-
 
         return res;
     endfunction

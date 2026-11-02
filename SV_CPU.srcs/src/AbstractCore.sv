@@ -571,7 +571,6 @@ module AbstractCore
     endtask
 
 
-
     function automatic logic noWaitingEvents();
         return
                    eventUnit.backendState != BS_HANDLING
@@ -661,7 +660,6 @@ module AbstractCore
     endtask
 
 
-
     task automatic commitOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
         logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
@@ -680,13 +678,6 @@ module AbstractCore
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
 
-
-           // if (id > 3520 && id < 3540) begin
-           //      $error("Committing %d: %s\n%p", id, disasm(insInfo.basicData.bits), insInfo);
-           //      $error("%p", committedPredState);
-           //  end
-
-
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
@@ -694,17 +685,9 @@ module AbstractCore
                 committedPredStatePrev = committedPredState;
                 committedPredState = updatePredCommit(committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
 
-                // TODO: prediction and target for F0: push stage for previous group, open for currently committed group
-                //      In FrontStage it is ownPredF0, ownPredTargetF0
                 branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
             end
         end
-
- 
-           // if (id > 3520 && id < 3540) begin
-           //      $error("then:");
-           //      $error("%p", committedPredState);
-           //  end
 
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
             BranchCheckpoint bce = branchCheckpointQueue.pop_front();
@@ -717,39 +700,18 @@ module AbstractCore
                     )
                 else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
 
-
-                if (committedPredState.len == 79) begin
-                   // $error("comm br: %d\n%p\n%s", id, insInfo, disasm(insInfo.basicData.bits));
-                end
-
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
-
-//                BqEntry found[$] = AbstractCore.theBq.content.find_first with (item.mid == id);
-//                Mword target = findTarget(insInfo.mainUop, insInfo.basicData.adr, found);
 
                 if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
                 else                    committedPredState = replacePred(committedPredState, bg);
 
-                // TODO: push prediction info for this branch
-                //       If verified taken, push target
-                //          takenBranch - verified direction
-                //          [target]
-                //          ownPred - F2 prediction to verify
-                //          bg - actual branch outcome
-                //          slotInd - shows correct slot in above to compare
                 branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
 
                 latestPredPresent = 1;
             end
 
         end
-
-
-           // if (id > 3520 && id < 3540) begin
-           //      $error("finally:");
-           //      $error("%p", committedPredState);
-           //  end
 
         // Elements related to crucial signals:
         // RET: update inds

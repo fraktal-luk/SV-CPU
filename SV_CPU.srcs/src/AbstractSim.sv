@@ -266,7 +266,6 @@ package AbstractSim;
         localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{0, CR_INVALID, 'x, 'x};
 
 
-
     ////////////////////////////////////////////////////////////////////
     // Frontend and BP related
 
@@ -382,8 +381,6 @@ package AbstractSim;
             logic[1:0] last = TMP_predEncode(bg);
             TMP_PredState res = prev;
 
-            //res.pathHist[0] = 
-
             res.recentCoded[0] = last;
 
             if (last !== 'z) begin
@@ -429,7 +426,6 @@ package AbstractSim;
         endfunction
 
 
-
         function automatic BranchGroup TMP_updateBranchSig(input logic[FETCH_WIDTH] baseSig, input int slot, input logic dir);
             BranchGroup res = baseSig;
 
@@ -447,8 +443,6 @@ package AbstractSim;
             foreach (s[i]) if (s[i].active) return 1;
             return 0;
         endfunction
-
-
 
 
 

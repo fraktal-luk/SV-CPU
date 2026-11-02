@@ -50,7 +50,6 @@ endmodule
 
 
 
-
 module MultiplierSubpipe(
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
@@ -101,7 +100,8 @@ module FloatSubpipe(
     input EventInfo lateEventInfo,
     input UopPacket opP
 );
-    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET, pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
+    UopPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET,
+              pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
     UopPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pE3_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
@@ -137,63 +137,7 @@ module FloatSubpipe(
         default: EMPTY_FORWARDING_ELEMENT
     };
 
-
-    // function automatic UopPacket performFP(input UopPacket p);        
-    //     UopPacket res = p;
-    //     FpResult64 fpRes;
-
-    //     if (p.uid == UID_NONE) return res;
-        
-    //     begin
-    //         fpRes = calcRegularFpOp(p.uid);
-    //         res.result = fpRes.value;
-
-    //         if (fpRes.exc.invalid) begin
-    //             res.status = ES_FP_INVALID;
-    //         end
-            
-    //         if (fpRes.exc.div0) begin
-    //             res.status = ES_FP_DIV0;
-    //         end
-
-    //         if (fpRes.exc.overflow) begin
-    //             res.status = ES_FP_OVERFLOW;
-    //         end
-
-    //         if (fpRes.exc.underflow) begin
-    //             res.status = ES_FP_UNDERFLOW;
-    //         end
-
-    //         if (fpRes.exc.inexact) begin
-    //             if (fpRes.exc.overflow)
-    //                 res.status = ES_FP_OV_INEXACT;
-    //             else if (fpRes.exc.underflow)
-    //                 res.status = ES_FP_UND_INEXACT;
-    //             else
-    //                 res.status = ES_FP_INEXACT;
-    //         end
-    //     end
-
-
-    //     // TODO: full set of exc including combined Inexact+Overflow, Inexact+Underflow
-    //     //       Priority: Inexact over Ov/Und
-
-    //     if (
-    //         fpRes.exc.invalid && AbstractCore.CurrentConfig.enTrapInv
-    //      || fpRes.exc.overflow && AbstractCore.CurrentConfig.enTrapOv
-    //      || fpRes.exc.inexact && AbstractCore.CurrentConfig.enTrapInex
-    //      || fpRes.exc.underflow && AbstractCore.CurrentConfig.enTrapUnd
-    //      || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
-    //         )
-    //     begin
-    //         insMap.setException(U2M(p.uid), PE_ARITH_EXCEPTION);
-    //     end
-        
-    //     return res;
-    // endfunction
-
 endmodule
-
 
 
 
@@ -207,9 +151,7 @@ module BranchSubpipe(
     UopPacket p0_E, p1_E, pE0_E, pD0_E, pD1_E;
     UopPacket stage0, stage0_E;
 
-
-    assign stage0_E = pE0_E;
-                      
+    assign stage0_E = pE0_E;  
     assign p0 = opP;
 
     always @(posedge AbstractCore.clk) begin
@@ -219,7 +161,6 @@ module BranchSubpipe(
         pD1 <= tickP(pD0);
 
         runExecBranch(p1_E.active, p1_E.uid);
-
     end
 
     always_comb p0_E = effP(p0);
@@ -237,7 +178,6 @@ module BranchSubpipe(
         1: pD0_E,
         default: EMPTY_FORWARDING_ELEMENT
     };
-    
 
     // TOPLEVEL
     function automatic UopPacket performBranchE0(input UopPacket p);
@@ -326,7 +266,6 @@ module DividerSubpipe#(
     end
 
 
-
     always @(posedge AbstractCore.clk) begin
         
         if (p1_E.active) begin
@@ -363,20 +302,15 @@ module DividerSubpipe#(
     logic empty, allowIssue, opSelected;
 
     assign opSelected = IS_FP ? theIssueQueues.fdivQueue.anySelected && theIssueQueues.fdivQueue.allow : theIssueQueues.dividerQueue.anySelected && theIssueQueues.dividerQueue.allow;
-
-    assign empty = !(p0.active || p1.active || mainStage.active //      || outputStage0.active || outputStage1.active || outputStage2.active
-                    );
+    assign empty = !(p0.active || p1.active || mainStage.active);
 
     // allow signal for divider IQ
     always @(posedge AbstractCore.clk) begin
-        
         if (opSelected) lock <= 1;
         else if (empty) lock <= 0;
-        
     end
     
     assign allowIssue = !lock;
-    
 
     always_comb p0_E = effP(p0);
     always_comb p1_E = effP(p1);
@@ -464,25 +398,15 @@ module BranchTracker;
     int newCount = -1;
     int newLen = -1; // 
 
-        Mword p0i = -1, p0, p1, p2;
-        Mword a0i, a0, a1, a2;
+    Mword p0i = -1, p0, p1, p2;
+    Mword a0i, a0, a1, a2;
 
-    logic ch0, ch1, ch2, ch3, ch4; 
-
-
-        assign ch0 = newCount == AbstractCore.committedPredState.count;
-        assign ch1 = newLen == AbstractCore.committedPredState.len;
-
-        assign ch2 = newCount == AbstractCore.committedPredStatePrev.count;
-        assign ch3 = newLen == AbstractCore.committedPredStatePrev.len;
-
-
+        logic ch0, ch1, ch2, ch3, ch4; 
 
 
     task automatic addGroupPredInfo();
 
     endtask
-
 
     task automatic addBranchPredInfo();
 
@@ -503,7 +427,6 @@ module BranchTracker;
 
         newCount = entry.histCount + 1;
         newLen = entry.histLen + 1;
-
 
     endfunction
 
@@ -528,7 +451,6 @@ module BranchTracker;
 
 
 
-
     function automatic DummyPrediction getDummyPredictionSimple();
         return '{-1, p0i, a0i};
     endfunction
@@ -542,8 +464,7 @@ module BranchTracker;
 
     function automatic void startPrediction(input int count, input int len, input Mword adr);
         a0i <= adr;
-        p0i <= //p0i + 1;
-                len;
+        p0i <= len;
     endfunction
 
     function automatic void move();

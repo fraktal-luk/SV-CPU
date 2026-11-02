@@ -52,7 +52,7 @@ package Queues;
 
     typedef struct {
         InsId mid;
-            int slot;
+        int slot;
         logic predictedTaken;
         logic taken;
         logic condReady;
@@ -61,8 +61,8 @@ package Queues;
         Mword predictedTarget;
         Mword immTarget;
         Mword regTarget;
-            int histCount; // stores number of updates (PredState::count)
-            int histLen;   //                          (PredState::len)
+        int histCount; // stores number of updates (PredState::count)
+        int histLen;   //                          (PredState::len)
     } BqEntry;
 
 
