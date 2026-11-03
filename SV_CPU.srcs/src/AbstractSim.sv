@@ -55,8 +55,6 @@ package AbstractSim;
 
 
 
-
-
     typedef struct {
         logic active;
         InsId eventMid;
@@ -95,61 +93,61 @@ package AbstractSim;
 
     /////////////////////////////////////
     // Core structures and helpers
-        typedef struct {
-            int iqRegular;
-            int iqFloat;
-            int iqBranch;
-            int iqMem;
-            int iqStoreData;
-        } IqLevels;
+    typedef struct {
+        int iqRegular;
+        int iqFloat;
+        int iqBranch;
+        int iqMem;
+        int iqStoreData;
+    } IqLevels;
 
-        typedef struct {
-            int rename;
-            int renameG;
-            int bq;
-            int lq;
-            int sq;
-        } IndexSet;
+    typedef struct {
+        int rename;
+        int renameG;
+        int bq;
+        int lq;
+        int sq;
+    } IndexSet;
 
-        typedef struct {
-            InsId load;
-            InsId store;
-            InsId mbLoadF;
-            InsId mbStoreF;
-            InsId mbF;
+    typedef struct {
+        InsId load;
+        InsId store;
+        InsId mbLoadF;
+        InsId mbStoreF;
+        InsId mbF;
 
-            InsId loadAq;
-            InsId storeRel;
-        } MarkerSet;
+        InsId loadAq;
+        InsId storeRel;
+    } MarkerSet;
 
-        function automatic IqLevels getBufferAccepts(input IqLevels levels);
-            IqLevels res = '{
-                iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
-                iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
-            };
-            return res;
-        endfunction
+    function automatic IqLevels getBufferAccepts(input IqLevels levels);
+        IqLevels res = '{
+            iqRegular:   levels.iqRegular <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqFloat:     levels.iqFloat <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqBranch:    levels.iqBranch <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqMem:       levels.iqMem <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH,
+            iqStoreData: levels.iqStoreData <= ISSUE_QUEUE_SIZE - 3*FETCH_WIDTH
+        };
+        return res;
+    endfunction
 
-        function automatic logic iqsAccept(input IqLevels acc);
-            return 1
-                    && acc.iqRegular
-                    && acc.iqFloat
-                    && acc.iqBranch
-                    && acc.iqMem
-                    && acc.iqStoreData;
-        endfunction
+    function automatic logic iqsAccept(input IqLevels acc);
+        return 1
+                && acc.iqRegular
+                && acc.iqFloat
+                && acc.iqBranch
+                && acc.iqMem
+                && acc.iqStoreData;
+    endfunction
 
 
-        function logic regsAccept(input int nI, input int nF);
-            return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
-        endfunction
+    function logic regsAccept(input int nI, input int nF);
+        return nI > RENAME_WIDTH && nF > RENAME_WIDTH;
+    endfunction
 
-        function logic bcQueueAccepts(input int k);
-            return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
-        endfunction
+    function logic bcQueueAccepts(input int k);
+        return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
+    endfunction
 
     ///////////////////////////////////////////////////////////////
 
@@ -158,291 +156,270 @@ package AbstractSim;
     // Mem
     /////////////////////////////////////////////////////////////////////////////////
 
-        // Transfer size in bytes
-        typedef enum {
-            SIZE_NONE = 0,
-            SIZE_1 = 1,
-            SIZE_4 = 4,
-            SIZE_8 = 8,
-            SIZE_INS_LINE = FETCH_WIDTH*4  // DEPENDS on fetch width
-        } AccessSize;
+    // Transfer size in bytes
+    typedef enum {
+        SIZE_NONE = 0,
+        SIZE_1 = 1,
+        SIZE_4 = 4,
+        SIZE_8 = 8,
+        SIZE_INS_LINE = FETCH_WIDTH*4  // DEPENDS on fetch width
+    } AccessSize;
 
 
-        function automatic AccessSize getTransactionSize(input UopName uname);
-            if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
-            else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
-            else if (isMemUop(uname)) return SIZE_4;
-            else return SIZE_NONE;
-        endfunction
+    function automatic AccessSize getTransactionSize(input UopName uname);
+        if (uname inside {UOP_mem_ldib, UOP_mem_stib}) return SIZE_1;
+        else if (uname inside {UOP_mem_ldid, UOP_mem_stid, UOP_mem_ldfd, UOP_mem_stfd}) return SIZE_8;
+        else if (isMemUop(uname)) return SIZE_4;
+        else return SIZE_NONE;
+    endfunction
 
 
-        // Needed for frontend and data subsystem (implem)
-        typedef enum {
-            CR_UNCACHED,
-            CR_INVALID, // Address illegal
-            CR_TLB_MISS,
-            CR_NOT_ALLOWED,
-            CR_TAG_MISS,
-            CR_HIT
-        } CacheReadStatus;
+    // Needed for frontend and data subsystem (implem)
+    typedef enum {
+        CR_UNCACHED,
+        CR_INVALID, // Address illegal
+        CR_TLB_MISS,
+        CR_NOT_ALLOWED,
+        CR_TAG_MISS,
+        CR_HIT
+    } CacheReadStatus;
 
 
-        typedef struct {   // (implem)
-            InsId owner;
-            Mword adr;
-            Mword val;
-            Mword adrAny;
-            Dword padr;
-            AccessSize size;
-            logic barrierF;
-        } Transaction;
+    typedef struct {   // (implem)
+        InsId owner;
+        Mword adr;
+        Mword val;
+        Mword adrAny;
+        Dword padr;
+        AccessSize size;
+        logic barrierF;
+    } Transaction;
 
-        localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
-
-
-
-        typedef struct {
-            Dword vadr;
-            AccessSize size;
-            int blockIndex;
-            int blockOffset;
-            logic unaligned;
-            logic blockCross;
-            logic pageCross;
-        } AccessInfo;
-
-        localparam AccessInfo DEFAULT_ACCESS_INFO = '{
-            vadr: 'x,
-            size: SIZE_NONE,
-            blockIndex: -1,
-            blockOffset: -1,
-            unaligned: 'x,
-            blockCross: 'x,
-            pageCross: 'x 
-        };
-
-        // Widely used
-        typedef struct {
-            logic active;
-
-            logic invalid;
-
-            logic sys;
-            logic store;
-            logic uncachedReq;
-            logic uncachedCollect;
-            logic uncachedStore;
-            logic acq;
-            logic rel;
-
-            AccessInfo info;
-
-            int shift; // Applies to block-crossing: bytes to shift at combining
-        } AccessDesc;
-
-        localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, DEFAULT_ACCESS_INFO, /*'z, SIZE_NONE, -1, -1, 'z, 'z, 'z,*/ 0};
+    localparam Transaction EMPTY_TRANSACTION = '{-1, 'x, 'x, 'x, 'x, SIZE_NONE, 'x};
 
 
-        // Widely used
-        typedef struct {
-            logic req;
-            Mword adr;
-            Dword padr;
-            Mword value;
-            AccessSize size;
-            logic uncached;
-        } MemWriteInfo;
 
-        localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+    typedef struct {
+        Dword vadr;
+        AccessSize size;
+        int blockIndex;
+        int blockOffset;
+        logic unaligned;
+        logic blockCross;
+        logic pageCross;
+    } AccessInfo;
 
-        // Widely used - review usages
-        typedef struct {
-            logic active;
-            CacheReadStatus status;
-            logic lock;
-            Mword data;
-        } DataCacheOutput;
+    localparam AccessInfo DEFAULT_ACCESS_INFO = '{
+        vadr: 'x,
+        size: SIZE_NONE,
+        blockIndex: -1,
+        blockOffset: -1,
+        unaligned: 'x,
+        blockCross: 'x,
+        pageCross: 'x 
+    };
 
-        localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{0, CR_INVALID, 'x, 'x};
+    // Widely used
+    typedef struct {
+        logic active;
+
+        logic invalid;
+
+        logic sys;
+        logic store;
+        logic uncachedReq;
+        logic uncachedCollect;
+        logic uncachedStore;
+        logic acq;
+        logic rel;
+
+        AccessInfo info;
+
+        int shift; // Applies to block-crossing: bytes to shift at combining
+    } AccessDesc;
+
+    localparam AccessDesc DEFAULT_ACCESS_DESC = '{0, 0, 'z, 'z, 'z, 'z, 'z, 'z, 'z, DEFAULT_ACCESS_INFO, /*'z, SIZE_NONE, -1, -1, 'z, 'z, 'z,*/ 0};
+
+
+    // Widely used
+    typedef struct {
+        logic req;
+        Mword adr;
+        Dword padr;
+        Mword value;
+        AccessSize size;
+        logic uncached;
+    } MemWriteInfo;
+
+    localparam MemWriteInfo EMPTY_WRITE_INFO = '{0, 'x, 'x, 'x, SIZE_NONE, 'x};
+
+    // Widely used - review usages
+    typedef struct {
+        logic active;
+        CacheReadStatus status;
+        logic lock;
+        Mword data;
+    } DataCacheOutput;
+
+    localparam DataCacheOutput EMPTY_DATA_CACHE_OUTPUT = '{0, CR_INVALID, 'x, 'x};
 
 
     ////////////////////////////////////////////////////////////////////
     // Frontend and BP related
 
-        typedef struct {
-            logic active;
-            InsId mid;
-            Mword adr;
-            Word bits;
-            logic first;
-            logic branch;
-            logic takenBranch;
-            Mword predictedTarget;
-        } OpSlotF;
+    typedef struct {
+        logic active;
+        InsId mid;
+        Mword adr;
+        Word bits;
+        logic first;
+        logic branch;
+        logic takenBranch;
+        Mword predictedTarget;
+    } OpSlotF;
 
-        typedef OpSlotF OpSlotB;
+    typedef OpSlotF OpSlotB;
 
-        localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
-        localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
+    localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
+    localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
 
-        typedef OpSlotF OpSlotAF[FETCH_WIDTH];
-        typedef OpSlotB OpSlotAB[RENAME_WIDTH];
+    typedef OpSlotF OpSlotAF[FETCH_WIDTH];
+    typedef OpSlotB OpSlotAB[RENAME_WIDTH];
 
-        localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
-
-
-        typedef struct {
-            integer count; // keeps how many times was updated
-            Mword pathHist[16];
-            logic[1:0] recentCoded[2];
-            integer len;
-            logic[1:0] histCoded[16];
-            logic[FETCH_WIDTH] histFull[16];
-        } TMP_PredState;
-
-        localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 'z}, '{default: 'z}, -1, '{default: 0}, '{default: '{default: 'x}}}; 
-
-        typedef logic[FETCH_WIDTH] BranchGroup;
+    localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
 
-        typedef struct {
-            logic active;
-            CacheReadStatus status;
-            ProgramEvent evt;
-            Mword vadr;
-            Dword padr;
-            OpSlotAF arr;
-            TMP_PredState predState;
-            logic[1:0] ownPredF0;
-            logic[FETCH_WIDTH] ownPredF2;
-            Mword ownPredTargetF0;
-            Mword ownPredTargetF2;
-        } FrontStage;
-
-        localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE, 'z, '{default: 'z}, 'z, 'z};
+    typedef logic[FETCH_WIDTH] BranchGroup;
 
 
-        function automatic Mbyte TMP_bpEncode(input int index);
-            if (index == -1) return 0;
-            else if (index >= 2) return 3;
-            else return index + 1;
-        endfunction
+    typedef struct {
+        integer count; // keeps how many times was updated
+        Mword pathHist[16];
+        logic[1:0] recentCoded[2];
+        integer len;
+        logic[1:0] histCoded[16];
+        BranchGroup histFull[16];
+    } TMP_PredState;
 
-        function automatic Mbyte TMP_predEncode(input BranchGroup bg);
-            int found[$]; 
-
-            logic arr[FETCH_WIDTH] = {>>{bg}};
-
-            found = arr.find_index with (item === '1);
-            if (found.size() > 0) begin
-                if (found[0] >= 3) return 3;
-                else return found[0] + 1;
-            end
-
-            found = arr.find_index with (item === '0);
-            if (found.size() > 0) return 0;
-
-            return 'z;
-        endfunction
-
-
-        function automatic TMP_PredState updatePred(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull, input Mword vadr);
-            TMP_PredState res = prev;
-            logic[1:0] last = TMP_predEncode(lastFull);
-
-            res.count++;
-            res.pathHist = {vadr, res.pathHist[0:14]};
-
-            res.recentCoded = {last, res.recentCoded[0]};
-
-            if (last !== 'z) begin
-               res.len++;
-                res.histCoded = {last, res.histCoded[0:14]};
-                res.histFull = {lastFull, res.histFull[0:14]};
-            end
-
-            return res;
-        endfunction
-
-
-        function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input logic[FETCH_WIDTH] lastFull, input Mword vadr);
-            TMP_PredState res = prev;
-            logic[1:0] last = TMP_predEncode(lastFull);
-
-            res.count++;
-            res.pathHist = {vadr, res.pathHist[0:14]};
-
-            res.recentCoded = {last, res.recentCoded[0]};
-
-            return res;
-        endfunction
-
-        function automatic TMP_PredState replacePred(input TMP_PredState prev, input BranchGroup bg);
-            logic[1:0] last = TMP_predEncode(bg);
-            TMP_PredState res = prev;
-
-            res.recentCoded[0] = last;
-
-            if (last !== 'z) begin
-                res.histCoded[0] = last;
-                res.histFull[0] = bg;
-            end
-
-            return res;
-        endfunction
-
-
-        function automatic TMP_PredState replacePredFirst(input TMP_PredState prev, input BranchGroup bg);
-            logic[1:0] last = TMP_predEncode(bg);
-            TMP_PredState res = prev;
-            res.recentCoded[0] = last;
-
-            if (last !== 'z) begin
-                res.len++;
-                res.histCoded = {last, res.histCoded[0:14]};
-                res.histFull = {bg, res.histFull[0:14]};
-            end
-
-            return res;
-        endfunction
+    localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 'z}, '{default: 'z}, -1, '{default: 0}, '{default: '{default: 'x}}}; 
 
 
 
     typedef struct {
-        int count;
-        int len;
-        Mword adr;
-    } DummyPrediction;
+        logic active;
+        CacheReadStatus status;
+        ProgramEvent evt;
+        Mword vadr;
+        Dword padr;
+        OpSlotAF arr;
+        TMP_PredState predState;
+        logic[1:0] ownPredF0;
+        BranchGroup ownPredF2;
+        Mword ownPredTargetF0;
+        Mword ownPredTargetF2;
+    } FrontStage;
+
+    localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE, 'z, '{default: 'z}, 'z, 'z};
 
 
-        function automatic Mbyte TMP_getLinePrediction(input TMP_PredState pred0, input TMP_PredState pred2);
-            /* Input data: 
-                pred2.histCoded
-                pred0.recentCoded
-                pred0.count - pred2.count
-            */
-
-            return 'z;
-        endfunction
+    function automatic logic anyActiveB(input OpSlotAB s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
 
 
-        function automatic BranchGroup TMP_updateBranchSig(input logic[FETCH_WIDTH] baseSig, input int slot, input logic dir);
-            BranchGroup res = baseSig;
 
-            res[slot] = dir;
+    function automatic Mbyte encodeBranchGroup(input BranchGroup bg);
+        int found[$]; 
 
-            foreach (res[i]) begin
-                if (i > slot) res[i] = 'z;
-            end
+        logic arr[FETCH_WIDTH] = {>>{bg}};
 
-            return res;
-        endfunction
+        found = arr.find_index with (item === '1);
+        if (found.size() > 0) begin
+            if (found[0] >= 3) return 3;
+            else return found[0] + 1;
+        end
+
+        found = arr.find_index with (item === '0);
+        if (found.size() > 0) return 0;
+
+        return 'z;
+    endfunction
 
 
-        function automatic logic anyActiveB(input OpSlotAB s);
-            foreach (s[i]) if (s[i].active) return 1;
-            return 0;
-        endfunction
+    function automatic TMP_PredState updatePred(input TMP_PredState prev, input BranchGroup lastFull, input Mword vadr);
+        TMP_PredState res = prev;
+        logic[1:0] last = encodeBranchGroup(lastFull);
+
+        res.count++;
+        res.pathHist = {vadr, res.pathHist[0:14]};
+
+        res.recentCoded = {last, res.recentCoded[0]};
+
+        if (last !== 'z) begin
+            res.len++;
+            res.histCoded = {last, res.histCoded[0:14]};
+            res.histFull = {lastFull, res.histFull[0:14]};
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input BranchGroup lastFull, input Mword vadr);
+        TMP_PredState res = prev;
+        logic[1:0] last = encodeBranchGroup(lastFull);
+
+        res.count++;
+        res.pathHist = {vadr, res.pathHist[0:14]};
+
+        res.recentCoded = {last, res.recentCoded[0]};
+
+        return res;
+    endfunction
+
+
+    function automatic TMP_PredState replacePred(input TMP_PredState prev, input BranchGroup bg);
+        logic[1:0] last = encodeBranchGroup(bg);
+        TMP_PredState res = prev;
+        res.recentCoded[0] = last;
+
+        if (last !== 'z) begin
+            res.histCoded[0] = last;
+            res.histFull[0] = bg;
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic TMP_PredState replacePredFirst(input TMP_PredState prev, input BranchGroup bg);
+        logic[1:0] last = encodeBranchGroup(bg);
+        TMP_PredState res = prev;
+        res.recentCoded[0] = last;
+
+        if (last !== 'z) begin
+            res.len++;
+            res.histCoded = {last, res.histCoded[0:14]};
+            res.histFull = {bg, res.histFull[0:14]};
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic BranchGroup updateBranchGroup(input BranchGroup baseSig, input int slot, input logic dir);
+        BranchGroup res = baseSig;
+
+        res[slot] = dir;
+
+        foreach (res[i]) begin
+            if (i > slot) res[i] = 'z;
+        end
+
+        return res;
+    endfunction
+
 
 
 
@@ -452,7 +429,7 @@ package AbstractSim;
                     input int intMapR[32], input int floatMapR[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
                     input int branchInd, input int slotInd,
-                    input Emulator em, input TMP_PredState predState, input logic[FETCH_WIDTH] ownPred);
+                    input Emulator em, input TMP_PredState predState, input BranchGroup ownPred);
             this.id = id;
             this.intWriters = intWr;
             this.floatWriters = floatWr;
@@ -479,7 +456,7 @@ package AbstractSim;
         MarkerSet markers;
         Emulator emul;
         TMP_PredState predState;
-        logic[FETCH_WIDTH] ownPred;
+        BranchGroup ownPred;
         logic predDir;
     endclass
 

@@ -390,7 +390,7 @@ endmodule
 
 module BranchTracker;
 
-    logic[FETCH_WIDTH] histFull[16];
+    BranchGroup histFull[16];
 
     int lastCount = -1;
     int lastLen = -1;
@@ -412,8 +412,9 @@ module BranchTracker;
 
     endtask
 
+
     function automatic void update(input BqEntry entry);
-        logic[FETCH_WIDTH] allZ = '{default: 'z};
+        BranchGroup allZ = '{default: 'z};
 
         lastCount = entry.histCount;
         lastLen = entry.histLen;
@@ -431,7 +432,6 @@ module BranchTracker;
     endfunction
 
 
-
     function automatic Mbyte getSimplePredictionSig();
         return 'z;
     endfunction
@@ -447,17 +447,6 @@ module BranchTracker;
 
     function automatic Mword getAdvancedPredictionTarget();
         return 'x;
-    endfunction
-
-
-
-    function automatic DummyPrediction getDummyPredictionSimple();
-        return '{-1, p0i, a0i};
-    endfunction
-
-
-    function automatic DummyPrediction getDummyPredictionAdvanced();
-        return '{-1, p1, a1};
     endfunction
 
 

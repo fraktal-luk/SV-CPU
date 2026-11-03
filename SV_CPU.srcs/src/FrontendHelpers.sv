@@ -72,40 +72,66 @@ package FrontendHelpers;
 
 
 
-    // function automatic FrontStage getFrontStageF2(input FrontStage fs, input Mword expectedTarget);
-    //     FrontStage res = fs;
+    function automatic FrontStage advanceF2(input FrontStage stage, input BranchGroup dirPredictions, input Mword predictedRegTarget,
+                                            input Mword expectedTarget, input TMP_PredState prevPredState);
+        FrontStage res = stage;
+        BranchGroup immBranches, regBranches, unconditionalBranches, fullPrediction = '{default: 'z};
+        logic branches[FETCH_WIDTH], taken[FETCH_WIDTH];
+        Mword target = 'x;
+        int firstTakenIndex[$];
+        OpSlotAF array = clearBeforeStart(stage.arr, expectedTarget);
+        
+        if (!stage.active) return DEFAULT_FRONT_STAGE;
 
-    //     logic predictions[FETCH_WIDTH] = '{default: 0}; // TODO: should be provided by BP
+        foreach (stage.arr[i]) begin
+            AbstractInstruction ins = decodeAbstract(array[i].bits);
+            immBranches[i] = array[i].active & isBranchImmIns(ins);
+            regBranches[i] = array[i].active & isBranchRegIns(ins);
+            unconditionalBranches[i] = array[i].active & isBranchAlwaysIns(ins);
+            
+            branches[i] = immBranches[i] | regBranches[i];
+            taken[i] = unconditionalBranches[i] | dirPredictions[i];
+        end
 
-    //     logic branches[FETCH_WIDTH] = '{default: 0};
-    //     logic unconditional[FETCH_WIDTH] = '{default: 0};
-    //     logic predictedTaken[FETCH_WIDTH] = '{default: 0};
+        firstTakenIndex = taken.find_first_index with (item === 1);
 
-    //     OpSlotAF arrayF2 = clearBeforeStart(fs.arr, expectedTarget);
+        if (firstTakenIndex.size() == 0) begin // No taken branches
+            target = fetchLineBase(stage.vadr) + FETCH_WIDTH*4;
+        end
+        else begin
+            int index = firstTakenIndex[0];
+            if (immBranches[index]) begin
+                target = getImmTarget(array[index]);
+            end
+            else if (regBranches[index]) begin
+                target = predictedRegTarget; // TODO: make proper reg target prediction. For now we'll use imm target (although this will be always* incorrect)
+                    target = getImmTarget(array[index]);
+            end
+            else $fatal(2, "First taken branch in group (%d), but it's not a branch!", index);
 
-    //     if (!fs.active) return DEFAULT_FRONT_STAGE;
+            array = clearAfterBranch(array, firstTakenIndex[0]);
+            array[firstTakenIndex[0]].takenBranch = 1;
+        end
 
-    //     foreach (fs.arr[i]) begin
-    //         AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
-    //         branches[i] = isBranchIns(ins);
-    //         unconditional[i] = isBranchAlwaysIns(ins);
-    //         predictedTaken[i] = arrayF2[i].active && ((branches[i] && predictions[i]) || unconditional[i]);
-    //     end
+        foreach (fullPrediction[i]) begin
+            if (taken[i]) begin
+                fullPrediction[i] = 1;
+                break;
+            end
+            else if (branches[i])
+                fullPrediction[i] = 0;
+        end
 
-    //     begin
-    //         int firstTaken[$] = predictedTaken.find_first_index with (item === 1);
+        res.predState = prevPredState;
 
-    //         if (firstTaken.size() != 0) begin
-    //             arrayF2 = clearAfterBranch(arrayF2, firstTaken[0]);
-    //             arrayF2[firstTaken[0]].takenBranch = 1;
-    //         end
-    //     end
+        res.ownPredF2 = fullPrediction;
+        res.ownPredTargetF2 = target;
 
-    //     res.padr = 'x;
-    //     res.arr = arrayF2;
+        res.padr = 'x;
+        res.arr = array;
 
-    //     return res;
-    // endfunction
+        return res;
+    endfunction
 
 
     function automatic Mword getImmTarget(input OpSlotF slot);
@@ -115,52 +141,6 @@ package FrontendHelpers;
 
         return slot.adr + Mword'(ins.sources[1]);
     endfunction
-
-
-    // function automatic Mword TMP_trgFromArr(input FrontStage fs);
-    //     Mword target = fetchLineBase(fs.vadr) + 4*FETCH_WIDTH;
-
-    //     foreach (fs.arr[i]) begin
-    //         if (!fs.arr[i].active) continue;
-
-    //         if (fs.arr[i].takenBranch) begin
-    //             AbstractInstruction ins = decodeAbstract(fs.arr[i].bits);
-    //             target = fs.arr[i].adr + Mword'(ins.sources[1]);
-
-    //                 //$error("target from slot %d: %x + %x", i, fs.arr[i].adr, Mword'(ins.sources[1]));
-    //             break;
-    //         end
-    //     end
-
-    //     return target;
-    // endfunction
-
-
-    // function automatic Mbyte TMP_predictionFromArr(input FrontStage fs);
-    //     logic anyBranch = 0;
-
-    //     foreach (fs.arr[i]) begin
-    //         if (fs.arr[i].branch) anyBranch = 1;
-    //         if (fs.arr[i].takenBranch) return TMP_bpEncode(i);
-    //     end
-
-    //     return anyBranch ? 0 : 'z;
-    // endfunction
-
-
-    // function automatic BranchGroup TMP_getFullPrediction(input FrontStage fs);
-    //     BranchGroup res = '{default: 'z};
-
-    //     foreach (fs.arr[i]) begin
-    //         if (!fs.arr[i].active) continue;
-
-    //         if (fs.arr[i].branch) res[i] = 0;
-    //         if (fs.arr[i].takenBranch) res[i] = 1;
-    //     end
-
-    //     return res;
-    // endfunction
-
 
 
     function automatic FrontStage makeStageUnc_IP(input Mword target, input logic on, input Mword prevAdr, input logic guardPageCross);

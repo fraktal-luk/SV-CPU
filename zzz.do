@@ -55,6 +55,4 @@ sim:/ArchDesc0/core/branchTracker/ch2 \
 sim:/ArchDesc0/core/branchTracker/ch3
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/dummyPredF0 \
-sim:/ArchDesc0/core/theFrontend/dummyPredF2 \
 sim:/ArchDesc0/core/theFrontend/stageIP

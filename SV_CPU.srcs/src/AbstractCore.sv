@@ -337,7 +337,7 @@ module AbstractCore
         end
     endtask
 
-    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input logic[FETCH_WIDTH] ownPred);
+    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
@@ -353,7 +353,7 @@ module AbstractCore
                             input OpSlotF opSlot,
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
-                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState, input logic[FETCH_WIDTH] ownPred);
+                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState, input BranchGroup ownPred);
 
         AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
@@ -701,7 +701,7 @@ module AbstractCore
                 else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
 
             if (CurrentConfig.enableMmu) begin
-                BranchGroup bg = TMP_updateBranchSig(bce.ownPred, bce.slotInd, insInfo.takenBranch);
+                BranchGroup bg = updateBranchGroup(bce.ownPred, bce.slotInd, insInfo.takenBranch);
 
                 if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
                 else                    committedPredState = replacePred(committedPredState, bg);
