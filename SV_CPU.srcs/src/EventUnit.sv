@@ -17,6 +17,13 @@ import Queues::*;
 
 module EventUnit(input logic clk);
 
+    typedef enum {
+        BS_NONE,
+        BS_NORMAL, // accepts renamed ops
+        BS_WAIT,   // event to handle is present, don't accept new ops
+        BS_HANDLING // event processing ongoing
+    } BackendState;
+
     BackendState backendState = BS_NONE;
 
     logic chp, chq;
@@ -58,7 +65,6 @@ module EventUnit(input logic clk);
         fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
         fpDiv0H <= edFromUop(findOldestWithState(ES_FP_DIV0, theExecBlock.floatImagesTr[0]));
 
-        // TODO: handle states Inexact + Ov/Und
         fpUndH <=  edFromUop(findOldestWithState(ES_FP_UNDERFLOW, theExecBlock.floatImagesTr[0]));
         fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
         fpInexH <=  edFromUop(findOldestWithState(ES_FP_INEXACT, theExecBlock.floatImagesTr[0]));
@@ -308,6 +314,10 @@ module EventUnit(input logic clk);
         
         assert (oldest[0].uid != UID_NONE) else $fatal(2, "id none");
         return oldest[0];
+    endfunction
+
+    function logic isHandling();
+        return backendState == BS_HANDLING;
     endfunction
 
 endmodule

@@ -16,7 +16,7 @@ package ExecDefs;
     import Arith::*;
 
 
-
+        // Needed by backend throughout all stages after IQs, also for event detection
         typedef enum {
             ES_BEGIN,
 
@@ -48,26 +48,26 @@ package ExecDefs;
     endfunction
 
 
-            typedef enum { // (implem)
-                MC_NONE,
-                MC_NORMAL,
-                MC_BARRIER,
-                MC_UNCACHED,
-                MC_AQ_REL,
-                MC_SYS,
+        typedef enum { // (implem)
+            MC_NONE,
+            MC_NORMAL,
+            MC_BARRIER,
+            MC_UNCACHED,
+            MC_AQ_REL,
+            MC_SYS,
 
-                MC_UPPER_B // block cross replay
-                //MC_UPPER_P  // page cross replay
-            } MemClass;
+            MC_UPPER_B // block cross replay
+            //MC_UPPER_P  // page cross replay
+        } MemClass;
 
 
 
-            typedef enum {
-                BS_NONE,
-                BS_NORMAL, // accepts renamed ops
-                BS_WAIT,   // event to handle is present, don't accept new ops
-                BS_HANDLING // event processing ongoing
-            } BackendState;
+        // typedef enum {
+        //     BS_NONE,
+        //     BS_NORMAL, // accepts renamed ops
+        //     BS_WAIT,   // event to handle is present, don't accept new ops
+        //     BS_HANDLING // event processing ongoing
+        // } BackendState;
 
 
     ////////////////////////////////////////////////////////////////////
@@ -381,27 +381,5 @@ package ExecDefs;
         return res;
     endfunction;
 
-
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////
-    // Exec calculations
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-    function automatic Mword calcEffectiveAddress(Mword3 args);
-        return args[0] + args[1];
-    endfunction
-
-
-    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
-        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
-        
-        case (uname)
-            UOP_bc_z, UOP_br_z:  return condArg === 0;
-            UOP_bc_nz, UOP_br_nz: return condArg !== 0;
-            UOP_bc_a, UOP_bc_l: return 1;  
-            default: $fatal(2, "Wrong branch uop");
-        endcase            
-    endfunction
 
 endpackage

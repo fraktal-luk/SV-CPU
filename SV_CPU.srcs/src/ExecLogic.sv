@@ -156,4 +156,21 @@ package ExecLogic;
     endfunction
 
 
+    function automatic Mword calcEffectiveAddress(Mword3 args);
+        return args[0] + args[1];
+    endfunction
+
+
+    function automatic logic resolveBranchDirection(input UopName uname, input Mword condArg);        
+        assert (!$isunknown(condArg)) else $fatal(2, "Branch condition not well formed\n%p, %p", uname, condArg);
+        
+        case (uname)
+            UOP_bc_z, UOP_br_z:  return condArg === 0;
+            UOP_bc_nz, UOP_br_nz: return condArg !== 0;
+            UOP_bc_a, UOP_bc_l: return 1;  
+            default: $fatal(2, "Wrong branch uop");
+        endcase            
+    endfunction
+
+
 endpackage

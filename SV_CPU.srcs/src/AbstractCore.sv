@@ -31,14 +31,12 @@ module AbstractCore
     
     input logic interrupt,
     input logic reset,
-    output logic sig,
-    output logic wrong
+    output logic sigOut
 );
-    logic dummy ; //= 'z;
 
     GlobalParams globalParams;
 
-    // DB        
+    // DB
     InstructionMap insMap = new();
     Emulator renamedEmul = new(), retiredEmul = new();
     PageBasedProgramMemory programMem;
@@ -165,7 +163,7 @@ module AbstractCore
     assign fetchEnable = theFrontend.fetchEnable;
     assign insAdr = theFrontend.fetchAdr;
 
-    assign sig = lateEventInfo.etype == PE_HW_SEND;
+    assign sigOut = lateEventInfo.etype == PE_HW_SEND;
 
 
     always @(posedge clk) begin
@@ -300,7 +298,7 @@ module AbstractCore
             renameMarkers = commitMarkers;
         end
         else if (branchEventInfo.redirect) begin
-            BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
+            BranchCheckpoint foundCP[$] = branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
             BranchCheckpoint causingCP = foundCP[0];
 
             renamedEmul.setLike(causingCP.emul);
@@ -572,7 +570,8 @@ module AbstractCore
 
     function automatic logic noWaitingEvents();
         return
-                   eventUnit.backendState != BS_HANDLING
+                   //eventUnit.backendState != BS_HANDLING
+                   !eventUnit.isHandling()
                 && theRob.isEmpty;
     endfunction
 

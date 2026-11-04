@@ -441,10 +441,6 @@ module ExecBlock(ref InstructionMap insMap,
             end
         end
 
-
-        // TODO: full set of exc including combined Inexact+Overflow, Inexact+Underflow
-        //       Priority: Inexact over Ov/Und
-
         if (
             fpRes.exc.invalid && AbstractCore.CurrentConfig.enTrapInv
          || fpRes.exc.overflow && AbstractCore.CurrentConfig.enTrapOv

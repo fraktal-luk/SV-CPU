@@ -148,8 +148,8 @@ module ArchDesc0();
         .clk(clk),
         .interrupt(int0),
         .reset(reset),
-        .sig(done),
-        .wrong(wrong) // UNUSED
+        .sigOut(done)
+        //.wrong(wrong) // UNUSED
     );
 
     assign fetchAdr = core.insAdr; 
