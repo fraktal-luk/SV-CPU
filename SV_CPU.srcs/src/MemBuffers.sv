@@ -476,7 +476,7 @@ module TmpSubLq();
     endtask
 
 
-    function automatic void handleSOV();
+    function automatic void handleSOV(); // store order violation
         LqEntry found[$] = StoreQueue.content.find with (item.mid != -1 && item.refetch);
         LqEntry oldestFound[$] = found.min with (item.mid);
 

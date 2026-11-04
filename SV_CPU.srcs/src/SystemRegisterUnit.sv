@@ -36,10 +36,10 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
     endtask
 
 
-    function automatic Mword getReg(input Mword adr);
-        assert (isValidSysReg(adr)) else $fatal("Reading incorrect sys reg: adr = %d", adr);
-        return sysRegs[adr];
-    endfunction
+    // function automatic Mword getReg(input Mword adr);
+    //     assert (isValidSysReg(adr)) else $fatal("Reading incorrect sys reg: adr = %d", adr);
+    //     return sysRegs[adr];
+    // endfunction
 
 
     function automatic void setSysReg(input Mword adr, input Mword val);
@@ -67,7 +67,7 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         return res;
     endfunction
 
-
+        // TODO: params to arch defs
         localparam Mword EXEC_LEVEL_EXC = 1;
         localparam Mword EXEC_LEVEL_INT = 16;
 

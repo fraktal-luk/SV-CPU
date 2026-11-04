@@ -63,7 +63,7 @@ module AbstractCore
     struct {
         logic enableMmu = 0;
         logic dbStep = 0;
-            logic enArithExc = 0; // Remove?
+            logic enArithExc = 0; // TODO: Remove?
         logic enableFP = 0;
         RoundingMode rm = RM_Even;
         logic enTrapInv = 0;
@@ -170,7 +170,7 @@ module AbstractCore
 
 
     always @(posedge clk) begin
-        insMap.endCycle();
+        insMap.endCycle(); // TODO: rename to newCycle
 
         sysUnit.handleReads();
 
@@ -559,7 +559,7 @@ module AbstractCore
         else if (lateEventInfoWaiting.active) begin
             Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
             sysUnit.modifyStateSync(lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
-            lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);;
+            lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);
         end
         else
             return;
@@ -924,6 +924,7 @@ module AbstractCore
 
     // Call every time sys regs are set
     function automatic void syncCurrentConfigFromRegs();
+            // TODO: mixed assigment types! 
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
         CurrentConfig.enableFP = sysUnit.sysRegs[8][15];

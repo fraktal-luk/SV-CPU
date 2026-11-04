@@ -13,17 +13,11 @@ package CacheDefs;
     import CoreConfig::*;
 
 
-        function automatic Dword getBlockBaseD(input Dword adr);
-            Dword res = adr;
-            res[BLOCK_OFFSET_BITS-1:0] = 0;
-            return res;
-        endfunction
-
-        function automatic Mword getBlockBaseM(input Mword adr);
-            Mword res = adr;
-            res[BLOCK_OFFSET_BITS-1:0] = 0;
-            return res;
-        endfunction
+    function automatic Dword getBlockBaseD(input Dword adr);
+        Dword res = adr;
+        res[BLOCK_OFFSET_BITS-1:0] = 0;
+        return res;
+    endfunction
 
 
     class DataCacheBlock;
@@ -165,6 +159,7 @@ package CacheDefs;
         return res;
     endfunction
 
+    // TODO: consider when trying to lock and block not existing
     function automatic void lockInWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.info.blockIndex];
         if (block == null) return;

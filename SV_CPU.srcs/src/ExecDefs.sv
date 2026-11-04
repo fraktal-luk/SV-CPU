@@ -17,31 +17,29 @@ package ExecDefs;
 
 
 
+        typedef enum {
+            ES_BEGIN,
 
+            ES_OK,
 
-            typedef enum {
-                ES_BEGIN,
+            ES_UNALIGNED,            
+            ES_UNCACHED_1, ES_UNCACHED_2,
+            ES_BARRIER_1,
+            ES_AQ_REL_1,
 
-                ES_OK,
+            ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
+            ES_CANT_FORWARD,
+            
+            ES_INSTANT_REPLAY,
+            ES_LOWER_DONE,
 
-                ES_UNALIGNED,            
-                ES_UNCACHED_1, ES_UNCACHED_2,
-                ES_BARRIER_1,
-                ES_AQ_REL_1,
+            ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
 
-                ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
-                ES_CANT_FORWARD,
-                
-                ES_INSTANT_REPLAY,
-                ES_LOWER_DONE,
+            ES_REFETCH, // cause refetch
 
-                ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
-
-                ES_REFETCH, // cause refetch
-
-                ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
-                ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
-            } ExecStatus;
+            ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
+            ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
+        } ExecStatus;
 
 
 
@@ -119,8 +117,6 @@ package ExecDefs;
     ///// END poison
     
 
-
-
     typedef struct {
         logic active;
         UopId uid;
@@ -129,7 +125,8 @@ package ExecDefs;
         Poison poison;
         Mword result;
     } UopPacket;    
-    
+
+
     localparam UopPacket EMPTY_UOP_PACKET = '{0, UID_NONE, MC_NONE, ES_OK, EMPTY_POISON, 'x};
 
         typedef UopPacket UopMemPacket;

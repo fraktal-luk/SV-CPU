@@ -250,6 +250,7 @@ package Insmap;
         endfunction
 
         // ins info
+        //  Used anywhere?
         function automatic int size();
             return insBase.minfos.size();
         endfunction
@@ -326,7 +327,7 @@ package Insmap;
             if (id == -1) return;
         endfunction
 
-
+        // TODO: remove allow, handle it outside?
         function automatic void commitCheck(input logic allow);
             if (!allow) return;
         
@@ -463,26 +464,27 @@ package Insmap;
             
             return 1;
         endfunction
-    
-            function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
-                if (reissuedId != -1) return;
+
+
+        function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
+            if (reissuedId != -1) return;
+            
+            begin
+                MilestoneTag issueTags[$] = tags.find with (item.kind == IqIssue);
+                MilestoneTag exitTags[$] = tags.find with (item.kind == IqExit);
+                MilestoneTag pullbackTags[$] = tags.find with (item.kind == IqPullback);
+                                    
+                issueTags.sort with (item.cycle);
+                pullbackTags.sort with(item.cycle);
                 
-                begin
-                    MilestoneTag issueTags[$] = tags.find with (item.kind == IqIssue);
-                    MilestoneTag exitTags[$] = tags.find with (item.kind == IqExit);
-                    MilestoneTag pullbackTags[$] = tags.find with (item.kind == IqPullback);
-                                        
-                    issueTags.sort with (item.cycle);
-                    pullbackTags.sort with(item.cycle);
-                    
-                    assert (exitTags.size() == 1) else $fatal(2, "!!!!!");
-                    assert (issueTags[$].cycle < exitTags[0].cycle) else $fatal(2, "!!!!!");
-                    assert (pullbackTags[$].cycle < issueTags[$].cycle) else $fatal(2, "!!!!!");
-                                                
-                    reissuedId = id;
-                end
-                
-            endfunction
+                assert (exitTags.size() == 1) else $fatal(2, "!!!!!");
+                assert (issueTags[$].cycle < exitTags[0].cycle) else $fatal(2, "!!!!!");
+                assert (pullbackTags[$].cycle < issueTags[$].cycle) else $fatal(2, "!!!!!");
+                                            
+                reissuedId = id;
+            end
+            
+        endfunction
                 
     
         static function automatic logic checkRetiredStore(input MilestoneTag tags[$]);
@@ -567,6 +569,7 @@ package Insmap;
         endfunction
 
 
+        // TODO: find better way to test that reissue happened
         function automatic void assertReissue();
             assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
         endfunction

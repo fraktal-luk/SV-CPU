@@ -10,7 +10,8 @@
     class RegisterTracker #(parameter int N_REGS_INT = 128, parameter int N_REGS_FLOAT = 128);
 
         // FUTURE: move to RegisterDomain after moving functiona for num free etc.
-        typedef enum {FREE, SPECULATIVE, STABLE
+        typedef enum {
+            FREE, SPECULATIVE, STABLE
         } PhysRegState;
         
         typedef struct {

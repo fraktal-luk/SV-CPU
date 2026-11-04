@@ -19,7 +19,6 @@ module IssueQueue
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    //input TMP_Uop inGroupU[RENAME_WIDTH],
     input UopId inGroupU_N[RENAME_WIDTH],
 
     input logic allow,   
@@ -34,7 +33,7 @@ module IssueQueue
     typedef int InputLocs[RENAME_WIDTH];
 
     typedef UopPacket OutGroupP[OUT_WIDTH];
- 
+
     typedef IqEntry InputArray[RENAME_WIDTH];
     
     IqEntry array[TOTAL_SIZE] = '{default: EMPTY_ENTRY}, arrayReg[TOTAL_SIZE] = '{default: EMPTY_ENTRY};
@@ -159,7 +158,7 @@ module IssueQueue
         if (allow) begin
             issueFromArray_0(selected);
             issueFromArray_1(selected);
-         end
+        end
     endtask
 
 

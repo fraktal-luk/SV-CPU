@@ -433,7 +433,7 @@ module MemSubpipe#()
         return res;
     endfunction
 
-
+    // TODO: move somewhere
     function automatic Mword getEffectiveAddress(input UopId uid);
         return (uid == UID_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
     endfunction

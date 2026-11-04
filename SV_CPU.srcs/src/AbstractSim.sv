@@ -35,16 +35,20 @@ package AbstractSim;
         return uid.s;
     endfunction
 
-    typedef UopId UidQueueT[$];
+    typedef UopId UidQueueT[$]; // Only used in IQ...
 
+
+
+    // Argument tracking
 
     typedef UopId WriterId;
     localparam WriterId WID_NONE = UID_NONE;
 
     // Defs for tracking, insMap
-    typedef enum { SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
+    typedef enum { 
+        SRC_ZERO, SRC_CONST, SRC_INT, SRC_FLOAT
     } SourceType;
-    
+
     typedef struct {
         int sources[3];
         SourceType types[3];
@@ -54,6 +58,7 @@ package AbstractSim;
     localparam InsDependencies DEFAULT_INS_DEPS = '{sources: '{default: -1}, types: '{default: SRC_ZERO}, producers: '{default: UID_NONE}};
 
 
+    // Handling events
 
     typedef struct {
         logic active;
@@ -91,8 +96,10 @@ package AbstractSim;
         return OP_DECODING_TABLE[ins.mnemonic];
     endfunction
 
+
     /////////////////////////////////////
     // Core structures and helpers
+
     typedef struct {
         int iqRegular;
         int iqFloat;
@@ -119,6 +126,7 @@ package AbstractSim;
         InsId loadAq;
         InsId storeRel;
     } MarkerSet;
+
 
     function automatic IqLevels getBufferAccepts(input IqLevels levels);
         IqLevels res = '{
@@ -278,7 +286,7 @@ package AbstractSim;
         Mword predictedTarget;
     } OpSlotF;
 
-    typedef OpSlotF OpSlotB;
+    typedef OpSlotF OpSlotB; // Duplicate type, used in backend
 
     localparam OpSlotF EMPTY_SLOT_F = '{'0, -1, 'x, 'x, 'x, 'x};
     localparam OpSlotB EMPTY_SLOT_B = '{'0, -1, 'x, 'x, 'x, 'x};
@@ -286,8 +294,18 @@ package AbstractSim;
     typedef OpSlotF OpSlotAF[FETCH_WIDTH];
     typedef OpSlotB OpSlotAB[RENAME_WIDTH];
 
+
     localparam OpSlotAF EMPTY_STAGE = '{default: EMPTY_SLOT_F};
 
+
+    function automatic logic anyActiveB(input OpSlotAB s);
+        foreach (s[i]) if (s[i].active) return 1;
+        return 0;
+    endfunction
+
+
+
+    // BP
 
     typedef logic[FETCH_WIDTH] BranchGroup;
 
@@ -320,12 +338,6 @@ package AbstractSim;
     } FrontStage;
 
     localparam FrontStage DEFAULT_FRONT_STAGE = '{0, CR_INVALID, PE_NONE, 'x, 'x, EMPTY_STAGE, DEFAULT_PRED_STATE, 'z, '{default: 'z}, 'z, 'z};
-
-
-    function automatic logic anyActiveB(input OpSlotAB s);
-        foreach (s[i]) if (s[i].active) return 1;
-        return 0;
-    endfunction
 
 
 
@@ -462,3 +474,4 @@ package AbstractSim;
 
 
 endpackage
+

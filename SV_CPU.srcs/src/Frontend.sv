@@ -13,11 +13,12 @@ import CacheDefs::*;
 
 module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
+    // TODO: params to config file
     localparam logic ENABLE_FRONT_BRANCHES = 1;
 
     localparam int FQ_SLACK = 3;    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
 
-    
+
     localparam int MAX_STAGE_UNCACHED = 4 + 12;
     // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
     localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 3;
@@ -314,7 +315,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     ////////////////////////////////////
     // UNC
 
-    UncachedFetchUnit uncachedUnit(clk);
+    //UncachedFetchUnit uncachedUnit(clk);
 
     generate
         FetcherState uncachedFetcherState = FS_NONE;
@@ -498,14 +499,14 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             if (ufqSize > 0 && FETCH_UNC && fetchAllowCa) begin // fetchAllowCa can be relaxed to having 1 free slot in FQ
                 FrontStage tmp;
                 assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
-                tmp = readFromUFQ();
-                fetchQueue.push_back(tmp);
+                FrontStage ufqOut = readFromUFQ();
+                fetchQueue.push_back(ufqOut);
             end
         end
 
         begin
-            FrontStage tmp = readFromFQ();
-            stageRename0 <= tmp;
+            FrontStage fqOut = readFromFQ();
+            stageRename0 <= fqOut;
         end
     endtask
 
