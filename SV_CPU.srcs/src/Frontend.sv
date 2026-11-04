@@ -497,9 +497,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             end
 
             if (ufqSize > 0 && FETCH_UNC && fetchAllowCa) begin // fetchAllowCa can be relaxed to having 1 free slot in FQ
-                FrontStage tmp;
+                FrontStage ufqOut;
                 assert (fetchQueue.size() < FETCH_QUEUE_SIZE) else $fatal(2, "Writing to full FetchQueue");
-                FrontStage ufqOut = readFromUFQ();
+                ufqOut = readFromUFQ();
                 fetchQueue.push_back(ufqOut);
             end
         end

@@ -366,7 +366,7 @@ package Insmap;
 
 
         // all
-        function automatic void endCycle();
+        function automatic void newCycle();
         endfunction
 
         // CHECKS

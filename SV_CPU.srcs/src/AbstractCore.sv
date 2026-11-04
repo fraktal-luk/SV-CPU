@@ -63,7 +63,6 @@ module AbstractCore
     struct {
         logic enableMmu = 0;
         logic dbStep = 0;
-            logic enArithExc = 0; // TODO: Remove?
         logic enableFP = 0;
         RoundingMode rm = RM_Even;
         logic enTrapInv = 0;
@@ -170,7 +169,7 @@ module AbstractCore
 
 
     always @(posedge clk) begin
-        insMap.endCycle(); // TODO: rename to newCycle
+        insMap.newCycle();
 
         sysUnit.handleReads();
 
@@ -526,7 +525,7 @@ module AbstractCore
         if (eventUnit.resetEvt.active           && noWaitingEvents()
         ) begin
             lateEventInfoWaitingReset <= RESET_EVENT;
-            retiredEmul.resetSignal();  // TODO: check whether this and interrupt can (and should) be done in fireLateEvent
+            retiredEmul.resetSignal();
         end
         else if (eventUnit.interruptEvt.active  && noWaitingEvents()
         ) begin
@@ -924,16 +923,15 @@ module AbstractCore
 
     // Call every time sys regs are set
     function automatic void syncCurrentConfigFromRegs();
-            // TODO: mixed assigment types! 
         CurrentConfig.enableMmu <= sysUnit.sysRegs[10][0];
         CurrentConfig.dbStep <= sysUnit.sysRegs[1][20];
-        CurrentConfig.enableFP = sysUnit.sysRegs[8][15];
-        CurrentConfig.rm = RoundingMode'(sysUnit.sysRegs[8][13:12]);
-        CurrentConfig.enTrapInv = sysUnit.sysRegs[8][10];
-        CurrentConfig.enTrapDiv0 = sysUnit.sysRegs[8][9];
-        CurrentConfig.enTrapOv = sysUnit.sysRegs[8][8];
-        CurrentConfig.enTrapUnd = sysUnit.sysRegs[8][7];
-        CurrentConfig.enTrapInex = sysUnit.sysRegs[8][6];
+        CurrentConfig.enableFP <= sysUnit.sysRegs[8][15];
+        CurrentConfig.rm <= RoundingMode'(sysUnit.sysRegs[8][13:12]);
+        CurrentConfig.enTrapInv <= sysUnit.sysRegs[8][10];
+        CurrentConfig.enTrapDiv0 <= sysUnit.sysRegs[8][9];
+        CurrentConfig.enTrapOv <= sysUnit.sysRegs[8][8];
+        CurrentConfig.enTrapUnd <= sysUnit.sysRegs[8][7];
+        CurrentConfig.enTrapInex <= sysUnit.sysRegs[8][6];
     endfunction
 
 
