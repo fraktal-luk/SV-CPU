@@ -188,7 +188,7 @@ module AbstractCore
         else
             runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
 
-        releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid);
+        releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid); // @MARKERS
         if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
 
         handleWrites(); // registerTracker
@@ -222,8 +222,7 @@ module AbstractCore
     endtask
 
     task automatic updateBookkeeping();
-        bcqSize <=  //checkpointUnit.branchCheckpointQueue.size();
-                    checkpointUnit.getSize();
+        bcqSize <= checkpointUnit.getSize();
         
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
@@ -263,18 +262,19 @@ module AbstractCore
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
         OpSlotAF ops = theFrontend.stageRename0.arr;
-        TMP_PredState predState = theFrontend.stageRename0.predState;
-        BranchGroup ownPred = theFrontend.stageRename0.ownPredF2;
         int bi = 0;
 
         if (anyActiveB(ops))
-            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH);
+            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH); // @INDS
 
         foreach (ops[i]) begin
             if (ops[i].active !== 1) continue;
 
+            // Assigning Mid for this Mop
             ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, ops[i], i, bi, theFrontend.stageRename0.evt, theFrontend.stageRename0.vadr, predState, ownPred);
+            renameOp(ops[i].mid, ops[i], i, bi,
+                        theFrontend.stageRename0
+                        );
 
             if (ops[i].branch) bi++;
         end
@@ -297,13 +297,11 @@ module AbstractCore
             registerTracker.flushAll();
             memTracker.flushAll();
             
-            renameInds = commitInds;
-            renameMarkers = commitMarkers;
+            renameInds = commitInds;    // @INDS
+            renameMarkers = commitMarkers; // @MARKERS
         end
         else if (branchEventInfo.redirect) begin
-            //BranchCheckpoint foundCP[$] = checkpointUnit.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
-            BranchCheckpoint causingCP = //foundCP[0];
-                                            checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
+            BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
@@ -312,8 +310,8 @@ module AbstractCore
             registerTracker.flush(branchEventInfo.eventMid);
             memTracker.flush(branchEventInfo.eventMid);
             
-            renameInds = causingCP.inds;
-            renameMarkers = causingCP.markers;
+            renameInds = causingCP.inds;  // @INDS
+            renameMarkers = causingCP.markers; // @MARKERS
             releaseMarkers(renameMarkers, 1, latestUnlockingMid); // Don't allow already resolved barriers to come back
         end
 
@@ -321,14 +319,10 @@ module AbstractCore
 
 
     task automatic flushBranchCheckpointQueueAll();
-        //checkpointUnit.branchCheckpointQueue = '{};
         checkpointUnit.flushAll();
     endtask
 
     task automatic flushBranchCheckpointQueuePartial(input InsId id);
-        // while (checkpointUnit.branchCheckpointQueue.size() > 0 && checkpointUnit.branchCheckpointQueue[$].id > id) begin
-        //     void'(checkpointUnit.branchCheckpointQueue.pop_back());
-        // end
         checkpointUnit.flushPartial(id);
     endtask    
 
@@ -345,11 +339,11 @@ module AbstractCore
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameInds, renameMarkers,
+                                    renameInds,    // @INDS 
+                                    renameMarkers, // @MARKERS
                                     branchInd, slot,
                                     renamedEmul,
                                     predState, ownPred);
-        //checkpointUnit.branchCheckpointQueue.push_back(cp);
         checkpointUnit.addCheckpoint(cp);
     endtask
 
@@ -358,14 +352,17 @@ module AbstractCore
                             input OpSlotF opSlot,
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
-                            input ProgramEvent evt, input Mword vadr, input TMP_PredState predState, input BranchGroup ownPred);
+                            input FrontStage fs
+                            );
+
+        ProgramEvent evt = fs.evt;
 
         AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
         // Based on CurrentConfig, Convert disabled instructions to static exceptions
         AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
 
-        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? vadr : opSlot.adr;
+        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
         Mword target;
 
         UopInfo mainUinfo;
@@ -411,7 +408,7 @@ module AbstractCore
 
         // Main op info
         ii.mainUop = uopName;
-        ii.inds = renameInds;
+        ii.inds = renameInds;  // @INDS
         ii.basicData.target = target;
         ii.firstUop = insMap.insBase.lastU + 1;
         ii.nUops = -1;
@@ -431,7 +428,7 @@ module AbstractCore
 
 
         // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
-        if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin
+        if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin  // @MARKERS
             mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
         end
 
@@ -448,18 +445,27 @@ module AbstractCore
         insMap.allocate(id, ii, uInfos);
 
         if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
-            Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Translation tr = renamedEmul.translateDataAddress(effAdr);
-            memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
+            //Mword effAdr = calculateEffectiveAddress(ins, argVals);
+            //Translation tr = renamedEmul.translateDataAddress(effAdr);
+            //memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
+            addToMemTracker(id, uopName, ins, argVals);
         end
 
-        if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, predState, ownPred); // Crucial state
+        if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
 
-        updateInds(renameInds, id); // Crucial state
-        updateMarkers(renameMarkers, id); // Crucial state
+        updateInds(renameInds, id); // @INDS  Crucial state
+        updateMarkers(renameMarkers, id); // @MARKERS  Crucial state
 
         putMilestoneM(id, InstructionMap::Rename);
     endtask
+
+
+        function automatic void addToMemTracker(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword3 argVals);
+            Mword effAdr = calculateEffectiveAddress(ins, argVals);
+            Translation tr = renamedEmul.translateDataAddress(effAdr);
+            memTracker.add(id, uname, ins, argVals, tr.padr); // DB
+        endfunction
+
 
 
     function automatic void TMP_checkCtrl(input InsId theId, input InstructionInfo ii);
@@ -511,7 +517,7 @@ module AbstractCore
             end
         end
 
-        releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid);
+        releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid); // @MARKERS
     endtask
 
 
@@ -528,13 +534,11 @@ module AbstractCore
                 $fatal(2, "Wrong event detection in ROB");
         end
 
-        if (eventUnit.resetEvt.active           && noWaitingEvents()
-        ) begin
+        if (eventUnit.resetEvt.active && noWaitingEvents()) begin
             lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
         end
-        else if (eventUnit.interruptEvt.active  && noWaitingEvents()
-        ) begin
+        else if (eventUnit.interruptEvt.active  && noWaitingEvents()) begin
             lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
                 $display("Pre target: %X", retiredEmul.coreState.target);
@@ -577,10 +581,7 @@ module AbstractCore
 
 
     function automatic logic noWaitingEvents();
-        return
-                   //eventUnit.backendState != BS_HANDLING
-                   !eventUnit.isHandling()
-                && theRob.isEmpty;
+        return !eventUnit.isHandling() && theRob.isEmpty;
     endfunction
 
 
@@ -604,8 +605,7 @@ module AbstractCore
             logic debugEvent = (dbEvt.id == info.id);
 
             logic eventPresent = (
-                CurrentConfig.dbStep ||
-                info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
+                CurrentConfig.dbStep || info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
             );
 
             assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, general, CurrentConfig.dbStep);
@@ -696,14 +696,12 @@ module AbstractCore
         end
 
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
-            BranchCheckpoint bce = //checkpointUnit.branchCheckpointQueue.pop_front();
-                                    checkpointUnit.frontElem();
-
+            BranchCheckpoint bce = checkpointUnit.frontElem();
             checkpointUnit.pop();
 
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
             assert (
-                     bce.predState.count === committedPredStatePrev.count
+                    bce.predState.count === committedPredStatePrev.count
                 &&  bce.predState.len === committedPredStatePrev.len
                 &&  bce.predState.histCoded === committedPredStatePrev.histCoded
                 &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
@@ -725,9 +723,9 @@ module AbstractCore
 
         // Elements related to crucial signals:
         // RET: update inds
-        updateMarkers(commitMarkers, id);
+        updateMarkers(commitMarkers, id);  // @MARKERS
 
-        updateInds(commitInds, id); // All types?
+        updateInds(commitInds, id); // @INDS  All types?
         commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
     endtask
 
@@ -743,6 +741,8 @@ module AbstractCore
     endtask
 
 
+    // TODO: harmonize assigmenets to markers: here blocking, in releaseMarkers nonblocking....
+    // TODO: introduce funcions to clssify uops for barrier purposes
     function automatic void updateMarkers(ref MarkerSet markers, input InsId id);
         UopName mainUop = decMainUop(id);
         if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
@@ -891,7 +891,6 @@ module AbstractCore
         theFrontend.instructionCache.reset();
         theFrontend.reset();
 
-        //checkpointUnit.branchCheckpointQueue.delete();
         checkpointUnit.flushAll();
 
         sysUnit.reset();
