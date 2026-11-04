@@ -131,8 +131,9 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             // @pred: restore from branch
             begin
-                BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
-                BranchCheckpoint causingCP = foundCP[0];
+               // BranchCheckpoint foundCP[$] = AbstractCore.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
+               // BranchCheckpoint causingCP = foundCP[0];
+                    BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
                 BranchGroup bg = updateBranchGroup(causingCP.ownPred, causingCP.slotInd, branchEventInfo.dir);
 
                 // CAREFUL: branchEventInfo.adr is not exactly the past state to be restored - may be on a different slot from the beginning

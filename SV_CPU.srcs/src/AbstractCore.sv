@@ -46,7 +46,6 @@ module AbstractCore
 
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
-    BranchCheckpoint branchCheckpointQueue[$:BC_QUEUE_SIZE];
 
     Mword insAdr;       // DB?
     logic fetchEnable;  // DB?
@@ -109,6 +108,9 @@ module AbstractCore
     InsId latestUnlockingMid = -1;
 
     ///////////////////////////
+
+    CheckpointUnit checkpointUnit();
+
 
     DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
@@ -220,7 +222,8 @@ module AbstractCore
     endtask
 
     task automatic updateBookkeeping();
-        bcqSize <= branchCheckpointQueue.size();
+        bcqSize <=  //checkpointUnit.branchCheckpointQueue.size();
+                    checkpointUnit.getSize();
         
         nFreeRegsInt <= registerTracker.getNumFreeInt();
         nFreeRegsFloat <= registerTracker.getNumFreeFloat();
@@ -298,9 +301,9 @@ module AbstractCore
             renameMarkers = commitMarkers;
         end
         else if (branchEventInfo.redirect) begin
-            BranchCheckpoint foundCP[$] = branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
-            BranchCheckpoint causingCP = foundCP[0];
-
+            //BranchCheckpoint foundCP[$] = checkpointUnit.branchCheckpointQueue.find with (item.id == branchEventInfo.eventMid);
+            BranchCheckpoint causingCP = //foundCP[0];
+                                            checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
             flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
@@ -318,11 +321,15 @@ module AbstractCore
 
 
     task automatic flushBranchCheckpointQueueAll();
-        branchCheckpointQueue = '{};
+        //checkpointUnit.branchCheckpointQueue = '{};
+        checkpointUnit.flushAll();
     endtask
 
     task automatic flushBranchCheckpointQueuePartial(input InsId id);
-        while (branchCheckpointQueue.size() > 0 && branchCheckpointQueue[$].id > id) void'(branchCheckpointQueue.pop_back());
+        // while (checkpointUnit.branchCheckpointQueue.size() > 0 && checkpointUnit.branchCheckpointQueue[$].id > id) begin
+        //     void'(checkpointUnit.branchCheckpointQueue.pop_back());
+        // end
+        checkpointUnit.flushPartial(id);
     endtask    
 
 
@@ -342,7 +349,8 @@ module AbstractCore
                                     branchInd, slot,
                                     renamedEmul,
                                     predState, ownPred);
-        branchCheckpointQueue.push_back(cp);
+        //checkpointUnit.branchCheckpointQueue.push_back(cp);
+        checkpointUnit.addCheckpoint(cp);
     endtask
 
 
@@ -688,7 +696,11 @@ module AbstractCore
         end
 
         if (isBranchUop(decMainUop(id))) begin // Br queue entry release
-            BranchCheckpoint bce = branchCheckpointQueue.pop_front();
+            BranchCheckpoint bce = //checkpointUnit.branchCheckpointQueue.pop_front();
+                                    checkpointUnit.frontElem();
+
+            checkpointUnit.pop();
+
             assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
             assert (
                      bce.predState.count === committedPredStatePrev.count
@@ -879,7 +891,8 @@ module AbstractCore
         theFrontend.instructionCache.reset();
         theFrontend.reset();
 
-        branchCheckpointQueue.delete();
+        //checkpointUnit.branchCheckpointQueue.delete();
+        checkpointUnit.flushAll();
 
         sysUnit.reset();
         
