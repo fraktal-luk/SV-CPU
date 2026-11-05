@@ -364,8 +364,6 @@ module AbstractCore
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
 
-        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
-
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
 
         IndexSet renameIndsBefore = renameInds;  // @INDS
@@ -374,93 +372,18 @@ module AbstractCore
         UopInfo mainUinfo;
         UopInfo uInfos[$];
 
-            InsDependencies deps = registerTracker.getArgDeps(ins);
-            Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-        // begin // (adr, opSlot, renameIndsBefore, target)
-        //     Mword target;
+        InsDependencies deps = registerTracker.getArgDeps(ins);
 
+        // CAREFUL Moves emulation state
+        Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-        //     runInEmulator(renamedEmul, adr, opSlot.bits);
+        InstructionInfo ii = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
+                        ii =    updateII(ii,     adr,              ins, opSlot,         evt, renameIndsBefore);
 
-        //     if (evt != PE_NONE) begin
-        //         ii.exception = 1;
-        //         ii.staticEvt = 1;
-        //         ii.hwEventType = evt;
-        //     end
-        //     else if (isStaticEventIns(ins)) begin
-        //         if (isSilentEventIns(ins)) ii.silentEvt = 1;
-        //         else ii.staticEvt = 1;
-
-        //         ii.exception = 1;
-        //         ii.hwEventType = eventFromUop(ii.mainUop);
-        //     end
-        //     else if (CurrentConfig.dbStep) begin 
-        //         ii.hwEventType = PE_EXT_DEBUG;
-        //     end
-
-        //     if (renamedEmul.status.exceptionRaised) begin
-        //         ii.hwEventType = renamedEmul.status.eventType;
-        //     end
-
-        //     // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
-        //     ii.emulException = renamedEmul.status.exceptionRaised;
-
-        //     renamedEmul.drain();
-
-        //     target = renamedEmul.coreState.target; // For insMap
-
-        //     renamedEmul.catchDbTrap();
-
-        //     // Main op info
-        //     ii.inds = renameIndsBefore;
-        //     ii.basicData.target = target;
-        //     ii.firstUop = insMap.insBase.lastU + 1;
-        //     ii.nUops = -1;
-
-        //     if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
-
-        // end
-
-
-            ii = updateII(ii, adr, ins, opSlot, evt, renameIndsBefore);
-
-
-
-        // begin // (ii, ins, deps, argValues, result,  renameMarkersBefore)
-
-        //     // Generate info for uops
-        //     mainUinfo.id = '{ii.id, -1};
-        //     mainUinfo.name = ii.mainUop;
-        //     mainUinfo.vDest = ins.dest;
-        //     mainUinfo.physDest = -1;
-        //     mainUinfo.deps = deps;
-
-        //     mainUinfo.argsE = argVals;
-        //     mainUinfo.resultE = result;
-        //     mainUinfo.argError = 'x;
-
-        //     // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
-        //     if (!barrierUnlocking || barrierUnlockingMid < renameMarkersBefore.mbF) begin  // @MARKERS
-        //         mainUinfo.barrier = isMemIns(ins) ? renameMarkersBefore.mbF : -1;
-        //     end
-        // end
-
-            mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
-
-        // begin
-        //     uInfos = splitUop(mainUinfo);
-
-        //     for (int u = 0; u < uInfos.size(); u++) begin
-        //         UopInfo uInfo = uInfos[u];
-        //         uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
-                
-        //         if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
-        //     end
-        // end
+        mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
 
         uInfos = makeUopInfos(mainUinfo);
-
 
         ii.nUops = uInfos.size(); 
 
@@ -478,16 +401,13 @@ module AbstractCore
 
 
 
-
         function automatic InstructionInfo updateII(input InstructionInfo iiIn, input Mword adr,
-                                            input AbstractInstruction ins,
-                                         input OpSlotF opSlot,
-                                         input ProgramEvent evt,
-                                         input IndexSet renameIndsBefore);
-                                         //input Mword target);
+                                                    input AbstractInstruction ins,
+                                                    input OpSlotF opSlot,
+                                                    input ProgramEvent evt,
+                                                    input IndexSet renameIndsBefore);
             InstructionInfo ii = iiIn;
             Mword target;
-
 
             runInEmulator(renamedEmul, adr, opSlot.bits);
 
@@ -577,9 +497,10 @@ module AbstractCore
 
         function automatic void addToMemTracker(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword3 argVals);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Translation tr = renamedEmul.translateDataAddress(effAdr);
+            Translation tr = renamedEmul.translateDataAddress(effAdr); // TODO: maybe should be before runnning ins in emulator? 
             memTracker.add(id, uname, ins, argVals, tr.padr); // DB
         endfunction
+
 
 
 
