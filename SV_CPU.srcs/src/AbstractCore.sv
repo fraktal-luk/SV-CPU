@@ -259,28 +259,13 @@ module AbstractCore
     endtask
 
 
-    // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPartRe();
-        OpSlotAF ops = theFrontend.stageRename0.arr;
-        int bi = 0;
 
-        if (anyActiveB(ops))
-            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH); // @INDS
+    // Frontend/Rename
 
-        foreach (ops[i]) begin
-            if (ops[i].active !== 1) continue;
-
-            // Assigning Mid for this Mop
-            ops[i].mid = insMap.insBase.lastM + 1;
-            renameOp(ops[i].mid, ops[i], i, bi,
-                        theFrontend.stageRename0
-                        );
-
-            if (ops[i].branch) bi++;
+    task automatic markKilledRenameStage(ref OpSlotAB stage);
+        foreach (stage[i]) begin
+            if (stage[i].active) putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
         end
-
-        stageRename1 <= theFrontend.stageRename0;
-        stageRename1.arr <= ops;
     endtask
 
 
@@ -318,34 +303,34 @@ module AbstractCore
     endtask
 
 
-    task automatic flushBranchCheckpointQueueAll();
-        checkpointUnit.flushAll();
-    endtask
-
-    task automatic flushBranchCheckpointQueuePartial(input InsId id);
-        checkpointUnit.flushPartial(id);
-    endtask    
 
 
-    // Frontend/Rename
 
-    task automatic markKilledRenameStage(ref OpSlotAB stage);
-        foreach (stage[i]) begin
-            if (stage[i].active) putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
+    // Frontend, rename and everything before getting to OOO queues
+    task automatic runInOrderPartRe();
+        OpSlotAF ops = theFrontend.stageRename0.arr;
+        int bi = 0;
+
+        if (anyActiveB(ops))
+            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH); // @INDS
+
+        foreach (ops[i]) begin
+            if (ops[i].active !== 1) continue;
+
+            // Assigning Mid for this Mop
+            ops[i].mid = insMap.insBase.lastM + 1;
+            renameOp(ops[i].mid, ops[i], i, bi,
+                        theFrontend.stageRename0
+                        );
+
+            if (ops[i].branch) bi++;
         end
+
+        stageRename1 <= theFrontend.stageRename0;
+        stageRename1.arr <= ops;
     endtask
 
-    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred);
-        BranchCheckpoint cp = new(id,
-                                    registerTracker.ints.writersR, registerTracker.floats.writersR,
-                                    registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameInds,    // @INDS 
-                                    renameMarkers, // @MARKERS
-                                    branchInd, slot,
-                                    renamedEmul,
-                                    predState, ownPred);
-        checkpointUnit.addCheckpoint(cp);
-    endtask
+
 
 
     task automatic renameOp(input InsId id,
@@ -356,42 +341,35 @@ module AbstractCore
                             );
 
         ProgramEvent evt = fs.evt;
-
+        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
         AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
         // Based on CurrentConfig, Convert disabled instructions to static exceptions
         AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
 
-        Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
-
-        Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
 
         IndexSet renameIndsBefore = renameInds;  // @INDS
         MarkerSet renameMarkersBefore = renameMarkers; // @MARKERS
 
-        UopInfo mainUinfo;
-        UopInfo uInfos[$];
-
 
         InsDependencies deps = registerTracker.getArgDeps(ins);
+        Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
 
-        // CAREFUL Moves emulation state
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-        InstructionInfo ii = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
-                        ii =    updateII(ii,     adr,              ins, opSlot,         evt, renameIndsBefore);
+        // CAREFUL Moves emulation state
+        InstructionInfo ii = updateII(id, adr, ins, opSlot, evt, renameIndsBefore);
 
-        mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
-
-        uInfos = makeUopInfos(mainUinfo);
-
+        UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
+        UopInfo uInfos[$] = makeUopInfos(mainUinfo);
         ii.nUops = uInfos.size(); 
-
         insMap.allocate(id, ii, uInfos);
 
-        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) addToMemTracker(id, ii.mainUop, ins, argVals);
+        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins))
+            addToMemTracker(id, ii.mainUop, ins, argVals);
 
-        if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
+        if (isBranchIns(ins))
+            saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
 
         updateInds(renameInds, id); // @INDS  Crucial state
         updateMarkers(renameMarkers, id); // @MARKERS  Crucial state
@@ -401,12 +379,14 @@ module AbstractCore
 
 
 
-        function automatic InstructionInfo updateII(input InstructionInfo iiIn, input Mword adr,
+        function automatic InstructionInfo updateII(//input InstructionInfo iiIn,
+                                                    input InsId id,
+                                                    input Mword adr,
                                                     input AbstractInstruction ins,
                                                     input OpSlotF opSlot,
                                                     input ProgramEvent evt,
                                                     input IndexSet renameIndsBefore);
-            InstructionInfo ii = iiIn;
+            InstructionInfo ii = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
             Mword target;
 
             runInEmulator(renamedEmul, adr, opSlot.bits);
@@ -457,7 +437,7 @@ module AbstractCore
         function automatic UopInfo getMainUopInfo(input InstructionInfo ii, input AbstractInstruction ins,
                                                     input InsDependencies deps, input Mword3 argVals,
                                                     input Mword result, input MarkerSet renameMarkersBefore
-                                                ); // (ii, ins, deps, argValues, result,  renameMarkersBefore)
+                                                );
             UopInfo mainUinfo;
 
             // Generate info for uops
@@ -501,6 +481,26 @@ module AbstractCore
             memTracker.add(id, uname, ins, argVals, tr.padr); // DB
         endfunction
 
+
+    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred);
+        BranchCheckpoint cp = new(id,
+                                    registerTracker.ints.writersR, registerTracker.floats.writersR,
+                                    registerTracker.ints.MapR, registerTracker.floats.MapR,
+                                    renameInds,    // @INDS 
+                                    renameMarkers, // @MARKERS
+                                    branchInd, slot,
+                                    renamedEmul,
+                                    predState, ownPred);
+        checkpointUnit.addCheckpoint(cp);
+    endtask
+
+    task automatic flushBranchCheckpointQueueAll();
+        checkpointUnit.flushAll();
+    endtask
+
+    task automatic flushBranchCheckpointQueuePartial(input InsId id);
+        checkpointUnit.flushPartial(id);
+    endtask    
 
 
 
