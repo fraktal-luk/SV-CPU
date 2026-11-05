@@ -48,6 +48,8 @@ package Insmap;
         logic exception;   // Execution event from actual uarch
     } UopInfo;
     
+    typedef UopInfo UopInfoQ[$];
+
     //localparam UopInfo DEFAULT_UOP_INFO = '{id: '{-1, -1}, vDest: -1,  physDest: -1, deps: DEFAULT_INS_DEPS,  barrier: -1, argsE: '{default}};
 
     typedef struct {
@@ -577,8 +579,6 @@ package Insmap;
         
     endclass
 
-
-    typedef UopInfo UopInfoQ[$];
 
     
     function automatic UopInfoQ splitUop(input UopInfo uinfo);    

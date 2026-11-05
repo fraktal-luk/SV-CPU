@@ -364,23 +364,130 @@ module AbstractCore
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
 
-        //UopName uopName = decodeUop(ins);
         InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
 
-        //ii.mainUop = decodeUop(ins);
-
         IndexSet renameIndsBefore = renameInds;  // @INDS
+        MarkerSet renameMarkersBefore = renameMarkers; // @MARKERS
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
 
-        begin
-            Mword target;
             InsDependencies deps = registerTracker.getArgDeps(ins);
-
             Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+        // begin // (adr, opSlot, renameIndsBefore, target)
+        //     Mword target;
+
+
+        //     runInEmulator(renamedEmul, adr, opSlot.bits);
+
+        //     if (evt != PE_NONE) begin
+        //         ii.exception = 1;
+        //         ii.staticEvt = 1;
+        //         ii.hwEventType = evt;
+        //     end
+        //     else if (isStaticEventIns(ins)) begin
+        //         if (isSilentEventIns(ins)) ii.silentEvt = 1;
+        //         else ii.staticEvt = 1;
+
+        //         ii.exception = 1;
+        //         ii.hwEventType = eventFromUop(ii.mainUop);
+        //     end
+        //     else if (CurrentConfig.dbStep) begin 
+        //         ii.hwEventType = PE_EXT_DEBUG;
+        //     end
+
+        //     if (renamedEmul.status.exceptionRaised) begin
+        //         ii.hwEventType = renamedEmul.status.eventType;
+        //     end
+
+        //     // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
+        //     ii.emulException = renamedEmul.status.exceptionRaised;
+
+        //     renamedEmul.drain();
+
+        //     target = renamedEmul.coreState.target; // For insMap
+
+        //     renamedEmul.catchDbTrap();
+
+        //     // Main op info
+        //     ii.inds = renameIndsBefore;
+        //     ii.basicData.target = target;
+        //     ii.firstUop = insMap.insBase.lastU + 1;
+        //     ii.nUops = -1;
+
+        //     if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
+
+        // end
+
+
+            ii = updateII(ii, adr, ins, opSlot, evt, renameIndsBefore);
+
+
+
+        // begin // (ii, ins, deps, argValues, result,  renameMarkersBefore)
+
+        //     // Generate info for uops
+        //     mainUinfo.id = '{ii.id, -1};
+        //     mainUinfo.name = ii.mainUop;
+        //     mainUinfo.vDest = ins.dest;
+        //     mainUinfo.physDest = -1;
+        //     mainUinfo.deps = deps;
+
+        //     mainUinfo.argsE = argVals;
+        //     mainUinfo.resultE = result;
+        //     mainUinfo.argError = 'x;
+
+        //     // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
+        //     if (!barrierUnlocking || barrierUnlockingMid < renameMarkersBefore.mbF) begin  // @MARKERS
+        //         mainUinfo.barrier = isMemIns(ins) ? renameMarkersBefore.mbF : -1;
+        //     end
+        // end
+
+            mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
+
+        // begin
+        //     uInfos = splitUop(mainUinfo);
+
+        //     for (int u = 0; u < uInfos.size(); u++) begin
+        //         UopInfo uInfo = uInfos[u];
+        //         uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
+                
+        //         if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
+        //     end
+        // end
+
+        uInfos = makeUopInfos(mainUinfo);
+
+
+        ii.nUops = uInfos.size(); 
+
+        insMap.allocate(id, ii, uInfos);
+
+        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) addToMemTracker(id, ii.mainUop, ins, argVals);
+
+        if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
+
+        updateInds(renameInds, id); // @INDS  Crucial state
+        updateMarkers(renameMarkers, id); // @MARKERS  Crucial state
+
+        putMilestoneM(id, InstructionMap::Rename);
+    endtask
+
+
+
+
+        function automatic InstructionInfo updateII(input InstructionInfo iiIn, input Mword adr,
+                                            input AbstractInstruction ins,
+                                         input OpSlotF opSlot,
+                                         input ProgramEvent evt,
+                                         input IndexSet renameIndsBefore);
+                                         //input Mword target);
+            InstructionInfo ii = iiIn;
+            Mword target;
+
 
             runInEmulator(renamedEmul, adr, opSlot.bits);
 
@@ -421,8 +528,20 @@ module AbstractCore
 
             if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
 
+            return ii;
+        endfunction
+
+
+
+
+        function automatic UopInfo getMainUopInfo(input InstructionInfo ii, input AbstractInstruction ins,
+                                                    input InsDependencies deps, input Mword3 argVals,
+                                                    input Mword result, input MarkerSet renameMarkersBefore
+                                                ); // (ii, ins, deps, argValues, result,  renameMarkersBefore)
+            UopInfo mainUinfo;
+
             // Generate info for uops
-            mainUinfo.id = '{id, -1};
+            mainUinfo.id = '{ii.id, -1};
             mainUinfo.name = ii.mainUop;
             mainUinfo.vDest = ins.dest;
             mainUinfo.physDest = -1;
@@ -432,35 +551,28 @@ module AbstractCore
             mainUinfo.resultE = result;
             mainUinfo.argError = 'x;
 
-
             // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
-            if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin  // @MARKERS
-                mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+            if (!barrierUnlocking || barrierUnlockingMid < renameMarkersBefore.mbF) begin  // @MARKERS
+                mainUinfo.barrier = isMemIns(ins) ? renameMarkersBefore.mbF : -1;
             end
 
-        end
+            return mainUinfo;
+        endfunction
 
-        uInfos = splitUop(mainUinfo);
-        ii.nUops = uInfos.size(); 
 
-        for (int u = 0; u < ii.nUops; u++) begin
-            UopInfo uInfo = uInfos[u];
-            uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{id, u});
-            
-            if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d, %s", id, disasm(ii.basicData.bits));
-        end
 
-        insMap.allocate(id, ii, uInfos);
+        function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo);
+            UopInfoQ uInfos = splitUop(mainUinfo);
 
-        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) addToMemTracker(id, ii.mainUop, ins, argVals);
+            for (int u = 0; u < uInfos.size(); u++) begin
+                UopInfo uInfo = uInfos[u];
+                uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
+                
+                if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d", U2M(mainUinfo.id));
+            end
 
-        if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
-
-        updateInds(renameInds, id); // @INDS  Crucial state
-        updateMarkers(renameMarkers, id); // @MARKERS  Crucial state
-
-        putMilestoneM(id, InstructionMap::Rename);
-    endtask
+            return uInfos;
+        endfunction
 
 
         function automatic void addToMemTracker(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword3 argVals);
