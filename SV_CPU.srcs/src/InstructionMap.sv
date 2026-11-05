@@ -80,6 +80,7 @@ package Insmap;
     function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins, input logic isFirst);
         InstructionInfo res;
         res.id = id;
+            res.mainUop = decodeUop(ins);
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
         res.firstInGroup = isFirst;
         res.frontBranch = 'x;

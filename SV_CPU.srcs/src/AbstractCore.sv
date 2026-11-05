@@ -363,19 +363,25 @@ module AbstractCore
         AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
 
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
-        Mword target;
+
+        //UopName uopName = decodeUop(ins);
+        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
+
+        Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
+
+        //ii.mainUop = decodeUop(ins);
+
+        IndexSet renameIndsBefore = renameInds;  // @INDS
 
         UopInfo mainUinfo;
         UopInfo uInfos[$];
 
-        UopName uopName = decodeUop(ins);
-        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
-        InsDependencies deps = registerTracker.getArgDeps(ins);
-
-        Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-        Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
-
         begin
+            Mword target;
+            InsDependencies deps = registerTracker.getArgDeps(ins);
+
+            Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
             runInEmulator(renamedEmul, adr, opSlot.bits);
 
             if (evt != PE_NONE) begin
@@ -388,7 +394,7 @@ module AbstractCore
                 else ii.staticEvt = 1;
 
                 ii.exception = 1;
-                ii.hwEventType = eventFromUop(uopName);
+                ii.hwEventType = eventFromUop(ii.mainUop);
             end
             else if (CurrentConfig.dbStep) begin 
                 ii.hwEventType = PE_EXT_DEBUG;
@@ -408,8 +414,7 @@ module AbstractCore
             renamedEmul.catchDbTrap();
 
             // Main op info
-            ii.mainUop = uopName;
-            ii.inds = renameInds;  // @INDS
+            ii.inds = renameIndsBefore;
             ii.basicData.target = target;
             ii.firstUop = insMap.insBase.lastU + 1;
             ii.nUops = -1;
@@ -418,7 +423,7 @@ module AbstractCore
 
             // Generate info for uops
             mainUinfo.id = '{id, -1};
-            mainUinfo.name = uopName;
+            mainUinfo.name = ii.mainUop;
             mainUinfo.vDest = ins.dest;
             mainUinfo.physDest = -1;
             mainUinfo.deps = deps;
@@ -447,7 +452,7 @@ module AbstractCore
 
         insMap.allocate(id, ii, uInfos);
 
-        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) addToMemTracker(id, uopName, ins, argVals);
+        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) addToMemTracker(id, ii.mainUop, ins, argVals);
 
         if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
 
