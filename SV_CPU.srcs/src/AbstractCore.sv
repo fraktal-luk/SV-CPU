@@ -375,61 +375,64 @@ module AbstractCore
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-        runInEmulator(renamedEmul, adr, opSlot.bits);
+        begin
+            runInEmulator(renamedEmul, adr, opSlot.bits);
 
-        if (evt != PE_NONE) begin
-            ii.exception = 1;
-            ii.staticEvt = 1;
-            ii.hwEventType = evt;
-        end
-        else if (isStaticEventIns(ins)) begin
-            if (isSilentEventIns(ins)) ii.silentEvt = 1;
-            else ii.staticEvt = 1;
+            if (evt != PE_NONE) begin
+                ii.exception = 1;
+                ii.staticEvt = 1;
+                ii.hwEventType = evt;
+            end
+            else if (isStaticEventIns(ins)) begin
+                if (isSilentEventIns(ins)) ii.silentEvt = 1;
+                else ii.staticEvt = 1;
 
-            ii.exception = 1;
-            ii.hwEventType = eventFromUop(uopName);
-        end
-        else if (CurrentConfig.dbStep) begin 
-            ii.hwEventType = PE_EXT_DEBUG;
-        end
+                ii.exception = 1;
+                ii.hwEventType = eventFromUop(uopName);
+            end
+            else if (CurrentConfig.dbStep) begin 
+                ii.hwEventType = PE_EXT_DEBUG;
+            end
 
-        if (renamedEmul.status.exceptionRaised) begin
-            ii.hwEventType = renamedEmul.status.eventType;
-        end
+            if (renamedEmul.status.exceptionRaised) begin
+                ii.hwEventType = renamedEmul.status.eventType;
+            end
 
-        // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
-        ii.emulException = renamedEmul.status.exceptionRaised;
+            // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
+            ii.emulException = renamedEmul.status.exceptionRaised;
 
-        renamedEmul.drain();
+            renamedEmul.drain();
 
-        target = renamedEmul.coreState.target; // For insMap
+            target = renamedEmul.coreState.target; // For insMap
 
-        renamedEmul.catchDbTrap();
+            renamedEmul.catchDbTrap();
 
-        // Main op info
-        ii.mainUop = uopName;
-        ii.inds = renameInds;  // @INDS
-        ii.basicData.target = target;
-        ii.firstUop = insMap.insBase.lastU + 1;
-        ii.nUops = -1;
+            // Main op info
+            ii.mainUop = uopName;
+            ii.inds = renameInds;  // @INDS
+            ii.basicData.target = target;
+            ii.firstUop = insMap.insBase.lastU + 1;
+            ii.nUops = -1;
 
-        if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
+            if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
 
-        // Generate info for uops
-        mainUinfo.id = '{id, -1};
-        mainUinfo.name = uopName;
-        mainUinfo.vDest = ins.dest;
-        mainUinfo.physDest = -1;
-        mainUinfo.deps = deps;
+            // Generate info for uops
+            mainUinfo.id = '{id, -1};
+            mainUinfo.name = uopName;
+            mainUinfo.vDest = ins.dest;
+            mainUinfo.physDest = -1;
+            mainUinfo.deps = deps;
 
-        mainUinfo.argsE = argVals;
-        mainUinfo.resultE = result;
-        mainUinfo.argError = 'x;
+            mainUinfo.argsE = argVals;
+            mainUinfo.resultE = result;
+            mainUinfo.argError = 'x;
 
 
-        // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
-        if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin  // @MARKERS
-            mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+            // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
+            if (!barrierUnlocking || barrierUnlockingMid < renameMarkers.mbF) begin  // @MARKERS
+                mainUinfo.barrier = isMemIns(ins) ? renameMarkers.mbF : -1;
+            end
+
         end
 
         uInfos = splitUop(mainUinfo);
@@ -444,12 +447,7 @@ module AbstractCore
 
         insMap.allocate(id, ii, uInfos);
 
-        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) begin
-            //Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            //Translation tr = renamedEmul.translateDataAddress(effAdr);
-            //memTracker.add(id, uopName, ins, argVals, tr.padr); // DB
-            addToMemTracker(id, uopName, ins, argVals);
-        end
+        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins)) addToMemTracker(id, uopName, ins, argVals);
 
         if (isBranchIns(ins)) saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
 
