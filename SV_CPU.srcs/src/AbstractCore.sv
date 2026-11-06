@@ -315,13 +315,23 @@ module AbstractCore
             renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH); // @INDS
 
         foreach (ops[i]) begin
+
+            IndexSet renameIndsBefore = renameInds;  // @INDS
+            MarkerSet renameMarkersBefore = renameMarkers; // @MARKERS
+
             if (ops[i].active !== 1) continue;
 
             // Assigning Mid for this Mop
             ops[i].mid = insMap.insBase.lastM + 1;
             renameOp(ops[i].mid, ops[i], i, bi,
-                        theFrontend.stageRename0
+                        theFrontend.stageRename0,
+                            renameIndsBefore, renameMarkersBefore
                         );
+            
+            updateInds(renameInds, ops[i].mid); // @INDS  Crucial state
+            updateMarkers(renameMarkers, ops[i].mid); // @MARKERS  Crucial state
+
+            putMilestoneM(ops[i].mid, InstructionMap::Rename);
 
             if (ops[i].branch) bi++;
         end
@@ -337,7 +347,9 @@ module AbstractCore
                             input OpSlotF opSlot,
                             input int currentSlot, // including unused slots before beginning
                             input int currentBranch, // index of branch within used part of block
-                            input FrontStage fs
+                            input FrontStage fs,
+                            input IndexSet renameIndsBefore,
+                            input MarkerSet renameMarkersBefore
                             );
 
         ProgramEvent evt = fs.evt;
@@ -346,11 +358,6 @@ module AbstractCore
 
         // Based on CurrentConfig, Convert disabled instructions to static exceptions
         AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
-
-
-        IndexSet renameIndsBefore = renameInds;  // @INDS
-        MarkerSet renameMarkersBefore = renameMarkers; // @MARKERS
-
 
         InsDependencies deps = registerTracker.getArgDeps(ins);
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
@@ -369,12 +376,7 @@ module AbstractCore
             addToMemTracker(id, ii.mainUop, ins, argVals);
 
         if (isBranchIns(ins))
-            saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2); // Crucial state
-
-        updateInds(renameInds, id); // @INDS  Crucial state
-        updateMarkers(renameMarkers, id); // @MARKERS  Crucial state
-
-        putMilestoneM(id, InstructionMap::Rename);
+            saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2, renameIndsBefore, renameMarkersBefore); // Crucial state
     endtask
 
 
@@ -482,12 +484,15 @@ module AbstractCore
         endfunction
 
 
-    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred);
+    task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred,
+                               input IndexSet renameIndsBefore,
+                               input MarkerSet renameMarkersBefore
+        );
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameInds,    // @INDS 
-                                    renameMarkers, // @MARKERS
+                                    renameIndsBefore, 
+                                    renameMarkersBefore,
                                     branchInd, slot,
                                     renamedEmul,
                                     predState, ownPred);
