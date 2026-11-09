@@ -567,24 +567,15 @@ module AbstractCore
             updateInds(commitIndsU, theId); // @INDS  All types?
             commitIndsU.renameG = insMap.get(theId).inds.renameG; // Part of above
 
-
-            if (theId == (eventUnit.fpInv.id))  sysUnit.setFpInv();
-            if (theId == (eventUnit.fpDiv0.id)) sysUnit.setFpDiv0();
-            if (theId == (eventUnit.fpOv.id))   sysUnit.setFpOv();
-            if (theId == (eventUnit.fpUnd.id))  sysUnit.setFpUnd();
-            if (theId == (eventUnit.fpInex.id)) sysUnit.setFpInex();
+            setFpFlags(theId);
 
             syncCurrentConfigFromRegs();
 
             lastRetired <= theId;
 
-            if (isControlUop(ii.mainUop) || ii.refetch || ii.exception
-                || CurrentConfig.dbStep
-            ) begin
+            if (isControlUop(ii.mainUop) || ii.refetch || ii.exception || CurrentConfig.dbStep) begin
                 assert (theRob.prevRowEvent) else $fatal(2, "Event {%d} detected but not known in ROB", theId);
-
                 foundEvent = 1;
-
                 TMP_checkCtrl(theId, ii);
             end
         end
@@ -593,6 +584,15 @@ module AbstractCore
 
         commitInds <= commitIndsU;
         commitMarkers <= commitMarkersU;
+    endtask
+
+
+    task automatic setFpFlags(input InsId id);
+        if (id == (eventUnit.fpInv.id))  sysUnit.setFpInv();
+        if (id == (eventUnit.fpDiv0.id)) sysUnit.setFpDiv0();
+        if (id == (eventUnit.fpOv.id))   sysUnit.setFpOv();
+        if (id == (eventUnit.fpUnd.id))  sysUnit.setFpUnd();
+        if (id == (eventUnit.fpInex.id)) sysUnit.setFpInex();
     endtask
 
 
@@ -759,6 +759,12 @@ module AbstractCore
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
 
+        updateBpState(insInfo);
+    endtask
+
+
+    task automatic updateBpState(input InstructionInfo insInfo);
+
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
@@ -770,18 +776,18 @@ module AbstractCore
             end
         end
 
-        if (isBranchUop(decMainUop(id))) begin // Br queue entry release
+        if (isBranchUop(decMainUop(insInfo.id))) begin // Br queue entry release
             BranchCheckpoint bce = checkpointUnit.frontElem();
             checkpointUnit.pop();
 
-            assert (bce.id === id) else $error("Not matching op: %p / %p", bce, id);
+            assert (bce.id === insInfo.id) else $error("Not matching op: %p / %p", bce, insInfo.id);
             assert (
                     bce.predState.count === committedPredStatePrev.count
                 &&  bce.predState.len === committedPredStatePrev.len
                 &&  bce.predState.histCoded === committedPredStatePrev.histCoded
                 &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
                     )
-                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
+                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", insInfo.id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
 
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = updateBranchGroup(bce.ownPred, bce.slotInd, insInfo.takenBranch);
@@ -795,8 +801,8 @@ module AbstractCore
             end
 
         end
-
     endtask
+
 
 
     task automatic putToWq(input InsId id, input logic cancel);
@@ -810,13 +816,25 @@ module AbstractCore
     endtask
 
 
-    // TODO: harmonize assigmenets to markers: here blocking, in releaseMarkers nonblocking....
-    // TODO: introduce funcions to clssify uops for barrier purposes
+        function automatic logic isLoadFwBarrierUop(input UopName uname);
+            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf};
+        endfunction
+
+        function automatic logic isStoreFwBarrierUop(input UopName uname);
+            return uname inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
+        endfunction
+
+        function automatic logic isMemFwBarrierUop(input UopName uname);
+            // CAREFUL: includes lda
+            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda};
+        endfunction
+
+
     function automatic void updateMarkers(ref MarkerSet markers, input InsId id);
         UopName mainUop = decMainUop(id);
-        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf}) markers.mbLoadF = id;
-        if (mainUop inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf}) markers.mbStoreF = id;
-        if (mainUop inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda}) markers.mbF = id;
+        if (isLoadFwBarrierUop(mainUop)) markers.mbLoadF = id;
+        if (isStoreFwBarrierUop(mainUop)) markers.mbStoreF = id;
+        if (isMemFwBarrierUop(mainUop)) markers.mbF = id;
 
         if (isLoadMemUop(mainUop))  markers.load = id;
         if (isStoreMemUop(mainUop)) markers.store = id;
@@ -825,19 +843,19 @@ module AbstractCore
     endfunction
 
 
-        function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
-            if (!unlocking) return;
+    function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
+        if (!unlocking) return;
 
-            if (markers.load <= unlockingId) markers.load = -1;
-            if (markers.store <= unlockingId) markers.store = -1;
+        if (markers.load <= unlockingId) markers.load = -1;
+        if (markers.store <= unlockingId) markers.store = -1;
 
-            if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
-            if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
-            if (markers.mbF <= unlockingId) markers.mbF = -1;
+        if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
+        if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
+        if (markers.mbF <= unlockingId) markers.mbF = -1;
 
-            if (markers.loadAq <= unlockingId) markers.loadAq = -1;
-            if (markers.storeRel <= unlockingId) markers.storeRel = -1;
-        endfunction
+        if (markers.loadAq <= unlockingId) markers.loadAq = -1;
+        if (markers.storeRel <= unlockingId) markers.storeRel = -1;
+    endfunction
 
 
     function automatic void updateInds(ref IndexSet inds, input InsId id);
@@ -847,6 +865,7 @@ module AbstractCore
         if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
         if (isStoreUop(mainUop)) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
+
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
