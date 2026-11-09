@@ -47,10 +47,12 @@ module AbstractCore
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
     MemTracker memTracker = new();
 
-    Mword insAdr;       // DB?
-    logic fetchEnable;  // DB?
 
-    InsId lastRetired;
+    struct {
+        Mword insAdr;       // DB?
+        logic fetchEnable;  // DB?
+    } dbSignals;
+
 
     int cycleCtr = 0;
 
@@ -69,25 +71,12 @@ module AbstractCore
         logic enTrapInex = 0; 
     } CurrentConfig;
 
-    // Overall
-    logic renameAllow, iqsAccepting, csqEmpty = 0, wqFree;
-    IqLevels oooLevels, oooAccepts;
-    int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
-
-    // OOO
-    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
-    MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
 
     struct {
         TMP_PredState committedPredState = DEFAULT_PRED_STATE;
         TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
         logic latestPredPresent = 0;
     } latePredStates;
-
-    // Exec   FUTURE: encapsulate in backend?
-    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
-    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
-
 
     struct {
         EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
@@ -96,32 +85,60 @@ module AbstractCore
         EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
     } waitingEvents;
 
+
+    struct {
+        logic renameAllow, iqsAccepting;
+        IqLevels oooLevels, oooAccepts;
+    } accessIndication;
+
+
+    // Overall
+
+    int nFreeRegsInt = 0, nFreeRegsFloat = 0, bcqSize = 0;
+
+    // OOO
+    IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
+    MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
+
+
+    // Exec   FUTURE: encapsulate in backend?
+    logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
+    logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
+
+
+
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
-
-
-    // Store interface
-    // Committed
-    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
-    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
-
-    MemWriteInfo dcacheWriteInfos[2];
-    MemWriteInfo sysWriteInfos[1];
-
-
-    SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, sysWriteInfos);
 
     logic barrierUnlocking;
     InsId barrierUnlockingMid;
     InsId latestUnlockingMid = -1;
 
-    ///////////////////////////
+
+    InsId lastRetired;
+
+
+    // Store interface
+    // Committed
+    struct {
+        logic csqEmpty = 0;
+        logic wqFree;
+        
+        SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+        SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+        MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+
+        MemWriteInfo dcacheWriteInfos[2];
+        MemWriteInfo sysWriteInfos[1];
+    } writingInterface;
+
+    SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, writingInterface.sysWriteInfos);
+
 
     CheckpointUnit checkpointUnit();
 
 
-    DataL1   dataCache(clk, dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
+    DataL1   dataCache(clk, writingInterface.dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
@@ -151,28 +168,29 @@ module AbstractCore
 
 
     //////////////////////////////////////////
-    assign barrierUnlocking = (drainHead.barrierFw === 1);
-    assign barrierUnlockingMid = barrierUnlocking ? (drainHead.mid) : -1;
+    assign barrierUnlocking = (writingInterface.drainHead.barrierFw === 1);
+    assign barrierUnlockingMid = barrierUnlocking ? (writingInterface.drainHead.mid) : -1;
 
-    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
-    assign dcacheWriteInfos[0] = writeInfo;
-    assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
-    assign sysWriteInfos[0] = sysWriteInfo;
 
-    assign oooLevels = '{
+    assign writingInterface.wqFree = writingInterface.csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
+    assign writingInterface.dcacheWriteInfos[0] = writingInterface.writeInfo;
+    assign writingInterface.dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
+    assign writingInterface.sysWriteInfos[0] = writingInterface.sysWriteInfo;
+
+    assign accessIndication.oooLevels = '{
         iqRegular:   theIssueQueues.regularQueue.num,
         iqFloat:     theIssueQueues.floatQueue.num,
         iqBranch:    theIssueQueues.branchQueue.num,
         iqMem:       theIssueQueues.memQueue.num,
         iqStoreData: theIssueQueues.storeDataQueue.num
     };
+    assign accessIndication.oooAccepts = getBufferAccepts(accessIndication.oooLevels);
+    assign accessIndication.iqsAccepting = iqsAccept(accessIndication.oooAccepts);
+    assign accessIndication.renameAllow = bcQueueAccepts(bcqSize) && accessIndication.iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;
 
-    assign oooAccepts = getBufferAccepts(oooLevels);
-    assign iqsAccepting = iqsAccept(oooAccepts);
-    assign renameAllow = bcQueueAccepts(bcqSize) && iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;;
+    assign dbSignals.fetchEnable = theFrontend.fetchEnable;
+    assign dbSignals.insAdr = theFrontend.fetchAdr;
 
-    assign fetchEnable = theFrontend.fetchEnable;
-    assign insAdr = theFrontend.fetchAdr;
 
     assign sigOut = lateEventInfo.etype == PE_HW_SEND;
 
@@ -205,7 +223,7 @@ module AbstractCore
 
         syncCurrentConfigFromRegs();
 
-        if (csqEmpty ||  insMap.insBase.retired < oldestCsq()) // Don't remove ops from base if csq still contains something that would be deleted
+        if (writingInterface.csqEmpty || insMap.insBase.retired < oldestCsq()) // Don't remove ops from base if csq still contains something that would be deleted
             insMap.commitCheck(); 
     end
 
@@ -533,7 +551,7 @@ module AbstractCore
 
         lateEventInfo <= EMPTY_EVENT_INFO;
 
-        if (wqFree) fireLateEvent();
+        if (writingInterface.wqFree) fireLateEvent();
     endtask
 
 
@@ -722,32 +740,32 @@ module AbstractCore
 
         if (cancel) foundElem.valReady = 0; // Make sure it's inactive
 
-        csq.push_back(foundElem); // Normal
+        writingInterface.csq.push_back(foundElem); // Normal
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
     task automatic putWrite();
         // This block is not related to CSQ itself 
-        if (drainHead.mid != -1) begin
-            memTracker.drain(drainHead.mid);
-            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
+        if (writingInterface.drainHead.mid != -1) begin
+            memTracker.drain(writingInterface.drainHead.mid);
+            putMilestoneC(writingInterface.drainHead.mid, InstructionMap::WqExit);
         end
 
-        void'(csq.pop_front());
+        void'(writingInterface.csq.pop_front());
 
-        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
+        assert (writingInterface.csq.size() > 0) else $fatal(2, "csq must never become physically empty");
 
-        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
-            csqEmpty <= 1;
+        if (writingInterface.csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            writingInterface.csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
+            writingInterface.csqEmpty <= 1;
         end
         else begin
-            csqEmpty <= 0;
+            writingInterface.csqEmpty <= 0;
         end
 
-        drainHead <= csq[0];
-        writeInfo <= makeWriteInfo(csq[1]);
-        sysWriteInfo <= makeSysWriteInfo(csq[1]);
+        writingInterface.drainHead <= writingInterface.csq[0];
+        writingInterface.writeInfo <= makeWriteInfo(writingInterface.csq[1]);
+        writingInterface.sysWriteInfo <= makeSysWriteInfo(writingInterface.csq[1]);
     endtask
 
 
@@ -866,7 +884,7 @@ module AbstractCore
         theRob.trg <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
-        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+        writingInterface.csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
     endtask
 
 
@@ -921,7 +939,7 @@ module AbstractCore
     endfunction
 
     function automatic InsId oldestCsq();
-        SqEntry entry[$] = csq.min with (item.mid);
+        SqEntry entry[$] = writingInterface.csq.min with (item.mid);
         return entry[0].mid;
     endfunction
 
@@ -995,8 +1013,6 @@ module AbstractCore
             if (stage[i].active) putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
         end
     endtask
-
-
 
 
 

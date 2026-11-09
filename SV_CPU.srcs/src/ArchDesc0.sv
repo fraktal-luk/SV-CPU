@@ -152,7 +152,7 @@ module ArchDesc0();
         //.wrong(wrong) // UNUSED
     );
 
-    assign fetchAdr = core.insAdr; 
+    assign fetchAdr = core.dbSignals.insAdr; 
 
 
     task automatic runTestSim(input string suiteName, input string name, input GlobalParams gp);

@@ -531,7 +531,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
     function automatic FrontStage readFromFQ();
         // fqSize is written in prev cycle, so new items must wait at least a cycle in FQ
-        if (fqSize > 0 && AbstractCore.renameAllow)
+        if (fqSize > 0 && AbstractCore.accessIndication.renameAllow)
             return fetchQueue.pop_front();
         else
             return DEFAULT_FRONT_STAGE;

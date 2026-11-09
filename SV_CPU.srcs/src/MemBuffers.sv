@@ -151,8 +151,8 @@ module StoreQueue
         end
 
         if (SQ_RETAIN && IS_STORE_QUEUE) begin
-            if (AbstractCore.drainHead.mid != -1) begin
-                assert (AbstractCore.drainHead.mid == content[drainPointer % SIZE].mid) else $error("Not matching n id drain %d/%d", AbstractCore.drainHead.mid, content[drainPointer % SIZE].mid);            
+            if (AbstractCore.writingInterface.drainHead.mid != -1) begin
+                assert (AbstractCore.writingInterface.drainHead.mid == content[drainPointer % SIZE].mid) else $error("Not matching n id drain %d/%d", AbstractCore.writingInterface.drainHead.mid, content[drainPointer % SIZE].mid);            
                 content[drainPointer % SIZE] = EMPTY_QENTRY;
                 drainPointer = (drainPointer+1) % (2*SIZE);
             end
