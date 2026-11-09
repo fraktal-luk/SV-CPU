@@ -473,5 +473,62 @@ package AbstractSim;
     endclass
 
 
+
+
+
+
+        function automatic logic isLoadFwBarrierUop(input UopName uname);
+            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf};
+        endfunction
+
+        function automatic logic isStoreFwBarrierUop(input UopName uname);
+            return uname inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
+        endfunction
+
+        function automatic logic isMemFwBarrierUop(input UopName uname);
+            // CAREFUL: includes lda
+            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda};
+        endfunction
+
+
+
+    function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
+        if (!unlocking) return;
+
+        if (markers.load <= unlockingId) markers.load = -1;
+        if (markers.store <= unlockingId) markers.store = -1;
+
+        if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
+        if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
+        if (markers.mbF <= unlockingId) markers.mbF = -1;
+
+        if (markers.loadAq <= unlockingId) markers.loadAq = -1;
+        if (markers.storeRel <= unlockingId) markers.storeRel = -1;
+    endfunction
+
+
+    function automatic void updateMarkers(ref MarkerSet markers, input InsId id, input UopName mainUop);
+        //UopName mainUop = decMainUop(id);
+        if (isLoadFwBarrierUop(mainUop)) markers.mbLoadF = id;
+        if (isStoreFwBarrierUop(mainUop)) markers.mbStoreF = id;
+        if (isMemFwBarrierUop(mainUop)) markers.mbF = id;
+
+        if (isLoadMemUop(mainUop))  markers.load = id;
+        if (isStoreMemUop(mainUop)) markers.store = id;
+        if (isLoadAqUop(mainUop))   markers.loadAq = id;
+        if (isStoreRelUop(mainUop)) markers.storeRel = id;
+    endfunction
+
+
+    function automatic void updateInds(ref IndexSet inds, input InsId id, input UopName mainUop);
+        //UopName mainUop = decMainUop(id);
+        inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
+        if (isBranchUop(mainUop)) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
+        if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
+        if (isStoreUop(mainUop)) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
+    endfunction
+
+
+
 endpackage
 

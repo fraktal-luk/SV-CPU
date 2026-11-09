@@ -188,7 +188,9 @@ module AbstractCore
         else
             runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
 
-        releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid); // @MARKERS
+        // TODO: problem because renameMarkers are updated by runIndOrderPartRe by nonblocking, so new values are not yet seen here!
+        // 
+        // releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid); // @MARKERS
         if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
 
         handleWrites(); // registerTracker
@@ -201,73 +203,9 @@ module AbstractCore
     end
 
 
-    task automatic handleWrites();
-        writeResult(theExecBlock.doneRegular0_E);
-        writeResult(theExecBlock.doneRegular1_E);
-
-        writeResult(theExecBlock.doneBranch_E);
-        writeResult(theExecBlock.doneDivider_E);
-
-        writeResult(theExecBlock.doneMultiplier0_E);
-        writeResult(theExecBlock.doneMultiplier1_E);
-
-        writeResult(theExecBlock.doneFloat0_E);
-        writeResult(theExecBlock.doneFloat1_E);
-        writeResult(theExecBlock.doneFloatDiv_E);
-
-        writeResult(theExecBlock.doneMem0_E);
-        writeResult(theExecBlock.doneMem1_E);
-        writeResult(theExecBlock.doneMem2_E);
-        writeResult(theExecBlock.doneStoreData_E);
-    endtask
-
-    task automatic updateBookkeeping();
-        bcqSize <= checkpointUnit.getSize();
-        
-        nFreeRegsInt <= registerTracker.getNumFreeInt();
-        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
-        
-        intRegsReadyV <= registerTracker.ints.ready;
-        floatRegsReadyV <= registerTracker.floats.ready;
-    endtask
-
-
     ////////////////
 
-    task automatic putWrite();
-        // This block is not related to CSQ itself 
-        if (drainHead.mid != -1) begin
-            memTracker.drain(drainHead.mid);
-            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
-        end
-
-        void'(csq.pop_front());
-
-        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
-
-        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
-            csqEmpty <= 1;
-        end
-        else begin
-            csqEmpty <= 0;
-        end
-
-        drainHead <= csq[0];
-        writeInfo <= makeWriteInfo(csq[1]);
-        sysWriteInfo <= makeSysWriteInfo(csq[1]);
-    endtask
-
-
-
     // Frontend/Rename
-
-    task automatic markKilledRenameStage(ref OpSlotAB stage);
-        foreach (stage[i]) begin
-            if (stage[i].active) putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
-        end
-    endtask
-
 
     task automatic redirectRest();
         markKilledRenameStage(stageRename1.arr);
@@ -276,8 +214,9 @@ module AbstractCore
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
             
-            flushBranchCheckpointQueueAll();
-                          
+            //flushBranchCheckpointQueueAll();
+            checkpointUnit.flushAll();
+
             registerTracker.restoreStable();
             registerTracker.flushAll();
             memTracker.flushAll();
@@ -289,10 +228,12 @@ module AbstractCore
         end
         else if (branchEventInfo.redirect) begin
             MarkerSet renameMarkersU = renameMarkers;
+
             BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
-            flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
+            //flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
+            checkpointUnit.flushPartial(branchEventInfo.eventMid);
 
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
             registerTracker.flush(branchEventInfo.eventMid);
@@ -301,12 +242,11 @@ module AbstractCore
             renameInds <= causingCP.inds;  // @INDS
             renameMarkersU = causingCP.markers; // @MARKERS
             releaseMarkers(renameMarkersU, 1, latestUnlockingMid); // Don't allow already resolved barriers to come back
+            releaseMarkers(renameMarkersU, barrierUnlocking, barrierUnlockingMid); // @MARKERS
             renameMarkers <= renameMarkersU;
         end
 
     endtask
-
-
 
 
 
@@ -322,26 +262,24 @@ module AbstractCore
             renameIndsU.renameG = (renameIndsU.renameG + 1) % (2*theRob.DEPTH); // @INDS
 
         foreach (ops[i]) begin
-
-            IndexSet renameIndsBefore = renameIndsU;  // @INDS
-            MarkerSet renameMarkersBefore = renameMarkersU; // @MARKERS
-
             if (ops[i].active !== 1) continue;
 
             // Assigning Mid for this Mop
             ops[i].mid = insMap.insBase.lastM + 1;
             renameOp(ops[i].mid, ops[i], i, bi,
                         theFrontend.stageRename0,
-                            renameIndsBefore, renameMarkersBefore
+                            renameIndsU, renameMarkersU
                         );
             
-            updateInds(renameIndsU, ops[i].mid); // @INDS  Crucial state
-            updateMarkers(renameMarkersU, ops[i].mid); // @MARKERS  Crucial state
+            updateInds(renameIndsU, ops[i].mid, decMainUop(ops[i].mid)); // @INDS  Crucial state
+            updateMarkers(renameMarkersU, ops[i].mid, decMainUop(ops[i].mid)); // @MARKERS  Crucial state
 
             putMilestoneM(ops[i].mid, InstructionMap::Rename);
 
             if (ops[i].branch) bi++;
         end
+
+        releaseMarkers(renameMarkersU, barrierUnlocking, barrierUnlockingMid); // @MARKERS
 
         renameInds <= renameIndsU;
         renameMarkers <= renameMarkersU;
@@ -349,8 +287,6 @@ module AbstractCore
         stageRename1 <= theFrontend.stageRename0;
         stageRename1.arr <= ops;
     endtask
-
-
 
 
     task automatic renameOp(input InsId id,
@@ -361,7 +297,6 @@ module AbstractCore
                             input IndexSet renameIndsBefore,
                             input MarkerSet renameMarkersBefore
                             );
-
         ProgramEvent evt = fs.evt;
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
         AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
@@ -393,15 +328,14 @@ module AbstractCore
     endtask
 
 
-
-        function automatic InstructionInfo updateII(//input InstructionInfo iiIn,
+        function automatic InstructionInfo updateII(
                                                     input InsId id,
                                                     input Mword adr,
                                                     input AbstractInstruction ins,
                                                     input OpSlotF opSlot,
                                                     input ProgramEvent evt,
                                                     input IndexSet renameIndsBefore);
-            InstructionInfo ii;// = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
+            InstructionInfo ii;
             Mword target;
 
 
@@ -443,15 +377,11 @@ module AbstractCore
 
             if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
 
-
             renamedEmul.drain();
             renamedEmul.catchDbTrap();
 
-
-
             return ii;
         endfunction
-
 
 
 
@@ -518,14 +448,6 @@ module AbstractCore
         checkpointUnit.addCheckpoint(cp);
     endtask
 
-    task automatic flushBranchCheckpointQueueAll();
-        checkpointUnit.flushAll();
-    endtask
-
-    task automatic flushBranchCheckpointQueuePartial(input InsId id);
-        checkpointUnit.flushPartial(id);
-    endtask    
-
 
 
     function automatic void TMP_checkCtrl(input InsId theId, input InstructionInfo ii);
@@ -545,7 +467,6 @@ module AbstractCore
     task automatic advanceCommit();
         IndexSet commitIndsU = commitInds;
         MarkerSet commitMarkersU = commitMarkers;
-
         logic foundEvent = 0;
 
         foreach (theRob.prevRow[i]) begin
@@ -559,16 +480,14 @@ module AbstractCore
 
             commitOp(theId);
 
-
             // Elements related to crucial signals:
             // RET: update inds
-            updateMarkers(commitMarkersU, theId);  // @MARKERS
+            updateMarkers(commitMarkersU, theId, decMainUop(theId));  // @MARKERS
 
-            updateInds(commitIndsU, theId); // @INDS  All types?
+            updateInds(commitIndsU, theId, decMainUop(theId)); // @INDS  All types?
             commitIndsU.renameG = insMap.get(theId).inds.renameG; // Part of above
 
             setFpFlags(theId);
-
             syncCurrentConfigFromRegs();
 
             lastRetired <= theId;
@@ -586,14 +505,6 @@ module AbstractCore
         commitMarkers <= commitMarkersU;
     endtask
 
-
-    task automatic setFpFlags(input InsId id);
-        if (id == (eventUnit.fpInv.id))  sysUnit.setFpInv();
-        if (id == (eventUnit.fpDiv0.id)) sysUnit.setFpDiv0();
-        if (id == (eventUnit.fpOv.id))   sysUnit.setFpOv();
-        if (id == (eventUnit.fpUnd.id))  sysUnit.setFpUnd();
-        if (id == (eventUnit.fpInex.id)) sysUnit.setFpInex();
-    endtask
 
 
     task automatic prepareLateEvents();
@@ -815,62 +726,28 @@ module AbstractCore
         putMilestoneM(id, InstructionMap::WqEnter); // Normal 
     endtask
 
+    task automatic putWrite();
+        // This block is not related to CSQ itself 
+        if (drainHead.mid != -1) begin
+            memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
+        end
 
-        function automatic logic isLoadFwBarrierUop(input UopName uname);
-            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf};
-        endfunction
+        void'(csq.pop_front());
 
-        function automatic logic isStoreFwBarrierUop(input UopName uname);
-            return uname inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
-        endfunction
+        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
 
-        function automatic logic isMemFwBarrierUop(input UopName uname);
-            // CAREFUL: includes lda
-            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda};
-        endfunction
+        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
+            csqEmpty <= 1;
+        end
+        else begin
+            csqEmpty <= 0;
+        end
 
-
-    function automatic void updateMarkers(ref MarkerSet markers, input InsId id);
-        UopName mainUop = decMainUop(id);
-        if (isLoadFwBarrierUop(mainUop)) markers.mbLoadF = id;
-        if (isStoreFwBarrierUop(mainUop)) markers.mbStoreF = id;
-        if (isMemFwBarrierUop(mainUop)) markers.mbF = id;
-
-        if (isLoadMemUop(mainUop))  markers.load = id;
-        if (isStoreMemUop(mainUop)) markers.store = id;
-        if (isLoadAqUop(mainUop))   markers.loadAq = id;
-        if (isStoreRelUop(mainUop)) markers.storeRel = id;
-    endfunction
-
-
-    function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
-        if (!unlocking) return;
-
-        if (markers.load <= unlockingId) markers.load = -1;
-        if (markers.store <= unlockingId) markers.store = -1;
-
-        if (markers.mbLoadF <= unlockingId) markers.mbLoadF = -1;
-        if (markers.mbStoreF <= unlockingId) markers.mbStoreF = -1;
-        if (markers.mbF <= unlockingId) markers.mbF = -1;
-
-        if (markers.loadAq <= unlockingId) markers.loadAq = -1;
-        if (markers.storeRel <= unlockingId) markers.storeRel = -1;
-    endfunction
-
-
-    function automatic void updateInds(ref IndexSet inds, input InsId id);
-        UopName mainUop = decMainUop(id);
-        inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
-        if (isBranchUop(mainUop)) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
-        if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
-        if (isStoreUop(mainUop)) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
-    endfunction
-
-
-    task automatic writeResult(input UopPacket p);
-        if (!p.active) return;
-        putMilestone(p.uid, InstructionMap::WriteResult);
-        registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
+        drainHead <= csq[0];
+        writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endtask
 
 
@@ -1048,6 +925,8 @@ module AbstractCore
         return entry[0].mid;
     endfunction
 
+
+    // Must be here because refers to type from Queues
     function automatic Mword findTarget(input UopName uname, input Mword adr, input BqEntry entries[$]);
         Mword executed = 'x;
         logic taken = 'x;
@@ -1061,6 +940,64 @@ module AbstractCore
         if (isBranchUop(uname) && taken) return executed;
         else return adr + 4;
     endfunction
+
+
+
+    task automatic writeResult(input UopPacket p);
+        if (!p.active) return;
+        putMilestone(p.uid, InstructionMap::WriteResult);
+        registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
+    endtask
+
+
+    task automatic handleWrites();
+        writeResult(theExecBlock.doneRegular0_E);
+        writeResult(theExecBlock.doneRegular1_E);
+
+        writeResult(theExecBlock.doneBranch_E);
+        writeResult(theExecBlock.doneDivider_E);
+
+        writeResult(theExecBlock.doneMultiplier0_E);
+        writeResult(theExecBlock.doneMultiplier1_E);
+
+        writeResult(theExecBlock.doneFloat0_E);
+        writeResult(theExecBlock.doneFloat1_E);
+        writeResult(theExecBlock.doneFloatDiv_E);
+
+        writeResult(theExecBlock.doneMem0_E);
+        writeResult(theExecBlock.doneMem1_E);
+        writeResult(theExecBlock.doneMem2_E);
+        writeResult(theExecBlock.doneStoreData_E);
+    endtask
+
+
+    task automatic updateBookkeeping();
+        bcqSize <= checkpointUnit.getSize();
+        
+        nFreeRegsInt <= registerTracker.getNumFreeInt();
+        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
+        
+        intRegsReadyV <= registerTracker.ints.ready;
+        floatRegsReadyV <= registerTracker.floats.ready;
+    endtask
+
+    task automatic setFpFlags(input InsId id);
+        if (id == (eventUnit.fpInv.id))  sysUnit.setFpInv();
+        if (id == (eventUnit.fpDiv0.id)) sysUnit.setFpDiv0();
+        if (id == (eventUnit.fpOv.id))   sysUnit.setFpOv();
+        if (id == (eventUnit.fpUnd.id))  sysUnit.setFpUnd();
+        if (id == (eventUnit.fpInex.id)) sysUnit.setFpInex();
+    endtask
+
+
+    task automatic markKilledRenameStage(ref OpSlotAB stage);
+        foreach (stage[i]) begin
+            if (stage[i].active) putMilestoneM(stage[i].mid, InstructionMap::FlushOOO);
+        end
+    endtask
+
+
+
 
 
         logic ch0, ch1, ch2;
