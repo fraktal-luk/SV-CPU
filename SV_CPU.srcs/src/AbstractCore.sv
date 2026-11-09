@@ -77,19 +77,28 @@ module AbstractCore
     // OOO
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
-    TMP_PredState committedPredState = DEFAULT_PRED_STATE, committedPredStatePrev = DEFAULT_PRED_STATE;
-    logic latestPredPresent = 0;
+
+    struct {
+        TMP_PredState committedPredState = DEFAULT_PRED_STATE;
+        TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
+        logic latestPredPresent = 0;
+    } latePredStates;
 
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
+
+    struct {
+        EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+        EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
+        EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+        EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
+    } waitingEvents;
+
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
     EventInfo lateEventInfo = EMPTY_EVENT_INFO;
-    EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
-    EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
-    EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
-    EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
+
 
     // Store interface
     // Committed
@@ -501,21 +510,21 @@ module AbstractCore
         if (theRob.prevRowEvent) begin
             if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
                 Mword adr = insMap.get(eventUnit.general.id).basicData.adr;
-                lateEventInfoWaiting <= eventFromOp(adr,  eventUnit.general);
+                waitingEvents.lateEventInfoWaiting <= eventFromOp(adr,  eventUnit.general);
             end
             else if (eventUnit.dbEvt.id != -1) begin
-                lateEventInfoWaitingDb <= DB_EVENT;
+                waitingEvents.lateEventInfoWaitingDb <= DB_EVENT;
             end
             else
                 $fatal(2, "Wrong event detection in ROB");
         end
 
         if (eventUnit.resetEvt.active && noWaitingEvents()) begin
-            lateEventInfoWaitingReset <= RESET_EVENT;
+            waitingEvents.lateEventInfoWaitingReset <= RESET_EVENT;
             retiredEmul.resetSignal();
         end
         else if (eventUnit.interruptEvt.active  && noWaitingEvents()) begin
-            lateEventInfoWaitingInt <= INT_EVENT;
+            waitingEvents.lateEventInfoWaitingInt <= INT_EVENT;
             $display(">> Interrupt !!!");
                 $display("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
@@ -529,30 +538,30 @@ module AbstractCore
 
 
     task automatic fireLateEvent();
-        if (lateEventInfoWaitingReset.active) begin
-            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingReset.etype);
-            lateEventInfo <= lateEventInfoWaitingReset;          
+        if (waitingEvents.lateEventInfoWaitingReset.active) begin
+            sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingReset.etype);
+            lateEventInfo <= waitingEvents.lateEventInfoWaitingReset;          
         end
-        else if (lateEventInfoWaitingInt.active) begin
-            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingInt.etype);
-            lateEventInfo <= lateEventInfoWaitingInt;        
+        else if (waitingEvents.lateEventInfoWaitingInt.active) begin
+            sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingInt.etype);
+            lateEventInfo <= waitingEvents.lateEventInfoWaitingInt;        
         end
-        else if (lateEventInfoWaitingDb.active) begin
-            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingDb.etype);
-            lateEventInfo <= lateEventInfoWaitingDb;            
+        else if (waitingEvents.lateEventInfoWaitingDb.active) begin
+            sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingDb.etype);
+            lateEventInfo <= waitingEvents.lateEventInfoWaitingDb;            
         end
-        else if (lateEventInfoWaiting.active) begin
+        else if (waitingEvents.lateEventInfoWaiting.active) begin
             Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
-            sysUnit.modifyStateSync(lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
-            lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);
+            sysUnit.modifyStateSync(waitingEvents.lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
+            lateEventInfo <= getLateEvent(waitingEvents.lateEventInfoWaiting, sr2, sr3);
         end
         else
             return;
 
-        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
-        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
-        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
+        waitingEvents.lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        waitingEvents.lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
+        waitingEvents.lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+        waitingEvents.lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
     endtask
 
 
@@ -670,9 +679,9 @@ module AbstractCore
         // Start new block for predictor
         if (CurrentConfig.enableMmu) begin
             if (insInfo.firstInGroup) begin
-                latestPredPresent = 0;
-                committedPredStatePrev = committedPredState;
-                committedPredState = updatePredCommit(committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
+                latePredStates.latestPredPresent = 0;
+                latePredStates.committedPredStatePrev = latePredStates.committedPredState;
+                latePredStates.committedPredState = updatePredCommit(latePredStates.committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
 
                 branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
             end
@@ -684,22 +693,22 @@ module AbstractCore
 
             assert (bce.id === insInfo.id) else $error("Not matching op: %p / %p", bce, insInfo.id);
             assert (
-                    bce.predState.count === committedPredStatePrev.count
-                &&  bce.predState.len === committedPredStatePrev.len
-                &&  bce.predState.histCoded === committedPredStatePrev.histCoded
-                &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
+                    bce.predState.count === latePredStates.committedPredStatePrev.count
+                &&  bce.predState.len === latePredStates.committedPredStatePrev.len
+                &&  bce.predState.histCoded === latePredStates.committedPredStatePrev.histCoded
+                &&  bce.predState.recentCoded === latePredStates.committedPredStatePrev.recentCoded
                     )
-                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", insInfo.id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
+                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", insInfo.id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, latePredStates.committedPredStatePrev);
 
             if (CurrentConfig.enableMmu) begin
                 BranchGroup bg = updateBranchGroup(bce.ownPred, bce.slotInd, insInfo.takenBranch);
 
-                if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
-                else                    committedPredState = replacePred(committedPredState, bg);
+                if (!latePredStates.latestPredPresent) latePredStates.committedPredState = replacePredFirst(latePredStates.committedPredState, bg);
+                else                                   latePredStates.committedPredState = replacePred(latePredStates.committedPredState, bg);
 
                 branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
 
-                latestPredPresent = 1;
+                latePredStates.latestPredPresent = 1;
             end
 
         end
@@ -903,7 +912,7 @@ module AbstractCore
 
 
     function automatic logic pipesEmpty();
-        return theRob.isEmpty && !lateEventInfoWaiting.active && !stageRename1.active;
+        return theRob.isEmpty && !waitingEvents.lateEventInfoWaiting.active && !stageRename1.active;
     endfunction
 
     function automatic logic hasStaticEvent(InsId id);
