@@ -307,6 +307,9 @@ module AbstractCore
         InsDependencies deps = registerTracker.getArgDeps(ins);
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
 
+
+        Translation tr = getTranslationFromEmulator(ins, argVals);
+
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
         // CAREFUL Moves emulation state
@@ -321,7 +324,7 @@ module AbstractCore
         insMap.allocate(id, ii, uInfos);
 
         if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins))
-            addToMemTracker(id, ii.mainUop, ins, argVals);
+            memTracker.add(id, ii.mainUop, ins, argVals, tr.padr); // DB
 
         if (isBranchIns(ins))
             saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2, renameIndsBefore, renameMarkersBefore); // Crucial state
@@ -426,11 +429,17 @@ module AbstractCore
         endfunction
 
 
-        function automatic void addToMemTracker(input InsId id, input UopName uname, input AbstractInstruction ins, input Mword3 argVals);
+        function automatic Translation getTranslationFromEmulator(input AbstractInstruction ins, input Mword3 argVals);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
             Translation tr = renamedEmul.translateDataAddress(effAdr); // TODO: maybe should be before runnning ins in emulator? 
-            memTracker.add(id, uname, ins, argVals, tr.padr); // DB
+            return tr;
         endfunction
+
+
+        // function automatic void addToMemTracker(input InsId id, input UopName uname, input AbstractInstruction ins,
+        //                                         input Mword3 argVals, input Translation tr);
+        //     memTracker.add(id, uname, ins, argVals, tr.padr); // DB
+        // endfunction
 
 
     task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred,
