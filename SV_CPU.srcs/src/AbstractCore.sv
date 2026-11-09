@@ -368,8 +368,11 @@ module AbstractCore
         InstructionInfo ii = updateII(id, adr, ins, opSlot, evt, renameIndsBefore);
 
         UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
+
+        // CAREFUL registerTracker updated here
         UopInfo uInfos[$] = makeUopInfos(mainUinfo);
         ii.nUops = uInfos.size(); 
+
         insMap.allocate(id, ii, uInfos);
 
         if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins))
@@ -388,10 +391,13 @@ module AbstractCore
                                                     input OpSlotF opSlot,
                                                     input ProgramEvent evt,
                                                     input IndexSet renameIndsBefore);
-            InstructionInfo ii = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
+            InstructionInfo ii;// = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
             Mword target;
 
+
             runInEmulator(renamedEmul, adr, opSlot.bits);
+
+                ii = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
 
             if (evt != PE_NONE) begin
                 ii.exception = 1;
@@ -416,11 +422,8 @@ module AbstractCore
             // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
             ii.emulException = renamedEmul.status.exceptionRaised;
 
-            renamedEmul.drain();
-
             target = renamedEmul.coreState.target; // For insMap
 
-            renamedEmul.catchDbTrap();
 
             // Main op info
             ii.inds = renameIndsBefore;
@@ -429,6 +432,12 @@ module AbstractCore
             ii.nUops = -1;
 
             if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
+
+
+            renamedEmul.drain();
+            renamedEmul.catchDbTrap();
+
+
 
             return ii;
         endfunction
