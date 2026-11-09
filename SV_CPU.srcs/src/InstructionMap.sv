@@ -330,10 +330,7 @@ package Insmap;
             if (id == -1) return;
         endfunction
 
-        // TODO: remove allow, handle it outside?
-        function automatic void commitCheck(input logic allow);
-            if (!allow) return;
-        
+        function automatic void commitCheck();        
             while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
                 // FUTURE: remove mids and uids as queues because range [first, last] is enough?
                 InsId removedId = insBase.mids.pop_front();

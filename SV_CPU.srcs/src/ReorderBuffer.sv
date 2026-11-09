@@ -330,7 +330,7 @@ module ReorderBuffer
         return pNew;
     endfunction
 
-    function automatic OpRecordA makeRecord(/*input OpSlotAB ops*/ input FrontStage ops);
+    function automatic OpRecordA makeRecord(input FrontStage ops);
         OpRecordA res = '{default: EMPTY_RECORD};
 
         foreach (ops.arr[i]) begin

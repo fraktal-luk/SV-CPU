@@ -67,9 +67,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         return res;
     endfunction
 
-        // TODO: params to arch defs
-        localparam Mword EXEC_LEVEL_EXC = 1;
-        localparam Mword EXEC_LEVEL_INT = 16;
 
 
     function automatic void modifyStateSync(

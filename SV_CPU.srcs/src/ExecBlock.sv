@@ -271,18 +271,6 @@ module ExecBlock(ref InstructionMap insMap,
     endfunction
 
 
-    // function automatic UopPacket performRegularFP(input UopPacket p);
-    //     if (p.uid == UID_NONE) return p;
-    //     begin
-    //         UopPacket res = p;
-    //         FpResult32 fpRes = calcRegularFpOp(p.uid);
-    //         res.result = fpRes.value;
-    //         return res;
-    //     end
-    // endfunction
-
-
-
     function automatic Mword calcRegularOp(input UopId uid);
         Mword3 args = getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;

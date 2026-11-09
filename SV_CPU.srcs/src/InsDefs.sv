@@ -795,6 +795,10 @@ package InsDefs;
     endfunction
 
 
+    localparam Mword EXEC_LEVEL_EXC = 1;
+    localparam Mword EXEC_LEVEL_INT = 16;
+
+
 
 
     localparam int V_INDEX_BITS = 12;

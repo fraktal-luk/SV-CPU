@@ -188,9 +188,6 @@ module AbstractCore
         else
             runInOrderPartRe(); // stageRename1, renameInds, renamedEmul, registerTracker, memTracker, branchCheckpointQueue
 
-        // TODO: problem because renameMarkers are updated by runIndOrderPartRe by nonblocking, so new values are not yet seen here!
-        // 
-        // releaseMarkers(renameMarkers, barrierUnlocking, barrierUnlockingMid); // @MARKERS
         if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
 
         handleWrites(); // registerTracker
@@ -199,7 +196,8 @@ module AbstractCore
 
         syncCurrentConfigFromRegs();
 
-        insMap.commitCheck( csqEmpty ||  insMap.insBase.retired < oldestCsq() ); // Don't remove ops from base if csq still contains something that would be deleted
+        if (csqEmpty ||  insMap.insBase.retired < oldestCsq()) // Don't remove ops from base if csq still contains something that would be deleted
+            insMap.commitCheck(); 
     end
 
 
@@ -214,9 +212,7 @@ module AbstractCore
         if (lateEventInfo.redirect) begin
             renamedEmul.setLike(retiredEmul);
             
-            //flushBranchCheckpointQueueAll();
             checkpointUnit.flushAll();
-
             registerTracker.restoreStable();
             registerTracker.flushAll();
             memTracker.flushAll();
@@ -232,7 +228,6 @@ module AbstractCore
             BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
-            //flushBranchCheckpointQueuePartial(branchEventInfo.eventMid);
             checkpointUnit.flushPartial(branchEventInfo.eventMid);
 
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
@@ -279,6 +274,7 @@ module AbstractCore
             if (ops[i].branch) bi++;
         end
 
+        // Clear barriers that are becoming outdated
         releaseMarkers(renameMarkersU, barrierUnlocking, barrierUnlockingMid); // @MARKERS
 
         renameInds <= renameIndsU;
@@ -306,85 +302,79 @@ module AbstractCore
 
         InsDependencies deps = registerTracker.getArgDeps(ins);
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
-
-
         Translation tr = getTranslationFromEmulator(ins, argVals);
-
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
-
-        // CAREFUL Moves emulation state
-        InstructionInfo ii = updateII(id, adr, ins, opSlot, evt, renameIndsBefore);
-
-        UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
-
-        // CAREFUL registerTracker updated here
-        UopInfo uInfos[$] = makeUopInfos(mainUinfo);
-        ii.nUops = uInfos.size(); 
-
-        insMap.allocate(id, ii, uInfos);
-
-        if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins))
-            memTracker.add(id, ii.mainUop, ins, argVals, tr.padr); // DB
-
-        if (isBranchIns(ins))
-            saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2, renameIndsBefore, renameMarkersBefore); // Crucial state
-    endtask
-
-
-        function automatic InstructionInfo updateII(
-                                                    input InsId id,
-                                                    input Mword adr,
-                                                    input AbstractInstruction ins,
-                                                    input OpSlotF opSlot,
-                                                    input ProgramEvent evt,
-                                                    input IndexSet renameIndsBefore);
-            InstructionInfo ii;
-            Mword target;
-
 
             runInEmulator(renamedEmul, adr, opSlot.bits);
 
-                ii = initInsInfo(    id, adr, opSlot.bits, ins, opSlot.first);
+        begin
+            // CAREFUL Moves emulation state
+            InstructionInfo ii = updateII(id, adr, ins, opSlot, evt, renameIndsBefore);
 
-            if (evt != PE_NONE) begin
-                ii.exception = 1;
-                ii.staticEvt = 1;
-                ii.hwEventType = evt;
-            end
-            else if (isStaticEventIns(ins)) begin
-                if (isSilentEventIns(ins)) ii.silentEvt = 1;
-                else ii.staticEvt = 1;
+            UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
 
-                ii.exception = 1;
-                ii.hwEventType = eventFromUop(ii.mainUop);
-            end
-            else if (CurrentConfig.dbStep) begin 
-                ii.hwEventType = PE_EXT_DEBUG;
-            end
+            // CAREFUL registerTracker updated here
+            UopInfo uInfos[$] = makeUopInfos(mainUinfo);
+            ii.nUops = uInfos.size(); 
 
-            if (renamedEmul.status.exceptionRaised) begin
-                ii.hwEventType = renamedEmul.status.eventType;
-            end
+            insMap.allocate(id, ii, uInfos);
 
-            // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
-            ii.emulException = renamedEmul.status.exceptionRaised;
+                renamedEmul.drain();
+                renamedEmul.catchDbTrap();
 
-            target = renamedEmul.coreState.target; // For insMap
+            if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins))
+                memTracker.add(id, ii.mainUop, ins, argVals, tr.padr); // DB
+
+            if (isBranchIns(ins))
+                saveCP(id, currentBranch, currentSlot, fs.predState, fs.ownPredF2, renameIndsBefore, renameMarkersBefore); // Crucial state
+        end
+    endtask
 
 
-            // Main op info
-            ii.inds = renameIndsBefore;
-            ii.basicData.target = target;
-            ii.firstUop = insMap.insBase.lastU + 1;
-            ii.nUops = -1;
+    function automatic InstructionInfo updateII(
+                                                input InsId id,
+                                                input Mword adr,
+                                                input AbstractInstruction ins,
+                                                input OpSlotF opSlot,
+                                                input ProgramEvent evt,
+                                                input IndexSet renameIndsBefore);
+        Mword target = renamedEmul.coreState.target; // For insMap
+        logic excRaised = renamedEmul.status.exceptionRaised;
+        ProgramEvent etype = renamedEmul.status.eventType;
+        InstructionInfo ii = initInsInfo(id, adr, opSlot.bits, ins, opSlot.first);
 
-            if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
+        if (evt != PE_NONE) begin
+            ii.exception = 1;
+            ii.staticEvt = 1;
+            ii.hwEventType = evt;
+        end
+        else if (isStaticEventIns(ins)) begin
+            if (isSilentEventIns(ins)) ii.silentEvt = 1;
+            else ii.staticEvt = 1;
 
-            renamedEmul.drain();
-            renamedEmul.catchDbTrap();
+            ii.exception = 1;
+            ii.hwEventType = eventFromUop(ii.mainUop);
+        end
+        else if (CurrentConfig.dbStep) begin 
+            ii.hwEventType = PE_EXT_DEBUG;
+        end
 
-            return ii;
-        endfunction
+        if (excRaised)
+            ii.hwEventType = etype;
+
+        // May be known by now to simulated core (fetch errors etc., sets .staticEvt) or not yet (will set .dynamicEvt)
+        ii.emulException = excRaised;
+
+        // Main op info
+        ii.inds = renameIndsBefore;
+        ii.basicData.target = target;
+        ii.firstUop = insMap.insBase.lastU + 1;
+        ii.nUops = -1;
+
+        if (isBranchIns(ins)) ii.frontBranch = opSlot.takenBranch;
+
+        return ii;
+    endfunction
 
 
 
@@ -414,7 +404,6 @@ module AbstractCore
         endfunction
 
 
-
         function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo);
             UopInfoQ uInfos = splitUop(mainUinfo);
 
@@ -431,16 +420,9 @@ module AbstractCore
 
         function automatic Translation getTranslationFromEmulator(input AbstractInstruction ins, input Mword3 argVals);
             Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Translation tr = renamedEmul.translateDataAddress(effAdr); // TODO: maybe should be before runnning ins in emulator? 
+            Translation tr = renamedEmul.translateDataAddress(effAdr);
             return tr;
         endfunction
-
-
-        // function automatic void addToMemTracker(input InsId id, input UopName uname, input AbstractInstruction ins,
-        //                                         input Mword3 argVals, input Translation tr);
-        //     memTracker.add(id, uname, ins, argVals, tr.padr); // DB
-        // endfunction
-
 
     task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred,
                                input IndexSet renameIndsBefore,
@@ -456,7 +438,6 @@ module AbstractCore
                                     predState, ownPred);
         checkpointUnit.addCheckpoint(cp);
     endtask
-
 
 
     function automatic void TMP_checkCtrl(input InsId theId, input InstructionInfo ii);
@@ -594,25 +575,26 @@ module AbstractCore
         end
     endfunction
 
-        // needs InstructionInfo  -> ControlHandling ?
-        function automatic void checkEventStatus(input InstructionInfo info, input EventDesc general, input EventDesc dbEvt);
-            logic generalEvent = (general.id == info.id);
-            logic debugEvent = (dbEvt.id == info.id);
 
-            logic eventPresent = (
-                CurrentConfig.dbStep || info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
-            );
+    // needs InstructionInfo  -> ControlHandling ?
+    function automatic void checkEventStatus(input InstructionInfo info, input EventDesc general, input EventDesc dbEvt);
+        logic generalEvent = (general.id == info.id);
+        logic debugEvent = (dbEvt.id == info.id);
 
-            assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, general, CurrentConfig.dbStep);
+        logic eventPresent = (
+            CurrentConfig.dbStep || info.refetch || info.dynamicEvt || info.staticEvt || info.silentEvt
+        );
 
-            if (eventPresent) begin
-                assert ((general.etype == info.hwEventType) || (dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG))
-                    else $error("wrong: %p / %p / %p", general.etype, info.hwEventType, dbEvt);
-            end
+        assert ((generalEvent || debugEvent) === eventPresent) else $fatal(2, "Mismatch at op\n%p:\n%p\n dbs %d ", info, general, CurrentConfig.dbStep);
 
-            // .emulException implies .exception
-            assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", info.id, info);
-        endfunction
+        if (eventPresent) begin
+            assert ((general.etype == info.hwEventType) || (dbEvt.etype == PE_EXT_DEBUG && info.hwEventType == PE_EXT_DEBUG))
+                else $error("wrong: %p / %p / %p", general.etype, info.hwEventType, dbEvt);
+        end
+
+        // .emulException implies .exception
+        assert (!info.emulException || info.exception) else $error("Not seen exc: %d\n%p", info.id, info);
+    endfunction
 
 
     // Finish types:

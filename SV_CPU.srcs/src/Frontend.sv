@@ -13,17 +13,6 @@ import CacheDefs::*;
 
 module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
-    // TODO: params to config file
-    localparam logic ENABLE_FRONT_BRANCHES = 1;
-
-    localparam int FQ_SLACK = 3;    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
-
-
-    localparam int MAX_STAGE_UNCACHED = 4 + 12;
-    // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
-    localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 3;
-    localparam int UFQ_SIZE = UFQ_SLACK + 20;
-
 
     typedef enum {
         FS_NONE,
