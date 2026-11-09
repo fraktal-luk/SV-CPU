@@ -282,10 +282,13 @@ module AbstractCore
             registerTracker.flushAll();
             memTracker.flushAll();
             
-            renameInds = commitInds;    // @INDS
-            renameMarkers = commitMarkers; // @MARKERS
+            // CAREFUL: when this happens, commitInds + markers must have been updated by last effecive op.
+            // So this must be on a later cycle than update 
+            renameInds <= commitInds;    // @INDS
+            renameMarkers <= commitMarkers; // @MARKERS
         end
         else if (branchEventInfo.redirect) begin
+            MarkerSet renameMarkersU = renameMarkers;
             BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
@@ -295,9 +298,10 @@ module AbstractCore
             registerTracker.flush(branchEventInfo.eventMid);
             memTracker.flush(branchEventInfo.eventMid);
             
-            renameInds = causingCP.inds;  // @INDS
-            renameMarkers = causingCP.markers; // @MARKERS
-            releaseMarkers(renameMarkers, 1, latestUnlockingMid); // Don't allow already resolved barriers to come back
+            renameInds <= causingCP.inds;  // @INDS
+            renameMarkersU = causingCP.markers; // @MARKERS
+            releaseMarkers(renameMarkersU, 1, latestUnlockingMid); // Don't allow already resolved barriers to come back
+            renameMarkers <= renameMarkersU;
         end
 
     endtask
@@ -308,16 +312,19 @@ module AbstractCore
 
     // Frontend, rename and everything before getting to OOO queues
     task automatic runInOrderPartRe();
+        IndexSet renameIndsU = renameInds;
+        MarkerSet renameMarkersU = renameMarkers;
         OpSlotAF ops = theFrontend.stageRename0.arr;
+
         int bi = 0;
 
         if (anyActiveB(ops))
-            renameInds.renameG = (renameInds.renameG + 1) % (2*theRob.DEPTH); // @INDS
+            renameIndsU.renameG = (renameIndsU.renameG + 1) % (2*theRob.DEPTH); // @INDS
 
         foreach (ops[i]) begin
 
-            IndexSet renameIndsBefore = renameInds;  // @INDS
-            MarkerSet renameMarkersBefore = renameMarkers; // @MARKERS
+            IndexSet renameIndsBefore = renameIndsU;  // @INDS
+            MarkerSet renameMarkersBefore = renameMarkersU; // @MARKERS
 
             if (ops[i].active !== 1) continue;
 
@@ -328,13 +335,16 @@ module AbstractCore
                             renameIndsBefore, renameMarkersBefore
                         );
             
-            updateInds(renameInds, ops[i].mid); // @INDS  Crucial state
-            updateMarkers(renameMarkers, ops[i].mid); // @MARKERS  Crucial state
+            updateInds(renameIndsU, ops[i].mid); // @INDS  Crucial state
+            updateMarkers(renameMarkersU, ops[i].mid); // @MARKERS  Crucial state
 
             putMilestoneM(ops[i].mid, InstructionMap::Rename);
 
             if (ops[i].branch) bi++;
         end
+
+        renameInds <= renameIndsU;
+        renameMarkers <= renameMarkersU;
 
         stageRename1 <= theFrontend.stageRename0;
         stageRename1.arr <= ops;
@@ -533,6 +543,9 @@ module AbstractCore
 
 
     task automatic advanceCommit();
+        IndexSet commitIndsU = commitInds;
+        MarkerSet commitMarkersU = commitMarkers;
+
         logic foundEvent = 0;
 
         foreach (theRob.prevRow[i]) begin
@@ -545,6 +558,15 @@ module AbstractCore
             ii = insMap.get(theId);
 
             commitOp(theId);
+
+
+            // Elements related to crucial signals:
+            // RET: update inds
+            updateMarkers(commitMarkersU, theId);  // @MARKERS
+
+            updateInds(commitIndsU, theId); // @INDS  All types?
+            commitIndsU.renameG = insMap.get(theId).inds.renameG; // Part of above
+
 
             if (theId == (eventUnit.fpInv.id))  sysUnit.setFpInv();
             if (theId == (eventUnit.fpDiv0.id)) sysUnit.setFpDiv0();
@@ -567,7 +589,10 @@ module AbstractCore
             end
         end
 
-        releaseMarkers(commitMarkers, barrierUnlocking, barrierUnlockingMid); // @MARKERS
+        releaseMarkers(commitMarkersU, barrierUnlocking, barrierUnlockingMid); // @MARKERS
+
+        commitInds <= commitIndsU;
+        commitMarkers <= commitMarkersU;
     endtask
 
 
@@ -771,12 +796,6 @@ module AbstractCore
 
         end
 
-        // Elements related to crucial signals:
-        // RET: update inds
-        updateMarkers(commitMarkers, id);  // @MARKERS
-
-        updateInds(commitInds, id); // @INDS  All types?
-        commitInds.renameG = insMap.get(id).inds.renameG; // Part of above
     endtask
 
 
