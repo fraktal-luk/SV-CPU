@@ -349,16 +349,15 @@ module EventUnit(input logic clk);
 
         if (resetEvt.active && noWaitingEvents()) begin
             lateEventInfoWaitingReset <= RESET_EVENT;
-           // retiredEmul.resetSignal();
+            AbstractCore.retiredEmul.resetSignal();
         end
         else if (interruptEvt.active  && noWaitingEvents()) begin
             lateEventInfoWaitingInt <= INT_EVENT;
-            /*
+            
             $display(">> Interrupt !!!");
-                $display("Pre target: %X", retiredEmul.coreState.target);
-            retiredEmul.interrupt();
-                $display("After:      %X", retiredEmul.coreState.target);
-            */
+                $display("Pre target: %X", AbstractCore.retiredEmul.coreState.target);
+            AbstractCore.retiredEmul.interrupt();
+                $display("After:      %X", AbstractCore.retiredEmul.coreState.target);
         end
 
         lateEventInfo <= EMPTY_EVENT_INFO;  // @lateEvt

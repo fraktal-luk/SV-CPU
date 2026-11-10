@@ -549,14 +549,15 @@ module AbstractCore
 
         if (eventUnit.resetEvt.active && noWaitingEvents()) begin
             waitingEvents.lateEventInfoWaitingReset <= RESET_EVENT;
-            retiredEmul.resetSignal();
+           // retiredEmul.resetSignal();
         end
         else if (eventUnit.interruptEvt.active  && noWaitingEvents()) begin
             waitingEvents.lateEventInfoWaitingInt <= INT_EVENT;
-            $display(">> Interrupt !!!");
+            /*$display(">> Interrupt !!!");
                 $display("Pre target: %X", retiredEmul.coreState.target);
             retiredEmul.interrupt();
                 $display("After:      %X", retiredEmul.coreState.target);
+            */
         end
 
         lateEventInfo_N <= EMPTY_EVENT_INFO;  // @lateEvt
