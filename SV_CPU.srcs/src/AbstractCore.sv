@@ -108,7 +108,10 @@ module AbstractCore
 
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
-    EventInfo lateEventInfo = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfo_N = EMPTY_EVENT_INFO;
+
+        EventInfo lateEventInfo;
+
 
     logic barrierUnlocking;
     InsId barrierUnlockingMid;
@@ -117,6 +120,8 @@ module AbstractCore
 
     InsId lastRetired;
 
+
+        assign lateEventInfo = lateEventInfo_N;
 
     // // Store interface
     // // Committed
@@ -208,7 +213,7 @@ module AbstractCore
         advanceCommit(); // commitInds, lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
 
         prepareLateEvents();
-
+            eventUnit.prepareLateEvents();
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
             putWrite(); // csq, csqEmpty, drainHead
@@ -554,7 +559,7 @@ module AbstractCore
                 $display("After:      %X", retiredEmul.coreState.target);
         end
 
-        lateEventInfo <= EMPTY_EVENT_INFO;
+        lateEventInfo_N <= EMPTY_EVENT_INFO;  // @lateEvt
 
         if (writeBuffer.wqFree) fireLateEvent();
     endtask
@@ -563,20 +568,20 @@ module AbstractCore
     task automatic fireLateEvent();
         if (waitingEvents.lateEventInfoWaitingReset.active) begin
             sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingReset.etype);
-            lateEventInfo <= waitingEvents.lateEventInfoWaitingReset;          
+            lateEventInfo_N <= waitingEvents.lateEventInfoWaitingReset;  // @lateEvt
         end
         else if (waitingEvents.lateEventInfoWaitingInt.active) begin
             sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingInt.etype);
-            lateEventInfo <= waitingEvents.lateEventInfoWaitingInt;        
+            lateEventInfo_N <= waitingEvents.lateEventInfoWaitingInt;    // @lateEvt
         end
         else if (waitingEvents.lateEventInfoWaitingDb.active) begin
             sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingDb.etype);
-            lateEventInfo <= waitingEvents.lateEventInfoWaitingDb;            
+            lateEventInfo_N <= waitingEvents.lateEventInfoWaitingDb;     // @lateEvt
         end
         else if (waitingEvents.lateEventInfoWaiting.active) begin
             Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
             sysUnit.modifyStateSync(waitingEvents.lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
-            lateEventInfo <= getLateEvent(waitingEvents.lateEventInfoWaiting, sr2, sr3);
+            lateEventInfo_N <= getLateEvent(waitingEvents.lateEventInfoWaiting, sr2, sr3);  // @lateEvt
         end
         else
             return;
@@ -896,8 +901,9 @@ module AbstractCore
         syncCurrentConfigFromRegs();
 
         theRob.trg <= IP_RESET;
-        lateEventInfo <= RESET_EVENT;
-            
+        lateEventInfo_N <= RESET_EVENT;  // @lateEvt
+            eventUnit.lateEventInfo <= RESET_EVENT;
+
       //  writingInterface.csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
 
         writeBuffer.clear();

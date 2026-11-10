@@ -320,4 +320,80 @@ module EventUnit(input logic clk);
         return backendState == BS_HANDLING;
     endfunction
 
+
+
+
+
+        EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+        EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
+        EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+        EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
+
+
+        EventInfo lateEventInfo = EMPTY_EVENT_INFO;
+
+
+
+    task automatic prepareLateEvents();
+        if (theRob.prevRowEvent) begin
+            if (general.id != -1 && (dbEvt.id == -1 || general.id <= dbEvt.id)) begin
+                Mword adr = AbstractCore.insMap.get(general.id).basicData.adr;
+                lateEventInfoWaiting <= eventFromOp(adr,  general);
+            end
+            else if (dbEvt.id != -1) begin
+                lateEventInfoWaitingDb <= DB_EVENT;
+            end
+            else
+                $fatal(2, "Wrong event detection in ROB");
+        end
+
+        if (resetEvt.active && noWaitingEvents()) begin
+            lateEventInfoWaitingReset <= RESET_EVENT;
+           // retiredEmul.resetSignal();
+        end
+        else if (interruptEvt.active  && noWaitingEvents()) begin
+            lateEventInfoWaitingInt <= INT_EVENT;
+            /*
+            $display(">> Interrupt !!!");
+                $display("Pre target: %X", retiredEmul.coreState.target);
+            retiredEmul.interrupt();
+                $display("After:      %X", retiredEmul.coreState.target);
+            */
+        end
+
+        lateEventInfo <= EMPTY_EVENT_INFO;  // @lateEvt
+
+        if (AbstractCore.writeBuffer.wqFree) fireLateEvent();
+    endtask
+
+
+    task automatic fireLateEvent();
+        if (lateEventInfoWaitingReset.active) begin
+            //sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingReset.etype);
+            lateEventInfo <= lateEventInfoWaitingReset;  // @lateEvt
+        end
+        else if (lateEventInfoWaitingInt.active) begin
+            //sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingInt.etype);
+            lateEventInfo <= lateEventInfoWaitingInt;    // @lateEvt
+        end
+        else if (lateEventInfoWaitingDb.active) begin
+            //sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingDb.etype);
+            lateEventInfo <= lateEventInfoWaitingDb;     // @lateEvt
+        end
+        else if (lateEventInfoWaiting.active) begin
+            Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
+            //sysUnit.modifyStateSync(lateEventInfoWaiting.adr, lastEvtAD, lastEvtTr, general.etype);
+            lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);  // @lateEvt
+        end
+        else
+            return;
+
+        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
+    endtask
+
+
+
 endmodule
