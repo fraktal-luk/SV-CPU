@@ -14,10 +14,7 @@ sim:/ArchDesc0/simTestName
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/lastRetired \
-sim:/ArchDesc0/core/lateEventInfo \
-sim:/ArchDesc0/core/waitingEvents.lateEventInfoWaiting \
-sim:/ArchDesc0/core/waitingEvents.lateEventInfoWaitingInt \
-sim:/ArchDesc0/core/waitingEvents.lateEventInfoWaitingReset
+sim:/ArchDesc0/core/lateEventInfo
 
 
 add wave -position insertpoint  \

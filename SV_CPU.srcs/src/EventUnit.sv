@@ -368,20 +368,20 @@ module EventUnit(input logic clk);
 
     task automatic fireLateEvent();
         if (lateEventInfoWaitingReset.active) begin
-            //sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingReset.etype);
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingReset.etype);
             lateEventInfo <= lateEventInfoWaitingReset;  // @lateEvt
         end
         else if (lateEventInfoWaitingInt.active) begin
-            //sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingInt.etype);
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingInt.etype);
             lateEventInfo <= lateEventInfoWaitingInt;    // @lateEvt
         end
         else if (lateEventInfoWaitingDb.active) begin
-            //sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingDb.etype);
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingDb.etype);
             lateEventInfo <= lateEventInfoWaitingDb;     // @lateEvt
         end
         else if (lateEventInfoWaiting.active) begin
             Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
-            //sysUnit.modifyStateSync(lateEventInfoWaiting.adr, lastEvtAD, lastEvtTr, general.etype);
+            sysUnit.modifyStateSync(lateEventInfoWaiting.adr, lastEvtAD, lastEvtTr, general.etype);
             lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);  // @lateEvt
         end
         else

@@ -78,12 +78,12 @@ module AbstractCore
         logic latestPredPresent = 0;
     } latePredStates;
 
-    struct {
-        EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
-        EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
-        EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
-        EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
-    } waitingEvents;
+    // struct {
+    //     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    //     EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
+    //     EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+    //     EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
+    // } waitingEvents;
 
 
     struct {
@@ -121,7 +121,8 @@ module AbstractCore
     InsId lastRetired;
 
 
-        assign lateEventInfo = lateEventInfo_N;
+        assign lateEventInfo = //lateEventInfo_N;
+                                eventUnit.lateEventInfo;
 
     // // Store interface
     // // Committed
@@ -212,7 +213,7 @@ module AbstractCore
 
         advanceCommit(); // commitInds, lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
 
-        prepareLateEvents();
+       // prepareLateEvents();
             eventUnit.prepareLateEvents();
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
@@ -534,64 +535,64 @@ module AbstractCore
 
 
 
-    task automatic prepareLateEvents();
-        if (theRob.prevRowEvent) begin
-            if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
-                Mword adr = insMap.get(eventUnit.general.id).basicData.adr;
-                waitingEvents.lateEventInfoWaiting <= eventFromOp(adr,  eventUnit.general);
-            end
-            else if (eventUnit.dbEvt.id != -1) begin
-                waitingEvents.lateEventInfoWaitingDb <= DB_EVENT;
-            end
-            else
-                $fatal(2, "Wrong event detection in ROB");
-        end
+    // task automatic prepareLateEvents();
+    //     if (theRob.prevRowEvent) begin
+    //         if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
+    //             Mword adr = insMap.get(eventUnit.general.id).basicData.adr;
+    //             waitingEvents.lateEventInfoWaiting <= eventFromOp(adr,  eventUnit.general);
+    //         end
+    //         else if (eventUnit.dbEvt.id != -1) begin
+    //             waitingEvents.lateEventInfoWaitingDb <= DB_EVENT;
+    //         end
+    //         else
+    //             $fatal(2, "Wrong event detection in ROB");
+    //     end
 
-        if (eventUnit.resetEvt.active && noWaitingEvents()) begin
-            waitingEvents.lateEventInfoWaitingReset <= RESET_EVENT;
-           // retiredEmul.resetSignal();
-        end
-        else if (eventUnit.interruptEvt.active  && noWaitingEvents()) begin
-            waitingEvents.lateEventInfoWaitingInt <= INT_EVENT;
-            /*$display(">> Interrupt !!!");
-                $display("Pre target: %X", retiredEmul.coreState.target);
-            retiredEmul.interrupt();
-                $display("After:      %X", retiredEmul.coreState.target);
-            */
-        end
+    //     if (eventUnit.resetEvt.active && noWaitingEvents()) begin
+    //         waitingEvents.lateEventInfoWaitingReset <= RESET_EVENT;
+    //        // retiredEmul.resetSignal();
+    //     end
+    //     else if (eventUnit.interruptEvt.active  && noWaitingEvents()) begin
+    //         waitingEvents.lateEventInfoWaitingInt <= INT_EVENT;
+    //         /*$display(">> Interrupt !!!");
+    //             $display("Pre target: %X", retiredEmul.coreState.target);
+    //         retiredEmul.interrupt();
+    //             $display("After:      %X", retiredEmul.coreState.target);
+    //         */
+    //     end
 
-        lateEventInfo_N <= EMPTY_EVENT_INFO;  // @lateEvt
+    //     lateEventInfo_N <= EMPTY_EVENT_INFO;  // @lateEvt
 
-        if (writeBuffer.wqFree) fireLateEvent();
-    endtask
+    //     if (writeBuffer.wqFree) fireLateEvent();
+    // endtask
 
 
-    task automatic fireLateEvent();
-        if (waitingEvents.lateEventInfoWaitingReset.active) begin
-            sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingReset.etype);
-            lateEventInfo_N <= waitingEvents.lateEventInfoWaitingReset;  // @lateEvt
-        end
-        else if (waitingEvents.lateEventInfoWaitingInt.active) begin
-            sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingInt.etype);
-            lateEventInfo_N <= waitingEvents.lateEventInfoWaitingInt;    // @lateEvt
-        end
-        else if (waitingEvents.lateEventInfoWaitingDb.active) begin
-            sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingDb.etype);
-            lateEventInfo_N <= waitingEvents.lateEventInfoWaitingDb;     // @lateEvt
-        end
-        else if (waitingEvents.lateEventInfoWaiting.active) begin
-            Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
-            sysUnit.modifyStateSync(waitingEvents.lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
-            lateEventInfo_N <= getLateEvent(waitingEvents.lateEventInfoWaiting, sr2, sr3);  // @lateEvt
-        end
-        else
-            return;
+    // task automatic fireLateEvent();
+    //     if (waitingEvents.lateEventInfoWaitingReset.active) begin
+    //         //sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingReset.etype);
+    //         lateEventInfo_N <= waitingEvents.lateEventInfoWaitingReset;  // @lateEvt
+    //     end
+    //     else if (waitingEvents.lateEventInfoWaitingInt.active) begin
+    //         //sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingInt.etype);
+    //         lateEventInfo_N <= waitingEvents.lateEventInfoWaitingInt;    // @lateEvt
+    //     end
+    //     else if (waitingEvents.lateEventInfoWaitingDb.active) begin
+    //         //sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingDb.etype);
+    //         lateEventInfo_N <= waitingEvents.lateEventInfoWaitingDb;     // @lateEvt
+    //     end
+    //     else if (waitingEvents.lateEventInfoWaiting.active) begin
+    //         Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
+    //         //sysUnit.modifyStateSync(waitingEvents.lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
+    //         lateEventInfo_N <= getLateEvent(waitingEvents.lateEventInfoWaiting, sr2, sr3);  // @lateEvt
+    //     end
+    //     else
+    //         return;
 
-        waitingEvents.lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-        waitingEvents.lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
-        waitingEvents.lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
-        waitingEvents.lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
-    endtask
+    //     waitingEvents.lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+    //     waitingEvents.lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
+    //     waitingEvents.lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+    //     waitingEvents.lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
+    // endtask
 
 
     function automatic logic noWaitingEvents();
@@ -953,7 +954,7 @@ module AbstractCore
 
 
     function automatic logic pipesEmpty();
-        return theRob.isEmpty && !waitingEvents.lateEventInfoWaiting.active && !stageRename1.active;
+        return theRob.isEmpty && !eventUnit.lateEventInfoWaiting.active && !stageRename1.active;
     endfunction
 
     function automatic logic hasStaticEvent(InsId id);
