@@ -132,6 +132,10 @@ module AbstractCore
         MemWriteInfo sysWriteInfos[1];
     } writingInterface;
 
+
+    WriteBuffer writeBuffer();
+
+
     SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, writingInterface.sysWriteInfos);
 
 
@@ -176,6 +180,7 @@ module AbstractCore
     assign writingInterface.dcacheWriteInfos[0] = writingInterface.writeInfo;
     assign writingInterface.dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
     assign writingInterface.sysWriteInfos[0] = writingInterface.sysWriteInfo;
+
 
     assign accessIndication.oooLevels = '{
         iqRegular:   theIssueQueues.regularQueue.num,
@@ -741,14 +746,16 @@ module AbstractCore
         if (cancel) foundElem.valReady = 0; // Make sure it's inactive
 
         writingInterface.csq.push_back(foundElem); // Normal
-        putMilestoneM(id, InstructionMap::WqEnter); // Normal 
+        //putMilestoneM(id, InstructionMap::WqEnter); // Normal 
+
+            writeBuffer.add(id, cancel);
     endtask
 
     task automatic putWrite();
         // This block is not related to CSQ itself 
         if (writingInterface.drainHead.mid != -1) begin
-            memTracker.drain(writingInterface.drainHead.mid);
-            putMilestoneC(writingInterface.drainHead.mid, InstructionMap::WqExit);
+            //memTracker.drain(writingInterface.drainHead.mid);
+            //putMilestoneC(writingInterface.drainHead.mid, InstructionMap::WqExit);
         end
 
         void'(writingInterface.csq.pop_front());
@@ -766,6 +773,13 @@ module AbstractCore
         writingInterface.drainHead <= writingInterface.csq[0];
         writingInterface.writeInfo <= makeWriteInfo(writingInterface.csq[1]);
         writingInterface.sysWriteInfo <= makeSysWriteInfo(writingInterface.csq[1]);
+
+
+            writeBuffer.publish();
+
+
+                    assert (writingInterface.csq === writeBuffer.csq) else $error("%p\n%p", writingInterface.csq, writeBuffer.csq);
+
     endtask
 
 
@@ -885,6 +899,8 @@ module AbstractCore
         lateEventInfo <= RESET_EVENT;
             
         writingInterface.csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+
+        writeBuffer.clear();
     endtask
 
 
@@ -1020,5 +1036,70 @@ module AbstractCore
         // assign ch0 = stageEmptyAB(stageRename1);
         // assign ch1 = stageRename1.active;
         // assign ch2 = stageEmptyAB(stageRename1) === !stageRename1.active;
+
+endmodule
+
+
+
+
+module WriteBuffer();
+
+    logic csqEmpty = 0;
+    logic wqFree;
+    
+    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+
+    MemWriteInfo dcacheWriteInfos[2];
+    MemWriteInfo sysWriteInfos[1];
+
+
+
+    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
+    assign dcacheWriteInfos[0] = writeInfo;
+    assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
+    assign sysWriteInfos[0] = sysWriteInfo;
+
+
+
+    function automatic void add(input InsId id, input logic cancel);
+        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
+        SqEntry foundElem = found[0];
+
+        if (cancel) foundElem.valReady = 0; // Make sure it's inactive
+
+        csq.push_back(foundElem); // Normal
+        putMilestoneM(id, InstructionMap::WqEnter); // Normal
+    endfunction
+
+
+    function automatic void publish();
+        if (drainHead.mid != -1) begin
+            AbstractCore.memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
+        end
+
+        void'(csq.pop_front());
+
+        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
+
+        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
+            csqEmpty <= 1;
+        end
+        else begin
+            csqEmpty <= 0;
+        end
+
+        drainHead <= csq[0];
+        writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
+    endfunction
+
+
+    function automatic void clear();
+        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    endfunction
 
 endmodule
