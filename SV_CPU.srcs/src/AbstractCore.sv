@@ -118,19 +118,19 @@ module AbstractCore
     InsId lastRetired;
 
 
-    // Store interface
-    // Committed
-    struct {
-        logic csqEmpty = 0;
-        logic wqFree;
+    // // Store interface
+    // // Committed
+    // struct {
+    //     logic csqEmpty = 0;
+    //     logic wqFree;
         
-        SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-        SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
-        MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+    //     SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    //     SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+    //     MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
 
-        MemWriteInfo dcacheWriteInfos[2];
-        MemWriteInfo sysWriteInfos[1];
-    } writingInterface;
+    //     MemWriteInfo dcacheWriteInfos[2];
+    //     MemWriteInfo sysWriteInfos[1];
+    // } writingInterface;
 
 
     WriteBuffer writeBuffer();
@@ -176,10 +176,10 @@ module AbstractCore
     assign barrierUnlockingMid = barrierUnlocking ? (writeBuffer.drainHead.mid) : -1;
 
 
-    assign writingInterface.wqFree = writingInterface.csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
-    assign writingInterface.dcacheWriteInfos[0] = writingInterface.writeInfo;
-    assign writingInterface.dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
-    assign writingInterface.sysWriteInfos[0] = writingInterface.sysWriteInfo;
+    // assign writingInterface.wqFree = writingInterface.csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
+    // assign writingInterface.dcacheWriteInfos[0] = writingInterface.writeInfo;
+    // assign writingInterface.dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
+    // assign writingInterface.sysWriteInfos[0] = writingInterface.sysWriteInfo;
 
 
     assign accessIndication.oooLevels = '{
@@ -740,45 +740,45 @@ module AbstractCore
 
 
     task automatic putToWq(input InsId id, input logic cancel);
-        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
-        SqEntry foundElem = found[0];
+        // SqEntry found[$] = theSq.content.find_first with (item.mid == id);
+        // SqEntry foundElem = found[0];
 
-        if (cancel) foundElem.valReady = 0; // Make sure it's inactive
+        // if (cancel) foundElem.valReady = 0; // Make sure it's inactive
 
-        writingInterface.csq.push_back(foundElem); // Normal
-        //putMilestoneM(id, InstructionMap::WqEnter); // Normal 
+        // writingInterface.csq.push_back(foundElem); // Normal
+        // //putMilestoneM(id, InstructionMap::WqEnter); // Normal 
 
             writeBuffer.add(id, cancel);
     endtask
 
     task automatic putWrite();
         // This block is not related to CSQ itself 
-        if (writingInterface.drainHead.mid != -1) begin
-            //memTracker.drain(writingInterface.drainHead.mid);
-            //putMilestoneC(writingInterface.drainHead.mid, InstructionMap::WqExit);
-        end
+        // if (writingInterface.drainHead.mid != -1) begin
+        //     //memTracker.drain(writingInterface.drainHead.mid);
+        //     //putMilestoneC(writingInterface.drainHead.mid, InstructionMap::WqExit);
+        // end
 
-        void'(writingInterface.csq.pop_front());
+        // void'(writingInterface.csq.pop_front());
 
-        assert (writingInterface.csq.size() > 0) else $fatal(2, "csq must never become physically empty");
+        // assert (writingInterface.csq.size() > 0) else $fatal(2, "csq must never become physically empty");
 
-        if (writingInterface.csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            writingInterface.csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
-            writingInterface.csqEmpty <= 1;
-        end
-        else begin
-            writingInterface.csqEmpty <= 0;
-        end
+        // if (writingInterface.csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+        //     writingInterface.csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
+        //     writingInterface.csqEmpty <= 1;
+        // end
+        // else begin
+        //     writingInterface.csqEmpty <= 0;
+        // end
 
-        writingInterface.drainHead <= writingInterface.csq[0];
-        writingInterface.writeInfo <= makeWriteInfo(writingInterface.csq[1]);
-        writingInterface.sysWriteInfo <= makeSysWriteInfo(writingInterface.csq[1]);
+        // writingInterface.drainHead <= writingInterface.csq[0];
+        // writingInterface.writeInfo <= makeWriteInfo(writingInterface.csq[1]);
+        // writingInterface.sysWriteInfo <= makeSysWriteInfo(writingInterface.csq[1]);
 
 
             writeBuffer.publish();
 
 
-                    assert (writingInterface.csq === writeBuffer.csq) else $error("%p\n%p", writingInterface.csq, writeBuffer.csq);
+               //     assert (writingInterface.csq === writeBuffer.csq) else $error("%p\n%p", writingInterface.csq, writeBuffer.csq);
 
     endtask
 
@@ -898,7 +898,7 @@ module AbstractCore
         theRob.trg <= IP_RESET;
         lateEventInfo <= RESET_EVENT;
             
-        writingInterface.csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+      //  writingInterface.csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
 
         writeBuffer.clear();
     endtask
