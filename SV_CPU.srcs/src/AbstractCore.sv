@@ -136,13 +136,13 @@ module AbstractCore
     WriteBuffer writeBuffer();
 
 
-    SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, writingInterface.sysWriteInfos);
+    SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, writeBuffer.sysWriteInfos);
 
 
     CheckpointUnit checkpointUnit();
 
 
-    DataL1   dataCache(clk, writingInterface.dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
+    DataL1   dataCache(clk, writeBuffer.dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
     Frontend theFrontend(insMap, clk, branchEventInfo, lateEventInfo);
 
@@ -172,8 +172,8 @@ module AbstractCore
 
 
     //////////////////////////////////////////
-    assign barrierUnlocking = (writingInterface.drainHead.barrierFw === 1);
-    assign barrierUnlockingMid = barrierUnlocking ? (writingInterface.drainHead.mid) : -1;
+    assign barrierUnlocking = (writeBuffer.drainHead.barrierFw === 1);
+    assign barrierUnlockingMid = barrierUnlocking ? (writeBuffer.drainHead.mid) : -1;
 
 
     assign writingInterface.wqFree = writingInterface.csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
@@ -228,7 +228,7 @@ module AbstractCore
 
         syncCurrentConfigFromRegs();
 
-        if (writingInterface.csqEmpty || insMap.insBase.retired < oldestCsq()) // Don't remove ops from base if csq still contains something that would be deleted
+        if (writeBuffer.csqEmpty || insMap.insBase.retired < oldestCsq()) // Don't remove ops from base if csq still contains something that would be deleted
             insMap.commitCheck(); 
     end
 
@@ -556,7 +556,7 @@ module AbstractCore
 
         lateEventInfo <= EMPTY_EVENT_INFO;
 
-        if (writingInterface.wqFree) fireLateEvent();
+        if (writeBuffer.wqFree) fireLateEvent();
     endtask
 
 
@@ -955,7 +955,8 @@ module AbstractCore
     endfunction
 
     function automatic InsId oldestCsq();
-        SqEntry entry[$] = writingInterface.csq.min with (item.mid);
+        //SqEntry entry[$] = writingInterface.csq.min with (item.mid);
+        SqEntry entry[$] = writeBuffer.csq.min with (item.mid);
         return entry[0].mid;
     endfunction
 

@@ -154,7 +154,7 @@ module ReplayQueue(
                 end
 
                 ES_UNCACHED_1, ES_BARRIER_1, ES_AQ_REL_1: begin
-                    if (U2M(entries[i].uid) == theRob.recScan.mid && !eventUnit.isHandling() && AbstractCore.writingInterface.wqFree) begin
+                    if (U2M(entries[i].uid) == theRob.recScan.mid && !eventUnit.isHandling() && AbstractCore.writeBuffer.wqFree) begin
                         entries[i].ready = 1;
                     end
                 end
