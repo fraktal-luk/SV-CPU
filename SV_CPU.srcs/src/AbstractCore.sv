@@ -71,20 +71,11 @@ module AbstractCore
         logic enTrapInex = 0; 
     } CurrentConfig;
 
-
     struct {
         TMP_PredState committedPredState = DEFAULT_PRED_STATE;
         TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
         logic latestPredPresent = 0;
     } latePredStates;
-
-    // struct {
-    //     EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
-    //     EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
-    //     EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
-    //     EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
-    // } waitingEvents;
-
 
     struct {
         logic renameAllow, iqsAccepting;
@@ -100,53 +91,28 @@ module AbstractCore
     IndexSet renameInds = '{default: 0}, commitInds = '{default: 0};
     MarkerSet renameMarkers = '{default: -1}, commitMarkers = '{default: -1};
 
-
     // Exec   FUTURE: encapsulate in backend?
     logic intRegsReadyV[N_REGS_INT] = '{default: 'x};
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
-
-
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
-    EventInfo lateEventInfo_N = EMPTY_EVENT_INFO;
 
-        EventInfo lateEventInfo;
+    EventInfo lateEventInfo;
 
 
     logic barrierUnlocking;
     InsId barrierUnlockingMid;
     InsId latestUnlockingMid = -1;
 
-
     InsId lastRetired;
 
-
-        assign lateEventInfo = //lateEventInfo_N;
-                                eventUnit.lateEventInfo;
-
-    // // Store interface
-    // // Committed
-    // struct {
-    //     logic csqEmpty = 0;
-    //     logic wqFree;
-        
-    //     SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-    //     SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
-    //     MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
-
-    //     MemWriteInfo dcacheWriteInfos[2];
-    //     MemWriteInfo sysWriteInfos[1];
-    // } writingInterface;
 
 
     WriteBuffer writeBuffer();
 
-
     SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, writeBuffer.sysWriteInfos);
 
-
     CheckpointUnit checkpointUnit();
-
 
     DataL1   dataCache(clk, writeBuffer.dcacheWriteInfos, theExecBlock.dcacheTranslationsE0d, theExecBlock.dcacheOuts_E1, theExecBlock.uncachedOuts_E1);
 
@@ -178,15 +144,10 @@ module AbstractCore
 
 
     //////////////////////////////////////////
+    assign lateEventInfo = eventUnit.lateEventInfo;
+
     assign barrierUnlocking = (writeBuffer.drainHead.barrierFw === 1);
     assign barrierUnlockingMid = barrierUnlocking ? (writeBuffer.drainHead.mid) : -1;
-
-
-    // assign writingInterface.wqFree = writingInterface.csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
-    // assign writingInterface.dcacheWriteInfos[0] = writingInterface.writeInfo;
-    // assign writingInterface.dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
-    // assign writingInterface.sysWriteInfos[0] = writingInterface.sysWriteInfo;
-
 
     assign accessIndication.oooLevels = '{
         iqRegular:   theIssueQueues.regularQueue.num,
@@ -195,6 +156,7 @@ module AbstractCore
         iqMem:       theIssueQueues.memQueue.num,
         iqStoreData: theIssueQueues.storeDataQueue.num
     };
+
     assign accessIndication.oooAccepts = getBufferAccepts(accessIndication.oooLevels);
     assign accessIndication.iqsAccepting = iqsAccept(accessIndication.oooAccepts);
     assign accessIndication.renameAllow = bcQueueAccepts(bcqSize) && accessIndication.iqsAccepting && regsAccept(nFreeRegsInt, nFreeRegsFloat) && theRob.allow && theSq.allow && theLq.allow;
@@ -213,11 +175,10 @@ module AbstractCore
 
         advanceCommit(); // commitInds, lateEventInfoWaiting, retiredTarget, csq, registerTracker, memTracker, retiredEmul, branchCheckpointQueue
 
-       // prepareLateEvents();
-            eventUnit.prepareLateEvents();
+        eventUnit.prepareLateEvents();
 
         begin // CAREFUL: putting this before advanceCommit() + activateEvent() has an effect on cycles 
-            putWrite(); // csq, csqEmpty, drainHead
+            writeBuffer.publish();
             sysUnit.handleWrite();
         end
 
@@ -301,8 +262,8 @@ module AbstractCore
             ops[i].mid = insMap.insBase.lastM + 1;
             renameOp(ops[i].mid, ops[i], i, bi,
                         theFrontend.stageRename0,
-                            renameIndsU, renameMarkersU
-                        );
+                        renameIndsU, renameMarkersU
+                    );
             
             updateInds(renameIndsU, ops[i].mid, decMainUop(ops[i].mid)); // @INDS  Crucial state
             updateMarkers(renameMarkersU, ops[i].mid, decMainUop(ops[i].mid)); // @MARKERS  Crucial state
@@ -343,7 +304,7 @@ module AbstractCore
         Translation tr = getTranslationFromEmulator(ins, argVals);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
 
-            runInEmulator(renamedEmul, adr, opSlot.bits);
+        runInEmulator(renamedEmul, adr, opSlot.bits);
 
         begin
             // CAREFUL Moves emulation state
@@ -357,8 +318,8 @@ module AbstractCore
 
             insMap.allocate(id, ii, uInfos);
 
-                renamedEmul.drain();
-                renamedEmul.catchDbTrap();
+            renamedEmul.drain();
+            renamedEmul.catchDbTrap();
 
             if (isStoreIns(ins) || isLoadIns(ins) || isMemBarrierIns(ins))
                 memTracker.add(id, ii.mainUop, ins, argVals, tr.padr); // DB
@@ -416,51 +377,52 @@ module AbstractCore
 
 
 
-        function automatic UopInfo getMainUopInfo(input InstructionInfo ii, input AbstractInstruction ins,
-                                                    input InsDependencies deps, input Mword3 argVals,
-                                                    input Mword result, input MarkerSet renameMarkersBefore
-                                                );
-            UopInfo mainUinfo;
+    function automatic UopInfo getMainUopInfo(input InstructionInfo ii, input AbstractInstruction ins,
+                                                input InsDependencies deps, input Mword3 argVals,
+                                                input Mword result, input MarkerSet renameMarkersBefore
+                                            );
+        UopInfo mainUinfo;
 
-            // Generate info for uops
-            mainUinfo.id = '{ii.id, -1};
-            mainUinfo.name = ii.mainUop;
-            mainUinfo.vDest = ins.dest;
-            mainUinfo.physDest = -1;
-            mainUinfo.deps = deps;
+        // Generate info for uops
+        mainUinfo.id = '{ii.id, -1};
+        mainUinfo.name = ii.mainUop;
+        mainUinfo.vDest = ins.dest;
+        mainUinfo.physDest = -1;
+        mainUinfo.deps = deps;
 
-            mainUinfo.argsE = argVals;
-            mainUinfo.resultE = result;
-            mainUinfo.argError = 'x;
+        mainUinfo.argsE = argVals;
+        mainUinfo.resultE = result;
+        mainUinfo.argError = 'x;
 
-            // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
-            if (!barrierUnlocking || barrierUnlockingMid < renameMarkersBefore.mbF) begin  // @MARKERS
-                mainUinfo.barrier = isMemIns(ins) ? renameMarkersBefore.mbF : -1;
-            end
+        // If unlocking now and latest barrier is being unlocked (or should have been), ignore the barrier
+        if (!barrierUnlocking || barrierUnlockingMid < renameMarkersBefore.mbF) begin  // @MARKERS
+            mainUinfo.barrier = isMemIns(ins) ? renameMarkersBefore.mbF : -1;
+        end
 
-            return mainUinfo;
-        endfunction
-
-
-        function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo);
-            UopInfoQ uInfos = splitUop(mainUinfo);
-
-            for (int u = 0; u < uInfos.size(); u++) begin
-                UopInfo uInfo = uInfos[u];
-                uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
-                
-                if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d", U2M(mainUinfo.id));
-            end
-
-            return uInfos;
-        endfunction
+        return mainUinfo;
+    endfunction
 
 
-        function automatic Translation getTranslationFromEmulator(input AbstractInstruction ins, input Mword3 argVals);
-            Mword effAdr = calculateEffectiveAddress(ins, argVals);
-            Translation tr = renamedEmul.translateDataAddress(effAdr);
-            return tr;
-        endfunction
+    function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo);
+        UopInfoQ uInfos = splitUop(mainUinfo);
+
+        for (int u = 0; u < uInfos.size(); u++) begin
+            UopInfo uInfo = uInfos[u];
+            uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
+            
+            if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d", U2M(mainUinfo.id));
+        end
+
+        return uInfos;
+    endfunction
+
+
+    function automatic Translation getTranslationFromEmulator(input AbstractInstruction ins, input Mword3 argVals);
+        Mword effAdr = calculateEffectiveAddress(ins, argVals);
+        Translation tr = renamedEmul.translateDataAddress(effAdr);
+        return tr;
+    endfunction
+
 
     task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred,
                                input IndexSet renameIndsBefore,
@@ -532,67 +494,6 @@ module AbstractCore
         commitInds <= commitIndsU;
         commitMarkers <= commitMarkersU;
     endtask
-
-
-
-    // task automatic prepareLateEvents();
-    //     if (theRob.prevRowEvent) begin
-    //         if (eventUnit.general.id != -1 && (eventUnit.dbEvt.id == -1 || eventUnit.general.id <= eventUnit.dbEvt.id)) begin
-    //             Mword adr = insMap.get(eventUnit.general.id).basicData.adr;
-    //             waitingEvents.lateEventInfoWaiting <= eventFromOp(adr,  eventUnit.general);
-    //         end
-    //         else if (eventUnit.dbEvt.id != -1) begin
-    //             waitingEvents.lateEventInfoWaitingDb <= DB_EVENT;
-    //         end
-    //         else
-    //             $fatal(2, "Wrong event detection in ROB");
-    //     end
-
-    //     if (eventUnit.resetEvt.active && noWaitingEvents()) begin
-    //         waitingEvents.lateEventInfoWaitingReset <= RESET_EVENT;
-    //        // retiredEmul.resetSignal();
-    //     end
-    //     else if (eventUnit.interruptEvt.active  && noWaitingEvents()) begin
-    //         waitingEvents.lateEventInfoWaitingInt <= INT_EVENT;
-    //         /*$display(">> Interrupt !!!");
-    //             $display("Pre target: %X", retiredEmul.coreState.target);
-    //         retiredEmul.interrupt();
-    //             $display("After:      %X", retiredEmul.coreState.target);
-    //         */
-    //     end
-
-    //     lateEventInfo_N <= EMPTY_EVENT_INFO;  // @lateEvt
-
-    //     if (writeBuffer.wqFree) fireLateEvent();
-    // endtask
-
-
-    // task automatic fireLateEvent();
-    //     if (waitingEvents.lateEventInfoWaitingReset.active) begin
-    //         //sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingReset.etype);
-    //         lateEventInfo_N <= waitingEvents.lateEventInfoWaitingReset;  // @lateEvt
-    //     end
-    //     else if (waitingEvents.lateEventInfoWaitingInt.active) begin
-    //         //sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingInt.etype);
-    //         lateEventInfo_N <= waitingEvents.lateEventInfoWaitingInt;    // @lateEvt
-    //     end
-    //     else if (waitingEvents.lateEventInfoWaitingDb.active) begin
-    //         //sysUnit.saveStateAsync(theRob.trg, waitingEvents.lateEventInfoWaitingDb.etype);
-    //         lateEventInfo_N <= waitingEvents.lateEventInfoWaitingDb;     // @lateEvt
-    //     end
-    //     else if (waitingEvents.lateEventInfoWaiting.active) begin
-    //         Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
-    //         //sysUnit.modifyStateSync(waitingEvents.lateEventInfoWaiting.adr, eventUnit.lastEvtAD, eventUnit.lastEvtTr, eventUnit.general.etype);
-    //         lateEventInfo_N <= getLateEvent(waitingEvents.lateEventInfoWaiting, sr2, sr3);  // @lateEvt
-    //     end
-    //     else
-    //         return;
-
-    //     waitingEvents.lateEventInfoWaiting <= EMPTY_EVENT_INFO;
-    //     waitingEvents.lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
-    //     waitingEvents.lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
-    //     waitingEvents.lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
-    // endtask
 
 
     function automatic logic noWaitingEvents();
@@ -695,7 +596,7 @@ module AbstractCore
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) putToWq(id, abnormal);
+        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) writeBuffer.add(id, abnormal);
 
         // RET: free DB queues
         if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
@@ -742,51 +643,6 @@ module AbstractCore
             end
 
         end
-    endtask
-
-
-
-    task automatic putToWq(input InsId id, input logic cancel);
-        // SqEntry found[$] = theSq.content.find_first with (item.mid == id);
-        // SqEntry foundElem = found[0];
-
-        // if (cancel) foundElem.valReady = 0; // Make sure it's inactive
-
-        // writingInterface.csq.push_back(foundElem); // Normal
-        // //putMilestoneM(id, InstructionMap::WqEnter); // Normal 
-
-            writeBuffer.add(id, cancel);
-    endtask
-
-    task automatic putWrite();
-        // This block is not related to CSQ itself 
-        // if (writingInterface.drainHead.mid != -1) begin
-        //     //memTracker.drain(writingInterface.drainHead.mid);
-        //     //putMilestoneC(writingInterface.drainHead.mid, InstructionMap::WqExit);
-        // end
-
-        // void'(writingInterface.csq.pop_front());
-
-        // assert (writingInterface.csq.size() > 0) else $fatal(2, "csq must never become physically empty");
-
-        // if (writingInterface.csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-        //     writingInterface.csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
-        //     writingInterface.csqEmpty <= 1;
-        // end
-        // else begin
-        //     writingInterface.csqEmpty <= 0;
-        // end
-
-        // writingInterface.drainHead <= writingInterface.csq[0];
-        // writingInterface.writeInfo <= makeWriteInfo(writingInterface.csq[1]);
-        // writingInterface.sysWriteInfo <= makeSysWriteInfo(writingInterface.csq[1]);
-
-
-            writeBuffer.publish();
-
-
-               //     assert (writingInterface.csq === writeBuffer.csq) else $error("%p\n%p", writingInterface.csq, writeBuffer.csq);
-
     endtask
 
 
@@ -903,10 +759,7 @@ module AbstractCore
         syncCurrentConfigFromRegs();
 
         theRob.trg <= IP_RESET;
-        lateEventInfo_N <= RESET_EVENT;  // @lateEvt
-            eventUnit.lateEventInfo <= RESET_EVENT;
-
-      //  writingInterface.csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+        eventUnit.lateEventInfo <= RESET_EVENT;
 
         writeBuffer.clear();
     endtask
@@ -963,7 +816,6 @@ module AbstractCore
     endfunction
 
     function automatic InsId oldestCsq();
-        //SqEntry entry[$] = writingInterface.csq.min with (item.mid);
         SqEntry entry[$] = writeBuffer.csq.min with (item.mid);
         return entry[0].mid;
     endfunction
@@ -1040,7 +892,6 @@ module AbstractCore
     endtask
 
 
-
         logic ch0, ch1, ch2;
         // assign ch0 = stageEmptyAB(stageRename1);
         // assign ch1 = stageRename1.active;
@@ -1048,67 +899,3 @@ module AbstractCore
 
 endmodule
 
-
-
-
-module WriteBuffer();
-
-    logic csqEmpty = 0;
-    logic wqFree;
-    
-    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
-    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
-
-    MemWriteInfo dcacheWriteInfos[2];
-    MemWriteInfo sysWriteInfos[1];
-
-
-
-    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
-    assign dcacheWriteInfos[0] = writeInfo;
-    assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
-    assign sysWriteInfos[0] = sysWriteInfo;
-
-
-
-    function automatic void add(input InsId id, input logic cancel);
-        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
-        SqEntry foundElem = found[0];
-
-        if (cancel) foundElem.valReady = 0; // Make sure it's inactive
-
-        csq.push_back(foundElem); // Normal
-        putMilestoneM(id, InstructionMap::WqEnter); // Normal
-    endfunction
-
-
-    function automatic void publish();
-        if (drainHead.mid != -1) begin
-            AbstractCore.memTracker.drain(drainHead.mid);
-            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
-        end
-
-        void'(csq.pop_front());
-
-        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
-
-        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
-            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
-            csqEmpty <= 1;
-        end
-        else begin
-            csqEmpty <= 0;
-        end
-
-        drainHead <= csq[0];
-        writeInfo <= makeWriteInfo(csq[1]);
-        sysWriteInfo <= makeSysWriteInfo(csq[1]);
-    endfunction
-
-
-    function automatic void clear();
-        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
-    endfunction
-
-endmodule

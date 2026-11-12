@@ -507,3 +507,67 @@ module CheckpointUnit();
     endtask
 
 endmodule
+
+
+
+module WriteBuffer();
+
+    logic csqEmpty = 0;
+    logic wqFree;
+    
+    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+
+    MemWriteInfo dcacheWriteInfos[2];
+    MemWriteInfo sysWriteInfos[1];
+
+
+
+    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
+    assign dcacheWriteInfos[0] = writeInfo;
+    assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
+    assign sysWriteInfos[0] = sysWriteInfo;
+
+
+
+    function automatic void add(input InsId id, input logic cancel);
+        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
+        SqEntry foundElem = found[0];
+
+        if (cancel) foundElem.valReady = 0; // Make sure it's inactive
+
+        csq.push_back(foundElem); // Normal
+        putMilestoneM(id, InstructionMap::WqEnter); // Normal
+    endfunction
+
+
+    function automatic void publish();
+        if (drainHead.mid != -1) begin
+            AbstractCore.memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
+        end
+
+        void'(csq.pop_front());
+
+        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
+
+        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
+            csqEmpty <= 1;
+        end
+        else begin
+            csqEmpty <= 0;
+        end
+
+        drainHead <= csq[0];
+        writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
+    endfunction
+
+
+    function automatic void clear();
+        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    endfunction
+
+endmodule
