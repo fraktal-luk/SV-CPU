@@ -71,11 +71,6 @@ module AbstractCore
         logic enTrapInex = 0; 
     } CurrentConfig;
 
-        // struct {
-        //     TMP_PredState committedPredState = DEFAULT_PRED_STATE;
-        //     TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
-        //     logic latestPredPresent = 0;
-        // } latePredStates;
 
     struct {
         logic renameAllow, iqsAccepting;

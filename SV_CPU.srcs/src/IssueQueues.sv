@@ -530,6 +530,7 @@ module IssueQueue
         end
     endfunction
 
+
     function automatic ReadinessInfo getReadinessInfo(input InstructionMap insMap, input IqEntry entry, input Wakeup3 wup);//, input logic3 fwState);
         ReadinessInfo res = '{default: 'z};
         

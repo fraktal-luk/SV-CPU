@@ -32,6 +32,14 @@ module EventUnit(input logic clk);
 
     int intCounter = -1;
 
+    EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
+
+    EventInfo lateEventInfo = EMPTY_EVENT_INFO;
+
+
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
 
@@ -87,7 +95,7 @@ module EventUnit(input logic clk);
             // Detect interrupt rejection
             if (interruptEvt.active && AbstractCore.lateEventInfo.etype != PE_EXT_INTERRUPT) begin
                 clearInterruptEvt <= 1;
-                    $display("Interrupt rejected");
+                $display("Interrupt rejected");
             end
 
             interruptEvt <= EMPTY_EVENT_DESC;
@@ -206,10 +214,9 @@ module EventUnit(input logic clk);
             if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
 
+            if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
 
-                if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
-
-                if (theRob.prevRowEvent) backendState <= BS_HANDLING;
+            if (theRob.prevRowEvent) backendState <= BS_HANDLING;
         end
 
         general <= newValue;
@@ -257,25 +264,11 @@ module EventUnit(input logic clk);
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
 
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapInv)
-            tmp = replaceEvt(tmp, fpInvH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapOv)
-            tmp = replaceEvt(tmp, fpOvH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapUnd)
-            tmp = replaceEvt(tmp, fpUndH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapInex)
-            tmp = replaceEvt(tmp, fpInexH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapDiv0)
-            tmp = replaceEvt(tmp, fpDiv0H);
+        if (AbstractCore.CurrentConfig.enTrapInv) tmp = replaceEvt(tmp, fpInvH);
+        if (AbstractCore.CurrentConfig.enTrapOv)  tmp = replaceEvt(tmp, fpOvH);
+        if (AbstractCore.CurrentConfig.enTrapUnd) tmp = replaceEvt(tmp, fpUndH);
+        if (AbstractCore.CurrentConfig.enTrapInex) tmp = replaceEvt(tmp, fpInexH);
+        if (AbstractCore.CurrentConfig.enTrapDiv0) tmp = replaceEvt(tmp, fpDiv0H);
 
         tmp = replaceEvt(tmp, execMemH);
         tmp = replaceEvt(tmp, execRefetchH);
@@ -319,18 +312,6 @@ module EventUnit(input logic clk);
     function logic isHandling();
         return backendState == BS_HANDLING;
     endfunction
-
-
-
-
-
-        EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
-        EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
-        EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
-        EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
-
-
-        EventInfo lateEventInfo = EMPTY_EVENT_INFO;
 
 
 
@@ -392,7 +373,6 @@ module EventUnit(input logic clk);
         lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
         lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
     endtask
-
 
 
 endmodule
