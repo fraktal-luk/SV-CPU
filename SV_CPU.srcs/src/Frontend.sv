@@ -107,8 +107,11 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(lateEventInfo.target);
 
             // @pred: restore from late
-            predStateF0 <= AbstractCore.latePredStates.committedPredState;
-            predStateF2 <= AbstractCore.latePredStates.committedPredState;
+            //predStateF0 <= AbstractCore.latePredStates.committedPredState;
+            //predStateF2 <= AbstractCore.latePredStates.committedPredState;
+
+                predStateF0 <= AbstractCore.branchTracker.committedPredState;
+                predStateF2 <= AbstractCore.branchTracker.committedPredState;
 
             expectedTargetF2 <= lateEventInfo.target;
         endtask

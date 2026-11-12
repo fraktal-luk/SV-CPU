@@ -71,11 +71,11 @@ module AbstractCore
         logic enTrapInex = 0; 
     } CurrentConfig;
 
-    struct {
-        TMP_PredState committedPredState = DEFAULT_PRED_STATE;
-        TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
-        logic latestPredPresent = 0;
-    } latePredStates;
+        // struct {
+        //     TMP_PredState committedPredState = DEFAULT_PRED_STATE;
+        //     TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
+        //     logic latestPredPresent = 0;
+        // } latePredStates;
 
     struct {
         logic renameAllow, iqsAccepting;
@@ -96,7 +96,6 @@ module AbstractCore
     logic floatRegsReadyV[N_REGS_FLOAT] = '{default: 'x};
 
     EventInfo branchEventInfo = EMPTY_EVENT_INFO;
-
     EventInfo lateEventInfo;
 
 
@@ -249,7 +248,6 @@ module AbstractCore
         IndexSet renameIndsU = renameInds;
         MarkerSet renameMarkersU = renameMarkers;
         OpSlotAF ops = theFrontend.stageRename0.arr;
-
         int bi = 0;
 
         if (anyActiveB(ops))
@@ -307,9 +305,7 @@ module AbstractCore
         runInEmulator(renamedEmul, adr, opSlot.bits);
 
         begin
-            // CAREFUL Moves emulation state
             InstructionInfo ii = updateII(id, adr, ins, opSlot, evt, renameIndsBefore);
-
             UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
 
             // CAREFUL registerTracker updated here
@@ -425,9 +421,7 @@ module AbstractCore
 
 
     task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred,
-                               input IndexSet renameIndsBefore,
-                               input MarkerSet renameMarkersBefore
-        );
+                          input IndexSet renameIndsBefore, input MarkerSet renameMarkersBefore);
         BranchCheckpoint cp = new(id,
                                     registerTracker.ints.writersR, registerTracker.floats.writersR,
                                     registerTracker.ints.MapR, registerTracker.floats.MapR,
@@ -586,6 +580,7 @@ module AbstractCore
     task automatic commitOp(input InsId id);
         InstructionInfo insInfo = insMap.get(id);
         logic abnormal = insInfo.refetch || insInfo.dynamicEvt;
+        UopName mainUop = decMainUop(id);
 
         verifyOnCommit(id);
 
@@ -596,54 +591,14 @@ module AbstractCore
         end
 
         // RET: update WQ
-        if (isStoreUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) writeBuffer.add(id, abnormal);
+        if (isStoreUop(mainUop) || isMemBarrierUop(mainUop)) writeBuffer.add(id, abnormal);
 
         // RET: free DB queues
-        if (isStoreUop(decMainUop(id)) || isLoadUop(decMainUop(id)) || isMemBarrierUop(decMainUop(id))) memTracker.remove(id); // All?
+        if (isStoreUop(mainUop) || isLoadUop(mainUop) || isMemBarrierUop(mainUop)) memTracker.remove(id);
 
-        updateBpState(insInfo);
+        branchTracker.updateBpState(insInfo);
     endtask
 
-
-    task automatic updateBpState(input InstructionInfo insInfo);
-
-        // Start new block for predictor
-        if (CurrentConfig.enableMmu) begin
-            if (insInfo.firstInGroup) begin
-                latePredStates.latestPredPresent = 0;
-                latePredStates.committedPredStatePrev = latePredStates.committedPredState;
-                latePredStates.committedPredState = updatePredCommit(latePredStates.committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
-
-                branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
-            end
-        end
-
-        if (isBranchUop(decMainUop(insInfo.id))) begin // Br queue entry release
-            BranchCheckpoint bce = checkpointUnit.frontElem();
-            checkpointUnit.pop();
-
-            assert (bce.id === insInfo.id) else $error("Not matching op: %p / %p", bce, insInfo.id);
-            assert (
-                    bce.predState.count === latePredStates.committedPredStatePrev.count
-                &&  bce.predState.len === latePredStates.committedPredStatePrev.len
-                &&  bce.predState.histCoded === latePredStates.committedPredStatePrev.histCoded
-                &&  bce.predState.recentCoded === latePredStates.committedPredStatePrev.recentCoded
-                    )
-                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p", insInfo.id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, latePredStates.committedPredStatePrev);
-
-            if (CurrentConfig.enableMmu) begin
-                BranchGroup bg = updateBranchGroup(bce.ownPred, bce.slotInd, insInfo.takenBranch);
-
-                if (!latePredStates.latestPredPresent) latePredStates.committedPredState = replacePredFirst(latePredStates.committedPredState, bg);
-                else                                   latePredStates.committedPredState = replacePred(latePredStates.committedPredState, bg);
-
-                branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
-
-                latePredStates.latestPredPresent = 1;
-            end
-
-        end
-    endtask
 
 
     // General

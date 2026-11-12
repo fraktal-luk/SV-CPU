@@ -404,6 +404,15 @@ module BranchTracker;
         logic ch0, ch1, ch2, ch3, ch4; 
 
 
+
+        //struct {
+            TMP_PredState committedPredState = DEFAULT_PRED_STATE;
+            TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
+            logic latestPredPresent = 0;
+        //} latePredStates;
+
+
+
     task automatic addGroupPredInfo();
 
     endtask
@@ -465,6 +474,52 @@ module BranchTracker;
         a1 <= a0;
         a2 <= a1;
     endfunction
+
+
+
+
+    task automatic updateBpState(input InstructionInfo insInfo);
+
+        // Start new block for predictor
+        if (AbstractCore.CurrentConfig.enableMmu) begin
+            if (insInfo.firstInGroup) begin
+                latestPredPresent = 0;
+                committedPredStatePrev = committedPredState;
+                committedPredState = updatePredCommit(committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
+
+                branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
+            end
+        end
+
+        if (isBranchUop(decMainUop(insInfo.id))) begin // Br queue entry release
+            BranchCheckpoint bce = checkpointUnit.frontElem();
+            checkpointUnit.pop();
+
+            assert (bce.id === insInfo.id) else $error("Not matching op: %p / %p", bce, insInfo.id);
+            assert (
+                    bce.predState.count === committedPredStatePrev.count
+                &&  bce.predState.len === committedPredStatePrev.len
+                &&  bce.predState.histCoded === committedPredStatePrev.histCoded
+                &&  bce.predState.recentCoded === committedPredStatePrev.recentCoded
+                    )
+                else $error("Diffr, op %d\n%d: %s\nprev pred state:\n%p\n%p",
+                            insInfo.id, insInfo.basicData.adr, disasm(insInfo.basicData.bits), bce.predState, committedPredStatePrev);
+
+            if (AbstractCore.CurrentConfig.enableMmu) begin
+                BranchGroup bg = updateBranchGroup(bce.ownPred, bce.slotInd, insInfo.takenBranch);
+
+                if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
+                else                    committedPredState = replacePred(committedPredState, bg);
+
+                branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
+
+                latestPredPresent = 1;
+            end
+
+        end
+    endtask
+
+
 
 endmodule
 
