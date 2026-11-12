@@ -134,6 +134,8 @@ module AbstractCore
 
     ExecBlock theExecBlock(insMap, branchEventInfo, lateEventInfo);
 
+
+    RegisterNetwork rn();
     MemoryNetwork mn();
 
 
@@ -667,7 +669,7 @@ module AbstractCore
     endfunction 
 
     function automatic logic shouldFlushPoison(input Poison poison);
-        ForwardingElement memStage0[N_MEM_PORTS] = theExecBlock.memImagesTr[0];
+        ForwardingElement memStage0[N_MEM_PORTS] = rn.memImagesTr[0];
         foreach (memStage0[p])
             if (memStage0[p].active && needsReplay(memStage0[p].status) && checkMemDep(poison, memStage0[p])) return 1;
         return 0;

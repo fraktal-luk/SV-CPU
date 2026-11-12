@@ -41,17 +41,17 @@ module ExecBlock(ref InstructionMap insMap,
 
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
 
-    ForwardingElement intImages[N_INT_PORTS][-3:1];
-    ForwardingElement memImages[N_MEM_PORTS][-3:1];
-    ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
-    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
+    // ForwardingElement intImages[N_INT_PORTS][-3:1];
+    // ForwardingElement memImages[N_MEM_PORTS][-3:1];
+    // ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
+    // ForwardingElement floatImages[N_VEC_PORTS][-3:1];
 
-    IntByStage intImagesTr;
-    MemByStage memImagesTr;
-    MemByStage memImagesVecTr;
-    VecByStage floatImagesTr;
+    // IntByStage intImagesTr;
+    // MemByStage memImagesTr;
+    // MemByStage memImagesVecTr;
+    // VecByStage floatImagesTr;
 
-    ForwardsByStage_0 allByStage, allByStageVec;
+    //ForwardsByStage_0 allByStage, allByStageVec;
     
         logic ch0, ch1, ch2, ch3;
 
@@ -125,7 +125,6 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-        //EMPTY_UOP_PACKET,
             theIssueQueues.issuedMemP[1],
         dcacheTranslationsE0d[1],
         mn.cacheOutE1d[1],
@@ -186,8 +185,8 @@ module ExecBlock(ref InstructionMap insMap,
         AbstractCore.clk,
         branchEventInfo,
         lateEventInfo,
-        memImagesTr[-3], // TODO: this must include FP/vector too
-        memImagesTr[0],
+        rn.memImagesTr[-3], // TODO: this must include FP/vector too
+        rn.memImagesTr[0],
         issuedReplayQueue
     );
     
@@ -212,26 +211,27 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
-    assign intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
-    assign floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
+    assign rn.intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
+    assign rn.floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
 
-    assign memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};    
-    assign memImagesVec = memImages; //  TODO: separate, 1c longer load pipe on FP side? 
-
-
-    always_comb intImagesTr = trsInt(intImages);
-    always_comb memImagesTr = trsMem(memImages);
-    always_comb memImagesVecTr = trsMem(memImagesVec);
-    always_comb floatImagesTr = trsVec(floatImages);
-
-    assign allByStage.ints = intImagesTr;
-    assign allByStage.mems = memImagesTr;
-    assign allByStage.vecs = floatImagesTr;
+    assign rn.memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};    
+    assign rn.memImagesVec = rn.memImages; //  TODO: separate, 1c longer load pipe on FP side? 
 
 
-    assign allByStageVec.ints = intImagesTr;
-    assign allByStageVec.mems = memImagesVecTr;
-    assign allByStageVec.vecs = floatImagesTr;
+    always_comb rn.intImagesTr = trsInt(rn.intImages);
+    always_comb rn.memImagesTr = trsMem(rn.memImages);
+    always_comb rn.memImagesVecTr = trsMem(rn.memImagesVec);
+    always_comb rn.floatImagesTr = trsVec(rn.floatImages);
+
+    assign rn.allByStage.ints = rn.intImagesTr;
+    assign rn.allByStage.mems = rn.memImagesTr;
+    assign rn.allByStage.vecs = rn.floatImagesTr;
+
+
+    assign rn.allByStageVec.ints = rn.intImagesTr;
+    assign rn.allByStageVec.mems = rn.memImagesVecTr;
+    assign rn.allByStageVec.vecs = rn.floatImagesTr;
+
 
 
     assign mn.uopE0 = '{0: mem0.pE0_E, 1: mem1.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
@@ -366,8 +366,8 @@ module ExecBlock(ref InstructionMap insMap,
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
-                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], allByStageVec, ready[i]);
+                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStage, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStageVec, ready[i]);
             endcase
         end
 
@@ -447,5 +447,23 @@ module ExecBlock(ref InstructionMap insMap,
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
+
+endmodule
+
+
+
+module RegisterNetwork();
+
+    ForwardingElement intImages[N_INT_PORTS][-3:1];
+    ForwardingElement memImages[N_MEM_PORTS][-3:1];
+    ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
+    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
+
+    IntByStage intImagesTr;
+    MemByStage memImagesTr;
+    MemByStage memImagesVecTr;
+    VecByStage floatImagesTr;
+
+    ForwardsByStage_0 allByStage, allByStageVec;
 
 endmodule

@@ -70,18 +70,18 @@ module EventUnit(input logic clk);
         frontH <= getFrontEv();
         dbEvtH <= getDbEv();
 
-        fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
-        fpDiv0H <= edFromUop(findOldestWithState(ES_FP_DIV0, theExecBlock.floatImagesTr[0]));
+        fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, rn.floatImagesTr[0]));
+        fpDiv0H <= edFromUop(findOldestWithState(ES_FP_DIV0, rn.floatImagesTr[0]));
 
-        fpUndH <=  edFromUop(findOldestWithState(ES_FP_UNDERFLOW, theExecBlock.floatImagesTr[0]));
-        fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
-        fpInexH <=  edFromUop(findOldestWithState(ES_FP_INEXACT, theExecBlock.floatImagesTr[0]));
+        fpUndH <=  edFromUop(findOldestWithState(ES_FP_UNDERFLOW, rn.floatImagesTr[0]));
+        fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, rn.floatImagesTr[0]));
+        fpInexH <=  edFromUop(findOldestWithState(ES_FP_INEXACT, rn.floatImagesTr[0]));
 
-        fpUndInexH <=  edFromUop(findOldestWithState(ES_FP_UND_INEXACT, theExecBlock.floatImagesTr[0]));
-        fpOvInexH <=  edFromUop(findOldestWithState(ES_FP_OV_INEXACT, theExecBlock.floatImagesTr[0]));
+        fpUndInexH <=  edFromUop(findOldestWithState(ES_FP_UND_INEXACT, rn.floatImagesTr[0]));
+        fpOvInexH <=  edFromUop(findOldestWithState(ES_FP_OV_INEXACT, rn.floatImagesTr[0]));
 
-        execMemH <= edFromUop(findOldestMemEvt(theExecBlock.memImagesTr[0]));
-        execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]));
+        execMemH <= edFromUop(findOldestMemEvt(rn.memImagesTr[0]));
+        execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, rn.memImagesTr[0]));
         lqRefetchH <= edFromLqRefetch(theLq.submod.oldestRefetchEntry.mid);
     end
 
@@ -236,7 +236,7 @@ module EventUnit(input logic clk);
         lqRefetch <= replaceEvt(lqRefetch, lqRefetchH);
 
         if (execMemH != execMem && execMemH.active) begin
-            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.uid) == execMemH.id); 
+            int inds[$] = rn.memImagesTr[0].find_first_index with (item.active && U2M(item.uid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
             lastEvtAD <= mn.adE2[inds[0]];

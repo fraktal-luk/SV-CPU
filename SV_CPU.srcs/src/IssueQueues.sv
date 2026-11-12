@@ -476,12 +476,12 @@ module IssueQueue
 
             case (argType)
                 SRC_INT: begin
-                    wup = checkForwardSourceInt(prod, AbstractCore.theExecBlock.intImages);
-                    if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImages);
+                    wup = checkForwardSourceInt(prod, rn.intImages);
+                    if (!wup.active) wup = checkForwardSourceMem(prod, rn.memImages);
                 end
                 SRC_FLOAT: begin
-                    wup = checkForwardSourceVec(prod, AbstractCore.theExecBlock.floatImages);
-                    if (!wup.active) wup = checkForwardSourceMem(prod, AbstractCore.theExecBlock.memImagesVec);
+                    wup = checkForwardSourceVec(prod, rn.floatImages);
+                    if (!wup.active) wup = checkForwardSourceMem(prod, rn.memImagesVec);
                 end
                 default: ; // nothing
             endcase
