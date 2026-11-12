@@ -436,7 +436,7 @@ module MemSubpipe#()
 
     // Must be in module because refers to module function (get args)
     function automatic Mword getEffectiveAddress(input UopId uid);
-        return (uid == UID_NONE) ? 'x : calcEffectiveAddress(getAndVerifyArgs(uid));
+        return (uid == UID_NONE) ? 'x : calcEffectiveAddress(rn.getAndVerifyArgs(uid));
     endfunction
 
 endmodule

@@ -184,7 +184,7 @@ module BranchSubpipe(
         if (!p.active) return p;
         begin
             UopId uid = p.uid;
-            Mword3 args = getAndVerifyArgs(uid);
+            Mword3 args = rn.getAndVerifyArgs(uid);
             p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
         end
         return p;
@@ -379,7 +379,7 @@ module StoreDataSubpipe(
 
         begin
             UopPacket res = p;
-            Mword3 args = getAndVerifyArgs(p.uid);
+            Mword3 args = rn.getAndVerifyArgs(p.uid);
             res.result = args[2];
             return res;
         end

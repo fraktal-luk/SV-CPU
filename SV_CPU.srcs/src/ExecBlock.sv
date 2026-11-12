@@ -272,7 +272,7 @@ module ExecBlock(ref InstructionMap insMap,
 
 
     function automatic Mword calcRegularOp(input UopId uid);
-        Mword3 args = getAndVerifyArgs(uid);
+        Mword3 args = rn.getAndVerifyArgs(uid);
         Mword lk = getAdr(U2M(uid)) + 4;
         Mword result = calcArith(decUname(uid), args, lk);  
         insMap.setActualResult(uid, result);
@@ -283,7 +283,7 @@ module ExecBlock(ref InstructionMap insMap,
 
     function automatic FpResult64 calcRegularFpOp(input UopId uid);
         Rounding rm = convertRM(AbstractCore.CurrentConfig.rm);
-        Mword3 args = getAndVerifyArgs(uid);
+        Mword3 args = rn.getAndVerifyArgs(uid);
         FpResult64 result;  
 
         result = calcArithFp(decUname(uid), args, rm);  
@@ -346,19 +346,133 @@ module ExecBlock(ref InstructionMap insMap,
 
 
 
+
+
+
+
+    // // Used once, file internal
+    // function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+    //     Mword res[3];
+    //     logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
+
+    //     foreach (deps.types[i]) begin
+    //         case (deps.types[i])
+    //             SRC_ZERO:  res[i] = 0;
+    //             SRC_CONST: res[i] = deps.sources[i];
+    //             SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStage, ready[i]);
+    //             SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStageVec, ready[i]);
+    //         endcase
+    //     end
+
+    //     return res;
+    // endfunction
+
+
+    // // File internal
+    // function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
+    //                                         input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+    //     FEQ found1, found0;
+
+    //     if (ready) return tracker.ints.regs[source];
+        
+    //     found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
+    //     if (found1.size() != 0) begin
+    //         verifyForward(producer, source, found1[0].result);
+    //         return found1[0].result;
+    //     end
+        
+    //     found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
+    //     if (found0.size() != 0) begin
+    //         verifyForward(producer, source, found0[0].result);
+    //         return found0[0].result;
+    //     end
+
+    //     $fatal(2, "oh no\n%p, %d", producer, source);
+    // endfunction
+
+
+    // // File internal
+    // function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
+    //                                         input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+    //     FEQ found1, found0;
+
+    //     if (ready) return tracker.floats.regs[source];
+
+    //     found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
+    //     if (found1.size() != 0) begin
+    //         verifyForward(producer, source, found1[0].result);
+    //         return found1[0].result;
+    //     end
+
+    //     found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
+    //     if (found0.size() != 0) begin
+    //         verifyForward(producer, source, found0[0].result);
+    //         return found0[0].result;
+    //     end
+
+    //     $fatal(2, "oh no");
+    // endfunction
+
+
+    // // File internal
+    // function automatic FEQ findForwardInt(input UopId producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    //     FEQ res = feInt.find with (matchProducer(item, producer));
+    //     if (res.size() == 0)
+    //         res = feMem.find with (matchProducer(item, producer));
+    //     return res;
+    // endfunction
+
+    // // File internal
+    // function automatic FEQ findForwardVec(input UopId producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
+    //     FEQ res = feVec.find with (matchProducer(item, producer));
+    //     if (res.size() == 0)
+    //         res = feMem.find with (matchProducer(item, producer));
+    //     return res;
+    // endfunction
+
+
+    // // File internal
+    // function automatic void verifyForward(input UopId producer, input int source, input Mword result);
+    //     InstructionInfo ii = insMap.get(U2M(producer));
+    //     UopInfo ui = insMap.getU(producer);
+
+    //     assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
+    //     assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
+    // endfunction
+
+
+endmodule
+
+
+
+module RegisterNetwork();
+
+    ForwardingElement intImages[N_INT_PORTS][-3:1];
+    ForwardingElement memImages[N_MEM_PORTS][-3:1];
+    ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
+    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
+
+    IntByStage intImagesTr;
+    MemByStage memImagesTr;
+    MemByStage memImagesVecTr;
+    VecByStage floatImagesTr;
+
+    ForwardsByStage_0 allByStage, allByStageVec;
+
+
+
+
     // Used before Exec0 to get final values
     function automatic Mword3 getAndVerifyArgs(input UopId uid);
-        InsDependencies deps = insMap.getU(uid).deps;
-        Mword3 argsP = getArgValues(AbstractCore.registerTracker, deps);
-        insMap.setActualArgs(uid, argsP);
+        InsDependencies deps = AbstractCore.insMap.getU(uid).deps;
+        Mword3 argsP = getArgValues(/*AbstractCore.registerTracker,*/ deps);
+        AbstractCore.insMap.setActualArgs(uid, argsP);
         return argsP;
     endfunction;
 
 
-
-
     // Used once, file internal
-    function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
+    function automatic Mword3 getArgValues(/*input RegisterTracker tracker, */input InsDependencies deps);
         Mword res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
 
@@ -366,8 +480,8 @@ module ExecBlock(ref InstructionMap insMap,
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStage, ready[i]);
-                SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStageVec, ready[i]);
+                SRC_INT:   res[i] = getArgValueInt(AbstractCore.insMap, AbstractCore.registerTracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(AbstractCore.insMap, AbstractCore.registerTracker, deps.producers[i], deps.sources[i], allByStageVec, ready[i]);
             endcase
         end
 
@@ -440,30 +554,13 @@ module ExecBlock(ref InstructionMap insMap,
 
     // File internal
     function automatic void verifyForward(input UopId producer, input int source, input Mword result);
-        InstructionInfo ii = insMap.get(U2M(producer));
-        UopInfo ui = insMap.getU(producer);
+        InstructionInfo ii = AbstractCore.insMap.get(U2M(producer));
+        UopInfo ui = AbstractCore.insMap.getU(producer);
 
         assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
 
-endmodule
-
-
-
-module RegisterNetwork();
-
-    ForwardingElement intImages[N_INT_PORTS][-3:1];
-    ForwardingElement memImages[N_MEM_PORTS][-3:1];
-    ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
-    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
-
-    IntByStage intImagesTr;
-    MemByStage memImagesTr;
-    MemByStage memImagesVecTr;
-    VecByStage floatImagesTr;
-
-    ForwardsByStage_0 allByStage, allByStageVec;
 
 endmodule
