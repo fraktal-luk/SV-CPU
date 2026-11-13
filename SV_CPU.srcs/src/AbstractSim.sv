@@ -430,8 +430,8 @@ package AbstractSim;
 
     class BranchCheckpoint;
         function new(input InsId id,
-                    input WriterId intWr[32], input WriterId floatWr[32],
                     input int intMapR[32], input int floatMapR[32],
+                    input WriterId intWr[32], input WriterId floatWr[32],
                     input IndexSet indexSet, input MarkerSet markerSet,
                     input int branchInd, input int slotInd,
                     input Emulator em, input TMP_PredState predState, input BranchGroup ownPred);

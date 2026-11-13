@@ -101,6 +101,8 @@ module AbstractCore
     InsId lastRetired;
 
 
+    RegisterUnit registerUnit();
+
 
     WriteBuffer writeBuffer();
 
@@ -210,6 +212,10 @@ module AbstractCore
             checkpointUnit.flushAll();
             registerTracker.restoreStable();
             registerTracker.flushAll();
+
+            registerUnit.registerTracker.restoreStable();
+            registerUnit.registerTracker.flushAll();
+
             memTracker.flushAll();
             
             // CAREFUL: when this happens, commitInds + markers must have been updated by last effecive op.
@@ -227,6 +233,10 @@ module AbstractCore
 
             registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
             registerTracker.flush(branchEventInfo.eventMid);
+
+            registerUnit.registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
+            registerUnit.registerTracker.flush(branchEventInfo.eventMid);
+
             memTracker.flush(branchEventInfo.eventMid);
             
             renameInds <= causingCP.inds;  // @INDS
@@ -294,10 +304,15 @@ module AbstractCore
         // Based on CurrentConfig, Convert disabled instructions to static exceptions
         AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
 
-        InsDependencies deps = registerTracker.getArgDeps(ins);
+        InsDependencies deps = registerTracker.getArgDeps(ins); // @RT
+        InsDependencies deps_RT = registerUnit.registerTracker.getArgDeps(ins); // @RT
+
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
         Translation tr = getTranslationFromEmulator(ins, argVals);
         Mword result = renamedEmul.computeResult(adr, ins); // Must be before modifying state. For ins map
+
+
+            assert (deps_RT  === deps) else $error("czeue e eeee");
 
         runInEmulator(renamedEmul, adr, opSlot.bits);
 
@@ -401,8 +416,14 @@ module AbstractCore
 
         for (int u = 0; u < uInfos.size(); u++) begin
             UopInfo uInfo = uInfos[u];
-            uInfos[u].physDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
+
+            int phDest = registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
+            int phDest_RT = registerUnit.registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
             
+            uInfos[u].physDest = phDest;
+            
+            assert (phDest_RT === phDest) else $error("84444k4j");
+
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d", U2M(mainUinfo.id));
         end
 
@@ -419,14 +440,14 @@ module AbstractCore
 
     task automatic saveCP(input InsId id, input int branchInd, input int slot, input TMP_PredState predState, input BranchGroup ownPred,
                           input IndexSet renameIndsBefore, input MarkerSet renameMarkersBefore);
-        BranchCheckpoint cp = new(id,
-                                    registerTracker.ints.writersR, registerTracker.floats.writersR,
-                                    registerTracker.ints.MapR, registerTracker.floats.MapR,
-                                    renameIndsBefore, 
-                                    renameMarkersBefore,
-                                    branchInd, slot,
-                                    renamedEmul,
-                                    predState, ownPred);
+        BranchCheckpoint cp = new(
+                                id,
+                                registerTracker.ints.MapR, registerTracker.floats.MapR, registerTracker.ints.writersR, registerTracker.floats.writersR,
+                                renameIndsBefore, 
+                                renameMarkersBefore,
+                                branchInd, slot,
+                                renamedEmul,
+                                predState, ownPred);
         checkpointUnit.addCheckpoint(cp);
     endtask
 
@@ -585,6 +606,7 @@ module AbstractCore
         for (int u = 0; u < insInfo.nUops; u++) begin
             UopId uid = '{id, u};
             registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, abnormal); // Need to modify to handle Exceptional and Hidden
+            registerUnit.registerTracker.commit(decUname(uid), insMap.getU(uid).vDest, uid, abnormal); // Need to modify to handle Exceptional and Hidden
         end
 
         // RET: update WQ
@@ -694,6 +716,8 @@ module AbstractCore
         retiredEmul.resetCore();
 
         registerTracker = new();
+        registerUnit.registerTracker = new();
+
         memTracker = new();
 
         programMem = new();
@@ -794,6 +818,7 @@ module AbstractCore
         if (!p.active) return;
         putMilestone(p.uid, InstructionMap::WriteResult);
         registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
+        registerUnit.registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
     endtask
 
 
@@ -821,11 +846,18 @@ module AbstractCore
     task automatic updateBookkeeping();
         bcqSize <= checkpointUnit.getSize();
         
-        nFreeRegsInt <= registerTracker.getNumFreeInt();
-        nFreeRegsFloat <= registerTracker.getNumFreeFloat();
+        nFreeRegsInt <= registerTracker.getNumFreeInt(); // @RT
+        nFreeRegsFloat <= registerTracker.getNumFreeFloat(); // @RT
         
-        intRegsReadyV <= registerTracker.ints.ready;
-        floatRegsReadyV <= registerTracker.floats.ready;
+        intRegsReadyV <= registerTracker.ints.ready; // @RT
+        floatRegsReadyV <= registerTracker.floats.ready; // @RT
+
+        assert(registerUnit.registerTracker.getNumFreeInt() === registerTracker.getNumFreeInt()) else $error("eiri"); // @RT
+        assert(registerUnit.registerTracker.getNumFreeFloat() === registerTracker.getNumFreeFloat()) else $error("6464eiri"); // @RT
+
+        assert(registerUnit.registerTracker.ints.ready === registerTracker.ints.ready) else $error("753735735"); // @RT
+        assert(registerUnit.registerTracker.floats.ready === registerTracker.floats.ready) else $error("82727272"); // @RT
+
     endtask
 
     task automatic setFpFlags(input InsId id);
@@ -848,6 +880,12 @@ module AbstractCore
         // assign ch0 = stageEmptyAB(stageRename1);
         // assign ch1 = stageRename1.active;
         // assign ch2 = stageEmptyAB(stageRename1) === !stageRename1.active;
+
+endmodule
+
+
+module RegisterUnit();
+    RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
 
 endmodule
 
