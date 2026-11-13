@@ -656,14 +656,14 @@ module RegisterNetwork();
     // Used before Exec0 to get final values
     function automatic Mword3 getAndVerifyArgs(input UopId uid);
         InsDependencies deps = AbstractCore.insMap.getU(uid).deps;
-        Mword3 argsP = getArgValues(/*AbstractCore.registerTracker,*/ deps);
+        Mword3 argsP = getArgValues(deps);
         AbstractCore.insMap.setActualArgs(uid, argsP);
         return argsP;
     endfunction;
 
 
     // Used once, file internal
-    function automatic Mword3 getArgValues(/*input RegisterTracker tracker, */input InsDependencies deps);
+    function automatic Mword3 getArgValues(input InsDependencies deps);
         Mword res[3];
         logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
 
@@ -671,8 +671,8 @@ module RegisterNetwork();
             case (deps.types[i])
                 SRC_ZERO:  res[i] = 0;
                 SRC_CONST: res[i] = deps.sources[i];
-                SRC_INT:   res[i] = getArgValueInt(AbstractCore.insMap, AbstractCore.registerTracker, deps.producers[i], deps.sources[i], allByStage, ready[i]);
-                SRC_FLOAT: res[i] = getArgValueVec(AbstractCore.insMap, AbstractCore.registerTracker, deps.producers[i], deps.sources[i], allByStageVec, ready[i]);
+                SRC_INT:   res[i] = getArgValueInt(deps.producers[i], deps.sources[i], allByStage, ready[i]);
+                SRC_FLOAT: res[i] = getArgValueVec(deps.producers[i], deps.sources[i], allByStageVec, ready[i]);
             endcase
         end
 
@@ -681,11 +681,10 @@ module RegisterNetwork();
 
 
     // File internal
-    function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-                                            input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+    function automatic Mword getArgValueInt(input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
-        if (ready) return tracker.ints.regs[source];
+        if (ready) return AbstractCore.registerTracker.ints.regs[source];
         
         found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
         if (found1.size() != 0) begin
@@ -704,11 +703,10 @@ module RegisterNetwork();
 
 
     // File internal
-    function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-                                            input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
+    function automatic Mword getArgValueVec(input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
-        if (ready) return tracker.floats.regs[source];
+        if (ready) return AbstractCore.registerTracker.floats.regs[source];
 
         found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
         if (found1.size() != 0) begin
