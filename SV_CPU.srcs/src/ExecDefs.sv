@@ -65,9 +65,8 @@ package ExecDefs;
     ///// START poison
 
         // Poison
-        typedef UopId Poison[N_MEM_PORTS * (1 - -3 + 1)];
+        typedef UopId Poison[N_MEM_PORTS * (1 - -3 + 2)];
         localparam Poison EMPTY_POISON = '{default: UID_NONE};
-
 
         typedef logic IdMap[UopId];
         
@@ -92,7 +91,7 @@ package ExecDefs;
             return res;
         endfunction 
 
-            
+        // Used at Issue
         function automatic Poison mergePoisons(input Poison ap[3]);
             IdMap m0 = poison2map(ap[0]);
             IdMap m1 = poison2map(ap[1]);
@@ -106,7 +105,7 @@ package ExecDefs;
         endfunction
 
     ///// END poison
-    
+
 
     typedef struct {
         logic active;
@@ -135,12 +134,6 @@ package ExecDefs;
             if (needsReplay(p.status)) return EMPTY_UOP_PACKET;
             else return p;
         endfunction
-
-        function automatic UopPacket memToReplay(input UopPacket p);
-            if (needsReplay(p.status)) return p;
-            else return EMPTY_UOP_PACKET;
-        endfunction
-
 
 
     typedef UopPacket ForwardingElement;

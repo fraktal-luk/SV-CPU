@@ -64,10 +64,7 @@ module IssueQueue
 
     always_comb inputArray = makeInputArray(inGroupU); 
 
-    always @(negedge AbstractCore.clk) begin
-        wMatrix = getForwardsD(arrayReg);
-        wiMatrix = getForwardsD(inputArray);
-    end
+
 
     always_comb readiness = getReadinessArr(arrayReg, wMatrix);
     always_comb readinessInput = getReadinessArr(inputArray, wiMatrix);
@@ -75,11 +72,11 @@ module IssueQueue
     assign readinessVar = readiness;
     assign readinessInputVar = readinessInput;
 
-    function automatic logic anyReady();
-        int inds[$] = readiness.find_first_index with (item.all);
-        return inds.size() > 0;
-    endfunction
 
+    always @(negedge AbstractCore.clk) begin
+        wMatrix = getForwardsD(arrayReg);
+        wiMatrix = getForwardsD(inputArray);
+    end
 
 
     always @(posedge AbstractCore.clk) begin
@@ -105,7 +102,7 @@ module IssueQueue
 
         removeIssuedFromArray();
 
-            unlockBarrier();
+        unlockBarrier();
 
         arrayReg <= array;
 
@@ -115,6 +112,11 @@ module IssueQueue
         num <= getNumUsed();
     end
 
+
+    function automatic logic anyReady();
+        int inds[$] = readiness.find_first_index with (item.all);
+        return inds.size() > 0;
+    endfunction
 
     function automatic void unlockBarrier();
         if (!AbstractCore.barrierUnlocking) return;
@@ -190,15 +192,10 @@ module IssueQueue
 
     // MOVE?
     function automatic UopPacket makeUop(input IqEntry entry, input ReadinessInfo ri);
-        logic3 prevReady = ri.prevReady;
-        Poison currentPoisons[3] = ri.poisons;
-        Poison prevPoisons[3] = ri.prevPoisons;
         Poison properPoisons[3];
-        
         Poison newPoison;
-        UopPacket newPacket;
 
-        foreach (properPoisons[i]) properPoisons[i] = (prevReady[i]) ? prevPoisons[i] : currentPoisons[i];
+        foreach (properPoisons[i]) properPoisons[i] = (ri.prevReady[i]) ? ri.prevPoisons[i] : ri.poisons[i];
         
         newPoison = mergePoisons(properPoisons);
         return '{1, entry.uid, MC_NONE, ES_BEGIN, newPoison, 'x};
@@ -224,18 +221,16 @@ module IssueQueue
 
             assert (array[s].status == IqActive) else $fatal(2, "!!!Inactive slot to issue?");
 
-                // check for violation of conditions preventing issue
-                // * mem: when barrier active 
-                // * mem: when store-load dependecy prediction block a load
-            if (isMemUop(decUname(theId))) begin
+            // check for violation of conditions preventing issue
+            // * mem: when barrier active 
+            // * mem: when store-load dependecy prediction block a load
+            if (isMemUop(decUname(theId)))
                 void'(AbstractCore.memTracker.checkIssue(theId));
-            end
 
             begin
                 UopPacket newPacket = makeUop(array[s], readinessVar[s]);
                 pIssued0[i] <= tickP(newPacket);
             end
-
         end
     endtask
     
@@ -300,11 +295,11 @@ module IssueQueue
     endfunction
 
     // MOVE?
-    function automatic InputArray makeInputArray(input UopId inUops_N[RENAME_WIDTH]);
+    function automatic InputArray makeInputArray(input UopId inUops[RENAME_WIDTH]);
         InputArray res = '{default: EMPTY_ENTRY};
         foreach (res[i]) begin
-            if (inUops_N[i] == UID_NONE) continue;
-            res[i] = makeIqEntry(inUops_N[i]);
+            if (inUops[i] == UID_NONE) continue;
+            res[i] = makeIqEntry(inUops[i]);
         end
         return res;
     endfunction
@@ -425,16 +420,18 @@ module IssueQueue
         return res;
     endfunction
 
-        function automatic UidQueueT getActiveIdQueue(input IqEntry entries[]);
-            UopId res[$];
-            
-            foreach (entries[i]) begin
-                if (entries[i].status == IqActive)
-                    res.push_back(entries[i].uid);
-            end
-            
-            return res;
-        endfunction
+
+    function automatic UidQueueT getActiveIdQueue(input IqEntry entries[]);
+        UopId res[$];
+        
+        foreach (entries[i]) begin
+            if (entries[i].status == IqActive)
+                res.push_back(entries[i].uid);
+        end
+        
+        return res;
+    endfunction
+
 
     function automatic OutGroupP effA(input OutGroupP g);
         OutGroupP res;
@@ -552,37 +549,11 @@ endmodule
 
 
 module IssueQueueComplex(
-        ref InstructionMap insMap,
-        input EventInfo branchEventInfo,
-        input EventInfo lateEventInfo,
-        input OpSlotAB inGroup
-);    
-
-
-    function automatic RoutedUops routeUops(input OpSlotAB gr);
-        RoutedUops res = DEFAULT_ROUTED_UOPS_N;
-        
-        foreach (gr[i]) begin
-            if (gr[i].active !== 1) continue;
-            
-            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin // insMap dependece
-                UopId uid = '{gr[i].mid, u};
-                UopName uname = decUname(uid);                          // module dependence
-
-                if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = uid;
-                else if (isStoreDataUop(uname)) res.storeData[i] = uid;
-                else if (isBranchUop(uname)) res.branch[i] = uid;
-                else if (isIntDividerUop(uname)) res.idivider[i] = uid;
-                else if (isIntMultiplierUop(uname)) res.multiply[i] = uid;
-                else if (isFloatDividerUop(uname)) res.fdivider[i] = uid;
-                else if (isFloatCalcUop(uname)) res.float[i] = uid;
-                else res.regular[i] = uid;
-            end
-        end
-        
-        return res;
-    endfunction
-
+    ref InstructionMap insMap,
+    input EventInfo branchEventInfo,
+    input EventInfo lateEventInfo,
+    input OpSlotAB inGroup
+);
 
     RoutedUops routedUops = DEFAULT_ROUTED_UOPS_N;
     
@@ -633,5 +604,30 @@ module IssueQueueComplex(
     IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo,
                                             routedUops.storeData, '1,
                                             issuedStoreDataP);
+
+
+    function automatic RoutedUops routeUops(input OpSlotAB gr);
+        RoutedUops res = DEFAULT_ROUTED_UOPS_N;
+        
+        foreach (gr[i]) begin
+            if (gr[i].active !== 1) continue;
+            
+            for (int u = 0; u < insMap.get(gr[i].mid).nUops; u++) begin // insMap dependece
+                UopId uid = '{gr[i].mid, u};
+                UopName uname = decUname(uid);                          // module dependence
+
+                if (isMemUop(uname) || isLoadSysUop(uname) || isStoreSysUop(uname)) res.mem[i] = uid;
+                else if (isStoreDataUop(uname)) res.storeData[i] = uid;
+                else if (isBranchUop(uname)) res.branch[i] = uid;
+                else if (isIntDividerUop(uname)) res.idivider[i] = uid;
+                else if (isIntMultiplierUop(uname)) res.multiply[i] = uid;
+                else if (isFloatDividerUop(uname)) res.fdivider[i] = uid;
+                else if (isFloatCalcUop(uname)) res.float[i] = uid;
+                else res.regular[i] = uid;
+            end
+        end
+        
+        return res;
+    endfunction
 
 endmodule
