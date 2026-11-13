@@ -403,6 +403,9 @@ module BranchTracker;
 
         logic ch0, ch1, ch2, ch3, ch4; 
 
+        TMP_PredState predStateF0 = DEFAULT_PRED_STATE, // Generated from IP stage
+                      predStateF2 = DEFAULT_PRED_STATE; // Generated from F1 stage
+
 
     TMP_PredState committedPredState = DEFAULT_PRED_STATE;
     TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;

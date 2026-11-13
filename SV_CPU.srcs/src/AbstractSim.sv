@@ -157,8 +157,6 @@ package AbstractSim;
         return k <= BC_QUEUE_SIZE - 2*FETCH_WIDTH; // 2 stages + FETCH_QUEUE entries, FETCH_WIDTH each
     endfunction
 
-    ///////////////////////////////////////////////////////////////
-
 
     /////////////////////////////////////////////////////////////////////////////////
     // Mem
@@ -304,9 +302,7 @@ package AbstractSim;
     endfunction
 
 
-
     // BP
-
     typedef logic[FETCH_WIDTH] BranchGroup;
 
 
@@ -320,7 +316,6 @@ package AbstractSim;
     } TMP_PredState;
 
     localparam TMP_PredState DEFAULT_PRED_STATE = '{-1, '{default: 'z}, '{default: 'z}, -1, '{default: 0}, '{default: '{default: 'x}}}; 
-
 
 
     typedef struct {
@@ -433,8 +428,6 @@ package AbstractSim;
     endfunction
 
 
-
-
     class BranchCheckpoint;
         function new(input InsId id,
                     input WriterId intWr[32], input WriterId floatWr[32],
@@ -474,21 +467,18 @@ package AbstractSim;
 
 
 
+    // function automatic logic isLoadFwBarrierUop(input UopName uname);
+    //     return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf};
+    // endfunction
 
+    // function automatic logic isStoreFwBarrierUop(input UopName uname);
+    //     return uname inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
+    // endfunction
 
-
-        function automatic logic isLoadFwBarrierUop(input UopName uname);
-            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf};
-        endfunction
-
-        function automatic logic isStoreFwBarrierUop(input UopName uname);
-            return uname inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
-        endfunction
-
-        function automatic logic isMemFwBarrierUop(input UopName uname);
-            // CAREFUL: includes lda
-            return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda};
-        endfunction
+    // function automatic logic isMemFwBarrierUop(input UopName uname);
+    //     // CAREFUL: includes lda
+    //     return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda};
+    // endfunction
 
 
 
@@ -508,7 +498,6 @@ package AbstractSim;
 
 
     function automatic void updateMarkers(ref MarkerSet markers, input InsId id, input UopName mainUop);
-        //UopName mainUop = decMainUop(id);
         if (isLoadFwBarrierUop(mainUop)) markers.mbLoadF = id;
         if (isStoreFwBarrierUop(mainUop)) markers.mbStoreF = id;
         if (isMemFwBarrierUop(mainUop)) markers.mbF = id;
@@ -521,14 +510,10 @@ package AbstractSim;
 
 
     function automatic void updateInds(ref IndexSet inds, input InsId id, input UopName mainUop);
-        //UopName mainUop = decMainUop(id);
         inds.rename = (inds.rename + 1) % (2*ROB_SIZE);
         if (isBranchUop(mainUop)) inds.bq = (inds.bq + 1) % (2*BC_QUEUE_SIZE);
         if (isLoadUop(mainUop)) inds.lq = (inds.lq + 1) % (2*LQ_SIZE);
         if (isStoreUop(mainUop)) inds.sq = (inds.sq + 1) % (2*SQ_SIZE);
     endfunction
 
-
-
 endpackage
-
