@@ -232,7 +232,6 @@ module MemSubpipe#()
 
         uname = decUname(uid);
 
-
         if (ad.invalid) begin
             res.status = ES_INVALID;
             res.result = 0;

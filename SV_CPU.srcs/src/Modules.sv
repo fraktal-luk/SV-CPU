@@ -404,12 +404,9 @@ module BranchTracker;
         logic ch0, ch1, ch2, ch3, ch4; 
 
 
-
-        //struct {
-            TMP_PredState committedPredState = DEFAULT_PRED_STATE;
-            TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
-            logic latestPredPresent = 0;
-        //} latePredStates;
+    TMP_PredState committedPredState = DEFAULT_PRED_STATE;
+    TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
+    logic latestPredPresent = 0;
 
 
 
@@ -800,11 +797,13 @@ module RegisterNetwork();
     assign floatImages = '{0: theExecBlock.float0.image_E, 1: theExecBlock.float1.image_E, 2: theExecBlock.fdiv.image_E, default: EMPTY_IMAGE};
 
     assign memImages = '{0: theExecBlock.mem0.image_E, 1: theExecBlock.mem1.image_E, 2: theExecBlock.mem2.image_E, default: EMPTY_IMAGE};
-    assign memImagesVec = memImages; //  TODO: separate, 1c longer load pipe on FP side? 
 
     assign memImagesVec_M1 = '{0: theExecBlock.mem0.imageM1_E,
                               1: theExecBlock.mem1.imageM1_E,
                               2: theExecBlock.mem2.imageM1_E, default: EMPTY_IMAGE};
+
+    assign memImagesVec = memImages; //  TODO: separate, 1c longer load pipe on FP side: memImagesVec_M1
+
 
 
     always_comb intImagesTr = trsInt(intImages);

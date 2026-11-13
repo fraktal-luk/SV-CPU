@@ -19,7 +19,7 @@ module IssueQueue
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    input UopId inGroupU_N[RENAME_WIDTH],
+    input UopId inGroupU[RENAME_WIDTH],
 
     input logic allow,   
     output UopPacket outPackets[OUT_WIDTH]
@@ -62,7 +62,7 @@ module IssueQueue
 
     always_comb  outPackets = effA(pIssued0);
 
-    always_comb inputArray = makeInputArray(/*inGroupU, */inGroupU_N); 
+    always_comb inputArray = makeInputArray(inGroupU); 
 
     always @(negedge AbstractCore.clk) begin
         wMatrix = getForwardsD(arrayReg);
@@ -107,7 +107,6 @@ module IssueQueue
 
             unlockBarrier();
 
-
         arrayReg <= array;
 
         foreach (pIssued0[i])
@@ -117,16 +116,15 @@ module IssueQueue
     end
 
 
-        function automatic void unlockBarrier();
-            if (!AbstractCore.barrierUnlocking) return;
+    function automatic void unlockBarrier();
+        if (!AbstractCore.barrierUnlocking) return;
 
-            foreach (array[i]) begin
-                if (array[i].status == IqSuspended && array[i].barrier <= AbstractCore.barrierUnlockingMid) begin
-                    array[i].status = IqActive;
-                       // $error("unlocking %d [%d]", array[i].uid.m,  array[i].barrier);
-                end
+        foreach (array[i]) begin
+            if (array[i].status == IqSuspended && array[i].barrier <= AbstractCore.barrierUnlockingMid) begin
+                array[i].status = IqActive;
             end
-        endfunction
+        end
+    endfunction
 
 
     function automatic ReadinessInfoArr getReadinessArr(input IqEntry arr[], input Wakeup wm[][3]);
@@ -211,7 +209,7 @@ module IssueQueue
         putMilestone(entry.uid, InstructionMap::IqIssue);
         entry.status = IqIssued;
         entry.active_ = 0;         // Entry upd
-        entry.issueCounter = 0;   // Entry upd
+        entry.issueCounter = 0;    // Entry upd
     endtask
 
 
@@ -289,9 +287,9 @@ module IssueQueue
         InsId barrier = insMap.getU(inUop).barrier;
         SlotStatus status = IqActive;
         
-            if (barrier != -1) status = IqSuspended;
+        if (barrier != -1) status = IqSuspended;
         
-            if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
+        if (0) status = IqLocked; // TODO: when resource conflicts like divider/multiplier competition come into play
 
         return inUop != UID_NONE ? '{used: 1, active_: 1,
                                 status: status,
@@ -302,14 +300,9 @@ module IssueQueue
     endfunction
 
     // MOVE?
-    function automatic InputArray makeInputArray(//input TMP_Uop inUops[RENAME_WIDTH],
-                                                 input UopId inUops_N[RENAME_WIDTH]);
+    function automatic InputArray makeInputArray(input UopId inUops_N[RENAME_WIDTH]);
         InputArray res = '{default: EMPTY_ENTRY};
         foreach (res[i]) begin
-               // assert (inUops[i].active === (inUops[i].uid != UID_NONE)) else $error("ttttttttttttttttttttttt\n%p", inUops[i]);
-               // assert ((inUops_N[i] != UID_NONE) === (inUops[i].uid != UID_NONE)) else $error("ttttttttttttttttt\n%p", inUops[i]);
-
-            //if (inUops[i].active !== 1) continue;
             if (inUops_N[i] == UID_NONE) continue;
             res[i] = makeIqEntry(inUops_N[i]);
         end
@@ -322,8 +315,7 @@ module IssueQueue
         int nInserted = 0;
 
         foreach (inputArray[i]) begin
-            //if (inGroupU[i].active) begin
-            if (inGroupU_N[i] != UID_NONE) begin
+            if (inGroupU[i] != UID_NONE) begin
                 int location = locs[nInserted];
                 array[location] = inputArray[i];  // Entry upd
                 nInserted++;          
@@ -371,7 +363,7 @@ module IssueQueue
     function automatic void updateReadyBits(ref IqEntry entry, input logic3 ready3, /*input Wakeup wup[3],*/ input Poison poisons[3]);
         foreach (ready3[a]) begin
             if (ready3[a] && !entry.state.readyArgs[a]) begin // Entry tr rd? (only for DB?)
-                setArgReady(entry, a,/* wup[a],*/ poisons[a]);
+                setArgReady(entry, a, poisons[a]);
             end
         end
 
@@ -394,7 +386,7 @@ module IssueQueue
 
     function automatic void setArgReady(ref IqEntry entry, input int a, /*input Wakeup wup,*/ input Poison p);
         entry.state.readyArgs[a] = 1;            // Entry upd
-        entry.poisons.poisoned[a] = p;//wup.poison;  // Entry upd
+        entry.poisons.poisoned[a] = p;           // Entry upd
         putMilestone(entry.uid, wakeupMilestone(a));
     endfunction
 
@@ -476,12 +468,12 @@ module IssueQueue
 
             case (argType)
                 SRC_INT: begin
-                    wup = rn.checkForwardSourceInt(prod);//, rn.intImages);
-                    if (!wup.active) wup = rn.checkForwardSourceMem(prod);//, rn.memImages);
+                    wup = rn.checkForwardSourceInt(prod);
+                    if (!wup.active) wup = rn.checkForwardSourceMem(prod);
                 end
                 SRC_FLOAT: begin
-                    wup = rn.checkForwardSourceVec(prod);//, rn.floatImages);
-                    if (!wup.active) wup = rn.checkForwardSourceMem(prod);//, rn.memImagesVec);
+                    wup = rn.checkForwardSourceVec(prod);
+                    if (!wup.active) wup = rn.checkForwardSourceMemVec(prod);
                 end
                 default: ; // nothing
             endcase
@@ -560,14 +552,14 @@ endmodule
 
 
 module IssueQueueComplex(
-                        ref InstructionMap insMap,
-                        input EventInfo branchEventInfo,
-                        input EventInfo lateEventInfo,
-                        input OpSlotAB inGroup
+        ref InstructionMap insMap,
+        input EventInfo branchEventInfo,
+        input EventInfo lateEventInfo,
+        input OpSlotAB inGroup
 );    
 
 
-    function automatic RoutedUops routeUops_N(input OpSlotAB gr);
+    function automatic RoutedUops routeUops(input OpSlotAB gr);
         RoutedUops res = DEFAULT_ROUTED_UOPS_N;
         
         foreach (gr[i]) begin
@@ -592,7 +584,7 @@ module IssueQueueComplex(
     endfunction
 
 
-    RoutedUops routedUops_N = DEFAULT_ROUTED_UOPS_N;
+    RoutedUops routedUops = DEFAULT_ROUTED_UOPS_N;
     
     UopPacket issuedRegularP[2];
     UopPacket issuedMultiplierP[2];
@@ -604,43 +596,42 @@ module IssueQueueComplex(
     UopPacket issuedStoreDataP[1];
 
 
-    //always_comb routedUops = routeUops(inGroup);
-    always_comb routedUops_N = routeUops_N(inGroup);
+    always_comb routedUops = routeUops(inGroup);
 
 
-    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.regular,
-                                            routedUops_N.regular, '1,
+    IssueQueue#(.OUT_WIDTH(2)) regularQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.regular, '1,
                                             issuedRegularP);                                            
 
-    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.branch,
-                                            routedUops_N.branch, '1,
+    IssueQueue#(.OUT_WIDTH(1)) branchQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.branch, '1,
                                             issuedBranchP);
 
 
-    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.idivider, 
-                                            routedUops_N.idivider,
+    IssueQueue#(.OUT_WIDTH(1)) dividerQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.idivider,
                                             theExecBlock.divider.allowIssue,
                                             issuedDividerP);
 
-    IssueQueue#(.OUT_WIDTH(2)) multiplierQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.multiply, 
-                                            routedUops_N.multiply, '1,
+    IssueQueue#(.OUT_WIDTH(2)) multiplierQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.multiply, '1,
                                             issuedMultiplierP);
 
 
-    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.float,
-                                            routedUops_N.float, '1,
+    IssueQueue#(.OUT_WIDTH(2)) floatQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.float, '1,
                                             issuedFloatP);
-    IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.fdivider, 
-                                            routedUops_N.fdivider,
+    IssueQueue#(.OUT_WIDTH(1)) fdivQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.fdivider,
                                             theExecBlock.fdiv.allowIssue,
                                             issuedFdivP);                                           
 
-    IssueQueue#(.OUT_WIDTH(1  + 1)) memQueue(insMap, branchEventInfo, lateEventInfo,// routedUops.mem, 
-                                            routedUops_N.mem,
+    IssueQueue#(.OUT_WIDTH(1  + 1)) memQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.mem,
                                             theExecBlock.memIssueAllow,
                                             issuedMemP);
-    IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo, //routedUops.storeData,
-                                            routedUops_N.storeData, '1,
+    IssueQueue#(.OUT_WIDTH(1)) storeDataQueue(insMap, branchEventInfo, lateEventInfo,
+                                            routedUops.storeData, '1,
                                             issuedStoreDataP);
 
 endmodule

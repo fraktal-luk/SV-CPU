@@ -143,8 +143,6 @@ package ExecDefs;
 
 
 
-
-
     typedef UopPacket ForwardingElement;
 
     localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
@@ -191,8 +189,6 @@ package ExecDefs;
             return map2poison(map);
         endfunction
 
-
-
         function automatic logic checkMemDep(input Poison p, input ForwardingElement fe);
             if (fe.uid != UID_NONE) begin
                 UopId inds[$] = p.find_first with (item == fe.uid);
@@ -224,7 +220,6 @@ package ExecDefs;
 
 
 
-
         typedef enum {
             PG_NONE, PG_INT, PG_MEM, PG_VEC
         } PipeGroup;
@@ -240,7 +235,6 @@ package ExecDefs;
         } Wakeup;
         
         localparam Wakeup EMPTY_WAKEUP = '{0, UID_NONE, PG_NONE, -1, 2, EMPTY_POISON};
-
 
 
 

@@ -113,7 +113,7 @@ module ExecBlock(ref InstructionMap insMap,
         insMap,
         branchEventInfo,
         lateEventInfo,
-            theIssueQueues.issuedMemP[1],
+        theIssueQueues.issuedMemP[1],
         dcacheTranslationsE0d[1],
         mn.cacheOutE1d[1],
         mn.uncachedOutE1d[1],
@@ -239,34 +239,21 @@ module ExecBlock(ref InstructionMap insMap,
 
         if (p.uid == UID_NONE) return res;
         
-        begin
-            fpRes = calcRegularFpOp(p.uid);
-            res.result = fpRes.value;
+        fpRes = calcRegularFpOp(p.uid);
+        res.result = fpRes.value;
 
-            if (fpRes.exc.invalid) begin
-                res.status = ES_FP_INVALID;
-            end
-            
-            if (fpRes.exc.div0) begin
-                res.status = ES_FP_DIV0;
-            end
+        if (fpRes.exc.invalid)   res.status = ES_FP_INVALID;
+        if (fpRes.exc.div0)      res.status = ES_FP_DIV0;
+        if (fpRes.exc.overflow)  res.status = ES_FP_OVERFLOW;
+        if (fpRes.exc.underflow) res.status = ES_FP_UNDERFLOW;
 
-            if (fpRes.exc.overflow) begin
-                res.status = ES_FP_OVERFLOW;
-            end
-
-            if (fpRes.exc.underflow) begin
-                res.status = ES_FP_UNDERFLOW;
-            end
-
-            if (fpRes.exc.inexact) begin
-                if (fpRes.exc.overflow)
-                    res.status = ES_FP_OV_INEXACT;
-                else if (fpRes.exc.underflow)
-                    res.status = ES_FP_UND_INEXACT;
-                else
-                    res.status = ES_FP_INEXACT;
-            end
+        if (fpRes.exc.inexact) begin
+            if (fpRes.exc.overflow)
+                res.status = ES_FP_OV_INEXACT;
+            else if (fpRes.exc.underflow)
+                res.status = ES_FP_UND_INEXACT;
+            else
+                res.status = ES_FP_INEXACT;
         end
 
         if (
@@ -275,11 +262,9 @@ module ExecBlock(ref InstructionMap insMap,
          || fpRes.exc.inexact && AbstractCore.CurrentConfig.enTrapInex
          || fpRes.exc.underflow && AbstractCore.CurrentConfig.enTrapUnd
          || fpRes.exc.div0 && AbstractCore.CurrentConfig.enTrapDiv0         
-            )
-        begin
+        )
             insMap.setException(U2M(p.uid), PE_ARITH_EXCEPTION);
-        end
-        
+
         return res;
     endfunction
 
