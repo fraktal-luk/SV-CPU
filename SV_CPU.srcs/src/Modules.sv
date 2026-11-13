@@ -684,7 +684,7 @@ module RegisterNetwork();
     function automatic Mword getArgValueInt(input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
-        if (ready) return AbstractCore.registerTracker.ints.regs[source];
+        if (ready) return registerUnit.registerTracker.ints.regs[source];
         
         found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
         if (found1.size() != 0) begin
@@ -706,7 +706,7 @@ module RegisterNetwork();
     function automatic Mword getArgValueVec(input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
         FEQ found1, found0;
 
-        if (ready) return AbstractCore.registerTracker.floats.regs[source];
+        if (ready) return registerUnit.registerTracker.floats.regs[source];
 
         found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
         if (found1.size() != 0) begin
