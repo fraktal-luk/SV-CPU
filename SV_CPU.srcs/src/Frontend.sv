@@ -13,7 +13,6 @@ import CacheDefs::*;
 
 module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo branchEventInfo, input EventInfo lateEventInfo);
 
-
     typedef enum {
         FS_NONE,
         FS_OFF,       //
@@ -24,10 +23,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     } FetcherState;
 
 
-
     logic FETCH_UNC;
     logic fetchAllowCa, waitEvt;
-
 
     FrontStage fetchQueue[$:FETCH_QUEUE_SIZE];
     FrontStage uncachedFetchQueue[$:UFQ_SIZE];
@@ -41,9 +38,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         logic fetchEnable; // DB
         Mword fetchAdr; // DB
 
-
         logic chk, chk_2, chk_3, chk_4;
-
 
 
     assign FETCH_UNC = !AbstractCore.CurrentConfig.enableMmu;
@@ -72,9 +67,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         FrontStage stageIP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE,
                     stageFetch2 = DEFAULT_FRONT_STAGE;//, stageFetch2_N = DEFAULT_FRONT_STAGE;
-
-        TMP_PredState predStateF0 = DEFAULT_PRED_STATE, // Generated from IP stage
-                      predStateF2 = DEFAULT_PRED_STATE; // Generated from F1 stage
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
 
@@ -106,11 +98,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(lateEventInfo.target);
 
             // @pred: restore from late
-            predStateF0 <= AbstractCore.branchTracker.committedPredState;
-            predStateF2 <= AbstractCore.branchTracker.committedPredState;
-
-                branchTracker.predStateF0 <= AbstractCore.branchTracker.committedPredState;
-                branchTracker.predStateF2 <= AbstractCore.branchTracker.committedPredState;
+            branchTracker.predStateF0 <= AbstractCore.branchTracker.committedPredState;
+            branchTracker.predStateF2 <= AbstractCore.branchTracker.committedPredState;
 
             expectedTargetF2 <= lateEventInfo.target;
         endtask
@@ -126,11 +115,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                 BranchGroup bg = updateBranchGroup(causingCP.ownPred, causingCP.slotInd, branchEventInfo.dir);
 
                 // CAREFUL: branchEventInfo.adr is not exactly the past state to be restored - may be on a different slot from the beginning
-                predStateF0 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);
-                predStateF2 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);  //  As well
-
-                    branchTracker.predStateF0 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);
-                    branchTracker.predStateF2 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);  //  As well
+                branchTracker.predStateF0 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);
+                branchTracker.predStateF2 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);  //  As well
             end
 
             expectedTargetF2 <= branchEventInfo.target;
@@ -143,8 +129,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(expectedTargetF2);
 
             // @pred: restore from front
-            predStateF0 <= predStateF2;
-                branchTracker.predStateF0 <= branchTracker.predStateF2;
+            branchTracker.predStateF0 <= branchTracker.predStateF2;
         endtask
 
         task automatic cachedWaitCtrl();
@@ -160,7 +145,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
         task automatic cachedResumeFill();
             cachedRedirectFront();
         endtask
-
 
 
         task automatic runCached();
@@ -188,11 +172,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                         stageIP <= makeStage_IP(nextTrg);
 
                         // @pred update
-                        predStateF0 <= updatePred(predStateF0, linePred_T, stageIP.vadr);
-                            branchTracker.predStateF0 <= updatePred(branchTracker.predStateF0, linePred_T, stageIP.vadr);
+                        branchTracker.predStateF0 <= updatePred(branchTracker.predStateF0, linePred_T, stageIP.vadr);
 
                         stageFetch0 <= stageIP;
-                        stageFetch0.predState <= predStateF0;
+                        stageFetch0.predState <= branchTracker.predStateF0;
                         stageFetch0.ownPredF0 <= linePred_T;
                         stageFetch0.ownPredF2 <= '{default: 'z};
                         stageFetch0.ownPredTargetF0 <= nextTrg; 
@@ -231,25 +214,19 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
         always @(posedge clk) begin
             runCached();
-
-            movePredictor();
-        end
-
-        always @(negedge clk) begin
-            branchTracker.startPrediction(predStateF0.count, predStateF0.len, stageIP.vadr);
-        end
-
-
-        task automatic movePredictor();
             branchTracker.move();
-        endtask
+        end
+
+        always @(negedge clk) begin // Begin generating Simple (known at F0) and Advanced (known at F2)
+            branchTracker.startPrediction(stageIP.vadr);
+        end
 
 
         task automatic cachedMoveStagesToF2();
             BranchGroup newPred = branchTracker.getAdvancedPredictionSig();
             Mword nextTrg_T = branchTracker.getAdvancedPredictionTarget();
 
-            FrontStage newStageF2 = advanceF2(stageFetch1, newPred, nextTrg_T, expectedTargetF2, predStateF2);
+            FrontStage newStageF2 = advanceF2(stageFetch1, newPred, nextTrg_T, expectedTargetF2, branchTracker.predStateF2);
 
             stageFetch1 <= setCacheResponse(stageFetch0, cacheOut, instructionCache.translationSig.padr);
             stageFetch2 <= newStageF2;
@@ -259,8 +236,8 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             assert (!$isunknown(expectedTargetF2)) else $fatal(2, "expectedTarget not set");
 
             expectedTargetF2 <= newStageF2.ownPredTargetF2;
-            predStateF2 <= updatePred(predStateF2, newStageF2.ownPredF2, newStageF2.vadr);
-                branchTracker.predStateF2 <= updatePred(branchTracker.predStateF2, newStageF2.ownPredF2, newStageF2.vadr);
+
+            branchTracker.predStateF2 <= updatePred(branchTracker.predStateF2, newStageF2.ownPredF2, newStageF2.vadr);
         endtask
 
 
@@ -567,6 +544,5 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageUnc_IP <= DEFAULT_FRONT_STAGE;
         end
     endtask
-
 
 endmodule

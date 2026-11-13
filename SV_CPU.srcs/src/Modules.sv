@@ -412,6 +412,11 @@ module BranchTracker;
     logic latestPredPresent = 0;
 
 
+        // always @(posedge AbstractCore.clk) begin
+        //     assert (predStateF0 === theFrontend.predStateF0) else $fatal(2, "FF0"); 
+        //     assert (predStateF2 === theFrontend.predStateF2) else $fatal(2, "FF2"); 
+        // end
+
 
     task automatic addGroupPredInfo();
 
@@ -460,9 +465,9 @@ module BranchTracker;
 
 
 
-    function automatic void startPrediction(input int count, input int len, input Mword adr);
+    function automatic void startPrediction(/*input int count, input int len, */input Mword adr);
         a0i <= adr;
-        p0i <= len;
+        p0i <= predStateF0.len;
     endfunction
 
     function automatic void move();
