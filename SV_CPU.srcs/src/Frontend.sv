@@ -31,7 +31,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     int fqSize = 0, ufqSize = 0;
     FrontStage stageRename0 = DEFAULT_FRONT_STAGE; //'{default: EMPTY_SLOT_F};
 
-    Mword expectedTargetF2 = 'x;
     FrontStage finalFetchStage, finalFetchStageUncached;
     FrontStage stageIpSig, stageUncIpSig;
 
@@ -51,7 +50,6 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     assign fetchAdr = FETCH_UNC ? stageUncIpSig.vadr : fetchLineBase(stageIpSig.vadr);
 
 
-
     always @(posedge clk) begin
         assert (cachedFetcherState == FS_OFF || uncachedFetcherState == FS_OFF) else $fatal(2, "2 fetchers active together");
     end
@@ -62,11 +60,13 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
     generate
         FetcherState cachedFetcherState = FS_OFF;
 
+        Mword expectedTargetF2 = 'x;
+
         InstructionCacheOutput cacheOut;
         InstructionL1 instructionCache(clk, stageIP.active, fetchLineBase(stageIP.vadr), cacheOut);
 
-        FrontStage stageIP = DEFAULT_FRONT_STAGE, stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE,
-                    stageFetch2 = DEFAULT_FRONT_STAGE;//, stageFetch2_N = DEFAULT_FRONT_STAGE;
+        FrontStage stageIP = DEFAULT_FRONT_STAGE,
+                    stageFetch0 = DEFAULT_FRONT_STAGE, stageFetch1 = DEFAULT_FRONT_STAGE, stageFetch2 = DEFAULT_FRONT_STAGE;
 
         logic frontRedCa, frontRedOnMiss, groupMismatchF2;
 
