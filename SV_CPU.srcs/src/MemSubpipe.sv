@@ -28,9 +28,9 @@ module MemSubpipe#()
 );
 
     UopMemPacket p0, p1 = EMPTY_UOP_PACKET, pE0 = EMPTY_UOP_PACKET, pE1 = EMPTY_UOP_PACKET, pE2 = EMPTY_UOP_PACKET, pE3 = EMPTY_UOP_PACKET,
-                 pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET;
-    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pE3_E, pD0_E, pD1_E;
-        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pE3_Emp, pD0_Emp, pD1_Emp;
+                 pD0 = EMPTY_UOP_PACKET, pD1 = EMPTY_UOP_PACKET, pD2 = EMPTY_UOP_PACKET;
+    UopMemPacket p0_E, p1_E, pE0_E, pE1_E, pE2_E, pE3_E, pD0_E, pD1_E, pD2_E;
+        UopPacket p0_Emp, p1_Emp, pE0_Emp, pE1_Emp, pE2_Emp, pE3_Emp, pD0_Emp, pD1_Emp, pD2_Emp;
     Translation trE0, trE1 = DEFAULT_TRANSLATION, trE2 = DEFAULT_TRANSLATION, trE3 = DEFAULT_TRANSLATION;
 
 
@@ -59,9 +59,9 @@ module MemSubpipe#()
 
         pE3 <= tickP(pE2);
         
-        pD0 <= tickP(pE2);
-            pD0 <= tickP(pE3);
+        pD0 <= tickP(pE3);
         pD1 <= tickP(pD0);
+        pD2 <= tickP(pD1);
 
         trE1 <= trE0;
         trE2 <= trE1;
@@ -81,6 +81,7 @@ module MemSubpipe#()
     always_comb pE3_E = effP(pE3);
     always_comb pD0_E = effP(pD0);
     always_comb pD1_E = effP(pD1);
+    always_comb pD2_E = effP(pD2);
 
 
         always_comb p0_Emp = TMP_mp(p0_E);
@@ -91,21 +92,31 @@ module MemSubpipe#()
         always_comb pE3_Emp = TMP_mp(pE3_E);
         always_comb pD0_Emp = TMP_mp(pD0_E);
         always_comb pD1_Emp = TMP_mp(pD1_E);
+        always_comb pD2_Emp = TMP_mp(pD2_E);
 
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
+    ForwardingElement imageM1_E[-3:2];
     
     assign image_E = '{
-        //-3: p1_Emp,
         -3: pE0_Emp,
         -2: pE1_Emp,
         -1: pE2_Emp,
         0: pE3_Emp,
-        1: pD1_Emp,
+        1: pD0_Emp,
+        2: pD1_Emp,
         default: EMPTY_FORWARDING_ELEMENT
     };
     
-
+    assign imageM1_E = '{
+        -3: pE1_Emp,
+        -2: pE2_Emp,
+        -1: pE3_Emp,
+        0: pD0_Emp,
+        1: pD1_Emp,
+        2: pD2_Emp,
+        default: EMPTY_FORWARDING_ELEMENT
+    };
 
     /////////////////////////////////////////////////////////////////////////////////////
 

@@ -148,14 +148,14 @@ package ExecDefs;
     typedef UopPacket ForwardingElement;
 
     localparam ForwardingElement EMPTY_FORWARDING_ELEMENT = EMPTY_UOP_PACKET;
-    localparam ForwardingElement EMPTY_IMAGE[-3:1] = '{default: EMPTY_FORWARDING_ELEMENT};
+    localparam ForwardingElement EMPTY_IMAGE[-3:2] = '{default: EMPTY_FORWARDING_ELEMENT};
 
 
-        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        function automatic IdMap getPresentMemM(input ForwardingElement fea[N_MEM_PORTS][-3:2]);
             IdMap res;
             
             foreach (fea[p]) begin
-                ForwardingElement subpipe[-3:1] = fea[p];
+                ForwardingElement subpipe[-3:2] = fea[p];
                 foreach (subpipe[s]) begin
                     if (subpipe[s].uid != UID_NONE) res[subpipe[s].uid] = 1;
                 end
@@ -165,7 +165,7 @@ package ExecDefs;
         endfunction
         
 
-        function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        function automatic Poison updatePoison(input Poison p, input ForwardingElement fea[N_MEM_PORTS][-3:2]);
             IdMap present = getPresentMemM(fea);
             IdMap old = poison2map(p);
             
@@ -182,7 +182,7 @@ package ExecDefs;
         // merge args - on issue
         // add poison - for argument on its wakeup
         
-        function automatic Poison addProducer(input Poison p, input UopId uid, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+        function automatic Poison addProducer(input Poison p, input UopId uid, input ForwardingElement fea[N_MEM_PORTS][-3:2]);
             Poison u = updatePoison(p, fea);
             IdMap map = poison2map(u);
             // add id
@@ -209,9 +209,9 @@ package ExecDefs;
 
         // Handling forwarding network
         
-        typedef ForwardingElement IntByStage[-3:1][N_INT_PORTS];
-        typedef ForwardingElement MemByStage[-3:1][N_MEM_PORTS];
-        typedef ForwardingElement VecByStage[-3:1][N_VEC_PORTS];
+        typedef ForwardingElement IntByStage[-3:2][N_INT_PORTS];
+        typedef ForwardingElement MemByStage[-3:2][N_MEM_PORTS];
+        typedef ForwardingElement VecByStage[-3:2][N_VEC_PORTS];
 
 
         typedef struct {
@@ -257,82 +257,9 @@ package ExecDefs;
     endfunction
 
 
-
     function automatic logic matchProducer(input ForwardingElement fe, input UopId producer);
         return (fe.uid != UID_NONE) && fe.uid === producer;
     endfunction
-
-
-
-
-    // // IQs
-    // function automatic Wakeup checkForwardSourceInt(input UopId producer, input ForwardingElement fea[N_INT_PORTS][-3:1]);
-    //     Wakeup res = EMPTY_WAKEUP;
-    //     if (producer == UID_NONE) return res;
-    //     foreach (fea[p]) begin
-    //         int found[$] = fea[p].find_index with (item.uid == producer);
-    //         if (found.size() == 0) continue;
-    //         else if (found.size() > 1) $error("Repeated op id in same subpipe %d (%d):\n%p", p, found, fea[p]);
-            
-    //         if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
-
-    //         res.active = 1;
-    //         res.producer = producer;
-    //         res.group = PG_INT;
-    //         res.port = p;
-    //         res.stage = found[0];
-    //         res.poison = fea[p][found[0]].poison;
-    //         return res;
-    //     end
-    //     return res;
-    // endfunction;
-
-    // function automatic Wakeup checkForwardSourceVec(input UopId producer, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
-    //     Wakeup res = EMPTY_WAKEUP;
-    //     if (producer == UID_NONE) return res;
-    //     foreach (fea[p]) begin
-    //         int found[$] = fea[p].find_index with (item.uid == producer);
-    //         if (found.size() == 0) continue;
-    //         else if (found.size() > 1) $error("Repeated op id in same subpipe");
-            
-    //         if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
-
-    //         res.active = 1;
-    //         res.producer = producer;
-    //         res.group = PG_VEC;
-    //         res.port = p;
-    //         res.stage = found[0];
-    //         res.poison = fea[p][found[0]].poison;
-    //         return res;
-    //     end
-    //     return res;
-    // endfunction;
-
-
-    // function automatic Wakeup checkForwardSourceMem(input UopId producer, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-    //     Wakeup res = EMPTY_WAKEUP;
-    //     if (producer == UID_NONE) return res;
-    //     foreach (fea[p]) begin
-    //         int found[$] = fea[p].find_index with (item.uid == producer);
-    //         if (found.size() == 0) continue;
-    //         else if (found.size() > 1) $error("Repeated op id in same subpipe");
-            
-    //         if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
-
-    //         res.active = 1;
-
-    //         // Don't wake up if this is a failed op
-    //         if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
-            
-    //         res.producer = producer;
-    //         res.group = PG_MEM;
-    //         res.port = p;
-    //         res.stage = found[0];
-    //         res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
-    //         return res;
-    //     end
-    //     return res;
-    // endfunction;
 
 
 endpackage

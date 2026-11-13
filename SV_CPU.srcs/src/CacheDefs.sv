@@ -159,7 +159,7 @@ package CacheDefs;
         return res;
     endfunction
 
-    // TODO: consider when trying to lock and block not existing
+    //          So locking of such blocks is ignored 
     function automatic void lockInWay(input DataCacheBlock way[], input AccessDesc aDesc);
         DataCacheBlock block = way[aDesc.info.blockIndex];
         if (block == null) return;

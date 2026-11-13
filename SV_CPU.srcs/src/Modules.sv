@@ -36,7 +36,7 @@ module RegularSubpipe(
     always_comb pE0_E = effP(pE0);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: p0_E,
@@ -80,7 +80,7 @@ module MultiplierSubpipe(
     always_comb pE2_E = effP(pE2);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: pE0_E,
@@ -127,7 +127,7 @@ module FloatSubpipe(
     always_comb pE3_E = effP(pE3);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: pE1_E,
@@ -168,7 +168,7 @@ module BranchSubpipe(
     always_comb pE0_E = effP(pE0);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     // Copied from RegularSubpipe
     assign image_E = '{
@@ -323,7 +323,7 @@ module DividerSubpipe#(
     
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: outputStage0_E,
@@ -363,7 +363,7 @@ module StoreDataSubpipe(
     always_comb pE0_E = effP(pE0);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
 
     assign image_E = '{
         -2: p0_E,
@@ -632,10 +632,11 @@ endmodule
 
 module RegisterNetwork();
 
-    ForwardingElement intImages[N_INT_PORTS][-3:1];
-    ForwardingElement memImages[N_MEM_PORTS][-3:1];
-    ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
-    ForwardingElement floatImages[N_VEC_PORTS][-3:1];
+    ForwardingElement intImages[N_INT_PORTS][-3:2];
+    ForwardingElement memImages[N_MEM_PORTS][-3:2];
+    ForwardingElement memImagesVec[N_MEM_PORTS][-3:2];
+    ForwardingElement memImagesVec_M1[N_MEM_PORTS][-3:2];
+    ForwardingElement floatImages[N_VEC_PORTS][-3:2];
 
     IntByStage intImagesTr;
     MemByStage memImagesTr;
@@ -750,11 +751,11 @@ module RegisterNetwork();
 
 
 
-        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:2]);
             IntByStage res;
             
             foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
+                ForwardingElement img[-3:2] = imgs[p];
                 foreach (img[s])
                     res[s][p] = img[s];
             end
@@ -762,11 +763,11 @@ module RegisterNetwork();
             return res;
         endfunction
 
-        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:2]);
             MemByStage res;
             
             foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
+                ForwardingElement img[-3:2] = imgs[p];
                 foreach (img[s])
                     res[s][p] = img[s];
             end
@@ -774,11 +775,11 @@ module RegisterNetwork();
             return res;
         endfunction
 
-        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:2]);
             VecByStage res;
             
             foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
+                ForwardingElement img[-3:2] = imgs[p];
                 foreach (img[s])
                     res[s][p] = img[s];
             end
@@ -801,6 +802,10 @@ module RegisterNetwork();
     assign memImages = '{0: theExecBlock.mem0.image_E, 1: theExecBlock.mem1.image_E, 2: theExecBlock.mem2.image_E, default: EMPTY_IMAGE};
     assign memImagesVec = memImages; //  TODO: separate, 1c longer load pipe on FP side? 
 
+    assign memImagesVec_M1 = '{0: theExecBlock.mem0.imageM1_E,
+                              1: theExecBlock.mem1.imageM1_E,
+                              2: theExecBlock.mem2.imageM1_E, default: EMPTY_IMAGE};
+
 
     always_comb intImagesTr = trsInt(intImages);
     always_comb memImagesTr = trsMem(memImages);
@@ -820,8 +825,8 @@ module RegisterNetwork();
 
 
     // IQs
-    function automatic Wakeup checkForwardSourceInt(input UopId producer /*, input ForwardingElement fea[N_INT_PORTS][-3:1]*/);
-        ForwardingElement fea[N_INT_PORTS][-3:1] = intImages;
+    function automatic Wakeup checkForwardSourceInt(input UopId producer);
+        ForwardingElement fea[N_INT_PORTS][-3:2] = intImages;
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UID_NONE) return res;
         foreach (fea[p]) begin
@@ -842,8 +847,8 @@ module RegisterNetwork();
         return res;
     endfunction;
 
-    function automatic Wakeup checkForwardSourceVec(input UopId producer /*, input ForwardingElement fea[N_VEC_PORTS][-3:1]*/);
-        ForwardingElement fea[N_VEC_PORTS][-3:1] = floatImages;
+    function automatic Wakeup checkForwardSourceVec(input UopId producer);
+        ForwardingElement fea[N_VEC_PORTS][-3:2] = floatImages;
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UID_NONE) return res;
         foreach (fea[p]) begin
@@ -865,8 +870,8 @@ module RegisterNetwork();
     endfunction;
 
 
-    function automatic Wakeup checkForwardSourceMem(input UopId producer /*, input ForwardingElement fea[N_MEM_PORTS][-3:1]*/);
-        ForwardingElement fea[N_MEM_PORTS][-3:1] = memImages;
+    function automatic Wakeup checkForwardSourceMem(input UopId producer);
+        ForwardingElement fea[N_MEM_PORTS][-3:2] = memImages;
         Wakeup res = EMPTY_WAKEUP;
         if (producer == UID_NONE) return res;
         foreach (fea[p]) begin
@@ -891,6 +896,31 @@ module RegisterNetwork();
         return res;
     endfunction;
 
+    function automatic Wakeup checkForwardSourceMemVec(input UopId producer);
+        ForwardingElement fea[N_MEM_PORTS][-3:2] = memImagesVec;
+        Wakeup res = EMPTY_WAKEUP;
+        if (producer == UID_NONE) return res;
+        foreach (fea[p]) begin
+            int found[$] = fea[p].find_index with (item.uid == producer);
+            if (found.size() == 0) continue;
+            else if (found.size() > 1) $error("Repeated op id in same subpipe");
+            
+            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+
+            res.active = 1;
+
+            // Don't wake up if this is a failed op
+            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
+            
+            res.producer = producer;
+            res.group = PG_MEM;
+            res.port = p;
+            res.stage = found[0];
+            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
+            return res;
+        end
+        return res;
+    endfunction;
 
 endmodule
 
