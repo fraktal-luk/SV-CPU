@@ -476,12 +476,12 @@ module IssueQueue
 
             case (argType)
                 SRC_INT: begin
-                    wup = checkForwardSourceInt(prod, rn.intImages);
-                    if (!wup.active) wup = checkForwardSourceMem(prod, rn.memImages);
+                    wup = rn.checkForwardSourceInt(prod);//, rn.intImages);
+                    if (!wup.active) wup = rn.checkForwardSourceMem(prod);//, rn.memImages);
                 end
                 SRC_FLOAT: begin
-                    wup = checkForwardSourceVec(prod, rn.floatImages);
-                    if (!wup.active) wup = checkForwardSourceMem(prod, rn.memImagesVec);
+                    wup = rn.checkForwardSourceVec(prod);//, rn.floatImages);
+                    if (!wup.active) wup = rn.checkForwardSourceMem(prod);//, rn.memImagesVec);
                 end
                 default: ; // nothing
             endcase

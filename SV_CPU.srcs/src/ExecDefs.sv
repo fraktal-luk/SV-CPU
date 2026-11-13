@@ -265,74 +265,74 @@ package ExecDefs;
 
 
 
-    // IQs
-    function automatic Wakeup checkForwardSourceInt(input UopId producer, input ForwardingElement fea[N_INT_PORTS][-3:1]);
-        Wakeup res = EMPTY_WAKEUP;
-        if (producer == UID_NONE) return res;
-        foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.uid == producer);
-            if (found.size() == 0) continue;
-            else if (found.size() > 1) $error("Repeated op id in same subpipe %d (%d):\n%p", p, found, fea[p]);
+    // // IQs
+    // function automatic Wakeup checkForwardSourceInt(input UopId producer, input ForwardingElement fea[N_INT_PORTS][-3:1]);
+    //     Wakeup res = EMPTY_WAKEUP;
+    //     if (producer == UID_NONE) return res;
+    //     foreach (fea[p]) begin
+    //         int found[$] = fea[p].find_index with (item.uid == producer);
+    //         if (found.size() == 0) continue;
+    //         else if (found.size() > 1) $error("Repeated op id in same subpipe %d (%d):\n%p", p, found, fea[p]);
             
-            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+    //         if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
-            res.active = 1;
-            res.producer = producer;
-            res.group = PG_INT;
-            res.port = p;
-            res.stage = found[0];
-            res.poison = fea[p][found[0]].poison;
-            return res;
-        end
-        return res;
-    endfunction;
+    //         res.active = 1;
+    //         res.producer = producer;
+    //         res.group = PG_INT;
+    //         res.port = p;
+    //         res.stage = found[0];
+    //         res.poison = fea[p][found[0]].poison;
+    //         return res;
+    //     end
+    //     return res;
+    // endfunction;
 
-    function automatic Wakeup checkForwardSourceVec(input UopId producer, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
-        Wakeup res = EMPTY_WAKEUP;
-        if (producer == UID_NONE) return res;
-        foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.uid == producer);
-            if (found.size() == 0) continue;
-            else if (found.size() > 1) $error("Repeated op id in same subpipe");
+    // function automatic Wakeup checkForwardSourceVec(input UopId producer, input ForwardingElement fea[N_VEC_PORTS][-3:1]);
+    //     Wakeup res = EMPTY_WAKEUP;
+    //     if (producer == UID_NONE) return res;
+    //     foreach (fea[p]) begin
+    //         int found[$] = fea[p].find_index with (item.uid == producer);
+    //         if (found.size() == 0) continue;
+    //         else if (found.size() > 1) $error("Repeated op id in same subpipe");
             
-            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+    //         if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
-            res.active = 1;
-            res.producer = producer;
-            res.group = PG_VEC;
-            res.port = p;
-            res.stage = found[0];
-            res.poison = fea[p][found[0]].poison;
-            return res;
-        end
-        return res;
-    endfunction;
+    //         res.active = 1;
+    //         res.producer = producer;
+    //         res.group = PG_VEC;
+    //         res.port = p;
+    //         res.stage = found[0];
+    //         res.poison = fea[p][found[0]].poison;
+    //         return res;
+    //     end
+    //     return res;
+    // endfunction;
 
 
-    function automatic Wakeup checkForwardSourceMem(input UopId producer, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
-        Wakeup res = EMPTY_WAKEUP;
-        if (producer == UID_NONE) return res;
-        foreach (fea[p]) begin
-            int found[$] = fea[p].find_index with (item.uid == producer);
-            if (found.size() == 0) continue;
-            else if (found.size() > 1) $error("Repeated op id in same subpipe");
+    // function automatic Wakeup checkForwardSourceMem(input UopId producer, input ForwardingElement fea[N_MEM_PORTS][-3:1]);
+    //     Wakeup res = EMPTY_WAKEUP;
+    //     if (producer == UID_NONE) return res;
+    //     foreach (fea[p]) begin
+    //         int found[$] = fea[p].find_index with (item.uid == producer);
+    //         if (found.size() == 0) continue;
+    //         else if (found.size() > 1) $error("Repeated op id in same subpipe");
             
-            if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
+    //         if (found[0] < FW_FIRST || found[0] > FW_LAST) continue;
 
-            res.active = 1;
+    //         res.active = 1;
 
-            // Don't wake up if this is a failed op
-            if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
+    //         // Don't wake up if this is a failed op
+    //         if (fea[p][found[0]].status != ES_OK && found[0] >= 0) res.active = 0;
             
-            res.producer = producer;
-            res.group = PG_MEM;
-            res.port = p;
-            res.stage = found[0];
-            res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
-            return res;
-        end
-        return res;
-    endfunction;
+    //         res.producer = producer;
+    //         res.group = PG_MEM;
+    //         res.port = p;
+    //         res.stage = found[0];
+    //         res.poison = addProducer(fea[p][found[0]].poison, producer, fea);
+    //         return res;
+    //     end
+    //     return res;
+    // endfunction;
 
 
 endpackage
