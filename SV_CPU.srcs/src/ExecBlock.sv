@@ -40,18 +40,6 @@ module ExecBlock(ref InstructionMap insMap,
     DataCacheOutput sysOuts_E1[N_MEM_PORTS];
 
     UopMemPacket toBq[N_MEM_PORTS]; // FUTURE: Customize this width in MemBuffer (or make whole new module for BQ)?  
-
-    // ForwardingElement intImages[N_INT_PORTS][-3:1];
-    // ForwardingElement memImages[N_MEM_PORTS][-3:1];
-    // ForwardingElement memImagesVec[N_MEM_PORTS][-3:1];
-    // ForwardingElement floatImages[N_VEC_PORTS][-3:1];
-
-    // IntByStage intImagesTr;
-    // MemByStage memImagesTr;
-    // MemByStage memImagesVecTr;
-    // VecByStage floatImagesTr;
-
-    //ForwardsByStage_0 allByStage, allByStageVec;
     
         logic ch0, ch1, ch2, ch3;
 
@@ -211,54 +199,6 @@ module ExecBlock(ref InstructionMap insMap,
 
     assign toBq = '{0: branch0.pE0_E, default: EMPTY_UOP_PACKET};
 
-    assign rn.intImages = '{0: regular0.image_E, 1: regular1.image_E, 2: branch0.image_E, 3: divider.image_E, 4: multiplier0.image_E, 5: multiplier1.image_E, default: EMPTY_IMAGE};
-    assign rn.floatImages = '{0: float0.image_E, 1: float1.image_E, 2: fdiv.image_E, default: EMPTY_IMAGE};
-
-    assign rn.memImages = '{0: mem0.image_E, 1: mem1.image_E, 2: mem2.image_E, default: EMPTY_IMAGE};    
-    assign rn.memImagesVec = rn.memImages; //  TODO: separate, 1c longer load pipe on FP side? 
-
-
-    always_comb rn.intImagesTr = trsInt(rn.intImages);
-    always_comb rn.memImagesTr = trsMem(rn.memImages);
-    always_comb rn.memImagesVecTr = trsMem(rn.memImagesVec);
-    always_comb rn.floatImagesTr = trsVec(rn.floatImages);
-
-    assign rn.allByStage.ints = rn.intImagesTr;
-    assign rn.allByStage.mems = rn.memImagesTr;
-    assign rn.allByStage.vecs = rn.floatImagesTr;
-
-
-    assign rn.allByStageVec.ints = rn.intImagesTr;
-    assign rn.allByStageVec.mems = rn.memImagesVecTr;
-    assign rn.allByStageVec.vecs = rn.floatImagesTr;
-
-
-
-    assign mn.uopE0 = '{0: mem0.pE0_E, 1: mem1.pE0_E, 2: mem2.pE0_E, default: EMPTY_UOP_PACKET};
-    assign mn.uopE1 = '{0: mem0.pE1_E, 1: mem1.pE1_E, 2: mem2.pE1_E, default: EMPTY_UOP_PACKET};
-    assign mn.uopE2 = '{0: mem0.pE2_E, 1: mem1.pE2_E, 2: mem2.pE2_E, default: EMPTY_UOP_PACKET};
-    assign mn.uopE3 = '{0: mem0.pE3_E, 1: mem1.pE3_E, 2: mem2.pE3_E, default: EMPTY_UOP_PACKET};
-
-    assign mn.adE0 = '{0: mem0.accessDescE0, 1: mem1.accessDescE0, 2: mem2.accessDescE0, default: DEFAULT_ACCESS_DESC};
-    assign mn.adE1 = '{0: mem0.accessDescE1, 1: mem1.accessDescE1, 2: mem2.accessDescE1, default: DEFAULT_ACCESS_DESC};
-    assign mn.adE2 = '{0: mem0.accessDescE2, 1: mem1.accessDescE2, 2: mem2.accessDescE2, default: DEFAULT_ACCESS_DESC};
-    assign mn.adE3 = '{0: mem0.accessDescE3, 1: mem1.accessDescE3, 2: mem2.accessDescE3, default: DEFAULT_ACCESS_DESC};
-
-    assign mn.trE0d = dcacheTranslationsE0d;//'{0: dcacheTranslationsE0d[0], 1: dcacheTranslationsE0d[1], 2: dcacheTranslationsE0d[2], default: DEFAULT_TRANSLATION};
-    assign mn.trE0 = '{0: mem0.trE0, 1: mem1.trE0, 2: mem2.trE0, default: DEFAULT_TRANSLATION};
-    assign mn.trE1 = '{0: mem0.trE1, 1: mem1.trE1, 2: mem2.trE1, default: DEFAULT_TRANSLATION};
-    assign mn.trE2 = '{0: mem0.trE2, 1: mem1.trE2, 2: mem2.trE2, default: DEFAULT_TRANSLATION};
-    assign mn.trE3 = '{0: mem0.trE3, 1: mem1.trE3, 2: mem2.trE3, default: DEFAULT_TRANSLATION};
-
-    assign mn.cacheOutE1 = dcacheOuts_E1;
-    assign mn.uncachedOutE1 = uncachedOuts_E1;
-    assign mn.sysOutE1 = sysOuts_E1;
-
-    assign mn.sqOutE1 = theSq.responseE1;
-    assign mn.lqOutE1 = theLq.responseE1;
-
-    assign mn.sqOutE1d = theSq.responseE1d_N;
-
 
 
     function automatic UopPacket performRegularE0(input UopPacket p);
@@ -342,104 +282,6 @@ module ExecBlock(ref InstructionMap insMap,
         
         return res;
     endfunction
-
-
-
-
-
-
-
-
-    // // Used once, file internal
-    // function automatic Mword3 getArgValues(input RegisterTracker tracker, input InsDependencies deps);
-    //     Mword res[3];
-    //     logic3 ready = checkArgsReady(deps, AbstractCore.intRegsReadyV, AbstractCore.floatRegsReadyV);
-
-    //     foreach (deps.types[i]) begin
-    //         case (deps.types[i])
-    //             SRC_ZERO:  res[i] = 0;
-    //             SRC_CONST: res[i] = deps.sources[i];
-    //             SRC_INT:   res[i] = getArgValueInt(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStage, ready[i]);
-    //             SRC_FLOAT: res[i] = getArgValueVec(insMap, tracker, deps.producers[i], deps.sources[i], rn.allByStageVec, ready[i]);
-    //         endcase
-    //     end
-
-    //     return res;
-    // endfunction
-
-
-    // // File internal
-    // function automatic Mword getArgValueInt(input InstructionMap imap, input RegisterTracker tracker,
-    //                                         input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
-    //     FEQ found1, found0;
-
-    //     if (ready) return tracker.ints.regs[source];
-        
-    //     found1 = findForwardInt(producer, fws.ints[1], fws.mems[1]);
-    //     if (found1.size() != 0) begin
-    //         verifyForward(producer, source, found1[0].result);
-    //         return found1[0].result;
-    //     end
-        
-    //     found0 = findForwardInt(producer, fws.ints[0], fws.mems[0]);
-    //     if (found0.size() != 0) begin
-    //         verifyForward(producer, source, found0[0].result);
-    //         return found0[0].result;
-    //     end
-
-    //     $fatal(2, "oh no\n%p, %d", producer, source);
-    // endfunction
-
-
-    // // File internal
-    // function automatic Mword getArgValueVec(input InstructionMap imap, input RegisterTracker tracker,
-    //                                         input UopId producer, input int source, input ForwardsByStage_0 fws, input logic ready);
-    //     FEQ found1, found0;
-
-    //     if (ready) return tracker.floats.regs[source];
-
-    //     found1 = findForwardVec(producer, fws.vecs[1], fws.mems[1]);
-    //     if (found1.size() != 0) begin
-    //         verifyForward(producer, source, found1[0].result);
-    //         return found1[0].result;
-    //     end
-
-    //     found0 = findForwardVec(producer, fws.vecs[0], fws.mems[0]);
-    //     if (found0.size() != 0) begin
-    //         verifyForward(producer, source, found0[0].result);
-    //         return found0[0].result;
-    //     end
-
-    //     $fatal(2, "oh no");
-    // endfunction
-
-
-    // // File internal
-    // function automatic FEQ findForwardInt(input UopId producer, input ForwardingElement feInt[N_INT_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-    //     FEQ res = feInt.find with (matchProducer(item, producer));
-    //     if (res.size() == 0)
-    //         res = feMem.find with (matchProducer(item, producer));
-    //     return res;
-    // endfunction
-
-    // // File internal
-    // function automatic FEQ findForwardVec(input UopId producer, input ForwardingElement feVec[N_VEC_PORTS], input ForwardingElement feMem[N_MEM_PORTS]);
-    //     FEQ res = feVec.find with (matchProducer(item, producer));
-    //     if (res.size() == 0)
-    //         res = feMem.find with (matchProducer(item, producer));
-    //     return res;
-    // endfunction
-
-
-    // // File internal
-    // function automatic void verifyForward(input UopId producer, input int source, input Mword result);
-    //     InstructionInfo ii = insMap.get(U2M(producer));
-    //     UopInfo ui = insMap.getU(producer);
-
-    //     assert (ui.physDest === source) else $fatal(2, "Not correct match, should be %p:", ii.id);
-    //     assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
-    // endfunction
-
 
 endmodule
 
@@ -561,6 +403,75 @@ module RegisterNetwork();
         assert (ui.resultA === result) else $fatal(2, "Value differs! %d // %d;\n %p\n%s", ui.resultA, result, ii, disasm(ii.basicData.bits));
     endfunction
 
+
+
+
+
+        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
+            IntByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
+            MemByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
+            VecByStage res;
+            
+            foreach (imgs[p]) begin
+                ForwardingElement img[-3:1] = imgs[p];
+                foreach (img[s])
+                    res[s][p] = img[s];
+            end
+            
+            return res;
+        endfunction
+
+
+
+
+    assign intImages = '{0: theExecBlock.regular0.image_E,
+                         1: theExecBlock.regular1.image_E,
+                         2: theExecBlock.branch0.image_E,
+                         3: theExecBlock.divider.image_E,
+                         4: theExecBlock.multiplier0.image_E,
+                         5: theExecBlock.multiplier1.image_E,
+                         default: EMPTY_IMAGE};
+    assign floatImages = '{0: theExecBlock.float0.image_E, 1: theExecBlock.float1.image_E, 2: theExecBlock.fdiv.image_E, default: EMPTY_IMAGE};
+
+    assign memImages = '{0: theExecBlock.mem0.image_E, 1: theExecBlock.mem1.image_E, 2: theExecBlock.mem2.image_E, default: EMPTY_IMAGE};
+    assign memImagesVec = memImages; //  TODO: separate, 1c longer load pipe on FP side? 
+
+
+    always_comb intImagesTr = trsInt(intImages);
+    always_comb memImagesTr = trsMem(memImages);
+    always_comb memImagesVecTr = trsMem(memImagesVec);
+    always_comb floatImagesTr = trsVec(floatImages);
+
+    assign allByStage.ints = intImagesTr;
+    assign allByStage.mems = memImagesTr;
+    assign allByStage.vecs = floatImagesTr;
+
+
+    assign allByStageVec.ints = intImagesTr;
+    assign allByStageVec.mems = memImagesVecTr;
+    assign allByStageVec.vecs = floatImagesTr;
 
 
 endmodule

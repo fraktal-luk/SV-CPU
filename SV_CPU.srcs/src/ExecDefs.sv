@@ -16,30 +16,30 @@ package ExecDefs;
     import Arith::*;
 
 
-        // Needed by backend throughout all stages after IQs, also for event detection
-        typedef enum {
-            ES_BEGIN,
+    // Needed by backend throughout all stages after IQs, also for event detection
+    typedef enum {
+        ES_BEGIN,
 
-            ES_OK,
+        ES_OK,
 
-            ES_UNALIGNED,            
-            ES_UNCACHED_1, ES_UNCACHED_2,
-            ES_BARRIER_1,
-            ES_AQ_REL_1,
+        ES_UNALIGNED,            
+        ES_UNCACHED_1, ES_UNCACHED_2,
+        ES_BARRIER_1,
+        ES_AQ_REL_1,
 
-            ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
-            ES_CANT_FORWARD,
-            
-            ES_INSTANT_REPLAY,
-            ES_LOWER_DONE,
+        ES_SQ_MISS, ES_DATA_MISS, ES_TLB_MISS,
+        ES_CANT_FORWARD,
+        
+        ES_INSTANT_REPLAY,
+        ES_LOWER_DONE,
 
-            ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
+        ES_ILLEGAL, ES_INVALID, ES_NONEXISTENT,
 
-            ES_REFETCH, // cause refetch
+        ES_REFETCH, // cause refetch
 
-            ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
-            ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
-        } ExecStatus;
+        ES_FP_INVALID, ES_FP_DIV0, ES_FP_OVERFLOW, ES_FP_UNDERFLOW, ES_FP_INEXACT,
+        ES_FP_OV_INEXACT, ES_FP_UND_INEXACT
+    } ExecStatus;
 
 
 
@@ -48,26 +48,17 @@ package ExecDefs;
     endfunction
 
 
-        typedef enum { // (implem)
-            MC_NONE,
-            MC_NORMAL,
-            MC_BARRIER,
-            MC_UNCACHED,
-            MC_AQ_REL,
-            MC_SYS,
+    typedef enum { // (implem)
+        MC_NONE,
+        MC_NORMAL,
+        MC_BARRIER,
+        MC_UNCACHED,
+        MC_AQ_REL,
+        MC_SYS,
 
-            MC_UPPER_B // block cross replay
-            //MC_UPPER_P  // page cross replay
-        } MemClass;
-
-
-
-        // typedef enum {
-        //     BS_NONE,
-        //     BS_NORMAL, // accepts renamed ops
-        //     BS_WAIT,   // event to handle is present, don't accept new ops
-        //     BS_HANDLING // event processing ongoing
-        // } BackendState;
+        MC_UPPER_B // block cross replay
+        //MC_UPPER_P  // page cross replay
+    } MemClass;
 
 
     ////////////////////////////////////////////////////////////////////
@@ -228,44 +219,6 @@ package ExecDefs;
             MemByStage mems;
             VecByStage vecs;
         } ForwardsByStage_0;
-
-
-        function automatic IntByStage trsInt(input ForwardingElement imgs[N_INT_PORTS][-3:1]);
-            IntByStage res;
-            
-            foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
-                foreach (img[s])
-                    res[s][p] = img[s];
-            end
-            
-            return res;
-        endfunction
-
-        function automatic MemByStage trsMem(input ForwardingElement imgs[N_MEM_PORTS][-3:1]);
-            MemByStage res;
-            
-            foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
-                foreach (img[s])
-                    res[s][p] = img[s];
-            end
-            
-            return res;
-        endfunction
-
-        function automatic VecByStage trsVec(input ForwardingElement imgs[N_VEC_PORTS][-3:1]);
-            VecByStage res;
-            
-            foreach (imgs[p]) begin
-                ForwardingElement img[-3:1] = imgs[p];
-                foreach (img[s])
-                    res[s][p] = img[s];
-            end
-            
-            return res;
-        endfunction
-
 
         typedef ForwardingElement FEQ[$];
 
