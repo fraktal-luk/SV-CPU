@@ -534,6 +534,90 @@ module BranchTracker;
     endfunction
 
 
+
+
+
+
+
+    function automatic Mbyte encodeBranchGroup(input BranchGroup bg);
+        int found[$]; 
+
+        logic arr[FETCH_WIDTH] = {>>{bg}};
+
+        found = arr.find_index with (item === '1);
+        if (found.size() > 0) begin
+            if (found[0] >= 3) return 3;
+            else return found[0] + 1;
+        end
+
+        found = arr.find_index with (item === '0);
+        if (found.size() > 0) return 0;
+
+        return 'z;
+    endfunction
+
+
+    function automatic TMP_PredState updatePred(input TMP_PredState prev, input BranchGroup lastFull, input Mword vadr);
+        TMP_PredState res = prev;
+        logic[1:0] last = encodeBranchGroup(lastFull);
+
+        res.count++;
+        res.pathHist = {vadr, res.pathHist[0:14]};
+
+        res.recentCoded = {last, res.recentCoded[0]};
+
+        if (last !== 'z) begin
+            res.len++;
+            res.histCoded = {last, res.histCoded[0:14]};
+            res.histFull = {lastFull, res.histFull[0:14]};
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic TMP_PredState updatePredCommit(input TMP_PredState prev, input BranchGroup lastFull, input Mword vadr);
+        TMP_PredState res = prev;
+        logic[1:0] last = encodeBranchGroup(lastFull);
+
+        res.count++;
+        res.pathHist = {vadr, res.pathHist[0:14]};
+
+        res.recentCoded = {last, res.recentCoded[0]};
+
+        return res;
+    endfunction
+
+
+    function automatic TMP_PredState replacePred(input TMP_PredState prev, input BranchGroup bg);
+        logic[1:0] last = encodeBranchGroup(bg);
+        TMP_PredState res = prev;
+        res.recentCoded[0] = last;
+
+        if (last !== 'z) begin
+            res.histCoded[0] = last;
+            res.histFull[0] = bg;
+        end
+
+        return res;
+    endfunction
+
+
+    function automatic TMP_PredState replacePredFirst(input TMP_PredState prev, input BranchGroup bg);
+        logic[1:0] last = encodeBranchGroup(bg);
+        TMP_PredState res = prev;
+        res.recentCoded[0] = last;
+
+        if (last !== 'z) begin
+            res.len++;
+            res.histCoded = {last, res.histCoded[0:14]};
+            res.histFull = {bg, res.histFull[0:14]};
+        end
+
+        return res;
+    endfunction
+
+
 endmodule
 
 

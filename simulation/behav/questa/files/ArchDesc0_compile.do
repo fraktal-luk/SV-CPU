@@ -34,6 +34,7 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/AbstractCore.sv" \
 "../../../../SV_CPU.srcs/src/DataL1.sv" \
 "../../../../SV_CPU.srcs/src/MemModules.sv" \
+"../../../../SV_CPU.srcs/src/MemoryNetwork.sv" \
 "../../../../SV_CPU.srcs/src/EmulTest.sv" \
 "../../../../SV_CPU.srcs/src/ExecBlock.sv" \
 "../../../../SV_CPU.srcs/src/Frontend.sv" \
@@ -42,6 +43,10 @@ vlog  -incr -mfcu -sv -work xil_defaultlib  \
 "../../../../SV_CPU.srcs/src/MemBuffers.sv" \
 "../../../../SV_CPU.srcs/src/MemSubpipe.sv" \
 "../../../../SV_CPU.srcs/src/Modules.sv" \
+"../../../../SV_CPU.srcs/src/RegisterNetwork.sv" \
+"../../../../SV_CPU.srcs/src/BranchTracker.sv" \
+"../../../../SV_CPU.srcs/src/RegisterUnit.sv" \
+"../../../../SV_CPU.srcs/src/CheckpointUnit.sv" \
 "../../../../SV_CPU.srcs/src/Alt_ROB.sv" \
 "../../../../SV_CPU.srcs/src/ReorderBuffer.sv" \
 "../../../../SV_CPU.srcs/src/ReplayQueue.sv" \
