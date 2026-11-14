@@ -412,20 +412,6 @@ module BranchTracker;
     logic latestPredPresent = 0;
 
 
-        // always @(posedge AbstractCore.clk) begin
-        //     assert (predStateF0 === theFrontend.predStateF0) else $fatal(2, "FF0"); 
-        //     assert (predStateF2 === theFrontend.predStateF2) else $fatal(2, "FF2"); 
-        // end
-
-
-    task automatic addGroupPredInfo();
-
-    endtask
-
-    task automatic addBranchPredInfo();
-
-    endtask
-
 
     function automatic void update(input BqEntry entry);
         BranchGroup allZ = '{default: 'z};
@@ -491,8 +477,6 @@ module BranchTracker;
                 latestPredPresent = 0;
                 committedPredStatePrev = committedPredState;
                 committedPredState = updatePredCommit(committedPredState, '{default: 'z}, insInfo.basicData.adr); // don't inc len
-
-                branchTracker.addGroupPredInfo(); // needs: group vadr, predF0, targetF0?
             end
         end
 
@@ -516,14 +500,38 @@ module BranchTracker;
                 if (!latestPredPresent) committedPredState = replacePredFirst(committedPredState, bg);
                 else                    committedPredState = replacePred(committedPredState, bg);
 
-                branchTracker.addBranchPredInfo(); // needs: vadr, target, predF2, slot, dir
-
                 latestPredPresent = 1;
             end
 
         end
     endtask
 
+
+    function automatic void restoreOnBranch(input BranchCheckpoint causingCP, input BranchGroup bg, input Mword vadr);
+        // CAREFUL: branchEventInfo.adr is not exactly the past state to be restored - may be on a different slot from the beginning
+        predStateF0 <= updatePred(causingCP.predState, bg, vadr);
+        predStateF2 <= updatePred(causingCP.predState, bg, vadr);  //  As well
+    endfunction
+
+
+    function automatic void restoreOnEvent();
+        predStateF0 <= committedPredState;
+        predStateF2 <= committedPredState;            
+    endfunction
+
+
+    function automatic void updatePredStateF0(input logic[1:0] linePred, input Mword vadr);
+        predStateF0 <= updatePred(predStateF0, linePred, vadr);
+    endfunction
+
+    function automatic void updatePredStateF2(input BranchGroup newPred, input Mword vadr);
+        predStateF2 <= updatePred(predStateF2, newPred, vadr);
+    endfunction
+
+
+    function automatic void restoreOnFrontBranch();
+        predStateF0 <= predStateF2;
+    endfunction
 
 
 endmodule

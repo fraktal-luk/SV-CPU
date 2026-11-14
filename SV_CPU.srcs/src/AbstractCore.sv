@@ -102,7 +102,6 @@ module AbstractCore
 
     RegisterUnit registerUnit();
 
-
     WriteBuffer writeBuffer();
 
     SystemRegisterUnit sysUnit(theExecBlock.sysOuts_E1, writeBuffer.sysWriteInfos);
@@ -180,9 +179,9 @@ module AbstractCore
         end
 
         if (lateEventInfo.redirect || branchEventInfo.redirect)
-            redirectRest();
+            redirectCore();
         else
-            runInOrderPartRe();
+            runRenamer();
 
         if (barrierUnlocking) latestUnlockingMid <= barrierUnlockingMid;
 
@@ -201,7 +200,7 @@ module AbstractCore
 
     // Frontend/Rename
 
-    task automatic redirectRest();
+    task automatic redirectCore();
         markKilledRenameStage(stageRename1.arr);
         stageRename1 <= DEFAULT_FRONT_STAGE;
 
@@ -245,7 +244,7 @@ module AbstractCore
 
 
     // Frontend, rename and everything before getting to OOO queues
-    task automatic runInOrderPartRe();
+    task automatic runRenamer();
         IndexSet renameIndsU = renameInds;
         MarkerSet renameMarkersU = renameMarkers;
         OpSlotAF ops = theFrontend.stageRename0.arr;
@@ -280,6 +279,9 @@ module AbstractCore
 
         stageRename1 <= theFrontend.stageRename0;
         stageRename1.arr <= ops;
+
+
+        registerUnit.reserve(ops);
     endtask
 
 
@@ -489,6 +491,9 @@ module AbstractCore
 
         commitInds <= commitIndsU;
         commitMarkers <= commitMarkersU;
+
+        registerUnit.releaseRegs(theRob.prevRow);
+
     endtask
 
 
@@ -697,7 +702,6 @@ module AbstractCore
         renamedEmul.resetCore();
         retiredEmul.resetCore();
 
-       // registerTracker = new();
         registerUnit.registerTracker = new();
 
         memTracker = new();
@@ -860,6 +864,16 @@ endmodule
 
 module RegisterUnit();
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
+
+
+    function automatic void reserve(input OpSlotAF ops);
+
+    endfunction
+
+
+    function automatic void releaseRegs(input RobDefs::OpRecordA ops);
+
+    endfunction
 
 endmodule
 

@@ -98,8 +98,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(lateEventInfo.target);
 
             // @pred: restore from late
-            branchTracker.predStateF0 <= AbstractCore.branchTracker.committedPredState;
-            branchTracker.predStateF2 <= AbstractCore.branchTracker.committedPredState;
+            branchTracker.restoreOnEvent();
 
             expectedTargetF2 <= lateEventInfo.target;
         endtask
@@ -113,14 +112,10 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             begin
                 BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
                 BranchGroup bg = updateBranchGroup(causingCP.ownPred, causingCP.slotInd, branchEventInfo.dir);
-
-                // CAREFUL: branchEventInfo.adr is not exactly the past state to be restored - may be on a different slot from the beginning
-                branchTracker.predStateF0 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);
-                branchTracker.predStateF2 <= updatePred(causingCP.predState, bg, branchEventInfo.adr);  //  As well
+                branchTracker.restoreOnBranch(causingCP, bg, branchEventInfo.adr);
             end
 
             expectedTargetF2 <= branchEventInfo.target;
-
         endtask
 
         task automatic cachedRedirectFront();
@@ -129,7 +124,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
             stageIP <= makeStage_IP(expectedTargetF2);
 
             // @pred: restore from front
-            branchTracker.predStateF0 <= branchTracker.predStateF2;
+            branchTracker.restoreOnFrontBranch();
         endtask
 
         task automatic cachedWaitCtrl();
@@ -172,7 +167,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
                         stageIP <= makeStage_IP(nextTrg);
 
                         // @pred update
-                        branchTracker.predStateF0 <= updatePred(branchTracker.predStateF0, linePred_T, stageIP.vadr);
+                        branchTracker.updatePredStateF0(linePred_T, stageIP.vadr);
 
                         stageFetch0 <= stageIP;
                         stageFetch0.predState <= branchTracker.predStateF0;
@@ -237,7 +232,7 @@ module Frontend(ref InstructionMap insMap, input logic clk, input EventInfo bran
 
             expectedTargetF2 <= newStageF2.ownPredTargetF2;
 
-            branchTracker.predStateF2 <= updatePred(branchTracker.predStateF2, newStageF2.ownPredF2, newStageF2.vadr);
+            branchTracker.updatePredStateF2(newStageF2.ownPredF2, newStageF2.vadr);
         endtask
 
 
