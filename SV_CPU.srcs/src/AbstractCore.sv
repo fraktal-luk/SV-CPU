@@ -209,8 +209,7 @@ module AbstractCore
             
             checkpointUnit.flushAll();
 
-            registerUnit.registerTracker.restoreStable();
-            registerUnit.registerTracker.flushAll();
+            registerUnit.flushToStable();
 
             memTracker.flushAll();
             
@@ -227,8 +226,7 @@ module AbstractCore
 
             checkpointUnit.flushPartial(branchEventInfo.eventMid);
 
-            registerUnit.registerTracker.restoreCP(causingCP.intMapR, causingCP.floatMapR, causingCP.intWriters, causingCP.floatWriters);
-            registerUnit.registerTracker.flush(branchEventInfo.eventMid);
+            registerUnit.flushToCheckpoint(causingCP);
 
             memTracker.flush(branchEventInfo.eventMid);
             
@@ -456,6 +454,7 @@ module AbstractCore
         IndexSet commitIndsU = commitInds;
         MarkerSet commitMarkersU = commitMarkers;
         logic foundEvent = 0;
+        int eventSlot = -1;
 
         foreach (theRob.prevRow[i]) begin
             InsId theId = theRob.prevRow[i].mid;
@@ -483,6 +482,7 @@ module AbstractCore
             if (isControlUop(ii.mainUop) || ii.refetch || ii.exception || CurrentConfig.dbStep) begin
                 assert (theRob.prevRowEvent) else $fatal(2, "Event {%d} detected but not known in ROB", theId);
                 foundEvent = 1;
+                eventSlot = i;
                 TMP_checkCtrl(theId, ii);
             end
         end
@@ -492,7 +492,7 @@ module AbstractCore
         commitInds <= commitIndsU;
         commitMarkers <= commitMarkersU;
 
-        registerUnit.releaseRegs(theRob.prevRow);
+        registerUnit.releaseRegs(theRob.prevRow, foundEvent, eventSlot);
 
     endtask
 
@@ -802,8 +802,9 @@ module AbstractCore
 
     task automatic writeResult(input UopPacket p);
         if (!p.active) return;
-        putMilestone(p.uid, InstructionMap::WriteResult);
-        registerUnit.registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
+        // putMilestone(p.uid, InstructionMap::WriteResult);
+        //registerUnit.registerTracker.writeValue(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
+        registerUnit.write(decUname(p.uid), decId(U2M(p.uid)).dest, p.uid, p.result);
     endtask
 
 

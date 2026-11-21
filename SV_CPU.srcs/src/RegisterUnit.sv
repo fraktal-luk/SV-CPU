@@ -14,13 +14,70 @@ module RegisterUnit();
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
 
 
-    function automatic void reserve(input OpSlotAF ops);
+    typedef int VirtualName; 
+    typedef int PhysicalName;
 
+    typedef PhysicalName MappingTable[32];
+
+
+    MappingTable newestTable = '{default: 0}, committedTable = '{default: 0};
+
+
+
+    function automatic void reserve(input OpSlotAF ops);
+        foreach (ops[i]) begin
+            UopName mainUop = decMainUop(ops[i].mid);
+
+            if (uopHasIntDest(mainUop)) begin
+                
+            end
+
+            if (uopHasFloatDest(mainUop)) begin
+                
+            end
+        end
     endfunction
 
 
-    function automatic void releaseRegs(input RobDefs::OpRecordA ops);
+    function automatic void releaseRegs(input RobDefs::OpRecordA ops, input logic evt, input int evtSlot);
+        logic selectInt[RENAME_WIDTH] = '{default: 0},
+              selectFloat[RENAME_WIDTH] = '{default: 0};
+              //selectEvt[RENAME_WIDTH] = '{default: 0};
 
+        foreach (ops[i]) begin
+            UopName mainUop = decMainUop(ops[i].mid);
+
+            if (evt && i == evtSlot) begin
+                // TODO: this op is exceptional. don't commit register but free it
+                //      FUTURE: there may be exceptions which do commit their register? (like for FP traps with default result?) 
+
+                break;
+            end
+
+            selectInt[i] = (uopHasIntDest(mainUop));
+            selectFloat[i] = (uopHasFloatDest(mainUop));
+
+        end
+    endfunction
+
+
+    function automatic void flushToStable();
+        registerTracker.restoreStable();
+        registerTracker.flushAll();
+    endfunction
+
+
+    function automatic void flushToCheckpoint(input BranchCheckpoint bc);
+        registerTracker.restoreCP(bc.intMapR, bc.floatMapR, bc.intWriters, bc.floatWriters);
+        registerTracker.flush(bc.id);
+    endfunction
+
+
+    function automatic void write(input UopName name, input int vDest, input WriterId wid, input Mword value);
+        
+        putMilestone(wid, InstructionMap::WriteResult);
+
+        registerTracker.writeValue(name, vDest, wid, value);
     endfunction
 
 endmodule

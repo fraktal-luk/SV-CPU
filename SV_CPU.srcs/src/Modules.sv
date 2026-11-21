@@ -390,6 +390,8 @@ endmodule
 
 
 
+
+
 module WriteBuffer();
 
     logic csqEmpty = 0;
@@ -402,13 +404,10 @@ module WriteBuffer();
     MemWriteInfo dcacheWriteInfos[2];
     MemWriteInfo sysWriteInfos[1];
 
-
-
     assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
     assign dcacheWriteInfos[0] = writeInfo;
     assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
     assign sysWriteInfos[0] = sysWriteInfo;
-
 
 
     function automatic void add(input InsId id, input logic cancel);

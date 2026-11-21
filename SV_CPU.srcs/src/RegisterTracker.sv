@@ -85,7 +85,7 @@
                 int pDest = findDest(id);
                 if (ignoreV(vDest)) return;
                 regs[pDest] = value;
-            endfunction            
+            endfunction
  
             function automatic int findFree();
                 int res[$] = info.find_first_index with (item.state == FREE);
@@ -174,24 +174,28 @@
             string typeSpec = parsingMap[abs.def.f].typeSpec;
             
             foreach (sources[i]) begin
-                if (typeSpec[i + 2] == "i") begin
-                    sources[i] = ints.MapR[abs.sources[i]];
-                    types[i] = sources[i] ? SRC_INT: SRC_ZERO;
-                    producers[i] = ints.info[sources[i]].owner;
-                end
-                else if (typeSpec[i + 2] == "f") begin
-                    sources[i] = floats.MapR[abs.sources[i]];
-                    types[i] = SRC_FLOAT;
-                    producers[i] = floats.info[sources[i]].owner;
-                end
-                else if (typeSpec[i + 2] == "c") begin
-                    sources[i] = abs.sources[i];
-                    types[i] = SRC_CONST;
-                end
-                else if (typeSpec[i + 2] == "0") begin
-                    sources[i] = 0;
-                    types[i] = SRC_ZERO;
-                end
+                case (typeSpec[i + 2])
+                    "i": begin
+                        sources[i] = ints.MapR[abs.sources[i]];
+                        types[i] = sources[i] ? SRC_INT: SRC_ZERO;
+                        producers[i] = ints.info[sources[i]].owner;
+                    end
+                    "f": begin
+                        sources[i] = floats.MapR[abs.sources[i]];
+                        types[i] = SRC_FLOAT;
+                        producers[i] = floats.info[sources[i]].owner;
+                    end
+                    "c": begin
+                        sources[i] = abs.sources[i];
+                        types[i] = SRC_CONST;
+                    end
+                    "0": begin
+                        sources[i] = 0;
+                        types[i] = SRC_ZERO;
+                    end
+                    default:
+                        $fatal(2, "Arg type not defined");
+                endcase
             end
     
             return '{sources, types, producers};

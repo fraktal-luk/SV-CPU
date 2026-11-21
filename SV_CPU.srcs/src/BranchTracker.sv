@@ -25,9 +25,8 @@ module BranchTracker;
 
         logic ch0, ch1, ch2, ch3, ch4; 
 
-        TMP_PredState predStateF0 = DEFAULT_PRED_STATE, // Generated from IP stage
-                      predStateF2 = DEFAULT_PRED_STATE; // Generated from F1 stage
-
+    TMP_PredState predStateF0 = DEFAULT_PRED_STATE, // Generated from IP stage
+                  predStateF2 = DEFAULT_PRED_STATE; // Generated from F1 stage
 
     TMP_PredState committedPredState = DEFAULT_PRED_STATE;
     TMP_PredState committedPredStatePrev = DEFAULT_PRED_STATE;
@@ -90,7 +89,6 @@ module BranchTracker;
 
 
 
-
     task automatic updateBpState(input InstructionInfo insInfo);
 
         // Start new block for predictor
@@ -141,7 +139,6 @@ module BranchTracker;
         predStateF2 <= committedPredState;            
     endfunction
 
-
     function automatic void updatePredStateF0(input logic[1:0] linePred, input Mword vadr);
         predStateF0 <= updatePred(predStateF0, linePred, vadr);
     endfunction
@@ -150,14 +147,9 @@ module BranchTracker;
         predStateF2 <= updatePred(predStateF2, newPred, vadr);
     endfunction
 
-
     function automatic void restoreOnFrontBranch();
         predStateF0 <= predStateF2;
     endfunction
-
-
-
-
 
 
 
