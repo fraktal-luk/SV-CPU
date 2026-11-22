@@ -13,11 +13,11 @@ import ExecDefs::*;
 import CacheDefs::*;
 
 
-module UncachedFetchUnit(
-                input logic clk
-              );
+// module UncachedFetchUnit(
+//                 input logic clk
+//               );
 
-endmodule
+// endmodule
 
 
 

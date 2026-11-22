@@ -16,13 +16,12 @@ package RobDefs;
 
 
 
-    typedef logic CompletedVec[N_UOP_MAX];
+    typedef logic CompletionVec[N_UOP_MAX];
 
     typedef struct {
         logic used;
         InsId mid;
-        CompletedVec completed;
-
+        CompletionVec completed;
     } OpRecord;
     
     localparam OpRecord EMPTY_RECORD = '{used: 0, mid: -1, completed: '{default: 'x}};
@@ -35,19 +34,8 @@ package RobDefs;
     
     localparam Row EMPTY_ROW = '{records: '{default: EMPTY_RECORD}};
 
-
-    // // Experimental
-    // typedef struct {
-    //     int row;
-    //     int slot;
-    //     InsId mid;
-    // } TableIndex;
-    
-    // localparam TableIndex EMPTY_TABLE_INDEX = '{-1, -1, -1};
-
-
-    function automatic CompletedVec initCompletedVec(input int n);
-        CompletedVec res = '{default: 'x};
+    function automatic CompletionVec initCompletedVec(input int n);
+        CompletionVec res = '{default: 'x};
         for (int i = 0; i < n; i++)
             res[i] = 0;
         return res;

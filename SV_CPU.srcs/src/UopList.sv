@@ -396,6 +396,21 @@ package UopList;
     endfunction
 
 
+    function automatic logic isLoadFwBarrierUop(input UopName uname);
+        return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf};
+    endfunction
+
+    function automatic logic isStoreFwBarrierUop(input UopName uname);
+        return uname inside {UOP_mem_mb_st_f, UOP_mem_mb_st_bf};
+    endfunction
+
+    function automatic logic isMemFwBarrierUop(input UopName uname);
+        // CAREFUL: includes lda
+        return uname inside {UOP_mem_mb_ld_f, UOP_mem_mb_ld_bf, UOP_mem_mb_st_f, UOP_mem_mb_st_bf , UOP_mem_lda};
+    endfunction
+
+
+
     function automatic logic isStaticEventUop(input UopName name);
         return name inside {UOP_ctrl_fetchError, 
                 UOP_ctrl_error,

@@ -36,7 +36,7 @@ module RegularSubpipe(
     always_comb pE0_E = effP(pE0);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: p0_E,
@@ -80,7 +80,7 @@ module MultiplierSubpipe(
     always_comb pE2_E = effP(pE2);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: pE0_E,
@@ -127,7 +127,7 @@ module FloatSubpipe(
     always_comb pE3_E = effP(pE3);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: pE1_E,
@@ -168,7 +168,7 @@ module BranchSubpipe(
     always_comb pE0_E = effP(pE0);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     // Copied from RegularSubpipe
     assign image_E = '{
@@ -184,7 +184,7 @@ module BranchSubpipe(
         if (!p.active) return p;
         begin
             UopId uid = p.uid;
-            Mword3 args = getAndVerifyArgs(uid);
+            Mword3 args = rn.getAndVerifyArgs(uid);
             p.result = resolveBranchDirection(decUname(uid), args[0]);// reg
         end
         return p;
@@ -323,7 +323,7 @@ module DividerSubpipe#(
     
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
     
     assign image_E = '{
         -2: outputStage0_E,
@@ -363,7 +363,7 @@ module StoreDataSubpipe(
     always_comb pE0_E = effP(pE0);
     always_comb pD0_E = effP(pD0);
 
-    ForwardingElement image_E[-3:1];
+    ForwardingElement image_E[-3:2];
 
     assign image_E = '{
         -2: p0_E,
@@ -379,7 +379,7 @@ module StoreDataSubpipe(
 
         begin
             UopPacket res = p;
-            Mword3 args = getAndVerifyArgs(p.uid);
+            Mword3 args = rn.getAndVerifyArgs(p.uid);
             res.result = args[2];
             return res;
         end
@@ -388,95 +388,68 @@ module StoreDataSubpipe(
 endmodule
 
 
-module BranchTracker;
-
-    logic[FETCH_WIDTH] histFull[16];
-
-    int lastCount = -1;
-    int lastLen = -1;
-
-    int newCount = -1;
-    int newLen = -1; // 
-
-    Mword p0i = -1, p0, p1, p2;
-    Mword a0i, a0, a1, a2;
-
-        logic ch0, ch1, ch2, ch3, ch4; 
 
 
-    task automatic addGroupPredInfo();
-
-    endtask
-
-    task automatic addBranchPredInfo();
-
-    endtask
-
-    function automatic void update(input BqEntry entry);
-        logic[FETCH_WIDTH] allZ = '{default: 'z};
-
-        lastCount = entry.histCount;
-        lastLen = entry.histLen;
 
 
-        if (entry.histLen + 1 > newLen) begin // Open new group
-            histFull = {allZ, histFull[0:14]};
+module WriteBuffer();
+
+    logic csqEmpty = 0;
+    logic wqFree;
+    
+    SqEntry csq[$] = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
+    SqEntry drainHead = StoreQueueHelper::EMPTY_QENTRY;
+    MemWriteInfo writeInfo = EMPTY_WRITE_INFO, sysWriteInfo = EMPTY_WRITE_INFO;
+
+    MemWriteInfo dcacheWriteInfos[2];
+    MemWriteInfo sysWriteInfos[1];
+
+    assign wqFree = csqEmpty && !dataCache.uncachedSubsystem.uncachedBusy;
+    assign dcacheWriteInfos[0] = writeInfo;
+    assign dcacheWriteInfos[1] = EMPTY_WRITE_INFO;
+    assign sysWriteInfos[0] = sysWriteInfo;
+
+
+    function automatic void add(input InsId id, input logic cancel);
+        SqEntry found[$] = theSq.content.find_first with (item.mid == id);
+        SqEntry foundElem = found[0];
+
+        if (cancel) foundElem.valReady = 0; // Make sure it's inactive
+
+        csq.push_back(foundElem); // Normal
+        putMilestoneM(id, InstructionMap::WqEnter); // Normal
+    endfunction
+
+
+    function automatic void publish();
+        if (drainHead.mid != -1) begin
+            AbstractCore.memTracker.drain(drainHead.mid);
+            putMilestoneC(drainHead.mid, InstructionMap::WqExit);
         end
 
-        histFull[0][entry.slot] = entry.taken;
+        void'(csq.pop_front());
 
-        newCount = entry.histCount + 1;
-        newLen = entry.histLen + 1;
+        assert (csq.size() > 0) else $fatal(2, "csq must never become physically empty");
 
+        if (csq.size() < 2) begin // slot [0] doesn't count, it is already written and serves to signal to drain SQ 
+            csq.push_back(StoreQueueHelper::EMPTY_QENTRY);
+            csqEmpty <= 1;
+        end
+        else begin
+            csqEmpty <= 0;
+        end
+
+        drainHead <= csq[0];
+        writeInfo <= makeWriteInfo(csq[1]);
+        sysWriteInfo <= makeSysWriteInfo(csq[1]);
     endfunction
 
 
-
-    function automatic Mbyte getSimplePredictionSig();
-        return 'z;
-    endfunction
-
-    function automatic Mword getSimplePredictionTarget();
-        return 'x;
-    endfunction
-
-
-    function automatic Mbyte getAdvancedPredictionSig();
-        return 0;
-    endfunction
-
-    function automatic Mword getAdvancedPredictionTarget();
-        return 'x;
-    endfunction
-
-
-
-    function automatic DummyPrediction getDummyPredictionSimple();
-        return '{-1, p0i, a0i};
-    endfunction
-
-
-    function automatic DummyPrediction getDummyPredictionAdvanced();
-        return '{-1, p1, a1};
-    endfunction
-
-
-
-    function automatic void startPrediction(input int count, input int len, input Mword adr);
-        a0i <= adr;
-        p0i <= len;
-    endfunction
-
-    function automatic void move();
-        p0 <= p0i;
-        p1 <= p0;
-        p2 <= p1;
-
-        a0 <= a0i;
-        a1 <= a0;
-        a2 <= a1;
+    function automatic void clear();
+        csq = '{StoreQueueHelper::EMPTY_QENTRY, StoreQueueHelper::EMPTY_QENTRY};
     endfunction
 
 endmodule
+
 
 

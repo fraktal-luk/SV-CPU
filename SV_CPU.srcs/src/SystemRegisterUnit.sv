@@ -20,7 +20,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
 
     Mword sysRegs[32];
 
-
     task automatic reset();
         sysRegs = SYS_REGS_INITIAL;
     endtask
@@ -34,12 +33,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         foreach (readOuts[p])
             readOuts[p] <= getSysReadResponse(mn.adE0[p]); //theExecBlock.accessDescs_E0[p]);
     endtask
-
-
-    function automatic Mword getReg(input Mword adr);
-        assert (isValidSysReg(adr)) else $fatal("Reading incorrect sys reg: adr = %d", adr);
-        return sysRegs[adr];
-    endfunction
 
 
     function automatic void setSysReg(input Mword adr, input Mword val);
@@ -67,9 +60,6 @@ module SystemRegisterUnit(output DataCacheOutput readOuts[N_MEM_PORTS], input Me
         return res;
     endfunction
 
-
-        localparam Mword EXEC_LEVEL_EXC = 1;
-        localparam Mword EXEC_LEVEL_INT = 16;
 
 
     function automatic void modifyStateSync(

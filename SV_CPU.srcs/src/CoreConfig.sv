@@ -38,7 +38,7 @@ package CoreConfig;
     localparam int N_WAYS_DATA = 6;
 
 
-    // Impl specific
+    // Memory, impl specific
     localparam int BLOCK_SIZE = 64;
     localparam int BLOCK_OFFSET_BITS = $clog2(BLOCK_SIZE);
     localparam int WAY_SIZE = 4096; // Ins and Data alike. FUTURE: specific for each cache?
@@ -51,5 +51,15 @@ package CoreConfig;
     localparam int INS_ARRAY_FILL_DELAY = 14;
     localparam int INS_TLB_FILL_DELAY = 11;
 
+
+
+    // Frontend
+    localparam logic ENABLE_FRONT_BRANCHES = 1;
+    localparam int FQ_SLACK = 3;    // Free space needed to accept cached fetch - accounts for pipeline between PC and FQ (stages 0, 1, 2)
+
+    localparam int MAX_STAGE_UNCACHED = 4 + 12;
+    // Free space in UFQ needed to allow uncached fetch: must account for the pipeline between PC and UFQ (+1 for branch detection stage)
+    localparam int UFQ_SLACK = MAX_STAGE_UNCACHED + 3;
+    localparam int UFQ_SIZE = UFQ_SLACK + 20;
 
 endpackage

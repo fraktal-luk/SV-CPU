@@ -14,10 +14,7 @@ sim:/ArchDesc0/simTestName
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/lastRetired \
-sim:/ArchDesc0/core/lateEventInfo \
-sim:/ArchDesc0/core/lateEventInfoWaiting \
-sim:/ArchDesc0/core/lateEventInfoWaitingInt \
-sim:/ArchDesc0/core/lateEventInfoWaitingReset
+sim:/ArchDesc0/core/lateEventInfo
 
 
 add wave -position insertpoint  \
@@ -33,16 +30,10 @@ sim:/ArchDesc0/core/theFrontend/frontRedCa \
 sim:/ArchDesc0/core/theFrontend/frontRedOnMiss
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/predStateF0 \
-sim:/ArchDesc0/core/theFrontend/predStateF2 \
 sim:/ArchDesc0/core/theFrontend/stageFetch2 \
 sim:/ArchDesc0/core/theFrontend/chk \
 sim:/ArchDesc0/core/theFrontend/chk_2
 
-
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/committedPredState \
-sim:/ArchDesc0/core/committedPredStatePrev
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/branchTracker/lastCount \
@@ -55,6 +46,4 @@ sim:/ArchDesc0/core/branchTracker/ch2 \
 sim:/ArchDesc0/core/branchTracker/ch3
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/dummyPredF0 \
-sim:/ArchDesc0/core/theFrontend/dummyPredF2 \
 sim:/ArchDesc0/core/theFrontend/stageIP

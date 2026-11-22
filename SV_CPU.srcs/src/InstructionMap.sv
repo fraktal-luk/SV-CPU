@@ -48,6 +48,8 @@ package Insmap;
         logic exception;   // Execution event from actual uarch
     } UopInfo;
     
+    typedef UopInfo UopInfoQ[$];
+
     //localparam UopInfo DEFAULT_UOP_INFO = '{id: '{-1, -1}, vDest: -1,  physDest: -1, deps: DEFAULT_INS_DEPS,  barrier: -1, argsE: '{default}};
 
     typedef struct {
@@ -80,6 +82,7 @@ package Insmap;
     function automatic InstructionInfo initInsInfo(input InsId id, input Mword adr, input Word bits, input AbstractInstruction ins, input logic isFirst);
         InstructionInfo res;
         res.id = id;
+            res.mainUop = decodeUop(ins);
         res.basicData = '{adr: adr, bits: bits, target: 'x, dec: ins};
         res.firstInGroup = isFirst;
         res.frontBranch = 'x;
@@ -250,6 +253,7 @@ package Insmap;
         endfunction
 
         // ins info
+        //  Used anywhere?
         function automatic int size();
             return insBase.minfos.size();
         endfunction
@@ -326,10 +330,7 @@ package Insmap;
             if (id == -1) return;
         endfunction
 
-
-        function automatic void commitCheck(input logic allow);
-            if (!allow) return;
-        
+        function automatic void commitCheck();        
             while (insBase.mids.size() > 0 && insBase.mids[0] <= insBase.retiredPrev) begin
                 // FUTURE: remove mids and uids as queues because range [first, last] is enough?
                 InsId removedId = insBase.mids.pop_front();
@@ -365,7 +366,7 @@ package Insmap;
 
 
         // all
-        function automatic void endCycle();
+        function automatic void newCycle();
         endfunction
 
         // CHECKS
@@ -463,26 +464,27 @@ package Insmap;
             
             return 1;
         endfunction
-    
-            function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
-                if (reissuedId != -1) return;
+
+
+        function automatic void storeReissued(input InsId id, input MilestoneTag tags[$]);
+            if (reissuedId != -1) return;
+            
+            begin
+                MilestoneTag issueTags[$] = tags.find with (item.kind == IqIssue);
+                MilestoneTag exitTags[$] = tags.find with (item.kind == IqExit);
+                MilestoneTag pullbackTags[$] = tags.find with (item.kind == IqPullback);
+                                    
+                issueTags.sort with (item.cycle);
+                pullbackTags.sort with(item.cycle);
                 
-                begin
-                    MilestoneTag issueTags[$] = tags.find with (item.kind == IqIssue);
-                    MilestoneTag exitTags[$] = tags.find with (item.kind == IqExit);
-                    MilestoneTag pullbackTags[$] = tags.find with (item.kind == IqPullback);
-                                        
-                    issueTags.sort with (item.cycle);
-                    pullbackTags.sort with(item.cycle);
-                    
-                    assert (exitTags.size() == 1) else $fatal(2, "!!!!!");
-                    assert (issueTags[$].cycle < exitTags[0].cycle) else $fatal(2, "!!!!!");
-                    assert (pullbackTags[$].cycle < issueTags[$].cycle) else $fatal(2, "!!!!!");
-                                                
-                    reissuedId = id;
-                end
-                
-            endfunction
+                assert (exitTags.size() == 1) else $fatal(2, "!!!!!");
+                assert (issueTags[$].cycle < exitTags[0].cycle) else $fatal(2, "!!!!!");
+                assert (pullbackTags[$].cycle < issueTags[$].cycle) else $fatal(2, "!!!!!");
+                                            
+                reissuedId = id;
+            end
+            
+        endfunction
                 
     
         static function automatic logic checkRetiredStore(input MilestoneTag tags[$]);
@@ -567,14 +569,13 @@ package Insmap;
         endfunction
 
 
+        // TODO: find better way to test that reissue happened
         function automatic void assertReissue();
             assert (reissuedId != -1) else $fatal(2, "Not found reissued!");
         endfunction
         
     endclass
 
-
-    typedef UopInfo UopInfoQ[$];
 
     
     function automatic UopInfoQ splitUop(input UopInfo uinfo);    

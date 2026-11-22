@@ -18,7 +18,6 @@ module ReorderBuffer
     ref InstructionMap insMap,
     input EventInfo branchEventInfo,
     input EventInfo lateEventInfo,
-    //input OpSlotAB inGroup
     input FrontStage inGroup
 );
     localparam int DEPTH = ROB_SIZE/WIDTH;
@@ -331,7 +330,7 @@ module ReorderBuffer
         return pNew;
     endfunction
 
-    function automatic OpRecordA makeRecord(/*input OpSlotAB ops*/ input FrontStage ops);
+    function automatic OpRecordA makeRecord(input FrontStage ops);
         OpRecordA res = '{default: EMPTY_RECORD};
 
         foreach (ops.arr[i]) begin
@@ -343,7 +342,7 @@ module ReorderBuffer
                 res[i].used = 1; // Empty slots within occupied rows
         end
 
-        // TODO: in slot [0] mark predicted adr (predicted from prev group)
+        // TODO: in slot [0] mark predicted adr??? (predicted from prev group)
 
         return res;
     endfunction

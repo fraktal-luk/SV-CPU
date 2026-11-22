@@ -17,6 +17,13 @@ import Queues::*;
 
 module EventUnit(input logic clk);
 
+    typedef enum {
+        BS_NONE,
+        BS_NORMAL, // accepts renamed ops
+        BS_WAIT,   // event to handle is present, don't accept new ops
+        BS_HANDLING // event processing ongoing
+    } BackendState;
+
     BackendState backendState = BS_NONE;
 
     logic chp, chq;
@@ -24,6 +31,14 @@ module EventUnit(input logic clk);
     logic clearEvent = 0, clearInterruptEvt = 0;
 
     int intCounter = -1;
+
+    EventInfo lateEventInfoWaiting = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingDb = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingReset = EMPTY_EVENT_INFO;
+    EventInfo lateEventInfoWaitingInt = EMPTY_EVENT_INFO;
+
+    EventInfo lateEventInfo = EMPTY_EVENT_INFO;
+
 
     AccessDesc lastEvtAD = DEFAULT_ACCESS_DESC;
     Translation lastEvtTr = DEFAULT_TRANSLATION;
@@ -55,19 +70,18 @@ module EventUnit(input logic clk);
         frontH <= getFrontEv();
         dbEvtH <= getDbEv();
 
-        fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, theExecBlock.floatImagesTr[0]));
-        fpDiv0H <= edFromUop(findOldestWithState(ES_FP_DIV0, theExecBlock.floatImagesTr[0]));
+        fpInvH <= edFromUop(findOldestWithState(ES_FP_INVALID, rn.floatImagesTr[0]));
+        fpDiv0H <= edFromUop(findOldestWithState(ES_FP_DIV0, rn.floatImagesTr[0]));
 
-        // TODO: handle states Inexact + Ov/Und
-        fpUndH <=  edFromUop(findOldestWithState(ES_FP_UNDERFLOW, theExecBlock.floatImagesTr[0]));
-        fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, theExecBlock.floatImagesTr[0]));
-        fpInexH <=  edFromUop(findOldestWithState(ES_FP_INEXACT, theExecBlock.floatImagesTr[0]));
+        fpUndH <=  edFromUop(findOldestWithState(ES_FP_UNDERFLOW, rn.floatImagesTr[0]));
+        fpOvH <=  edFromUop(findOldestWithState(ES_FP_OVERFLOW, rn.floatImagesTr[0]));
+        fpInexH <=  edFromUop(findOldestWithState(ES_FP_INEXACT, rn.floatImagesTr[0]));
 
-        fpUndInexH <=  edFromUop(findOldestWithState(ES_FP_UND_INEXACT, theExecBlock.floatImagesTr[0]));
-        fpOvInexH <=  edFromUop(findOldestWithState(ES_FP_OV_INEXACT, theExecBlock.floatImagesTr[0]));
+        fpUndInexH <=  edFromUop(findOldestWithState(ES_FP_UND_INEXACT, rn.floatImagesTr[0]));
+        fpOvInexH <=  edFromUop(findOldestWithState(ES_FP_OV_INEXACT, rn.floatImagesTr[0]));
 
-        execMemH <= edFromUop(findOldestMemEvt(theExecBlock.memImagesTr[0]));
-        execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, theExecBlock.memImagesTr[0]));
+        execMemH <= edFromUop(findOldestMemEvt(rn.memImagesTr[0]));
+        execRefetchH <= edFromUop(findOldestWithState(ES_REFETCH, rn.memImagesTr[0]));
         lqRefetchH <= edFromLqRefetch(theLq.submod.oldestRefetchEntry.mid);
     end
 
@@ -81,7 +95,7 @@ module EventUnit(input logic clk);
             // Detect interrupt rejection
             if (interruptEvt.active && AbstractCore.lateEventInfo.etype != PE_EXT_INTERRUPT) begin
                 clearInterruptEvt <= 1;
-                    $display("Interrupt rejected");
+                $display("Interrupt rejected");
             end
 
             interruptEvt <= EMPTY_EVENT_DESC;
@@ -200,10 +214,9 @@ module EventUnit(input logic clk);
             if (newValue.active   ||     frontH.active ) backendState <= BS_WAIT;
             else if (!interruptEvt.active && !resetEvt.active) backendState <= BS_NORMAL;
 
+            if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
 
-                if ((interruptEvt.active || resetEvt.active) && noWaitingEvents()) backendState <= BS_HANDLING;
-
-                if (theRob.prevRowEvent) backendState <= BS_HANDLING;
+            if (theRob.prevRowEvent) backendState <= BS_HANDLING;
         end
 
         general <= newValue;
@@ -223,7 +236,7 @@ module EventUnit(input logic clk);
         lqRefetch <= replaceEvt(lqRefetch, lqRefetchH);
 
         if (execMemH != execMem && execMemH.active) begin
-            int inds[$] = theExecBlock.memImagesTr[0].find_first_index with (item.active && U2M(item.uid) == execMemH.id); 
+            int inds[$] = rn.memImagesTr[0].find_first_index with (item.active && U2M(item.uid) == execMemH.id); 
             assert (inds.size() > 0) else $error("Can't find mem op responsible for event\n%p\n%p", execMemH, execMem);
 
             lastEvtAD <= mn.adE2[inds[0]];
@@ -251,25 +264,11 @@ module EventUnit(input logic clk);
     function automatic EventDesc getCurrentEvent();
         EventDesc tmp = general;
 
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapInv)
-            tmp = replaceEvt(tmp, fpInvH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapOv)
-            tmp = replaceEvt(tmp, fpOvH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapUnd)
-            tmp = replaceEvt(tmp, fpUndH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapInex)
-            tmp = replaceEvt(tmp, fpInexH);
-
-        if (//AbstractCore.CurrentConfig.enArithExc || 
-            AbstractCore.CurrentConfig.enTrapDiv0)
-            tmp = replaceEvt(tmp, fpDiv0H);
+        if (AbstractCore.CurrentConfig.enTrapInv) tmp = replaceEvt(tmp, fpInvH);
+        if (AbstractCore.CurrentConfig.enTrapOv)  tmp = replaceEvt(tmp, fpOvH);
+        if (AbstractCore.CurrentConfig.enTrapUnd) tmp = replaceEvt(tmp, fpUndH);
+        if (AbstractCore.CurrentConfig.enTrapInex) tmp = replaceEvt(tmp, fpInexH);
+        if (AbstractCore.CurrentConfig.enTrapDiv0) tmp = replaceEvt(tmp, fpDiv0H);
 
         tmp = replaceEvt(tmp, execMemH);
         tmp = replaceEvt(tmp, execRefetchH);
@@ -309,5 +308,71 @@ module EventUnit(input logic clk);
         assert (oldest[0].uid != UID_NONE) else $fatal(2, "id none");
         return oldest[0];
     endfunction
+
+    function logic isHandling();
+        return backendState == BS_HANDLING;
+    endfunction
+
+
+
+    task automatic prepareLateEvents();
+        if (theRob.prevRowEvent) begin
+            if (general.id != -1 && (dbEvt.id == -1 || general.id <= dbEvt.id)) begin
+                Mword adr = AbstractCore.insMap.get(general.id).basicData.adr;
+                lateEventInfoWaiting <= eventFromOp(adr,  general);
+            end
+            else if (dbEvt.id != -1) begin
+                lateEventInfoWaitingDb <= DB_EVENT;
+            end
+            else
+                $fatal(2, "Wrong event detection in ROB");
+        end
+
+        if (resetEvt.active && noWaitingEvents()) begin
+            lateEventInfoWaitingReset <= RESET_EVENT;
+            AbstractCore.retiredEmul.resetSignal();
+        end
+        else if (interruptEvt.active  && noWaitingEvents()) begin
+            lateEventInfoWaitingInt <= INT_EVENT;
+            
+            $display(">> Interrupt !!!");
+                $display("Pre target: %X", AbstractCore.retiredEmul.coreState.target);
+            AbstractCore.retiredEmul.interrupt();
+                $display("After:      %X", AbstractCore.retiredEmul.coreState.target);
+        end
+
+        lateEventInfo <= EMPTY_EVENT_INFO;  // @lateEvt
+
+        if (AbstractCore.writeBuffer.wqFree) fireLateEvent();
+    endtask
+
+
+    task automatic fireLateEvent();
+        if (lateEventInfoWaitingReset.active) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingReset.etype);
+            lateEventInfo <= lateEventInfoWaitingReset;  // @lateEvt
+        end
+        else if (lateEventInfoWaitingInt.active) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingInt.etype);
+            lateEventInfo <= lateEventInfoWaitingInt;    // @lateEvt
+        end
+        else if (lateEventInfoWaitingDb.active) begin
+            sysUnit.saveStateAsync(theRob.trg, lateEventInfoWaitingDb.etype);
+            lateEventInfo <= lateEventInfoWaitingDb;     // @lateEvt
+        end
+        else if (lateEventInfoWaiting.active) begin
+            Mword sr2 = sysUnit.sysRegs[2], sr3 = sysUnit.sysRegs[3];
+            sysUnit.modifyStateSync(lateEventInfoWaiting.adr, lastEvtAD, lastEvtTr, general.etype);
+            lateEventInfo <= getLateEvent(lateEventInfoWaiting, sr2, sr3);  // @lateEvt
+        end
+        else
+            return;
+
+        lateEventInfoWaiting <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingDb <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingReset <= EMPTY_EVENT_INFO;
+        lateEventInfoWaitingInt <= EMPTY_EVENT_INFO;
+    endtask
+
 
 endmodule
