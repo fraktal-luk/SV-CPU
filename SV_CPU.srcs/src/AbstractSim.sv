@@ -386,6 +386,25 @@ package AbstractSim;
     endclass
 
 
+
+
+    typedef int VirtualName; 
+    typedef int PhysicalName;
+
+    typedef struct {
+        VirtualName vNames[RENAME_WIDTH];
+        PhysicalName pNames[RENAME_WIDTH];
+    } RenamePatch;
+
+
+    typedef struct {
+        InsId mid;
+        int index;
+        RenamePatch patch;
+    } RegisterCheckpoint;
+
+
+
     function automatic void releaseMarkers(ref MarkerSet markers, input logic unlocking, input InsId unlockingId);
         if (!unlocking) return;
 

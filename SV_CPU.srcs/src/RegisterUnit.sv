@@ -14,28 +14,44 @@ module RegisterUnit();
     RegisterTracker #(N_REGS_INT, N_REGS_FLOAT) registerTracker = new();
 
 
-    typedef int VirtualName; 
-    typedef int PhysicalName;
 
     typedef PhysicalName MappingTable[32];
+
+
+
 
 
     MappingTable newestTable = '{default: 0}, committedTable = '{default: 0};
 
 
+    RenamePatch latestPatch;
 
-    function automatic void reserve(input OpSlotAF ops);
+
+    function automatic RenamePatch reserve(input OpSlotAF ops);
+        RenamePatch patch;
+
         foreach (ops[i]) begin
-            UopName mainUop = decMainUop(ops[i].mid);
+            if (ops[i].mid == -1) continue;
 
-            if (uopHasIntDest(mainUop)) begin
-                
-            end
+            begin
+                UopName mainUop = decMainUop(ops[i].mid);
 
-            if (uopHasFloatDest(mainUop)) begin
-                
+                if (uopHasIntDest(mainUop)) begin
+                    int vReg = decMainUopInfo(ops[i].mid).vDest;
+                    //if (vReg == 0) continue;
+                    patch.vNames[i] = vReg;
+                end
+
+                if (uopHasFloatDest(mainUop)) begin
+                    int vReg = decMainUopInfo(ops[i].mid).vDest;
+                    patch.vNames[i] = vReg;
+                end
             end
         end
+
+            latestPatch <= patch;
+
+        return patch;
     endfunction
 
 

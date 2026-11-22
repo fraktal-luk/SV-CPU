@@ -279,7 +279,26 @@ module AbstractCore
         stageRename1.arr <= ops;
 
 
-        registerUnit.reserve(ops);
+        begin
+
+            RenamePatch patch = registerUnit.reserve(ops);
+
+            foreach (ops[i]) begin
+                AbstractInstruction insPre = theFrontend.stageRename0.evt == PE_NONE ? decodeAbstract(ops[i].bits) : FETCH_ERROR_INS;
+                // Based on CurrentConfig, Convert disabled instructions to static exceptions
+                AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
+
+                if (ops[i].active !== 1) continue;
+
+
+                if (isBranchIns(ins)) begin
+                    checkpointUnit.addRegCheckpoint(ops[i].mid, i, patch);
+                end
+            end
+        end
+
+        checkpointUnit.check();
+
     endtask
 
 
@@ -617,7 +636,11 @@ module AbstractCore
     function automatic UopName decMainUop(input InsId id);
         return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
-        
+
+    function automatic UopInfo decMainUopInfo(input InsId id);
+        return insMap.getU('{id, 0});
+    endfunction
+
     //  decId - 1
     //  getAdr - 2
     function automatic AbstractInstruction decId(input InsId id);
