@@ -57,4 +57,5 @@ add wave -position insertpoint  \
 sim:/ArchDesc0/core/registerUnit/allocationList \
 sim:/ArchDesc0/core/registerUnit/newestTable \
 sim:/ArchDesc0/core/registerUnit/nextCommitPointer \
-sim:/ArchDesc0/core/registerUnit/nextTakePointer
+sim:/ArchDesc0/core/registerUnit/nextTakePointer \
+sim:/ArchDesc0/core/registerUnit/nextWritePointer

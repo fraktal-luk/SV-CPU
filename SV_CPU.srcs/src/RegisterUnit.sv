@@ -64,11 +64,11 @@ module RegisterUnit();
                     int vReg = decMainUopInfo(ops[i].mid).vDest;
                     //if (vReg == 0) continue;
                     patch.vNames[i] = vReg;
-                    patch.pNames[i] = allocationList[readPtr]; //freeList.size() > 0 ? freeList.pop_front() : -1;
+                    patch.pNames[i] = allocationList[readPtr % N_REGS_INT]; //freeList.size() > 0 ? freeList.pop_front() : -1;
                     readPtr++;
                 end
 
-                patch.pointers[i] = readPtr;
+                patch.pointers[i] = readPtr % N_REGS_INT;
 
 
                 // if (uopHasFloatDest(mainUop)) begin
@@ -115,6 +115,10 @@ module RegisterUnit();
                 if (evt && i == evtSlot) begin
                     // TODO: this op is exceptional. don't commit register but free it
                     //      FUTURE: there may be exceptions which do commit their register? (like for FP traps with default result?) 
+                    PhysicalName pName = allocationList[readPtr++ % N_REGS_INT];
+
+                    if (!pName inside {-1, 0})
+                        allocationList[nextWritePointer++ % N_REGS_INT] = pName;
 
                     break;
                 end
@@ -127,24 +131,26 @@ module RegisterUnit();
                     PhysicalName pName = allocationList[readPtr % N_REGS_INT];
                     PhysicalName toFree = -1;
 
-                    readPtr++;
-
-
                     if (vReg inside {-1, 0}) continue;
+
+                    readPtr++;
 
                     toFree = tmpCommittedTable[vReg];
                     tmpCommittedTable[vReg] = pName;
 
                     if (!toFree inside {-1, 0})
-                        allocationList[nextWritePointer++] = toFree;
+                        allocationList[nextWritePointer++ % N_REGS_INT] = toFree;
                 end
 
 
 
             end
 
-            committedTable <= tmpCommittedTable;
         end
+
+            nextWritePointer %= N_REGS_INT;
+
+            committedTable <= tmpCommittedTable;
 
             nextCommitPointer <= readPtr % N_REGS_INT;
 
