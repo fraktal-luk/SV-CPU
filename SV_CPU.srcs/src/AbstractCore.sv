@@ -222,11 +222,13 @@ module AbstractCore
             MarkerSet renameMarkersU = renameMarkers;
 
             BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
+                RegisterCheckpoint registerCP = checkpointUnit.getRegisterCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
             checkpointUnit.flushPartial(branchEventInfo.eventMid);
 
             registerUnit.flushToCheckpoint(causingCP);
+                registerUnit.flushRegsToCheckpoint(registerCP);
 
             memTracker.flush(branchEventInfo.eventMid);
             
@@ -292,7 +294,7 @@ module AbstractCore
 
 
                 if (isBranchIns(ins)) begin
-                    checkpointUnit.addRegCheckpoint(ops[i].mid, i, patch);
+                    checkpointUnit.addRegCheckpoint(ops[i].mid, i, patch, registerUnit.newestTable);
                 end
             end
         end

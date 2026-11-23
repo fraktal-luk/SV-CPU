@@ -394,12 +394,14 @@ package AbstractSim;
     typedef struct {
         VirtualName vNames[RENAME_WIDTH];
         PhysicalName pNames[RENAME_WIDTH];
+        int pointers[RENAME_WIDTH];
     } RenamePatch;
 
 
     typedef struct {
         InsId mid;
         int index;
+        PhysicalName tb[32];
         RenamePatch patch;
     } RegisterCheckpoint;
 

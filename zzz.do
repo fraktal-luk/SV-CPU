@@ -47,3 +47,14 @@ sim:/ArchDesc0/core/branchTracker/ch3
 
 add wave -position insertpoint  \
 sim:/ArchDesc0/core/theFrontend/stageIP
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/registerUnit/committedTable \
+sim:/ArchDesc0/core/registerUnit/newestTable \
+sim:/ArchDesc0/core/registerUnit/latestPatch
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/registerUnit/allocationList \
+sim:/ArchDesc0/core/registerUnit/newestTable \
+sim:/ArchDesc0/core/registerUnit/nextCommitPointer \
+sim:/ArchDesc0/core/registerUnit/nextTakePointer

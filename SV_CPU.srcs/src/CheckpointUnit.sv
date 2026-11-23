@@ -21,7 +21,13 @@ module CheckpointUnit();
     endfunction
 
     function automatic BranchCheckpoint getCheckpoint(input InsId mid);
-        BranchCheckpoint foundCP[$] = checkpointUnit.branchCheckpointQueue.find with (item.id == mid);
+        BranchCheckpoint foundCP[$] = branchCheckpointQueue.find with (item.id == mid);
+        return foundCP[0];
+    endfunction
+
+
+    function automatic RegisterCheckpoint getRegisterCheckpoint(input InsId mid);
+        RegisterCheckpoint foundCP[$] = registerCheckpointQueue.find with (item.mid == mid);
         return foundCP[0];
     endfunction
 
@@ -45,8 +51,8 @@ module CheckpointUnit();
         branchCheckpointQueue.push_back(cp);
     endtask
 
-        task automatic addRegCheckpoint(input InsId id, input int index, input RenamePatch patch);
-            registerCheckpointQueue.push_back('{id, index, patch});
+        task automatic addRegCheckpoint(input InsId id, input int index, input RenamePatch patch, input PhysicalName tb[]);
+            registerCheckpointQueue.push_back('{id, index, tb, patch});
         endtask
 
 
