@@ -64,7 +64,7 @@ module RegisterUnit();
                     int vReg = decMainUopInfo(ops[i].mid).vDest;
                     //if (vReg == 0) continue;
                     patch.vNames[i] = vReg;
-                    patch.pNames[i] = freeList.size() > 0 ? freeList.pop_front() : -1;
+                    patch.pNames[i] = allocationList[readPtr]; //freeList.size() > 0 ? freeList.pop_front() : -1;
                     readPtr++;
                 end
 
@@ -81,6 +81,18 @@ module RegisterUnit();
             nextTakePointer <= readPtr % N_REGS_INT;
             latestPatch <= patch;
 
+
+            foreach (latestPatch.vNames[i]) begin
+                VirtualName vName = latestPatch.vNames[i];
+                PhysicalName pName = latestPatch.pNames[i];
+
+
+                if (latestPatch.vNames[i] inside {-1, 0}) continue;
+
+                newestTable[vName] = pName;
+            end
+
+
         return patch;
     endfunction
 
@@ -91,6 +103,8 @@ module RegisterUnit();
               //selectEvt[RENAME_WIDTH] = '{default: 0};
 
         int readPtr = nextCommitPointer;
+
+        MappingTable tmpCommittedTable = committedTable;
 
         foreach (ops[i]) begin
             if (ops[i].mid == -1) continue;
@@ -109,12 +123,27 @@ module RegisterUnit();
                 selectFloat[i] = (uopHasFloatDest(mainUop));
 
                 if (uopHasIntDest(mainUop)) begin
+                    int vReg = decMainUopInfo(ops[i].mid).vDest;
+                    PhysicalName pName = allocationList[readPtr % N_REGS_INT];
+                    PhysicalName toFree = -1;
+
                     readPtr++;
+
+
+                    if (vReg inside {-1, 0}) continue;
+
+                    toFree = tmpCommittedTable[vReg];
+                    tmpCommittedTable[vReg] = pName;
+
+                    if (!toFree inside {-1, 0})
+                        allocationList[nextWritePointer++] = toFree;
                 end
+
+
 
             end
 
-
+            committedTable <= tmpCommittedTable;
         end
 
             nextCommitPointer <= readPtr % N_REGS_INT;
@@ -127,6 +156,7 @@ module RegisterUnit();
         registerTracker.flushAll();
 
             nextTakePointer <= nextCommitPointer;
+            newestTable <= committedTable;
     endfunction
 
 
