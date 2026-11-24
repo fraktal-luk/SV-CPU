@@ -284,16 +284,18 @@ module AbstractCore
         begin
 
             RenamePatch patch = registerUnit.reserve(ops);
+            AbstractInstruction insArray[RENAME_WIDTH] = '{default: FETCH_ERROR_INS};
 
             foreach (ops[i]) begin
-                AbstractInstruction insPre = theFrontend.stageRename0.evt == PE_NONE ? decodeAbstract(ops[i].bits) : FETCH_ERROR_INS;
-                // Based on CurrentConfig, Convert disabled instructions to static exceptions
-                AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
-
+                //AbstractInstruction insPre = theFrontend.stageRename0.evt == PE_NONE ? decodeAbstract(ops[i].bits) : FETCH_ERROR_INS;
+                //// Based on CurrentConfig, Convert disabled instructions to static exceptions
+               // AbstractInstruction ins = //suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
+                                      //      decodeInContext(theFrontend.stageRename0.evt, CurrentConfig.enableFP, ops[i].bits);
                 if (ops[i].active !== 1) continue;
 
+                insArray[i] = decodeInContext(theFrontend.stageRename0.evt, CurrentConfig.enableFP, ops[i].bits);
 
-                if (isBranchIns(ins)) begin
+                if (isBranchIns(insArray[i])) begin
                     checkpointUnit.addRegCheckpoint(ops[i].mid, i, patch, registerUnit.newestTable);
                 end
             end
@@ -302,6 +304,13 @@ module AbstractCore
         checkpointUnit.check();
 
     endtask
+
+
+    function automatic AbstractInstruction decodeInContext(input ProgramEvent evt, input logic enableFP, input Word bits);
+        AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+        AbstractInstruction ins = suppressDisabledInstruction(insPre, enableFP); // convert to static event if applicable
+        return ins;
+    endfunction
 
 
     task automatic renameOp(input InsId id,
@@ -314,10 +323,11 @@ module AbstractCore
                             );
         ProgramEvent evt = fs.evt;
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
-        AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
+        //AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
         // Based on CurrentConfig, Convert disabled instructions to static exceptions
-        AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
+        AbstractInstruction ins = //suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
+                                  decodeInContext(evt, CurrentConfig.enableFP, opSlot.bits);
         InsDependencies deps = registerUnit.registerTracker.getArgDeps(ins); // @RT
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);

@@ -182,18 +182,29 @@ module RegisterUnit();
 
         function automatic void flushRegsToCheckpoint(input RegisterCheckpoint rc);
             RenamePatch patch = rc.patch;
+            MappingTable newestTableIdealRecreated = rc.tb;
 
             foreach (patch.vNames[i]) begin
-                if (i <= rc.index) continue;
-                
+                if (i <= rc.index) begin
+                    VirtualName vName = patch.vNames[i];
+                    PhysicalName pName = patch.pNames[i];
+
+
+                    if (!vName inside {-1, 0})
+                        newestTableIdealRecreated[vName] = pName;
+                    continue;
+                end
                 patch.vNames[i] = -1;
                 patch.pNames[i] = -1;
                 patch.pointers[i] = -1;
             end
 
+            // write
+
             nextTakePointer <= rc.patch.pointers[rc.index];
 
             newestTable <= rc.tb;
+            newestTableIdeal <= newestTableIdealRecreated;
             latestPatch <= patch;
         endfunction
 
@@ -204,5 +215,47 @@ module RegisterUnit();
 
         registerTracker.writeValue(name, vDest, wid, value);
     endfunction
+
+
+    typedef PhysicalName PhysicalName3[3];
+    typedef VirtualName VirtualName3[3];
+    // typedef PhysicalName PhysicalSourceGroup[RENAME_WIDTH][3];
+
+    typedef int Int3[3];
+
+
+    function automatic Int3 findCurrentDeps(input VirtualName dests[], input int index, input VirtualName3 srcs);
+        Int3 res = '{default: 1};
+
+        foreach (dests[i]) begin
+            if (i >= index) break;
+
+            foreach (res[j]) begin
+                if (!srcs[j] inside {-1, 0} && srcs[j] == dests[i]) res[j] = i;
+            end
+        end
+
+        return res;
+    endfunction
+
+
+
+    function automatic VirtualName3 getVirtSourcesInt(input AbstractInstruction ins);
+        VirtualName3 res = '{default: -1};
+        InsDependencies deps = registerTracker.getArgDeps(ins);
+
+        foreach (res[i]) begin
+            if (deps.types[i] == SRC_INT) res[i] = deps.sources[i];
+        end
+
+        return res;
+    endfunction
+
+    // get pysical soirces:
+    // - get virt sources of every op: [RENAME_WIDTH][3]
+    // - for each of them: read physical name from newestTableIdeal
+    // - find dependencies on dests being set now: [RENAME_WIDTH] ints: -1 if not dependent, slot index if dependent
+    // - wherever dependence matrix not -1, replace with new dest at index
+
 
 endmodule
