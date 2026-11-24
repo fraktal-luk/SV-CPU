@@ -40,9 +40,7 @@ module RegisterUnit();
 
 
 
-
-
-    MappingTable newestTable = '{default: 0}, committedTable = '{default: 0};
+    MappingTable newestTable = '{default: 0}, newestTableIdeal = '{default: 0}, committedTable = '{default: 0};
 
 
     RenamePatch latestPatch;
@@ -89,7 +87,17 @@ module RegisterUnit();
 
                 if (latestPatch.vNames[i] inside {-1, 0}) continue;
 
-                newestTable[vName] = pName;
+                newestTable[vName] <= pName;
+            end
+
+
+            foreach (patch.vNames[i]) begin
+                VirtualName vName = patch.vNames[i];
+                PhysicalName pName = patch.pNames[i];
+
+                if (patch.vNames[i] inside {-1, 0}) continue;
+
+                newestTableIdeal[vName] <= pName;
             end
 
 
@@ -163,6 +171,7 @@ module RegisterUnit();
 
             nextTakePointer <= nextCommitPointer;
             newestTable <= committedTable;
+            newestTableIdeal <= committedTable;
     endfunction
 
 
