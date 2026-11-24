@@ -45,3 +45,9 @@ sim:/ArchDesc0/core/registerUnit/committedTable \
 sim:/ArchDesc0/core/registerUnit/nextCommitPointer \
 sim:/ArchDesc0/core/registerUnit/nextTakePointer \
 sim:/ArchDesc0/core/registerUnit/nextWritePointer
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/registerUnit/groupDeps \
+sim:/ArchDesc0/core/registerUnit/psg \
+sim:/ArchDesc0/core/registerUnit/psgND \
+sim:/ArchDesc0/core/registerUnit/vsg

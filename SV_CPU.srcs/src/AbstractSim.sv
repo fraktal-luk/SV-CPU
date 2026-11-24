@@ -391,6 +391,8 @@ package AbstractSim;
     typedef int VirtualName; 
     typedef int PhysicalName;
 
+    typedef PhysicalName MappingTable[32];
+
     typedef struct {
         VirtualName vNames[RENAME_WIDTH];
         PhysicalName pNames[RENAME_WIDTH];

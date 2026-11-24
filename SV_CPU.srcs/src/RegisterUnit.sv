@@ -36,7 +36,6 @@ module RegisterUnit();
     int nextCommitPointer = 1; // which is first to commit (not yet committed)
     int nextWritePointer = 0; // which will be filled
 
-    typedef PhysicalName MappingTable[32];
 
 
 
@@ -219,19 +218,59 @@ module RegisterUnit();
 
     typedef PhysicalName PhysicalName3[3];
     typedef VirtualName VirtualName3[3];
-    // typedef PhysicalName PhysicalSourceGroup[RENAME_WIDTH][3];
+    typedef VirtualName VirtualSourceGroup[RENAME_WIDTH][3];
+    typedef PhysicalName PhysicalSourceGroup[RENAME_WIDTH][3];
 
     typedef int Int3[3];
+    typedef int GroupDepScheme[RENAME_WIDTH][3];
+
+
+        GroupDepScheme groupDeps;
+        VirtualSourceGroup vsg;
+        PhysicalSourceGroup psg, psgND;
+
+
+    function automatic void TMP_renameInsGroup(input AbstractInstruction insArr[], input RenamePatch patch,
+                                                input MappingTable tb);
+        GroupDepScheme depScheme = '{default: '{default: -1}};
+        VirtualSourceGroup vSources = '{default: '{default: -1}};
+        PhysicalSourceGroup pSources = '{default: '{default: -1}};
+        PhysicalSourceGroup pSourcesNoDep = '{default: '{default: -1}};
+
+        foreach (insArr[i]) begin
+            VirtualName3 vSourcesI = getVirtSourcesInt(insArr[i]);
+            depScheme[i] = findCurrentDeps(patch.vNames, i, vSourcesI);
+            vSources[i] = vSourcesI;
+        end
+
+            groupDeps <= depScheme;
+            vsg <= vSources;
+
+        foreach (pSources[i, j]) begin
+            if (vSources[i][j] == -1) continue;
+
+            if (depScheme[i][j] != -1)
+                pSources[i][j] = patch.pNames[depScheme[i][j]];
+            else
+                pSources[i][j] = tb[vSources[i][j]];
+
+            pSourcesNoDep[i][j] = tb[vSources[i][j]];
+        end
+
+        psg <= pSources;
+        psgND <= pSourcesNoDep;
+    endfunction
+
 
 
     function automatic Int3 findCurrentDeps(input VirtualName dests[], input int index, input VirtualName3 srcs);
-        Int3 res = '{default: 1};
+        Int3 res = '{default: -1};
 
         foreach (dests[i]) begin
             if (i >= index) break;
 
             foreach (res[j]) begin
-                if (!srcs[j] inside {-1, 0} && srcs[j] == dests[i]) res[j] = i;
+                if (!(srcs[j] inside {-1, 0}) && srcs[j] == dests[i]) res[j] = i;
             end
         end
 
