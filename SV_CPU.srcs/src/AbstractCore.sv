@@ -250,6 +250,9 @@ module AbstractCore
         OpSlotAF ops = theFrontend.stageRename0.arr;
         int bi = 0;
 
+            int newRegsInt[$] = registerUnit.getIntListFront();
+
+
         if (anyActiveB(ops))
             renameIndsU.renameG = (renameIndsU.renameG + 1) % (2*theRob.DEPTH); // @INDS
 
@@ -260,7 +263,8 @@ module AbstractCore
             ops[i].mid = insMap.insBase.lastM + 1;
             renameOp(ops[i].mid, ops[i], i, bi,
                         theFrontend.stageRename0,
-                        renameIndsU, renameMarkersU
+                        renameIndsU, renameMarkersU,
+                        newRegsInt
                     );
             
             updateInds(renameIndsU, ops[i].mid, decMainUop(ops[i].mid)); // @INDS  Crucial state
@@ -327,7 +331,8 @@ module AbstractCore
                             input int currentBranch, // index of branch within used part of block
                             input FrontStage fs,
                             input IndexSet renameIndsBefore,
-                            input MarkerSet renameMarkersBefore
+                            input MarkerSet renameMarkersBefore,
+                            ref int intRegs[$]
                             );
         ProgramEvent evt = fs.evt;
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
@@ -346,7 +351,7 @@ module AbstractCore
             UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
 
             // CAREFUL registerTracker updated here
-            UopInfo uInfos[$] = makeUopInfos(mainUinfo);
+            UopInfo uInfos[$] = makeUopInfos(mainUinfo, intRegs);
             ii.nUops = uInfos.size(); 
 
             insMap.allocate(id, ii, uInfos);
@@ -436,12 +441,12 @@ module AbstractCore
     endfunction
 
 
-    function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo);
+    function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo, ref int intRegs[$]);
         UopInfoQ uInfos = splitUop(mainUinfo);
 
         for (int u = 0; u < uInfos.size(); u++) begin
             UopInfo uInfo = uInfos[u];
-            uInfos[u].physDest = registerUnit.registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
+            uInfos[u].physDest = registerUnit.registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u}, intRegs);
             
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d", U2M(mainUinfo.id));
         end
@@ -653,6 +658,19 @@ module AbstractCore
     function automatic UopName decMainUop(input InsId id);
         return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
+
+        function automatic UopInfoQ decUops(input InsId id);
+            UopInfoQ res;
+            InstructionInfo insInfo;
+            if (id == -1) return '{};
+            insInfo = insMap.get(id);
+
+            for (int s = 0; s < insInfo.nUops; s++) begin
+                res.push_back(insMap.getU('{id, s}));
+            end
+
+            return res;
+        endfunction
 
     function automatic UopInfo decMainUopInfo(input InsId id);
         return insMap.getU('{id, 0});

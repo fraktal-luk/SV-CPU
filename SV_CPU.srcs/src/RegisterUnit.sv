@@ -55,14 +55,17 @@ module RegisterUnit();
             if (ops[i].mid == -1) continue;
 
             begin
-                UopName mainUop = decMainUop(ops[i].mid);
+                //UopName mainUop = decMainUop(ops[i].mid);
+                UopInfoQ uops = decUops(ops[i].mid);
 
-                if (uopHasIntDest(mainUop)) begin
-                    int vReg = decMainUopInfo(ops[i].mid).vDest;
-                    //if (vReg == 0) continue;
-                    patch.vNames[i] = vReg;
-                    patch.pNames[i] = allocationList[readPtr % N_REGS_INT]; //freeList.size() > 0 ? freeList.pop_front() : -1;
-                    readPtr++;
+                foreach (uops[s]) begin 
+                    if (uopHasIntDest(uops[s].name)) begin
+                        int vReg = uops[s].vDest;
+                        //if (vReg == 0) continue;
+                        patch.vNames[i] = vReg;
+                        patch.pNames[i] = allocationList[readPtr % N_REGS_INT]; //freeList.size() > 0 ? freeList.pop_front() : -1;
+                        readPtr++;
+                    end
                 end
 
                 patch.pointers[i] = readPtr % N_REGS_INT;
@@ -117,38 +120,55 @@ module RegisterUnit();
             if (ops[i].mid == -1) continue;
 
             begin
-                UopName mainUop = decMainUop(ops[i].mid);
+                //UopName mainUop = decMainUop(ops[i].mid);
+                UopInfoQ uops = decUops(ops[i].mid);
 
+
+                // TODO: add check for uopHasIntDest!
                 if (evt && i == evtSlot) begin
-                    // TODO: this op is exceptional. don't commit register but free it
-                    //      FUTURE: there may be exceptions which do commit their register? (like for FP traps with default result?) 
-                    PhysicalName pName = allocationList[readPtr++ % N_REGS_INT];
 
-                    if (!pName inside {-1, 0})
-                        allocationList[nextWritePointer++ % N_REGS_INT] = pName;
+
+                    foreach (uops[s]) begin
+                        if (uopHasIntDest(uops[s].name)) begin
+
+                            // TODO: this op is exceptional. don't commit register but free it
+                            //      FUTURE: there may be exceptions which do commit their register? (like for FP traps with default result?) 
+                            PhysicalName pName = allocationList[readPtr++ % N_REGS_INT];
+
+                            if (!pName inside {-1, 0})
+                                allocationList[nextWritePointer++ % N_REGS_INT] = pName;
+
+                            break;
+                        end
+                    end
 
                     break;
                 end
 
-                selectInt[i] = (uopHasIntDest(mainUop));
-                selectFloat[i] = (uopHasFloatDest(mainUop));
+                foreach (uops[s]) begin 
 
-                if (uopHasIntDest(mainUop)) begin
-                    int vReg = decMainUopInfo(ops[i].mid).vDest;
-                    PhysicalName pName = allocationList[readPtr % N_REGS_INT];
-                    PhysicalName toFree = -1;
 
-                    if (vReg inside {-1, 0}) continue;
+                    selectInt[i] = (uopHasIntDest(uops[s].name));
+                    selectFloat[i] = (uopHasFloatDest(uops[s].name));
 
-                    readPtr++;
+                    if (uopHasIntDest(uops[s].name)) begin
+                        int vReg = uops[s].vDest;
+                        PhysicalName pName = allocationList[readPtr % N_REGS_INT];
+                        PhysicalName toFree = -1;
 
-                    toFree = tmpCommittedTable[vReg];
-                    tmpCommittedTable[vReg] = pName;
+                        if (vReg inside {-1, 0}) continue;
 
-                    if (!toFree inside {-1, 0})
-                        allocationList[nextWritePointer++ % N_REGS_INT] = toFree;
+                        readPtr++;
+
+                        toFree = tmpCommittedTable[vReg];
+                        tmpCommittedTable[vReg] = pName;
+
+                        if (!toFree inside {-1, 0})
+                            allocationList[nextWritePointer++ % N_REGS_INT] = toFree;
+
+                        break;
+                    end
                 end
-
 
 
             end
@@ -296,5 +316,17 @@ module RegisterUnit();
     // - find dependencies on dests being set now: [RENAME_WIDTH] ints: -1 if not dependent, slot index if dependent
     // - wherever dependence matrix not -1, replace with new dest at index
 
+
+    typedef int IntQ[$];
+
+    function automatic IntQ getIntListFront();
+        IntQ res;
+
+        for (int i = 0; i < RENAME_WIDTH; i++) begin
+            res.push_back(allocationList[(nextTakePointer + i) % N_REGS_INT]);
+        end
+
+        return res;
+    endfunction
 
 endmodule

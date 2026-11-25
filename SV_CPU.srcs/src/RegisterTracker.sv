@@ -143,9 +143,26 @@
         RegisterDomain#(N_REGS_INT, 1) ints = new();
         RegisterDomain#(N_REGS_FLOAT, 0) floats = new();
 
-        function automatic int reserve(input UopName name, input int dest, input WriterId id);            
-            if (uopHasIntDest(name)) return ints.reserve(dest, id);
-            if (uopHasFloatDest(name)) return  floats.reserve(dest, id);
+        function automatic int reserve(input UopName name, input int dest, input WriterId id, ref int intRegs[$]);            
+                if (U2M(id) > 3000) $display("uid %p: %p", id, name);
+
+            if (uopHasIntDest(name)) begin
+                int reserved = ints.reserve(dest, id);
+                int popped = -1;
+
+                if (reserved != -1) popped = intRegs.pop_front();
+
+                    if (U2M(id) > 3000) $display("       alloc r%p=p%p(%p) // int regs %p",
+                                            
+                                            dest, reserved, popped,
+                                            intRegs);
+
+                return reserved;
+
+            end
+
+            if (uopHasFloatDest(name)) return floats.reserve(dest, id);
+            
             return -1;
         endfunction
 
