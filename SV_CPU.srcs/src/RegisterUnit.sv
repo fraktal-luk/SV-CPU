@@ -63,6 +63,9 @@ module RegisterUnit();
                         int vReg = uops[s].vDest;
                         //if (vReg == 0) continue;
                         patch.vNames[i] = vReg;
+
+                        if (vReg inside {-1, 0}) continue;
+
                         patch.pNames[i] = allocationList[readPtr % N_REGS_INT]; //freeList.size() > 0 ? freeList.pop_front() : -1;
                         readPtr++;
                     end
@@ -116,8 +119,14 @@ module RegisterUnit();
 
         MappingTable tmpCommittedTable = committedTable;
 
+
+
         foreach (ops[i]) begin
             if (ops[i].mid == -1) continue;
+
+                if (ops[i].mid inside {1986, 1987}) begin
+                  // $error("Freeing? (%p) -> %p\n%p\n evt = %p at %d", i, ops[i].mid,  AbstractCore.insMap.get(ops[i].mid), evt, evtSlot);
+                end
 
             begin
                 //UopName mainUop = decMainUop(ops[i].mid);
@@ -125,15 +134,28 @@ module RegisterUnit();
 
 
                 // TODO: add check for uopHasIntDest!
-                if (evt && i == evtSlot) begin
+                if (evt && (i == evtSlot)) begin
+
+
+                    if (ops[i].mid inside {1986, 1987}) begin
+                       // $display(" >> Entered evt blck");
+                    end
 
 
                     foreach (uops[s]) begin
                         if (uopHasIntDest(uops[s].name)) begin
+                            int vReg = uops[s].vDest;
 
-                            // TODO: this op is exceptional. don't commit register but free it
+                            // This op is exceptional. don't commit register but free it
                             //      FUTURE: there may be exceptions which do commit their register? (like for FP traps with default result?) 
-                            PhysicalName pName = allocationList[readPtr++ % N_REGS_INT];
+                            PhysicalName pName = allocationList[readPtr % N_REGS_INT];
+
+                            if (vReg inside {-1, 0}) continue;
+
+                            readPtr++;
+
+                            //if (pName == 33)
+                            //    $error(" > %p evt, pName is %p", ops[i].mid, pName);
 
                             if (!pName inside {-1, 0})
                                 allocationList[nextWritePointer++ % N_REGS_INT] = pName;
@@ -155,6 +177,9 @@ module RegisterUnit();
                         int vReg = uops[s].vDest;
                         PhysicalName pName = allocationList[readPtr % N_REGS_INT];
                         PhysicalName toFree = -1;
+
+                          //  if (pName == 33)
+                          //      $error(" > %p, pName is %p", ops[i].mid, pName);
 
                         if (vReg inside {-1, 0}) continue;
 

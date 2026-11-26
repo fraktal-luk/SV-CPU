@@ -494,7 +494,7 @@ module AbstractCore
     task automatic advanceCommit();
         IndexSet commitIndsU = commitInds;
         MarkerSet commitMarkersU = commitMarkers;
-        logic foundEvent = 0;
+        logic foundEvent = 0, nonBreakpointEvent = 0;
         int eventSlot = -1;
 
         foreach (theRob.prevRow[i]) begin
@@ -523,8 +523,13 @@ module AbstractCore
             if (isControlUop(ii.mainUop) || ii.refetch || ii.exception || CurrentConfig.dbStep) begin
                 assert (theRob.prevRowEvent) else $fatal(2, "Event {%d} detected but not known in ROB", theId);
                 foundEvent = 1;
+                nonBreakpointEvent = isControlUop(ii.mainUop) || ii.refetch || ii.exception;
                 eventSlot = i;
                 TMP_checkCtrl(theId, ii);
+
+                    if (ii.id > 1960) begin
+                  //      $display("id = %p:%p\ncc = %p\n", ii.id, theId, CurrentConfig);
+                    end
             end
         end
 
@@ -533,7 +538,7 @@ module AbstractCore
         commitInds <= commitIndsU;
         commitMarkers <= commitMarkersU;
 
-        registerUnit.releaseRegs(theRob.prevRow, foundEvent, eventSlot);
+        registerUnit.releaseRegs(theRob.prevRow, nonBreakpointEvent, eventSlot);
 
     endtask
 

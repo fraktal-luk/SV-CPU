@@ -648,7 +648,7 @@ package Insmap;
             lk.barrier = -1;
 
             lk.resultE = current.resultE;
-                
+
             current.vDest = -1;
 
             res.push_back(current);

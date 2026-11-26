@@ -51,6 +51,26 @@
                 return findDest(id);
             endfunction
 
+                function automatic int reserveExt(input int vDest, input WriterId id, ref int freeRegs[$]);
+                    int pDest = freeRegs[0];//findFree();
+
+                    assert (info[pDest].state == FREE) else $error("Trying alloc nonfree regiser!\n%p %p -> %p\n%p", 
+                                                                    id, vDest, pDest, info[pDest]);
+
+                        if (pDest == 33) begin
+                            //$error("alloc p33\n   %p  %p -> %p", id, vDest, pDest);
+                        end
+
+                    if (!ignoreV(vDest)) begin
+                        writersR[vDest] = id;
+                        info[pDest] = '{SPECULATIVE, id};
+                        MapR[vDest] = pDest;
+
+                            freeRegs.pop_front();
+                    end
+                    return findDest(id);
+                endfunction
+
             function automatic void releaseRegister(input int p);                
                 if (p == 0) return;
                 info[p] = REG_INFO_FREE;
@@ -64,7 +84,7 @@
                 int pDestPrev = MapC[vDest];
  
                 if (ignoreV(vDest)) return;
-                
+
                 if (normal) begin
                     writersC[vDest] = id;
                     MapC[vDest] = pDest;
@@ -144,21 +164,14 @@
         RegisterDomain#(N_REGS_FLOAT, 0) floats = new();
 
         function automatic int reserve(input UopName name, input int dest, input WriterId id, ref int intRegs[$]);            
-                if (U2M(id) > 3000) $display("uid %p: %p", id, name);
 
             if (uopHasIntDest(name)) begin
-                int reserved = ints.reserve(dest, id);
-                int popped = -1;
+                int reserved = ints.reserveExt(dest, id, intRegs);
+                // int popped = -1;
 
-                if (reserved != -1) popped = intRegs.pop_front();
-
-                    if (U2M(id) > 3000) $display("       alloc r%p=p%p(%p) // int regs %p",
-                                            
-                                            dest, reserved, popped,
-                                            intRegs);
+                // if (reserved != -1) popped = intRegs.pop_front();
 
                 return reserved;
-
             end
 
             if (uopHasFloatDest(name)) return floats.reserve(dest, id);
@@ -166,7 +179,12 @@
             return -1;
         endfunction
 
-        function automatic void commit(input UopName name, input int dest, input WriterId id, input abnormal);            
+        function automatic void commit(input UopName name, input int dest, input WriterId id, input abnormal);
+                if (id.m == 1986) begin
+                    $display("Committin 1986. abn = %p", abnormal);
+                end
+
+
             if (uopHasIntDest(name)) ints.commit(dest, id, !abnormal);      
             if (uopHasFloatDest(name)) floats.commit(dest, id, !abnormal);
         endfunction
