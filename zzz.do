@@ -35,15 +35,19 @@ sim:/ArchDesc0/core/theFrontend/chk \
 sim:/ArchDesc0/core/theFrontend/chk_2
 
 
-add wave -position insertpoint  \
-sim:/ArchDesc0/core/branchTracker/lastCount \
-sim:/ArchDesc0/core/branchTracker/lastLen \
-sim:/ArchDesc0/core/branchTracker/newCount \
-sim:/ArchDesc0/core/branchTracker/newLen \
-sim:/ArchDesc0/core/branchTracker/ch0 \
-sim:/ArchDesc0/core/branchTracker/ch1 \
-sim:/ArchDesc0/core/branchTracker/ch2 \
-sim:/ArchDesc0/core/branchTracker/ch3
 
 add wave -position insertpoint  \
-sim:/ArchDesc0/core/theFrontend/stageIP
+sim:/ArchDesc0/core/registerUnit/allocationList \
+sim:/ArchDesc0/core/registerUnit/latestPatch \
+sim:/ArchDesc0/core/registerUnit/newestTable \
+sim:/ArchDesc0/core/registerUnit/newestTableIdeal \
+sim:/ArchDesc0/core/registerUnit/committedTable \
+sim:/ArchDesc0/core/registerUnit/nextCommitPointer \
+sim:/ArchDesc0/core/registerUnit/nextTakePointer \
+sim:/ArchDesc0/core/registerUnit/nextWritePointer
+
+add wave -position insertpoint  \
+sim:/ArchDesc0/core/registerUnit/groupDeps \
+sim:/ArchDesc0/core/registerUnit/psg \
+sim:/ArchDesc0/core/registerUnit/psgND \
+sim:/ArchDesc0/core/registerUnit/vsg

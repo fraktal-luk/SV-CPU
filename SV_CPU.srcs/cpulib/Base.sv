@@ -14,6 +14,7 @@ package Base;
 
     typedef Word WordArray[];
 
+    typedef int IntQ[$];
 
 
     function automatic Qword multiplyU64L(input Dword a, input Dword b);

@@ -222,11 +222,13 @@ module AbstractCore
             MarkerSet renameMarkersU = renameMarkers;
 
             BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
+            RegisterCheckpoint registerCP = checkpointUnit.getRegisterCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
             checkpointUnit.flushPartial(branchEventInfo.eventMid);
 
             registerUnit.flushToCheckpoint(causingCP);
+            registerUnit.flushRegsToCheckpoint(registerCP);
 
             memTracker.flush(branchEventInfo.eventMid);
             
@@ -248,6 +250,8 @@ module AbstractCore
         OpSlotAF ops = theFrontend.stageRename0.arr;
         int bi = 0;
 
+        int newRegsInt[$] = registerUnit.getIntListFront(); // TODO: type PhysicalNameQ
+
         if (anyActiveB(ops))
             renameIndsU.renameG = (renameIndsU.renameG + 1) % (2*theRob.DEPTH); // @INDS
 
@@ -258,7 +262,8 @@ module AbstractCore
             ops[i].mid = insMap.insBase.lastM + 1;
             renameOp(ops[i].mid, ops[i], i, bi,
                         theFrontend.stageRename0,
-                        renameIndsU, renameMarkersU
+                        renameIndsU, renameMarkersU,
+                        newRegsInt
                     );
             
             updateInds(renameIndsU, ops[i].mid, decMainUop(ops[i].mid)); // @INDS  Crucial state
@@ -279,8 +284,40 @@ module AbstractCore
         stageRename1.arr <= ops;
 
 
-        registerUnit.reserve(ops);
+        begin
+            RenamePatch patch;
+            AbstractInstruction insArray[RENAME_WIDTH] = '{default: FETCH_ERROR_INS};
+            MappingTable intTable = registerUnit.newestTableIdeal;
+
+            foreach (ops[i]) begin
+                if (ops[i].active !== 1) continue;
+
+                insArray[i] = decodeInContext(theFrontend.stageRename0.evt, CurrentConfig.enableFP, ops[i].bits);
+            end
+
+            patch = registerUnit.reserve(ops);
+
+            registerUnit.TMP_renameInsGroup(insArray, patch, intTable);
+
+            foreach (ops[i]) begin
+                if (ops[i].active !== 1) continue;
+
+                if (isBranchIns(insArray[i])) begin
+                    checkpointUnit.addRegCheckpoint(ops[i].mid, i, patch, registerUnit.newestTable);
+                end
+            end
+        end
+
+        checkpointUnit.check();
+
     endtask
+
+
+        function automatic AbstractInstruction decodeInContext(input ProgramEvent evt, input logic enableFP, input Word bits);
+            AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(bits) : FETCH_ERROR_INS;
+            AbstractInstruction ins = suppressDisabledInstruction(insPre, enableFP); // convert to static event if applicable
+            return ins;
+        endfunction
 
 
     task automatic renameOp(input InsId id,
@@ -289,14 +326,13 @@ module AbstractCore
                             input int currentBranch, // index of branch within used part of block
                             input FrontStage fs,
                             input IndexSet renameIndsBefore,
-                            input MarkerSet renameMarkersBefore
+                            input MarkerSet renameMarkersBefore,
+                            ref int intRegs[$]
                             );
         ProgramEvent evt = fs.evt;
         Mword adr = (evt == PE_FETCH_UNALIGNED_ADDRESS) ? fs.vadr : opSlot.adr;
-        AbstractInstruction insPre = evt == PE_NONE ? decodeAbstract(opSlot.bits) : FETCH_ERROR_INS;
 
-        // Based on CurrentConfig, Convert disabled instructions to static exceptions
-        AbstractInstruction ins = suppressDisabledInstruction(insPre, CurrentConfig.enableFP); // ins converted to static event if applicable
+        AbstractInstruction ins = decodeInContext(evt, CurrentConfig.enableFP, opSlot.bits);
         InsDependencies deps = registerUnit.registerTracker.getArgDeps(ins); // @RT
 
         Mword argVals[3] = getArgs(renamedEmul.coreState.intRegs, renamedEmul.coreState.floatRegs, ins.sources, parsingMap[ins.def.f].typeSpec);
@@ -310,7 +346,7 @@ module AbstractCore
             UopInfo mainUinfo = getMainUopInfo(ii, ins, deps, argVals, result, renameMarkersBefore);
 
             // CAREFUL registerTracker updated here
-            UopInfo uInfos[$] = makeUopInfos(mainUinfo);
+            UopInfo uInfos[$] = makeUopInfos(mainUinfo, intRegs);
             ii.nUops = uInfos.size(); 
 
             insMap.allocate(id, ii, uInfos);
@@ -400,12 +436,12 @@ module AbstractCore
     endfunction
 
 
-    function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo);
+    function automatic UopInfoQ makeUopInfos(input UopInfo mainUinfo, ref int intRegs[$]);
         UopInfoQ uInfos = splitUop(mainUinfo);
 
         for (int u = 0; u < uInfos.size(); u++) begin
             UopInfo uInfo = uInfos[u];
-            uInfos[u].physDest = registerUnit.registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u});
+            uInfos[u].physDest = registerUnit.registerTracker.reserve(uInfo.name, uInfo.vDest, '{U2M(mainUinfo.id), u}, intRegs);
             
             if (uopHasIntDest(uInfo.name) && uInfo.vDest == -1) $error(" reserve -1!  %d", U2M(mainUinfo.id));
         end
@@ -453,7 +489,7 @@ module AbstractCore
     task automatic advanceCommit();
         IndexSet commitIndsU = commitInds;
         MarkerSet commitMarkersU = commitMarkers;
-        logic foundEvent = 0;
+        logic foundEvent = 0, nonBreakpointEvent = 0;
         int eventSlot = -1;
 
         foreach (theRob.prevRow[i]) begin
@@ -482,8 +518,13 @@ module AbstractCore
             if (isControlUop(ii.mainUop) || ii.refetch || ii.exception || CurrentConfig.dbStep) begin
                 assert (theRob.prevRowEvent) else $fatal(2, "Event {%d} detected but not known in ROB", theId);
                 foundEvent = 1;
+                nonBreakpointEvent = isControlUop(ii.mainUop) || ii.refetch || ii.exception;
                 eventSlot = i;
                 TMP_checkCtrl(theId, ii);
+
+                    if (ii.id > 1960) begin
+                  //      $display("id = %p:%p\ncc = %p\n", ii.id, theId, CurrentConfig);
+                    end
             end
         end
 
@@ -492,7 +533,7 @@ module AbstractCore
         commitInds <= commitIndsU;
         commitMarkers <= commitMarkersU;
 
-        registerUnit.releaseRegs(theRob.prevRow, foundEvent, eventSlot);
+        registerUnit.releaseRegs(theRob.prevRow, nonBreakpointEvent, eventSlot);
 
     endtask
 
@@ -617,7 +658,24 @@ module AbstractCore
     function automatic UopName decMainUop(input InsId id);
         return (id == -1) ? UOP_none : insMap.get(id).mainUop;
     endfunction
-        
+
+        function automatic UopInfoQ decUops(input InsId id);
+            UopInfoQ res;
+            InstructionInfo insInfo;
+            if (id == -1) return '{};
+            insInfo = insMap.get(id);
+
+            for (int s = 0; s < insInfo.nUops; s++) begin
+                res.push_back(insMap.getU('{id, s}));
+            end
+
+            return res;
+        endfunction
+
+    function automatic UopInfo decMainUopInfo(input InsId id);
+        return insMap.getU('{id, 0});
+    endfunction
+
     //  decId - 1
     //  getAdr - 2
     function automatic AbstractInstruction decId(input InsId id);
