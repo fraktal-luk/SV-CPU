@@ -112,11 +112,7 @@ module RegisterUnit();
 
 
     function automatic void releaseRegs(input RobDefs::OpRecordA ops, input logic evt, input int evtSlot);
-        // logic selectInt[RENAME_WIDTH] = '{default: 0},
-        //       selectFloat[RENAME_WIDTH] = '{default: 0};
-
         int readPtr = nextCommitPointer;
-
         MappingTable tmpCommittedTable = committedTable;
 
         foreach (ops[i]) begin
@@ -124,35 +120,36 @@ module RegisterUnit();
 
             begin
                 UopInfoQ uops = decUops(ops[i].mid);
+                logic isEventSlot = evt && (i == evtSlot);
 
                 // TODO: add check for uopHasIntDest!
-                if (evt && (i == evtSlot)) begin
+                if (isEventSlot) begin
 
                     foreach (uops[s]) begin
                         if (uopHasIntDest(uops[s].name)) begin
                             int vReg = uops[s].vDest;
-
-                            // FUTURE: there may be exceptions which do commit their register? (like for FP traps with default result?) 
                             PhysicalName pName = allocationList[readPtr % N_REGS_INT];
+                            PhysicalName toFree = -1;
 
                             if (vReg inside {-1, 0}) continue;
 
                             readPtr++;
 
-                            if (!pName inside {-1, 0})
-                                allocationList[nextWritePointer++ % N_REGS_INT] = pName;
+                            toFree = pName;
+                            if (0)
+                                tmpCommittedTable[vReg] = pName;
+
+                            if (!toFree inside {-1, 0})
+                                allocationList[nextWritePointer++ % N_REGS_INT] = toFree;
 
                             break;
                         end
                     end
 
-                    break;
+                    break; // If its event, nothing more can go
                 end
 
                 foreach (uops[s]) begin 
-                    //selectInt[i] = (uopHasIntDest(uops[s].name));
-                    //selectFloat[i] = (uopHasFloatDest(uops[s].name));
-
                     if (uopHasIntDest(uops[s].name)) begin
                         int vReg = uops[s].vDest;
                         PhysicalName pName = allocationList[readPtr % N_REGS_INT];
@@ -163,7 +160,8 @@ module RegisterUnit();
                         readPtr++;
 
                         toFree = tmpCommittedTable[vReg];
-                        tmpCommittedTable[vReg] = pName;
+                        if (1)
+                            tmpCommittedTable[vReg] = pName;
 
                         if (!toFree inside {-1, 0})
                             allocationList[nextWritePointer++ % N_REGS_INT] = toFree;
