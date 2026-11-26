@@ -34,8 +34,6 @@ module RegisterUnit();
 
 
     MappingTable newestTable = '{default: 0}, newestTableIdeal = '{default: 0}, committedTable = '{default: 0};
-
-
     RenamePatch latestPatch;
 
 
@@ -122,33 +120,6 @@ module RegisterUnit();
                 UopInfoQ uops = decUops(ops[i].mid);
                 logic isEventSlot = evt && (i == evtSlot);
 
-                // TODO: add check for uopHasIntDest!
-                if (isEventSlot) begin
-
-                    foreach (uops[s]) begin
-                        if (uopHasIntDest(uops[s].name)) begin
-                            int vReg = uops[s].vDest;
-                            PhysicalName pName = allocationList[readPtr % N_REGS_INT];
-                            PhysicalName toFree = -1;
-
-                            if (vReg inside {-1, 0}) continue;
-
-                            readPtr++;
-
-                            toFree = pName;
-                            if (0)
-                                tmpCommittedTable[vReg] = pName;
-
-                            if (!toFree inside {-1, 0})
-                                allocationList[nextWritePointer++ % N_REGS_INT] = toFree;
-
-                            break;
-                        end
-                    end
-
-                    break; // If its event, nothing more can go
-                end
-
                 foreach (uops[s]) begin 
                     if (uopHasIntDest(uops[s].name)) begin
                         int vReg = uops[s].vDest;
@@ -159,8 +130,8 @@ module RegisterUnit();
 
                         readPtr++;
 
-                        toFree = tmpCommittedTable[vReg];
-                        if (1)
+                        toFree = isEventSlot ? pName : tmpCommittedTable[vReg];
+                        if (!isEventSlot)
                             tmpCommittedTable[vReg] = pName;
 
                         if (!toFree inside {-1, 0})
@@ -169,6 +140,8 @@ module RegisterUnit();
                         break;
                     end
                 end
+
+                if (isEventSlot) break; // No more ops after exception
             end
 
         end
@@ -213,7 +186,6 @@ module RegisterUnit();
         end
 
         // write
-
         nextTakePointer <= rc.patch.pointers[rc.index];
 
         newestTable <= rc.tb;
@@ -284,13 +256,9 @@ module RegisterUnit();
         return res;
     endfunction
 
-    // get pysical soirces:
-    // - get virt sources of every op: [RENAME_WIDTH][3]
-    // - for each of them: read physical name from newestTableIdeal
-    // - find dependencies on dests being set now: [RENAME_WIDTH] ints: -1 if not dependent, slot index if dependent
-    // - wherever dependence matrix not -1, replace with new dest at index
 
-
+    // RENAME_WIDTH first elements of HW free list
+    // TODO: type PhysicalNameQ
     function automatic IntQ getIntListFront();
         IntQ res;
 

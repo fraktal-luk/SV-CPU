@@ -222,13 +222,13 @@ module AbstractCore
             MarkerSet renameMarkersU = renameMarkers;
 
             BranchCheckpoint causingCP = checkpointUnit.getCheckpoint(branchEventInfo.eventMid);
-                RegisterCheckpoint registerCP = checkpointUnit.getRegisterCheckpoint(branchEventInfo.eventMid);
+            RegisterCheckpoint registerCP = checkpointUnit.getRegisterCheckpoint(branchEventInfo.eventMid);
             renamedEmul.setLike(causingCP.emul);
 
             checkpointUnit.flushPartial(branchEventInfo.eventMid);
 
             registerUnit.flushToCheckpoint(causingCP);
-                registerUnit.flushRegsToCheckpoint(registerCP);
+            registerUnit.flushRegsToCheckpoint(registerCP);
 
             memTracker.flush(branchEventInfo.eventMid);
             
@@ -250,8 +250,7 @@ module AbstractCore
         OpSlotAF ops = theFrontend.stageRename0.arr;
         int bi = 0;
 
-            int newRegsInt[$] = registerUnit.getIntListFront();
-
+        int newRegsInt[$] = registerUnit.getIntListFront(); // TODO: type PhysicalNameQ
 
         if (anyActiveB(ops))
             renameIndsU.renameG = (renameIndsU.renameG + 1) % (2*theRob.DEPTH); // @INDS
@@ -286,8 +285,7 @@ module AbstractCore
 
 
         begin
-
-            RenamePatch patch;// = registerUnit.reserve(ops);
+            RenamePatch patch;
             AbstractInstruction insArray[RENAME_WIDTH] = '{default: FETCH_ERROR_INS};
             MappingTable intTable = registerUnit.newestTableIdeal;
 
@@ -297,15 +295,12 @@ module AbstractCore
                 insArray[i] = decodeInContext(theFrontend.stageRename0.evt, CurrentConfig.enableFP, ops[i].bits);
             end
 
-                patch = registerUnit.reserve(ops);
+            patch = registerUnit.reserve(ops);
 
-                registerUnit.TMP_renameInsGroup(insArray, patch, intTable);
-
+            registerUnit.TMP_renameInsGroup(insArray, patch, intTable);
 
             foreach (ops[i]) begin
                 if (ops[i].active !== 1) continue;
-
-                //insArray[i] = decodeInContext(theFrontend.stageRename0.evt, CurrentConfig.enableFP, ops[i].bits);
 
                 if (isBranchIns(insArray[i])) begin
                     checkpointUnit.addRegCheckpoint(ops[i].mid, i, patch, registerUnit.newestTable);
