@@ -51,22 +51,18 @@
                 return findDest(id);
             endfunction
 
+                // Allocation list supplied externally
                 function automatic int reserveExt(input int vDest, input WriterId id, ref int freeRegs[$]);
-                    int pDest = freeRegs[0];//findFree();
+                    int pDest = freeRegs[0];
 
                     assert (info[pDest].state == FREE) else $error("Trying alloc nonfree regiser!\n%p %p -> %p\n%p", 
                                                                     id, vDest, pDest, info[pDest]);
-
-                        if (pDest == 33) begin
-                            //$error("alloc p33\n   %p  %p -> %p", id, vDest, pDest);
-                        end
-
                     if (!ignoreV(vDest)) begin
                         writersR[vDest] = id;
                         info[pDest] = '{SPECULATIVE, id};
                         MapR[vDest] = pDest;
 
-                            freeRegs.pop_front();
+                        freeRegs.pop_front();
                     end
                     return findDest(id);
                 endfunction
@@ -167,10 +163,6 @@
 
             if (uopHasIntDest(name)) begin
                 int reserved = ints.reserveExt(dest, id, intRegs);
-                // int popped = -1;
-
-                // if (reserved != -1) popped = intRegs.pop_front();
-
                 return reserved;
             end
 
